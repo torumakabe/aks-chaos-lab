@@ -21,6 +21,7 @@ graph TD
     subgraph AKS_Addons [AKS Addons]
       CI[Container Insights]
     end
+    CM[Chaos Mesh]
   end
 
   ACR -->|AcrPull| Deploy
@@ -30,11 +31,14 @@ graph TD
   Deploy -->|Container Logs/Metrics| LA
   Deploy -->|Entra ID Auth| Redis
   SA -.->|Workload Identity| UAMI
-  CS -->|Chaos Experiments| AKSCluster
+  CS -->|Chaos Experiments| CM
+  CM -->|Fault Injection| Deploy
   CI -->|Log Collection| LA
 ```
 
 ## データフロー
+
+### アプリケーション リクエスト
 ```mermaid
 sequenceDiagram
   autonumber
@@ -48,9 +52,51 @@ sequenceDiagram
   U->>I: HTTP GET /
   I->>S: route
   S->>P: forward
-  P->>R: Redis GET/SET (Entra ID token via Workload Identity)
+  P->>R: Redis GET/SET (Entra ID via WI)
   P-->>AppInsights: Traces/Metrics/Logs
   P-->>U: 200 + JSON
+```
+
+### カオス実験（制御と効果伝播）
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as User/CLI/Portal
+  participant CS as Azure Chaos Studio
+  participant CMC as Chaos Mesh Controller
+  participant KAPI as Kubernetes API Server
+  participant CMD as Chaos Mesh Daemon
+  participant DNS as Chaos DNS Server
+  participant P as Pod(App)
+  participant NET as Network Path
+  participant APPINS as Application Insights
+
+  U->>CS: 実験開始(Start/Stop)
+  CS->>CMC: capability + jsonSpec 送信
+  CMC->>KAPI: Chaos CR 作成/更新(Pod/Network/Stress/IO/Time/HTTP/DNS)
+  note over CMC,CMD: Controller が CR を監視し、各ノードの Daemon に指示
+  CMC->>CMD: gRPC: ターゲットノードへフォールト注入指示
+
+  alt PodChaos
+    opt pod-kill
+      CMC->>KAPI: Pod 削除（再スケジュール誘発）
+    end
+    opt pod-failure/container-kill
+      CMD->>P: プロセスkill/トラフィック遮断
+    end
+  else NetworkChaos
+    CMD->>NET: tc/netem・iptables 適用（delay/loss）
+    NET-->>P: レイテンシ/ロス発生
+  else DNSChaos
+    CMC->>DNS: パターン/応答ポリシー設定
+    P->>DNS: 名前解決
+    DNS-->>P: NXDOMAIN/偽IP/遅延
+  else Stress/IO/Time/HTTP
+    CMD->>P: cgroup/io/clock/http フォールト注入
+  end
+
+  P-->>APPINS: 失敗/遅延のテレメトリ送信
+  note over P,APPINS: 例) 5xx, 依存関係失敗, p95 悪化
 ```
 
 ## コンポーネント

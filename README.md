@@ -134,6 +134,7 @@ graph TD
     subgraph AKS_Addons [AKS Addons]
       CI[Container Insights]
     end
+    CM[Chaos Mesh]
   end
 
   ACR -->|AcrPull| Deploy
@@ -143,7 +144,8 @@ graph TD
   Deploy -->|Container Logs/Metrics| LA
   Deploy -->|Entra ID Auth| Redis
   SA -.->|Workload Identity| UAMI
-  CS -->|Chaos Experiments| AKSCluster
+  CS -->|Chaos Experiments| CM
+  CM -->|Fault Injection| Deploy
   CI -->|Log Collection| LA
 ```
 
