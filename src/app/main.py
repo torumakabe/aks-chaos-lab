@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import signal
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from time import monotonic
@@ -37,61 +36,6 @@ _HEALTH_CACHE_TTL = 5.0  # seconds
 # Lightweight request counter for sampling (avoid non-deterministic hash sampling)
 _request_counter: int = 0
 
-# Graceful shutdown handler
-shutdown_event = asyncio.Event()
-
-
-class GracefulShutdownHandler:
-    """Handle graceful shutdown signals for the FastAPI application.
-
-    This class manages SIGTERM and SIGINT signals to ensure that the application
-    shuts down gracefully, allowing in-flight requests to complete and resources
-    to be properly cleaned up.
-    """
-
-    def __init__(self) -> None:
-        """Initialize the graceful shutdown handler."""
-        self._shutdown_requested = False
-
-    def setup_signal_handlers(self) -> None:
-        """Set up signal handlers for graceful shutdown.
-
-        Note: Signal handlers can only be set in the main thread of the main interpreter.
-        This method will silently skip setup if called from a non-main thread (e.g., in tests).
-        """
-        try:
-            signal.signal(signal.SIGTERM, self._handle_signal)
-            signal.signal(signal.SIGINT, self._handle_signal)
-        except ValueError as e:
-            # Signal handlers can only be set in the main thread
-            # This is expected in test environments using TestClient
-            if "signal only works in main thread" in str(e):
-                logger = logging.getLogger(__name__)
-                logger.debug("Skipping signal handler setup (not in main thread)")
-            else:
-                raise
-
-    def _handle_signal(self, signum: int, frame: Any) -> None:
-        """Handle shutdown signals.
-
-        Args:
-            signum: The signal number received
-            frame: The current stack frame
-        """
-        logger = logging.getLogger(__name__)
-        logger.info(f"Received signal {signum}, starting graceful shutdown")
-        self._shutdown_requested = True
-        shutdown_event.set()
-
-    @property
-    def shutdown_requested(self) -> bool:
-        """Check if shutdown has been requested."""
-        return self._shutdown_requested
-
-
-# Global shutdown handler instance
-shutdown_handler = GracefulShutdownHandler()
-
 
 def _is_health_cache_valid() -> bool:
     ts: float | None = (
@@ -116,9 +60,10 @@ async def lifespan(app: FastAPI) -> Any:
     """Manage application lifespan with graceful startup and shutdown.
 
     This function handles:
-    - Setting up signal handlers for graceful shutdown
     - Initializing Redis connection
     - Proper cleanup of resources during shutdown
+
+    Note: Uvicorn automatically handles SIGINT/SIGTERM signals for graceful shutdown.
     """
     global redis_client
     logging.basicConfig(
@@ -127,9 +72,6 @@ async def lifespan(app: FastAPI) -> Any:
     )
     logger = logging.getLogger(__name__)
     logger.info("Starting AKS Chaos Lab")
-
-    # Setup graceful shutdown signal handlers
-    shutdown_handler.setup_signal_handlers()
 
     # Setup Redis
     if settings.redis_enabled and settings.redis_host:
@@ -155,9 +97,9 @@ async def lifespan(app: FastAPI) -> Any:
     logger.info("Shutting down AKS Chaos Lab")
 
     # Graceful shutdown: wait a bit for in-flight requests to complete
-    if shutdown_handler.shutdown_requested:
-        logger.info("Graceful shutdown initiated, waiting for in-flight requests...")
-        await asyncio.sleep(5)  # Allow time for in-flight requests to complete
+    # Uvicorn will stop accepting new connections when it receives SIGTERM/SIGINT
+    logger.info("Waiting for in-flight requests to complete...")
+    await asyncio.sleep(5)  # Allow time for in-flight requests to complete
 
     # Clean up Redis connection
     if redis_client:
