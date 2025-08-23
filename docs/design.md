@@ -96,7 +96,7 @@ sequenceDiagram
 - 目的: ネットワーク遅延（ユーザ体感劣化）と完全停止（依存不可）を個別に検証可能にする。
 - 実装方針（Bicep）:
   - 既存の `exp-aks-network-delay`（遅延: delay 200±50ms）を維持。
-  - 新規で `exp-aks-network-loss` を追加し、`loss=100%` の停止（黒穴）を注入。
+  - 新規で `exp-aks-network-loss` を追加し、`loss=100%` の停止（ブラックホール）を注入。
   - トグル: `enableNetworkChaos`（遅延）と別に `enableNetworkChaosLoss`（停止）を追加。
   - 期間管理の方針: Chaos Mesh 側の `jsonSpec.duration` を主とし（既定: `300s`）、Azure アクションの `duration` はフォールバックとして設定する（実装の優先順位に一致）。
   - `jsonSpec`（例: 停止）

@@ -175,7 +175,7 @@ graph TD
 |---|---|---|
 | **PodChaos** | Pod障害（unavailable） | `exp-aks-pod-failure` |
 | **NetworkChaos** | ネットワーク遅延 | `exp-aks-network-delay` |
-| **NetworkChaos** | ネットワーク停止（黒穴/100% loss） | `exp-aks-network-loss` |
+| **NetworkChaos** | ネットワーク停止（ブラックホール/100% loss） | `exp-aks-network-loss` |
 | **StressChaos** | CPU/メモリストレス | `exp-aks-stress` |
 | **IOChaos** | ファイルシステム障害 | `exp-aks-io` |
 | **TimeChaos** | システム時刻操作 | `exp-aks-time` |
