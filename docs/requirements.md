@@ -62,7 +62,7 @@ stateDiagram-v2
 - EARS要件: 実験が実行中のとき、システムは 対象Podから Redis へのネットワークが停止（切断）されてもフェイルファストで 503 を返し、プロセスの安定性と可観測性を維持するものとする。
 - 注入仕様（候補1: 完全切断）: `action=partition`, `direction=to`, `mode=all`, `target.selector={namespaces:[chaos-lab], labelSelectors:{app: chaos-app}}`
   - 備考: Chaos Mesh の partition により対象間の通信を遮断する（v2.2 仕様）。
-- 注入仕様（候補2: 黒穴）: `action=loss`, `loss=100%`, `direction=to`, `mode=all`
+- 注入仕様（候補2: ブラックホール）: `action=loss`, `loss=100%`, `direction=to`, `mode=all`
   - 備考: 100% パケットロスで実質的な停止を再現。
 - 受入基準:
   - `/` は標準化エラー（503 + エラーレスポンス）でフェイルファスト、パニック/クラッシュなし
