@@ -84,4 +84,4 @@ replacements:
 images:
 - name: placeholder
   newName: acrmd35j5wzi6bou.azurecr.io/aks-chaos-lab/api-dev
-  newTag: azd-deploy-1755930147
+  newTag: azd-deploy-1755951735

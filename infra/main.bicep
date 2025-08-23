@@ -245,13 +245,13 @@ output AZURE_LOG_ANALYTICS_ID string = monitoring.outputs.logAnalyticsId
 @description('Log Analytics workspace name')
 output AZURE_LOG_ANALYTICS_WORKSPACE_NAME string = monitoring.outputs.logAnalyticsNameOut
 
-@description('Redis Enterprise resource id')
+@description('Azure Managed Redis resource id')
 output AZURE_REDIS_ID string = redisEnterprise.outputs.redisId
 
-@description('Redis Enterprise hostname')
+@description('Azure Managed Redis hostname')
 output AZURE_REDIS_HOST string = redisEnterprise.outputs.redisHost
 
-@description('Redis Enterprise TLS port')
+@description('Azure Managed Redis TLS port')
 output AZURE_REDIS_PORT int = redisEnterprise.outputs.redisPort
 @description('Chaos Lab App Managed Identity client id for Workload Identity')
 output AZURE_CHAOS_APP_IDENTITY_CLIENT_ID string = chaosAppIdentity.outputs.clientId

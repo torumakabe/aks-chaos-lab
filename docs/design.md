@@ -1,14 +1,12 @@
 # 設計 - AKS Chaos Lab
 
-本ドキュメントはAKS版の技術設計を示す。AKSの特徴（Deployment/Service/Ingress、WI、Probes等）へ適切に写像する。
-
 ## アーキテクチャ（概略）
 ```mermaid
 graph TD
   ACR[Azure Container Registry]
-  Redis[Azure Redis Enterprise]
+  Redis[Azure Managed Redis]
   LA[Log Analytics]
-  AI[Application Insights]
+  AppInsights[Application Insights]
   CS[Azure Chaos Studio]
   UAMI[User Assigned Managed Identity]
   
@@ -28,7 +26,7 @@ graph TD
   ACR -->|AcrPull| Deploy
   Svc --> Deploy
   Ingress --> Svc
-  Deploy -->|OpenTelemetry| AI
+  Deploy -->|OpenTelemetry| AppInsights
   Deploy -->|Container Logs/Metrics| LA
   Deploy -->|Entra ID Auth| Redis
   SA -.->|Workload Identity| UAMI
@@ -45,13 +43,13 @@ sequenceDiagram
   participant S as Service
   participant P as Pod(App)
   participant R as Azure Managed Redis
-  participant AI as App Insights
+  participant AppInsights as Application Insights
 
   U->>I: HTTP GET /
   I->>S: route
   S->>P: forward
   P->>R: Redis GET/SET (Entra ID token via Workload Identity)
-  P-->>AI: Traces/Metrics/Logs
+  P-->>AppInsights: Traces/Metrics/Logs
   P-->>U: 200 + JSON
 ```
 
@@ -60,7 +58,7 @@ sequenceDiagram
 - Kubernetes: Deployment, Service, Ingress, ConfigMap, Secret, HPA, PodDisruptionBudget
 - セキュリティ: Azure AD Workload Identity, MSI for ACR Pull
 - 可観測性: OpenTelemetry Collector（オプション）/直接AI
- - カオス: Azure Chaos Studio + Chaos Mesh capabilities による AKS 向け実験（Pod/Network/Stress/IO/Time/HTTP/DNS の 7 種類）
+- 障害注入: Azure Chaos Studio + Chaos Mesh capabilities による AKS 向け実験（Pod/Network/Stress/IO/Time/HTTP/DNS の 7 種類）
   - Chaos Mesh: azd の Helm 統合で自動導入・管理（namespace: chaos-testing）
 
 ### Chaos Studio 実験（Bicep設計）
@@ -90,7 +88,6 @@ sequenceDiagram
   }
 }
 ```
-- 既定の影響範囲は小さく安全側（`mode: one`、delay 200ms、CPU/Mem 小規模）に設定。必要に応じて `namespace`/`label`/`duration`/jsonSpec を調整する。
 
 #### NetworkChaos バリエーション設計（遅延/停止）
 - 目的: ネットワーク遅延（ユーザ体感劣化）と完全停止（依存不可）を個別に検証可能にする。
@@ -116,26 +113,15 @@ sequenceDiagram
 - 受入基準（要件と整合）:
   - `/` は503でフェイルファストし、プロセスは健全を維持。
   - `/health` は Redis 有効時 503 を返却（ハング無し）。
-  - 終了後 60 秒以内に p95/5xx を通常水準へ回復。
-  - テレメトリ（AI/Prometheus/K8s Events）で失敗が観測可能。
-
-
-### 既知のギャップ（本フェーズでの扱い）
-- 設定生成: azd の Kustomize `env`（azure.yaml）で Bicep outputs 由来の環境変数を一時 `.env` に書き出し、kustomize の ConfigMapGenerator（`literals`+`envs`）と `replacements` で各リソースへ反映。
-- UAMI Client ID 注入: `AZURE_CHAOS_APP_IDENTITY_CLIENT_ID` を ServiceAccount アノテーションへ replacements で注入（ベースYAMLは不変）。
-
-## 適応戦略（信頼度ベース）
-- 信頼度: 高（更新）
-- 方針:
-  - 既存のテスト・品質チェックに準拠しつつ、差分領域のテストを強化
-  - azd による Chaos Mesh 自動導入は Helm 連携で実装済（`services.chaos-mesh`）
+  - 終了後 p95/5xx を通常水準へ回復。
+  - テレメトリ（Application Insights/Prometheus/K8s Events）で失敗が観測可能。
 
 ## AKS固有の設計
 
 ### ネットワーキング
 - **Azure CNI Overlay + Cilium**: 高性能データプレーンと豊富なネットワーク機能
 - **Advanced Container Networking**: L7ネットワークポリシーとネットワーク可観測性を有効化
-- **Private Endpoint**: Redis Enterpriseおよび Azure Container Registry へのセキュアなプライベート接続
+- **Private Endpoint**: Azure Managed Redisおよび Azure Container Registry へのセキュアなプライベート接続
 - **ACR プライベートアクセス**: `privatelink.azurecr.io` Private DNS ゾーンを作成し、VNet にリンク。`registry` サブリソースで Private Endpoint を作成。
 - **ACR パブリックアクセス**: 利便性のため PublicNetworkAccess を Enabled に設定（Push/Pull 可）。
 - **Web Application Routing**: AKSアドオンによるnginx ingress controller（静的IP設定、Prometheusメトリクス対応）
@@ -154,7 +140,7 @@ sequenceDiagram
   - ServiceAccount に `azure.workload.identity/client-id` アノテーションでClient ID注入
   - Pod に `azure.workload.identity/use: "true"` ラベル設定
   - 環境変数（AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_FEDERATED_TOKEN_FILE）の自動注入
-- **Entra ID認証**: Redis EnterpriseへのパスワードレスアクセスをUser Assigned Managed Identity経由で実現
+- **Entra ID認証**: Azure Managed RedisへのパスワードレスアクセスをUser Assigned Managed Identity経由で実現
 - **Private Network**: VNet統合によりインターネット経由のトラフィックを最小化
 
 ### 可観測性・監視
@@ -275,15 +261,6 @@ flowchart LR
 - RedisClient: `AuthenticationError`でのトークン再取得・1回再試行
 - テレメトリ: 設定に応じた有効/無効の分岐（接続文字列未設定時は無効化ログ）
 
-
-## 実装計画（初期）
-1) ドキュメント/READMEの整備
-2) IaC雛形: BicepでAKS, ACR, Redis, AI/LA, Chaos Studio, VNets
-3) アプリ雛形: src/ にFastAPI, Redisクライアント, OTel
-4) K8sマニフェスト: k8s/base（overlay は未使用）
-5) CI: lint/type/test, bicep build, kubectl dry-run
-6) 検証: 最小デプロイ -> /health -> Chaos CPU
-
 ## Chaos Studio AKS 故障カタログの網羅（現状）
 以下のAKS向けサービスダイレクト故障のうち、KernelChaos を除く 7 種類を実装済み（要: Chaos Mesh デプロイ）。
 
@@ -294,6 +271,9 @@ flowchart LR
 | Stress | StressChaos-2.2 | urn:csci:microsoft:azureKubernetesServiceChaosMesh:stressChaos/2.2 | CPU/Memory等のストレス付与 | jsonSpec (StressChaos: stressors, selector 等) |
 | I/O | IOChaos-2.2 | urn:csci:microsoft:azureKubernetesServiceChaosMesh:IOChaos/2.2 | I/Oの遅延/障害 | jsonSpec (IOChaos: action, delay, errno 等) |
 | DNS | DNSChaos-2.2 | urn:csci:microsoft:azureKubernetesServiceChaosMesh:dnsChaos/2.2 | DNS解決の失敗や誤応答を再現 | jsonSpec (DNSChaos: patterns, records, selector 等) |
+| HTTP | HTTPChaos-2.2 | urn:csci:microsoft:azureKubernetesServiceChaosMesh:httpChaos/2.2 | HTTP要求/応答の遅延・改変・エラーを再現 | jsonSpec (HTTPChaos: target, patch, delay/fault 等) |
+| Kernel | KernelChaos-2.2 | urn:csci:microsoft:azureKubernetesServiceChaosMesh:kernelChaos/2.2 | Linuxカーネルレベルの障害（syscall失敗など） | jsonSpec (KernelChaos: failKernRequest, selector 等) |
+| Time | TimeChaos-2.2 | urn:csci:microsoft:azureKubernetesServiceChaosMesh:timeChaos/2.2 | システムクロックのずれ・時間改変 | jsonSpec (TimeChaos: timeOffset, clockIds, selector 等) |
 
 **注記: DNS Chaosの観測可能性について**
 DNS Chaosは正常に動作し、`SERVFAIL`（Response Code: 2）エラーを返すことが確認されていますが、HubbleメトリクスでDNSエラー応答が正しく記録されない場合があります。これは以下の理由によるものと推定されます：
@@ -302,9 +282,6 @@ DNS Chaosは正常に動作し、`SERVFAIL`（Response Code: 2）エラーを返
 - Chaos Meshの独自実装がHubbleの解析に適合していない可能性
 
 この現象はDNS Chaosの核心機能には影響せず、アプリケーションレベルでのDNSエラーハンドリングテストは正常に実行できます。DNS Chaosの効果検証には、アプリケーションログやAPMツールでのエラーハンドリング監視を推奨します。
-| HTTP | HTTPChaos-2.2 | urn:csci:microsoft:azureKubernetesServiceChaosMesh:httpChaos/2.2 | HTTP要求/応答の遅延・改変・エラーを再現 | jsonSpec (HTTPChaos: target, patch, delay/fault 等) |
-| Kernel | KernelChaos-2.2 | urn:csci:microsoft:azureKubernetesServiceChaosMesh:kernelChaos/2.2 | Linuxカーネルレベルの障害（syscall失敗など） | jsonSpec (KernelChaos: failKernRequest, selector 等) |
-| Time | TimeChaos-2.2 | urn:csci:microsoft:azureKubernetesServiceChaosMesh:timeChaos/2.2 | システムクロックのずれ・時間改変 | jsonSpec (TimeChaos: timeOffset, clockIds, selector 等) |
 
 **重要: Azure Chaos Studioの実験タイプ設計**
 実験は性質に応じて`discrete`（一回実行）と`continuous`（継続実行）に分類されます：
@@ -320,9 +297,6 @@ DNS Chaosは正常に動作し、`SERVFAIL`（Response Code: 2）エラーを返
 - **DNSChaos**: DNS解決失敗は継続的な影響が必要
 - **HTTPChaos**: HTTP要求妨害は継続的な影響が必要
 - **TimeChaos**: 時間ずれは継続的な影響が必要
-
-**期間制御の二重指定の重要性**:
-Azure Chaos Studio（`defaultDuration`: PT5M）とChaos Mesh jsonSpec（`meshDuration`: 300s）で整合性を保ち、意図した期間での実験実行を保証します。discrete実験（KernelChaos）ではjsonSpec内にdurationを含めません。
 
 注意: Chaos Mesh の既知不具合により KernelChaos は一時的に除外しています。詳細: https://github.com/chaos-mesh/chaos-mesh/issues/4059
 
@@ -376,11 +350,11 @@ Azure Chaos Studio（`defaultDuration`: PT5M）とChaos Mesh jsonSpec（`meshDur
   - `app-routing-system` 名前空間内のコントローラPodを対象とする
   - ホスト名ラベルによるメトリクス分離が可能
 
-### 録画ルール（推奨）
+### レコーディングルール（推奨）
 - **ファイル**: `infra/modules/prometheus/recording-rules.bicep`
 - **対象メトリクス**: `nginx_ingress_controller_request_duration_seconds` ヒストグラム、`nginx_ingress_controller_requests`
 - **フィルタ条件**: なし（単一コントローラ運用を前提としたクラスタ全体集計）
-- **録画ルール**:
+- **レコーディングルール**:
   - `app:nginx_ingress_request:p95`: histogram_quantile(0.95, ...)によるP95遅延
   - `app:nginx_ingress_error_rate:ratio`: status≥400（4xx+5xx）のリクエスト比率
 
@@ -388,10 +362,7 @@ Azure Chaos Studio（`defaultDuration`: PT5M）とChaos Mesh jsonSpec（`meshDur
 - **ファイル**: `infra/modules/prometheus/alert-rules.bicep`
 - **閾値**: P95遅延>1秒、エラー率>1%
 - **評価期間**: 5分間の継続的な閾値超過で発火
-- **対象**: 上記録画ルールの結果を参照
-
-### 制約事項
-- 単一コントローラ集計のため、複数IngressClassを同居させる場合はラベルでの分離が必要
+- **対象**: 上記レコーディングルールの結果を参照
 
 ### 運用考慮事項
 - 閾値（P95遅延、エラー率）は環境やSLA要件に応じて調整可能

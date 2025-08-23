@@ -2,7 +2,7 @@
 param location string
 @description('Tags object')
 param tags object
-@description('Redis Enterprise name')
+@description('Azure Managed Redis name')
 param redisName string
 @description('VNet id')
 param vnetId string
