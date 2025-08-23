@@ -36,6 +36,7 @@
 ## 🚀 クイックスタート
 
 ### 前提条件
+- **動作環境**: Linux (WSL) または macOS
 - [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/) **推奨**
 - Azure CLI + Bicep extension
 - kubectl  
