@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     log_level: str = Field("INFO", alias="LOG_LEVEL")
 
     # Redis
-    redis_enabled: bool = Field(True, alias="REDIS_ENABLED")
+    redis_enabled: bool = Field(False, alias="REDIS_ENABLED")
     redis_ssl: bool = Field(True, alias="REDIS_SSL")
     # Prefer azd env when available; fallback to env vars
     redis_host: str | None = get_azd_env_value(

@@ -18,6 +18,7 @@ configMapGenerator:
   literals:
   - APP_PORT=8000
   - LOG_LEVEL=INFO
+  - REDIS_ENABLED=true
   - TELEMETRY_ENABLED=true
   - CUSTOM_METRICS_ENABLED=true
   - TELEMETRY_SAMPLING_RATE=0.1
@@ -83,4 +84,4 @@ replacements:
 images:
 - name: placeholder
   newName: acrmd35j5wzi6bou.azurecr.io/aks-chaos-lab/api-dev
-  newTag: azd-deploy-1755908256
+  newTag: azd-deploy-1755930147
