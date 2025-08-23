@@ -72,9 +72,8 @@ sequenceDiagram
   participant APPINS as Application Insights
 
   U->>CS: 実験開始(Start/Stop)
-  CS->>CMC: capability + jsonSpec 送信
-  CMC->>KAPI: Chaos CR 作成/更新(Pod/Network/Stress/IO/Time/HTTP/DNS)
-  note over CMC,CMD: Controller が CR を監視し、各ノードの Daemon に指示
+  CS->>KAPI: Chaos Mesh CR 作成/更新(capability + jsonSpec)
+  note over CMC,KAPI: Controller は K8s API の CR を監視
   CMC->>CMD: gRPC: ターゲットノードへフォールト注入指示
 
   alt PodChaos
