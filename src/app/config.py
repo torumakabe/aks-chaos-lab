@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     redis_host: str | None = get_azd_env_value(
         "AZURE_REDIS_HOST", os.getenv("REDIS_HOST")
     )
-    # Azure Cache for Redis Enterprise (Entra ID) defaults to 10000/TLS
+    # Azure Managed Redis defaults to 10000/TLS
     redis_port: int = int(
         get_azd_env_value("AZURE_REDIS_PORT", os.getenv("REDIS_PORT", "10000"))
     )

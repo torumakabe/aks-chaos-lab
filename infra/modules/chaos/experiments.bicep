@@ -237,7 +237,7 @@ var dnsChaosSpec = {
   mode: 'all'
   // Chaos Mesh supports glob-style wildcards in patterns (e.g., *.example.com).
   // Root and subdomains are matched separately; include both if required.
-  // When no hosts provided, fall back to a broad match for Azure Cache for Redis FQDNs.
+  // When no hosts provided, fall back to a broad match for Azure Managed Redis FQDNs.
   patterns: empty(redisHosts) ? ['*.*.redis.azure.net'] : redisHosts
   scope: 'cluster'
   duration: meshDuration

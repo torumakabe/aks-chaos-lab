@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class RedisClient:
-    """Azure Cache for Redis Enterprise client with Entra ID authentication.
+    """Azure Managed Redis client with Entra ID authentication.
 
     - Uses DefaultAzureCredential (aio) to obtain access tokens for scope
       "https://redis.azure.com/.default".

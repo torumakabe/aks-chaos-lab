@@ -21,7 +21,7 @@
 
 - **AKS Kubernetes 1.33** 対応
 - **Advanced Container Networking**: L7ネットワークポリシーと可観測性
-- **Redis Enterprise + Entra ID認証**: パスワードレスでセキュアなデータストア接続  
+- **Azure Managed Redis + Entra ID認証**: パスワードレスでセキュアなデータストア接続  
 - **Workload Identity**: OIDC ベースの最新Azure認証方式
 - **Container Insights**: Log Analytics統合による統合監視
 - **Azure Chaos Studio**: AKS向けChaos Mesh実験（Kernel を除く主要7種類）対応による包括的障害注入
@@ -118,9 +118,9 @@ USERS=100 SPAWN_RATE=10 DURATION=300 make load-baseline
 ```mermaid
 graph TD
   ACR[Azure Container Registry]
-  Redis[Azure Redis Enterprise]
+  Redis[Azure Managed Redis]
   LA[Log Analytics]
-  AI[Application Insights]
+  AppInsights[Application Insights]
   CS[Azure Chaos Studio]
   UAMI[User Assigned Managed Identity]
 
@@ -139,7 +139,7 @@ graph TD
   ACR -->|AcrPull| Deploy
   Svc --> Deploy
   Ingress --> Svc
-  Deploy -->|OpenTelemetry| AI
+  Deploy -->|OpenTelemetry| AppInsights
   Deploy -->|Container Logs/Metrics| LA
   Deploy -->|Entra ID Auth| Redis
   SA -.->|Workload Identity| UAMI
@@ -148,7 +148,7 @@ graph TD
 ```
 
 - **FastAPI** アプリケーション（Python 3.13）
-- **Redis Enterprise** with Entra ID認証
+- **Azure Managed Redis** with Entra ID認証
 - **OpenTelemetry** → Application Insights統合  
 - **Azure CNI Overlay + Cilium** データプレーン
 - **Advanced Container Networking** (L7ポリシー + 可観測性)

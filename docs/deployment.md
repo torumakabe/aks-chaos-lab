@@ -22,7 +22,7 @@ azd config set alpha.aks.helm on
 - **AKS**: Kubernetes 1.33, Azure CNI Overlay + Cilium, Workload Identity, Auto-upgrade: patch
   - **SKU**: Standard（Uptime SLA 有効）
   - **Cluster Autoscaler**: 有効（最小1ノード、最大3ノード）
-  - **Cost Analysis**: AKS コスト分析アドオン（Kubecost）を有効化
+  - **Cost Analysis**: AKS コスト分析アドオンを有効化
   - **Availability Zones**: 1 / 2 / 3（リージョン対応時）
 - **Advanced Container Networking**: L7ネットワークポリシー + 可観測性
 - **Container Insights**: Log Analytics統合による統合監視（Addon: omsagent, enableContainerLogV2）
@@ -33,11 +33,8 @@ azd config set alpha.aks.helm on
     - `k8s/observability/ama-metrics-settings-configmap.yaml`（`podannotationnamespaceregex` を設定、`podannotations=true`）
     - 静的ターゲットの追加ジョブは使用しない（公式手順に忠実に、アノテーションベースのみを採用）
 - **ACR**: Azure Container Registry (Premium SKU, Private Endpoint + Public Access Enabled)
-- **Redis Enterprise**: Private Endpoint + Entra ID認証
-- **監視**: Application Insights + Log Analytics (Workspace-based)
-- **Azure Monitor Workspace**: Managed Prometheus 用のワークスペース（録画/アラート ルールの格納先）
-   - トグル: `enablePrometheusWorkspace` / `enablePrometheusRecordingRules`
-   - 収集: `enablePrometheusPipeline`（DCR/DCE/DCRA を作成）
+- **Azure Managed Redis**: Private Endpoint + Entra ID認証
+- **Application Insights + Log Analytics (Workspace-based)**
 - **Web Application Routing**: AKSアドオン有効化、カスタムNginxIngressController（静的IP設定、Prometheusメトリクス対応）
 - **Chaos Studio**: 実験リソース + Chaos Mesh (AKS内)
 
@@ -113,11 +110,11 @@ kustomize build k8s/base | kubectl apply -f -
 - **VNet + サブネット**: AKS(10.10.1.0/24) + PE(10.10.2.0/24)
 - **NSG**: `snet-aks` に NSG を関連付け、受信 TCP 80/443 を許可
 - **AKS**: Kubernetes 1.33, Advanced Networking, Container Insights有効, Auto-upgrade=patch（x.y 指定で最新パッチに追随）, SKU=Standard（Uptime SLA）, Availability Zones=1/2/3
-  - 監視: Azure Monitor managed Prometheus（メトリクス）+ Container Insights（ログ/メトリクス）+ Cost Analysis（Kubecost アドオン）。LA Workspaceは `log-...` を使用。
+  - 可観測性向上: Azure Monitor managed Prometheus（メトリクス）+ Grafana Dashboard + Container Insights（ログ/メトリクス）+ Cost Analysis。LA Workspaceは `log-...` を使用。
 - **ACR**: Premium SKU, Kubelet identityにAcrPull権限付与, Private Endpoint(`registry`サブリソース) + Private DNS(`privatelink.azurecr.io`) 構成, PublicNetworkAccess=Enabled
-- **Redis Enterprise**: Private Endpoint経由, accessPolicyAssignments設定
+- **Azure Managed Redis**: Private Endpoint経由, accessPolicyAssignments設定
 - **UAMI**: Workload Identity用, Federated Credential設定
-- **監視**: Log Analytics + Application Insights
+- **可観測生向上**: Log Analytics, Application Insights
 
 ### 2. アプリケーション (Kubernetes)
 - **Namespace**: chaos-lab
@@ -173,11 +170,6 @@ kustomize build k8s/base | kubectl apply -f -
 }
 ```
 
-## 検証
-- /health が 200
-- App Insights: 依存関係失敗率・応答時間・5xx の変化
-- K8s: Pod再起動回数、Events、HPA挙動
-
 ### NetworkPolicy の適用確認
 ```
 kubectl get networkpolicy -n chaos-lab
@@ -186,16 +178,8 @@ kubectl get ciliumnetworkpolicy -n chaos-lab
 kubectl describe ciliumnetworkpolicy -n chaos-lab chaos-app-egress-allowlist
 ```
 
-期待される挙動:
-- Ingress 経由のアクセスは許可（200）
-- Pod IP:8000 への直接アクセスは拒否（同一/他Namespaceの任意Podからの疎通が失敗）
-
 注意:
 - CNI 実装によっては kubelet の Readiness/Liveness Probe が NetworkPolicy の影響を受ける場合があります。問題が発生した場合は例外ルールの追加を検討してください。
-
-## 既知事項
-- Chaos Meshの互換性: Kubernetes 1.33 + Chaos Mesh 2.7.x（fault v2.2）
-- App Insightsカスタムメトリクス参照を伴う一部Faultは権限注意（ライブラリ注記参照）
 
 ### Chaos Studio 実験（Bicep 管理）
 - 参照モジュール: `infra/modules/chaos/experiments.bicep`
@@ -239,8 +223,6 @@ az rest \
 ```
 
 注意:
-- 既定の spec は安全側（影響小）に設定。環境に合わせ `namespace`/`label`/`duration`/`jsonSpec` を調整する。
-- 追加のキャパビリティ（HTTPChaos/DNSChaos 等）はバージョン互換性を確認の上、`experiments.bicep` のフラグで有効化する。KernelChaos は Chaos Mesh の既知不具合により一時的に除外（無効化）しています。詳細: https://github.com/chaos-mesh/chaos-mesh/issues/4059
 - 期間管理の方針: Chaos Mesh 側の jsonSpec に `duration`（既定: `meshDuration=300s`）を含め、Azure アクションの `duration` はフォールバックとして設定します（実装の優先順位に一致）。
 
 ## Chaos Mesh 導入（azd/Helm）
