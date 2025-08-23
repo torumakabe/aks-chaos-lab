@@ -174,7 +174,32 @@ DNS Chaosを正常に動作させるため、CiliumNetworkPolicyには以下の�
 - Service Port（53）とTarget Port（5353）の両方に対応したルール設定
 - `chaos-testing`ネームスペースのChaos DNS Serverコンポーネントへの直接アクセス許可
 
-この設定により、DNS ChaosがCiliumNetworkPolicyによってブロックされることなく、20秒タイムアウトではなく0.070秒の即座のエラー応答を実現できます。
+この設定により、DNS ChaosがCiliumNetworkPolicyによってブロックされることなく、タイムアウトではなく即座のエラー応答を実現できます。
+
+
+```mermaid
+flowchart LR
+  subgraph app-routing-system
+    NGINX[nginx-ingress-controller Pods]
+  end
+  subgraph chaos-lab
+    APP[chaos-app Pod:8000]
+  end
+  subgraph kube-system
+    DNS[(CoreDNS)]
+  end
+  subgraph chaos-testing
+    CHAOSDNS[Chaos Mesh DNS Server]
+  end
+  NGINX -- allow TCP:8000 --> APP
+  OTHERS[Other Pods/Namespaces] -. blocked .-> APP
+  APP -. allow DNS:53 to kube-dns .-> DNS
+  APP -. allow DNS:53/5353 to .-> CHAOSDNS
+  APP ==> |allow TCP:10000| REDIS[(*.redis.azure.net)]
+  APP ==> |allow TCP:443| APM[App Insights Ingestion]
+  APP ==> |allow TCP:443| AAD[login.microsoftonline.com]
+  APP -. blocked .-> WORLD[(Other FQDNs)]
+```
 
 ### Azure Chaos Studio と Chaos Mesh の Duration Control
 
@@ -198,29 +223,6 @@ DNS Chaosを正常に動作させるため、CiliumNetworkPolicyには以下の�
 - `jsonSpec.duration` が優先され、Azure の `action.duration` はフォールバック
 - discrete 型実験（KernelChaos）では duration 不要
 - continuous 型実験では必ず `meshDuration` パラメータ（既定: 300s）を jsonSpec に含める
-
-```mermaid
-flowchart LR
-  subgraph app-routing-system
-    NGINX[nginx-ingress-controller Pods]
-  end
-  subgraph chaos-lab
-    APP[chaos-app Pod:8000]
-  end
-  subgraph kube-system
-    DNS[(CoreDNS)]
-  end
-  subgraph chaos-testing
-    CHAOSDNS[Chaos Mesh DNS Server]
-  end
-  NGINX -- allow TCP:8000 --> APP
-  OTHERS[Other Pods/Namespaces] -. blocked .-> APP
-  APP -. allow DNS:53 to kube-dns .-> DNS
-  APP -. allow DNS:53/5353 to .-> CHAOSDNS
-  APP ==> |allow TCP:10000| REDIS[(*.redis.azure.net)]
-  APP ==> |allow TCP:443| APM[App Insights Ingestion]
-  APP -. blocked .-> WORLD[(Other FQDNs)]
-```
 
 ## アプリAPIの振る舞い（要点）
 - `GET /`：Redis 利用（有効時）。障害時は 503 と標準化エラー JSON を返却。
