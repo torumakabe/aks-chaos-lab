@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: chaos-app-allow-from-ingress
+  namespace: chaos-lab
+  labels:
+    app.kubernetes.io/name: chaos-app
+    app.kubernetes.io/instance: chaos-app
+    app.kubernetes.io/part-of: aks-chaos-lab
+    app.kubernetes.io/component: networkpolicy
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  podSelector:
+    matchLabels:
+      app: chaos-app
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow traffic only from the Web Application Routing nginx ingress controller
+    - from:
+        # Controller pods in the app-routing-system namespace
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: app-routing-system
+          podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values: ["ingress-controller"]
+      ports:
+        - protocol: TCP
+          port: 8000

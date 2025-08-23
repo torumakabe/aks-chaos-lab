@@ -1,0 +1,9 @@
+{
+  "resourcesResourceGroups": "rg-",
+  "networkVirtualNetworks": "vnet-",
+  "containerRegistryRegistries": "acr",
+  "operationalInsightsWorkspaces": "log-",
+  "insightsComponents": "appi-",
+  "managedIdentityUserAssignedIdentities": "id-",
+  "cacheRedis": "redis-"
+}

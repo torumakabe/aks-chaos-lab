@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "sync-dev",
+      "type": "shell",
+      "command": "cd src && uv sync --group dev",
+      "group": "build"
+    },
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "cd src && PYTHONPATH=. uv run pytest -q",
+      "group": "build"
+    },
+    {
+      "label": "lint",
+      "type": "shell",
+      "command": "cd src && PYTHONPATH=. uv run ruff check app --fix",
+      "group": "build"
+    },
+    {
+      "label": "typecheck",
+      "type": "shell",
+      "command": "cd src && PYTHONPATH=. uv run mypy app",
+      "group": "build"
+    },
+    {
+      "label": "qa",
+      "type": "shell",
+      "command": "cd src && make qa",
+      "group": "build"
+    }
+  ]
+}

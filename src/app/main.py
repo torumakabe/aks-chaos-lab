@@ -1,0 +1,337 @@
+"""Main FastAPI application module (no chaos API)."""
+
+import asyncio
+import logging
+import signal
+from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
+from time import monotonic
+from typing import Any
+from uuid import uuid4
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from opentelemetry import trace
+
+from app.config import Settings
+from app.models import ErrorResponse, HealthResponse, MainResponse
+from app.redis_client import RedisClient
+from app.telemetry import record_span_error, setup_telemetry
+
+
+# Global instances
+def _load_settings() -> Settings:
+    # pydantic-settings builds from env; mypy complains about required fields when not using env
+    # so we ignore constructor validation at type-check level.
+    return Settings()  # type: ignore[call-arg]
+
+
+settings: Settings = _load_settings()
+redis_client: RedisClient | None = None
+
+# Health check cache (5-second TTL to reduce Redis load)
+# Cache both payload and HTTP status code to preserve semantics for unhealthy
+_health_cache: dict[str, Any] = {}
+_HEALTH_CACHE_TTL = 5.0  # seconds
+
+# Lightweight request counter for sampling (avoid non-deterministic hash sampling)
+_request_counter: int = 0
+
+# Graceful shutdown handler
+shutdown_event = asyncio.Event()
+
+
+class GracefulShutdownHandler:
+    """Handle graceful shutdown signals for the FastAPI application.
+
+    This class manages SIGTERM and SIGINT signals to ensure that the application
+    shuts down gracefully, allowing in-flight requests to complete and resources
+    to be properly cleaned up.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the graceful shutdown handler."""
+        self._shutdown_requested = False
+
+    def setup_signal_handlers(self) -> None:
+        """Set up signal handlers for graceful shutdown.
+
+        Note: Signal handlers can only be set in the main thread of the main interpreter.
+        This method will silently skip setup if called from a non-main thread (e.g., in tests).
+        """
+        try:
+            signal.signal(signal.SIGTERM, self._handle_signal)
+            signal.signal(signal.SIGINT, self._handle_signal)
+        except ValueError as e:
+            # Signal handlers can only be set in the main thread
+            # This is expected in test environments using TestClient
+            if "signal only works in main thread" in str(e):
+                logger = logging.getLogger(__name__)
+                logger.debug("Skipping signal handler setup (not in main thread)")
+            else:
+                raise
+
+    def _handle_signal(self, signum: int, frame: Any) -> None:
+        """Handle shutdown signals.
+
+        Args:
+            signum: The signal number received
+            frame: The current stack frame
+        """
+        logger = logging.getLogger(__name__)
+        logger.info(f"Received signal {signum}, starting graceful shutdown")
+        self._shutdown_requested = True
+        shutdown_event.set()
+
+    @property
+    def shutdown_requested(self) -> bool:
+        """Check if shutdown has been requested."""
+        return self._shutdown_requested
+
+
+# Global shutdown handler instance
+shutdown_handler = GracefulShutdownHandler()
+
+
+def _is_health_cache_valid() -> bool:
+    ts: float | None = (
+        _health_cache.get("_ts")
+        if isinstance(_health_cache.get("_ts"), int | float)
+        else None
+    )
+    if ts is None:
+        return False
+    elapsed: float = monotonic() - float(ts)
+    return elapsed < _HEALTH_CACHE_TTL
+
+
+def _update_health_cache(resp: HealthResponse, status_code: int) -> None:
+    _health_cache["payload"] = resp
+    _health_cache["status_code"] = status_code
+    _health_cache["_ts"] = monotonic()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> Any:
+    """Manage application lifespan with graceful startup and shutdown.
+
+    This function handles:
+    - Setting up signal handlers for graceful shutdown
+    - Initializing Redis connection
+    - Proper cleanup of resources during shutdown
+    """
+    global redis_client
+    logging.basicConfig(
+        level=getattr(logging, settings.log_level.upper()),
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logger = logging.getLogger(__name__)
+    logger.info("Starting AKS Chaos Lab")
+
+    # Setup graceful shutdown signal handlers
+    shutdown_handler.setup_signal_handlers()
+
+    # Setup Redis
+    if settings.redis_enabled and settings.redis_host:
+        logger.info(
+            "Setting up Redis client for %s:%s",
+            settings.redis_host,
+            settings.redis_port,
+        )
+        redis_client = RedisClient(settings.redis_host, settings.redis_port, settings)
+        try:
+            await redis_client.connect()
+            logger.info("Successfully connected to Redis at startup")
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to connect to Redis at startup: %s", e)
+
+    # Expose runtime dependencies via app.state
+    with suppress(Exception):
+        app.state.settings = settings
+        app.state.redis_client = redis_client
+
+    yield
+
+    logger.info("Shutting down AKS Chaos Lab")
+
+    # Graceful shutdown: wait a bit for in-flight requests to complete
+    if shutdown_handler.shutdown_requested:
+        logger.info("Graceful shutdown initiated, waiting for in-flight requests...")
+        await asyncio.sleep(5)  # Allow time for in-flight requests to complete
+
+    # Clean up Redis connection
+    if redis_client:
+        logger.info("Closing Redis connection")
+        await redis_client.close()
+
+    with suppress(Exception):
+        app.state.redis_client = None
+
+    logger.info("Application shutdown complete")
+
+
+app = FastAPI(title="AKS Chaos Lab", lifespan=lifespan)
+setup_telemetry(app)
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    """Ensure X-Request-ID is present and propagate to response and tracing.
+
+    - If header is absent, generate a UUIDv4.
+    - Store into request.state for handlers, echo in response header.
+    - Annotate current span attribute for correlation.
+    """
+    req_id = request.headers.get("X-Request-ID") or str(uuid4())
+    # Expose to handlers
+    with suppress(Exception):
+        request.state.request_id = req_id
+
+    # Attach to current span if present
+    with suppress(Exception):
+        span = trace.get_current_span()
+        if span and span.is_recording():
+            span.set_attribute("http.request_id", req_id)
+
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = req_id
+    return response
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:  # noqa: D401
+    """Handle all uncaught exceptions with standardized error response."""
+    logging.getLogger(__name__).exception("Unhandled exception: %s", exc)
+    record_span_error(exc)
+    error_response = ErrorResponse(
+        error="Internal Server Error",
+        detail=str(exc) if settings.log_level == "DEBUG" else None,
+        timestamp=datetime.now(UTC).isoformat(),
+        request_id=getattr(getattr(request, "state", object()), "request_id", None)
+        or request.headers.get("X-Request-ID"),
+    )
+    return JSONResponse(
+        status_code=500, content=error_response.model_dump(exclude_none=True)
+    )
+
+
+@app.get("/", response_model=MainResponse)
+async def root(request: Request) -> MainResponse | JSONResponse:
+    timestamp = datetime.now(UTC).isoformat()
+    redis_data: str | None = "Redis unavailable"
+    redis_error: str | None = None
+
+    cfg = getattr(getattr(request, "app", object()), "state", object())
+    runtime_settings: Settings = getattr(cfg, "settings", settings)
+    client: RedisClient | None = getattr(cfg, "redis_client", None) or redis_client
+
+    if client and runtime_settings.redis_enabled:
+        try:
+            key = "chaos_lab:data:sample"
+            val = await client.get(key)
+            if not val:
+                val = f"Data created at {timestamp}"
+                await client.set(key, val)
+            redis_data = val
+            # Reduce Redis ops: increment every 10th request deterministically
+            global _request_counter
+            _request_counter += 1
+            if _request_counter % 10 == 0:
+                await client.increment("chaos_lab:counter:requests")
+        except Exception as e:  # noqa: BLE001
+            logging.getLogger(__name__).error("Redis operation failed: %s", e)
+            redis_error = str(e)
+
+    # Emit custom metrics (best-effort)
+    with suppress(Exception):
+        from app.telemetry import record_redis_metrics  # local import to avoid cycles
+
+        connected = (
+            client is not None
+            and redis_error is None
+            and runtime_settings.redis_enabled
+        )
+        # Latency unknown here; capture as 0 when not measured on this path
+        record_redis_metrics(connected=connected, latency_ms=0)
+
+    if runtime_settings.redis_enabled and redis_error:
+        error_response = ErrorResponse(
+            error="Service Unavailable",
+            detail=f"Redis operation failed: {redis_error}",
+            timestamp=timestamp,
+            request_id=getattr(getattr(request, "state", object()), "request_id", None)
+            or request.headers.get("X-Request-ID"),
+        )
+        return JSONResponse(
+            status_code=503, content=error_response.model_dump(exclude_none=True)
+        )
+
+    return MainResponse(
+        message="Hello from AKS Chaos Lab",
+        redis_data=redis_data,
+        timestamp=timestamp,
+    )
+
+
+@app.get("/health", response_model=HealthResponse)
+async def health(request: Request) -> HealthResponse | JSONResponse:
+    if _is_health_cache_valid() and isinstance(
+        _health_cache.get("payload"), HealthResponse
+    ):
+        cached_resp = _health_cache["payload"]
+        assert isinstance(cached_resp, HealthResponse)
+        cached_code = int(_health_cache.get("status_code") or 200)
+        if cached_code != 200:
+            return JSONResponse(
+                status_code=cached_code, content=cached_resp.model_dump()
+            )
+        return cached_resp
+
+    redis_connected = False
+    redis_latency_ms = 0
+
+    cfg = getattr(getattr(request, "app", object()), "state", object())
+    runtime_settings: Settings = getattr(cfg, "settings", settings)
+    client: RedisClient | None = getattr(cfg, "redis_client", None) or redis_client
+
+    # If Redis is disabled or host is unset, skip connection and treat as healthy
+    if not runtime_settings.redis_enabled or not runtime_settings.redis_host:
+        status = "healthy"
+        resp = HealthResponse(
+            status=status,
+            redis={"connected": False, "latency_ms": 0},
+            timestamp=datetime.now(UTC).isoformat(),
+        )
+        with suppress(Exception):
+            from app.telemetry import record_redis_metrics
+
+            record_redis_metrics(connected=False, latency_ms=0)
+        _update_health_cache(resp, 200)
+        return resp
+
+    if client and runtime_settings.redis_enabled:
+        try:
+            start = asyncio.get_event_loop().time()
+            await client.ping()
+            end = asyncio.get_event_loop().time()
+            redis_connected = True
+            redis_latency_ms = int((end - start) * 1000)
+        except Exception:
+            redis_connected = False
+
+    status = "healthy" if redis_connected else "unhealthy"
+    resp = HealthResponse(
+        status=status,
+        redis={"connected": redis_connected, "latency_ms": redis_latency_ms},
+        timestamp=datetime.now(UTC).isoformat(),
+    )
+    code = 200 if status == "healthy" else 503
+    # Emit custom metrics with measured latency
+    with suppress(Exception):
+        from app.telemetry import record_redis_metrics
+
+        record_redis_metrics(connected=redis_connected, latency_ms=redis_latency_ms)
+    _update_health_cache(resp, code)
+    if code != 200:
+        return JSONResponse(status_code=code, content=resp.model_dump())
+    return resp

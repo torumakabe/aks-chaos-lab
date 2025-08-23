@@ -1,0 +1,4 @@
+# Default values for chaos-mesh via azd helm integration.
+chaosDaemon:
+  runtime: containerd
+  socketPath: /run/containerd/containerd.sock

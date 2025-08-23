@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "${AZURE_LOCATION:japaneast}"
+    },
+    "appName": {
+      "value": "aks-chaos-lab"
+    },
+    "environment": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "nodeCount": {
+      "value": 1
+    },
+    "nodeVmSize": {
+      "value": "Standard_D4ds_v5"
+    },
+    "vnetAddressPrefix": {
+      "value": "10.10.0.0/16"
+    },
+    "aksSubnetPrefix": {
+      "value": "10.10.1.0/24"
+    },
+    "peSubnetPrefix": {
+      "value": "10.10.2.0/24"
+    },
+    "kubernetesVersion": {
+      "value": "1.33"
+    },
+    "enablePrometheusWorkspace": {
+      "value": true
+    },
+    "enablePrometheusPipeline": {
+      "value": true
+    },
+    "enablePrometheusRecordingRules": {
+      "value": true
+    }
+  }
+}

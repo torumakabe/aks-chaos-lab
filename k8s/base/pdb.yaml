@@ -1,0 +1,17 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: chaos-app-pdb
+  namespace: chaos-lab
+  labels:
+    app: chaos-app
+    app.kubernetes.io/name: chaos-app
+    app.kubernetes.io/instance: chaos-app
+    app.kubernetes.io/part-of: aks-chaos-lab
+    app.kubernetes.io/component: availability
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: chaos-app

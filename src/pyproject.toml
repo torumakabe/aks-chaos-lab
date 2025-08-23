@@ -1,0 +1,93 @@
+[project]
+name = "aks-chaos-lab"
+version = "0.1.0"
+description = "AKS Chaos Lab demo app (FastAPI + Redis + OpenTelemetry)"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi>=0.109.0",
+  "uvicorn>=0.27.0",
+  "redis>=5.0.0",
+  "azure-identity>=1.15.0",
+  "aiohttp>=3.9.0",
+  "azure-monitor-opentelemetry>=1.2.0",
+  "opentelemetry-instrumentation-redis>=0.46b0",
+  "opentelemetry-instrumentation-logging>=0.46b0",
+  "opentelemetry-instrumentation-fastapi>=0.46b0",
+  "pydantic>=2.5.0",
+  "pydantic-settings>=2.1.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=7.4.0",
+  "pytest-asyncio>=0.23.0",
+  "pytest-cov>=4.1.0",
+  "pytest-env>=1.1.0",
+  "ruff>=0.1.0",
+  "mypy>=1.8.0",
+  "locust>=2.20.0",
+  "freezegun>=1.4.0",
+  "httpx>=0.25.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "ASYNC", "S", "B", "A", "C4", "T20", "SIM"]
+ignore = ["E501", "S101"]                                                       # E501: line too long, S101: use of assert in tests
+
+[tool.ruff.lint.per-file-ignores]
+# Test files can use more relaxed security rules
+"tests/**/*.py" = [
+  "S311",   # random usage OK in tests
+  "S105",   # hardcoded passwords OK in test mocks
+  "S106",   # hardcoded password args OK in test functions
+  "S603",   # subprocess calls OK in test helpers
+  "S607",   # partial paths OK in test helpers
+  "T201",   # print statements OK in load test output
+  "E722",   # bare except OK in test resilience scenarios
+  "S110",   # try-except-pass OK in test scenarios
+  "SIM117", # multiple with statements OK in tests
+]
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+strict_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+markers = ["e2e: marks tests as end-to-end tests"]
+env = [
+  "TELEMETRY_ENABLED=false",
+  "APPLICATIONINSIGHTS_CONNECTION_STRING=",
+  "REDIS_ENABLED=false",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise AssertionError",
+  "raise NotImplementedError",
+  "if __name__ == .__main__.:",
+]

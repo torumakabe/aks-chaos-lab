@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ama-metrics-prometheus-config
+  namespace: kube-system
+  labels:
+    azuremonitor.prometheus.config: "true"
+data:
+  prometheus-data-collection-settings: |
+    # This ConfigMap is used by Azure Monitor Agent to collect custom metrics
+    # Ref: https://learn.microsoft.com/azure/aks/app-routing-nginx-prometheus

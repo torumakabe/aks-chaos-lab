@@ -1,0 +1,115 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: chaos-app-egress-allowlist
+  namespace: chaos-lab
+  labels:
+    app.kubernetes.io/name: chaos-app
+    app.kubernetes.io/instance: chaos-app
+    app.kubernetes.io/part-of: aks-chaos-lab
+    app.kubernetes.io/component: networkpolicy
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: chaos-app
+  egress:
+    # Allow DNS queries from chaos-app pods to CoreDNS (kube-dns)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              # Limit DNS lookups to necessary targets
+              - matchPattern: "*.*.redis.azure.net"
+              - matchPattern: "*.in.applicationinsights.azure.com"
+              - matchPattern: "*.livediagnostics.monitor.azure.com"
+              - matchName: "dc.services.visualstudio.com"
+              - matchName: "live.applicationinsights.azure.com"
+              - matchName: "login.microsoftonline.com"
+    # Allow DNS queries to Chaos Mesh DNS (chaos-mesh-dns-server)
+    # Note: L7 DNS filters are intentionally omitted to ensure queries reach Chaos DNS.
+    - toServices:
+        - k8sService:
+            namespace: chaos-testing
+            serviceName: chaos-mesh-dns-server
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Allow direct egress to any Pod in chaos-testing namespace on 53/UDP,TCP (covers service translation to Pod IP)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: chaos-testing
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Additional rule: Allow egress to Chaos DNS Server specifically by component label
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: chaos-testing
+            k8s:app.kubernetes.io/component: chaos-dns-server
+      toPorts:
+        - ports:
+            - port: "5353"
+              protocol: UDP
+            - port: "5353"
+              protocol: TCP
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Fallback: allow direct egress to chaos-dns ClusterIP (service IP may change).
+    - toCIDRSet:
+        - cidr: 10.0.117.108/32
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+            - port: "5353"
+              protocol: UDP
+            - port: "5353"
+              protocol: TCP
+    # Allow broader Chaos Mesh communication (gRPC, metrics, etc.)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: chaos-testing
+      toPorts:
+        - ports:
+            - port: "9153"
+              protocol: TCP
+            - port: "9288"
+              protocol: TCP
+    # Allow egress to Azure Managed Redis (Enterprise) database port
+    - toFQDNs:
+        - matchPattern: "*.*.redis.azure.net"
+      toPorts:
+        - ports:
+            - port: "10000"
+              protocol: TCP
+    # Allow egress to Application Insights ingestion and live diagnostics endpoints
+    - toFQDNs:
+        - matchPattern: "*.in.applicationinsights.azure.com"
+        - matchPattern: "*.livediagnostics.monitor.azure.com"
+        - matchName: "dc.services.visualstudio.com"
+        - matchName: "live.applicationinsights.azure.com"
+        - matchName: "login.microsoftonline.com"
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

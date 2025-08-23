@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+name: aks-chaos-lab
+
+infra:
+  provider: bicep
+  path: infra
+  module: main.bicep
+services:
+  api:
+    project: src
+    language: python
+    host: aks
+    k8s:
+      namespace: chaos-lab
+      kustomize:
+        dir: ../k8s/base
+        env:
+          AZURE_CHAOS_APP_IDENTITY_CLIENT_ID: ${AZURE_CHAOS_APP_IDENTITY_CLIENT_ID}
+          AZURE_INGRESS_FQDN: ${AZURE_INGRESS_FQDN}
+          AZURE_INGRESS_PUBLIC_IP_NAME: ${AZURE_INGRESS_PUBLIC_IP_NAME}
+          AZURE_RESOURCE_GROUP: ${AZURE_RESOURCE_GROUP}
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+          AZURE_REDIS_HOST: ${AZURE_REDIS_HOST}
+          AZURE_REDIS_PORT: ${AZURE_REDIS_PORT}
+        edits:
+          - set image placeholder=${SERVICE_API_IMAGE_NAME}
+  observability:
+    project: .
+    host: aks
+    k8s:
+      namespace: kube-system
+      kustomize:
+        dir: k8s/observability
+  chaos-mesh:
+    project: .
+    host: aks
+    k8s:
+      namespace: chaos-testing
+      helm:
+        repositories:
+          - name: chaos-mesh
+            url: https://charts.chaos-mesh.org
+        releases:
+          - name: chaos-mesh
+            chart: chaos-mesh/chaos-mesh
+            version: 2.7.3
+            values: infra/helm/chaos-mesh-values.yaml

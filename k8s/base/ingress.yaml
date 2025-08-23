@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chaos-app
+  namespace: chaos-lab
+  labels:
+    app.kubernetes.io/name: chaos-app
+    app.kubernetes.io/instance: chaos-app
+    app.kubernetes.io/part-of: aks-chaos-lab
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  ingressClassName: nginx-static
+  rules:
+    - host: example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chaos-app
+                port:
+                  number: 80

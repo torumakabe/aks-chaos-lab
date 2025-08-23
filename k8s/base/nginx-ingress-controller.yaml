@@ -1,0 +1,13 @@
+apiVersion: approuting.kubernetes.azure.com/v1alpha1
+kind: NginxIngressController
+metadata:
+  name: nginx-static
+  namespace: chaos-lab
+  labels:
+    app.kubernetes.io/name: nginx-ingress-controller
+    app.kubernetes.io/part-of: aks-chaos-lab
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  ingressClassName: nginx-static
+  controllerNamePrefix: nginx-static
+  loadBalancerAnnotations: {}

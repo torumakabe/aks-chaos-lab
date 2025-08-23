@@ -1,0 +1,86 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+- serviceaccount.yaml
+- deployment.yaml
+- service.yaml
+- nginx-ingress-controller.yaml
+- ingress.yaml
+- hpa.yaml
+- pdb.yaml
+- networkpolicy.yaml
+- ciliumnetworkpolicy-egress-allowlist.yaml
+
+configMapGenerator:
+- envs:
+  - .env
+  literals:
+  - APP_PORT=8000
+  - LOG_LEVEL=INFO
+  - TELEMETRY_ENABLED=true
+  - CUSTOM_METRICS_ENABLED=true
+  - TELEMETRY_SAMPLING_RATE=0.1
+  name: app-config
+  namespace: chaos-lab
+  options:
+    disableNameSuffixHash: true
+
+replacements:
+- source:
+    fieldPath: data.AZURE_CHAOS_APP_IDENTITY_CLIENT_ID
+    kind: ConfigMap
+    name: app-config
+  targets:
+  - fieldPaths:
+    - metadata.annotations.[azure.workload.identity/client-id]
+    options:
+      create: true
+    select:
+      kind: ServiceAccount
+      name: chaos-app-sa
+      namespace: chaos-lab
+- source:
+    fieldPath: data.AZURE_INGRESS_FQDN
+    kind: ConfigMap
+    name: app-config
+  targets:
+  - fieldPaths:
+    - spec.rules.0.host
+    select:
+      group: networking.k8s.io
+      kind: Ingress
+      name: chaos-app
+      namespace: chaos-lab
+- source:
+    fieldPath: data.AZURE_RESOURCE_GROUP
+    kind: ConfigMap
+    name: app-config
+  targets:
+  - fieldPaths:
+    - spec.loadBalancerAnnotations.[service.beta.kubernetes.io/azure-load-balancer-resource-group]
+    options:
+      create: true
+    select:
+      group: approuting.kubernetes.azure.com
+      kind: NginxIngressController
+      name: nginx-static
+      namespace: chaos-lab
+- source:
+    fieldPath: data.AZURE_INGRESS_PUBLIC_IP_NAME
+    kind: ConfigMap
+    name: app-config
+  targets:
+  - fieldPaths:
+    - spec.loadBalancerAnnotations.[service.beta.kubernetes.io/azure-pip-name]
+    options:
+      create: true
+    select:
+      group: approuting.kubernetes.azure.com
+      kind: NginxIngressController
+      name: nginx-static
+      namespace: chaos-lab
+images:
+- name: placeholder
+  newName: acrmd35j5wzi6bou.azurecr.io/aks-chaos-lab/api-dev
+  newTag: azd-deploy-1755908256
