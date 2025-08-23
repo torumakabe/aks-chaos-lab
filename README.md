@@ -177,7 +177,7 @@ graph TD
 | **NetworkChaos** | ネットワーク遅延 | `exp-aks-network-delay` |
 | **NetworkChaos** | ネットワーク停止（ブラックホール/100% loss） | `exp-aks-network-loss` |
 | **StressChaos** | CPU/メモリストレス | `exp-aks-stress` |
-| **IOChaos** | ディスクI/O遅延 | `exp-aks-io` |
+| **IOChaos** | ファイルI/O遅延 | `exp-aks-io` |
 | **TimeChaos** | システム時刻操作 | `exp-aks-time` |
 | **HTTPChaos** | HTTP通信障害 | `exp-aks-http` |
 | **DNSChaos** | DNS解決障害 | `exp-aks-dns` |
