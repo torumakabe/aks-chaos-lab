@@ -178,7 +178,7 @@ sequenceDiagram
  - **Azure Monitor Workspace (AMW)**: Managed Prometheus のメトリクス保管先として AMW を明示作成（`Microsoft.Monitor/accounts`）。
  - **DCR/DCE/DCRA**: Managed Prometheus の収集パイプラインを Data Collection Rule/Endpoint/Association で明示構成（AKS クラスタとAMWを接続）。
  - **Recording Rules**: Linux/UX 向けの推奨レコーディングルール群を `prometheusRuleGroups` でIaC管理（トグルで有効化）。
- - **Cost Analysis (Kubecost)**: AKS コスト分析アドオンを有効化し、クラスタ内のコスト可視化を提供（`addonProfiles.costAnalysis`）。
+ - **Cost Analysis**: AKS コスト分析アドオンを有効化し、クラスタ内のコスト可視化を提供（`addonProfiles.costAnalysis`）。
 
 ### セキュリティ・認証  
 - **Workload Identity**: Federated Identity Credential + ServiceAccount による最新OIDC認証方式
