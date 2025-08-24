@@ -7,6 +7,7 @@ graph TD
   Redis[Azure Managed Redis]
   LA[Log Analytics]
   AppInsights[Application Insights]
+  Grafana[Azure Monitor dashboards with Grafana]
   CS[Azure Chaos Studio]
   UAMI[User Assigned Managed Identity]
   
@@ -18,9 +19,8 @@ graph TD
       Ingress[Ingress: Web Application Routing]
       SA[ServiceAccount: chaos-app-sa]
     end
-    subgraph AKS_Addons [AKS Addons]
-      CI[Container Insights]
-    end
+    CI[Container Insights]
+    Prom[Managed Prometheus]
     CM[Chaos Mesh]
   end
 
@@ -34,6 +34,7 @@ graph TD
   CS -->|Chaos Experiments| CM
   CM -->|Fault Injection| Deploy
   CI -->|Log Collection| LA
+  Prom -->|Dashboards| Grafana
 ```
 
 ## データフロー
