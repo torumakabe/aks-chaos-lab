@@ -120,7 +120,7 @@ kustomize build k8s/base | kubectl apply -f -
 - **Namespace**: chaos-lab
 - **ServiceAccount**: chaos-app-sa (Workload Identity有効、Client ID自動注入)
 - **Deployment**: 1レプリカ（初期値）, Redis + OpenTelemetry統合
-- **HorizontalPodAutoscaler**: CPU 70%/メモリ 80%閾値、1-5レプリカ自動スケール
+- **HorizontalPodAutoscaler**: CPU 70%/メモリ 80%閾値、2-4レプリカ自動スケール
 - **ConfigMap**: app-config (動的生成、環境変数含む)
 - **Service**: ClusterIP
 - **NginxIngressController**: カスタムコントローラー（`nginx-static`、静的IP設定）

@@ -25,7 +25,7 @@
 - **Workload Identity**: OIDC ベースの最新Azure認証方式
 - **Container Insights**: Log Analytics統合による統合監視
 - **Azure Chaos Studio**: AKS向けChaos Mesh実験（Kernel を除く主要7種類）対応による包括的障害注入
-- **自動スケーリング**: Cluster Autoscaler (1-3ノード) + HPA (1-5ポッド)
+- **自動スケーリング**: Cluster Autoscaler (1-3ノード) + HPA (2-4ポッド)
 
 ## ドキュメント
 - 要件: docs/requirements.md
