@@ -36,7 +36,6 @@ resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-11-01-pr
   }
 }
 
-// Private DNS zone for ACR and VNet link
 resource containerRegistryPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = {
   name: 'privatelink.azurecr.io'
   location: 'global'
@@ -53,7 +52,6 @@ resource containerRegistryPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/
   }
 }
 
-// Private Endpoint to the ACR registry
 resource containerRegistryPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-07-01' = {
   name: 'pe-${registryName}'
   location: location

@@ -21,8 +21,18 @@ param aksSubnetPrefix string = '10.10.1.0/24'
 @description('Private Endpoint subnet address prefix')
 param peSubnetPrefix string = '10.10.2.0/24'
 
+@description('AKS API Server subnet address prefix (required for Automatic mode)')
+param aksApiSubnetPrefix string = '10.10.3.0/28'
+
 @description('Kubernetes version for AKS (x.y or x.y.z)')
 param kubernetesVersion string = '1.33'
+
+@description('AKS SKU name (Base or Automatic). Default is "Base"')
+@allowed([
+  'Base'
+  'Automatic'
+])
+param aksSkuName string = 'Base'
 
 @description('Create Azure Monitor Workspace for Managed Prometheus (recommended)')
 param enablePrometheusWorkspace bool = true
@@ -36,12 +46,13 @@ param enablePrometheusPipeline bool = true
 @description('Deploy Azure Chaos Studio experiments for AKS (Chaos Mesh)')
 param enableChaosExperiments bool = true
 
-// Note: These parameters are preserved for future use when namespace/ingress filtering is supported
-// @description('Ingress name used for app SLO alerts')
-// param appSloIngressName string = 'chaos-app'
+@description('Deploy Container Insights Data Collection Rule and Association')
+param enableContainerInsights bool = true
 
-// @description('Namespace used for app SLO alerts')
-// param appSloIngressNamespace string = 'chaos-lab'
+@description('Action Group resource ID for alerts (optional, leave empty for lab use)')
+param actionGroupId string = ''
+
+ 
 
 @description('Chaos experiments namespace (Kubernetes)')
 param chaosNamespace string = 'chaos-lab'
@@ -89,12 +100,13 @@ module network './modules/network.bicep' = {
     vnetAddressPrefix: vnetAddressPrefix
     aksSubnetPrefix: aksSubnetPrefix
     peSubnetPrefix: peSubnetPrefix
+    aksApiSubnetPrefix: aksApiSubnetPrefix
     resourceToken: resourceToken
   }
 }
 
-module monitoring './modules/monitoring.bicep' = {
-  name: 'monitoring'
+module azmonitorCore './modules/azmonitor/core.bicep' = {
+  name: 'azmonitorCore'
   scope: resourceGroup
   params: {
     location: location
@@ -104,7 +116,6 @@ module monitoring './modules/monitoring.bicep' = {
   }
 }
 
-// Azure Monitor Workspace for managed Prometheus
 module azureMonitorWorkspace './modules/prometheus/workspace.bicep' = if (enablePrometheusWorkspace) {
   name: 'prometheus'
   scope: resourceGroup
@@ -115,11 +126,9 @@ module azureMonitorWorkspace './modules/prometheus/workspace.bicep' = if (enable
   }
 }
 
-// Helper variable for Prometheus workspace ID
 #disable-next-line BCP318
 var prometheusWorkspaceResourceId = enablePrometheusWorkspace ? azureMonitorWorkspace.outputs.workspaceId : ''
 
-// Managed Prometheus data collection pipeline (DCR/DCE/DCRA)
 module prometheusPipeline './modules/prometheus/pipeline.bicep' = if (enablePrometheusWorkspace && enablePrometheusPipeline) {
   name: 'prometheusPipeline'
   scope: resourceGroup
@@ -132,7 +141,6 @@ module prometheusPipeline './modules/prometheus/pipeline.bicep' = if (enableProm
   }
 }
 
-// Prometheus recording rules (Linux/UX)
 module prometheusRecordingRules './modules/prometheus/recording-rules.bicep' = if (enablePrometheusWorkspace && enablePrometheusRecordingRules) {
   name: 'prometheusRecordingRules'
   scope: resourceGroup
@@ -144,7 +152,6 @@ module prometheusRecordingRules './modules/prometheus/recording-rules.bicep' = i
   }
 }
 
-// Prometheus alert rules (Linux/UX)
 module prometheusAlertRules './modules/prometheus/alert-rules.bicep' = if (enablePrometheusWorkspace) {
   name: 'prometheusAlertRules'
   scope: resourceGroup
@@ -153,9 +160,8 @@ module prometheusAlertRules './modules/prometheus/alert-rules.bicep' = if (enabl
     tags: tags
     prometheusWorkspaceId: prometheusWorkspaceResourceId
     aksId: aksCluster.outputs.aksId
-    actionGroupId: ''
-    // Note: appIngressName and appIngressNamespace removed as they're not currently used
-    // Will be added back when namespace/ingress filtering is supported by Web App Routing
+    actionGroupId: actionGroupId
+    
   }
 }
 
@@ -181,9 +187,24 @@ module aksCluster './modules/aks.bicep' = {
     aksName: aksClusterName
     nodeVmSize: nodeVmSize
     aksSubnetId: network.outputs.aksSubnetId
+    aksApiSubnetId: network.outputs.aksApiSubnetId
     kubernetesVersion: kubernetesVersion
+    skuName: aksSkuName
     nodeResourceGroupName: nodeResourceGroupName
-    logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsId
+    logAnalyticsWorkspaceId: azmonitorCore.outputs.logAnalyticsId
+    actionGroupId: actionGroupId
+  }
+}
+
+module containerInsights './modules/azmonitor/container-insights.bicep' = if (enableContainerInsights) {
+  name: 'containerInsights'
+  scope: resourceGroup
+  params: {
+    location: location
+    tags: tags
+    aksClusterResourceId: aksCluster.outputs.aksId
+    logAnalyticsWorkspaceId: azmonitorCore.outputs.logAnalyticsId
+    nameSuffix: '${appName}-${environment}'
   }
 }
 
@@ -200,7 +221,6 @@ module redisEnterprise './modules/redis.bicep' = {
   }
 }
 
-// User Assigned Managed Identity for the chaos lab app with federated credential bound to K8s SA
 module chaosAppIdentity './modules/identity.bicep' = {
   name: 'chaosAppIdentity'
   scope: resourceGroup
@@ -214,7 +234,6 @@ module chaosAppIdentity './modules/identity.bicep' = {
   }
 }
 
-// Azure Chaos Studio experiments (AKS Chaos Mesh capabilities)
 module chaosExperiments './modules/chaos/experiments.bicep' = if (enableChaosExperiments) {
   name: 'chaosExperiments'
   scope: resourceGroup
@@ -230,7 +249,6 @@ module chaosExperiments './modules/chaos/experiments.bicep' = if (enableChaosExp
   }
 }
 
-// Outputs
 @description('AKS cluster name')
 output AZURE_AKS_CLUSTER_NAME string = aksCluster.outputs.aksNameOut
 
@@ -238,12 +256,12 @@ output AZURE_AKS_CLUSTER_NAME string = aksCluster.outputs.aksNameOut
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.outputs.loginServer
 
 @description('App Insights connection string')
-output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = azmonitorCore.outputs.applicationInsightsConnectionString
 
 @description('Log Analytics workspace id')
-output AZURE_LOG_ANALYTICS_ID string = monitoring.outputs.logAnalyticsId
+output AZURE_LOG_ANALYTICS_ID string = azmonitorCore.outputs.logAnalyticsId
 @description('Log Analytics workspace name')
-output AZURE_LOG_ANALYTICS_WORKSPACE_NAME string = monitoring.outputs.logAnalyticsNameOut
+output AZURE_LOG_ANALYTICS_WORKSPACE_NAME string = azmonitorCore.outputs.logAnalyticsNameOut
 
 @description('Azure Managed Redis resource id')
 output AZURE_REDIS_ID string = redisEnterprise.outputs.redisId
@@ -272,3 +290,6 @@ output AZURE_LOCATION string = location
 output AZURE_RESOURCE_GROUP string = resourceGroup.name
 @description('Public IP resource name for Web Application Routing')
 output AZURE_INGRESS_PUBLIC_IP_NAME string = network.outputs.publicIPName
+
+@description('Azure tenant ID')
+output AZURE_TENANT_ID string = tenant().tenantId

@@ -3,9 +3,22 @@
 本書はAKSへのデプロイ手順と構成方針を示す。
 
 ## 前提条件
+- **動作環境**: Linux (WSL) または macOS
 - [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/) **推奨**
 - Azure CLI + Bicep extension
+- **アドオンのVPAによるコスト最適化機能**: `aks-preview` 拡張機能 + プレビュー機能フラグ `AKS-AddonAutoscalingPreview` の登録が必要
+  ```bash
+  # aks-preview拡張機能のインストール
+  az extension add --name aks-preview
+  az extension update --name aks-preview
+  
+  # プレビュー機能の登録
+  az feature register --namespace "Microsoft.ContainerService" --name "AKS-AddonAutoscalingPreview"
+  az feature show --namespace "Microsoft.ContainerService" --name "AKS-AddonAutoscalingPreview"
+  az provider register --namespace Microsoft.ContainerService
+  ```
 - kubectl
+- Python 3.13+ + [uv](https://github.com/astral-sh/uv)
 - サブスクリプション権限: Contributor 以上
 - リージョン例: japaneast
 - azd Helm/Kustomize は現時点で alpha 機能のため有効化が必要（本手順で使用）
@@ -19,13 +32,15 @@ azd config set alpha.aks.helm on
 ```
 
 ## 構成要素
-- **AKS**: Kubernetes 1.33, Azure CNI Overlay + Cilium, Workload Identity, Auto-upgrade: patch
-  - **SKU**: Standard（Uptime SLA 有効）
+- **AKS**: Azure CNI Overlay + Cilium, Workload Identity, Auto-upgrade: patch
+  - **SKU**: BaseとAutomaticの両方をサポート（パラメーターで選択可能）
+    - **Base**: 従来のAKS
+    - **Automatic**: より自動化された運用を提供する新しいAKSモード
   - **Cluster Autoscaler**: 有効（最小1ノード、最大3ノード）
   - **Cost Analysis**: AKS コスト分析アドオンを有効化
   - **Availability Zones**: 1 / 2 / 3（リージョン対応時）
 - **Advanced Container Networking**: L7ネットワークポリシー + 可観測性
-- **Container Insights**: Log Analytics統合による統合監視（Addon: omsagent, enableContainerLogV2）
+- **Container Insights**: AMA + DCR による統合監視（`azureMonitorProfile.containerInsights` + DCR/DCRA）。Portal 互換のため一時的に ContainerLog(V1) も併用しています。
 - **Prometheus (Managed)**: Azure Monitor managed Prometheus を有効化（`azureMonitorProfile.metrics.enabled=true`）。Azure Monitor Workspace(AMW) は既定で作成（`enablePrometheusWorkspace=true`、無効化可）。
   - 収集パイプライン: DCE/DCR/DCRA を Bicep で構成（`enablePrometheusPipeline=true`）。
   - レコーディングルール: Linux/UX を `prometheusRuleGroups` で作成（`enablePrometheusRecordingRules`）。
@@ -39,6 +54,10 @@ azd config set alpha.aks.helm on
 - **Chaos Studio**: 実験リソース + Chaos Mesh (AKS内)
 
 ## デプロイ手順
+
+本リポジトリは**AKS Base**モードと**AKS Automatic**モードの両方をサポートしています。パラメーターファイル（`infra/main.parameters.json`）で`aksSkuName`を変更することで選択可能です：
+- **Base**: 従来のAKS（デフォルト）
+- **Automatic**: より自動化された運用を提供する新しいAKSモード
 
 ### 方法1: Azure Developer CLI (推奨)
 
@@ -79,21 +98,42 @@ curl http://<INGRESS_ADDRESS>/health
 # アノテーションベースのスクレイプ有効化後、kube-system/ama-metrics Pod が再起動して設定が反映されます
 ```
 
-注意（権限エラーのまれな発生と対処）:
+注意:
 - まれに RBAC 伝播の遅延や環境の呼び出し主体差異により、`...subnets/join/action` のエラーが出る場合があります。
 - 本テンプレートは AKS の UAMI に対してサブネットの Network Contributor を自動付与しています。数分待ってから `azd provision` を再実行してください。
 - それでも解消しない場合は、エラーメッセージに表示された client id（呼び出し主体）に対して、当該サブネットに Network Contributor を一時的に付与して再実行してください。
+
+### 開発・テスト環境での使用
+
+**ローカル開発**
+```bash
+cd src
+uv sync --group dev
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**テスト実行**
+```bash
+cd src
+make test            # 単体テスト
+make test-cov        # カバレッジレポート生成（htmlcov/）
+make lint            # リント（ruff）
+make typecheck       # 型チェック（mypy）
+make qa              # リント+テスト+型チェック 一括
+```
 
 ### 方法2: Bicep直接デプロイ（サブスクリプション スコープ）
 
 ```bash
 # 1. サブスクリプション スコープでデプロイ（RGはテンプレートが作成します）
+# リソースグループはテンプレートが作成します。事前作成は不要です。
 az deployment sub create \
   --location japaneast \
   --template-file infra/main.bicep \
   --parameters location=japaneast
 
 # 2. AKS認証情報取得（作成された RG/AKS 名は既定だと以下の通り）
+# 生成されたリソースグループ名の例: rg-aks-chaos-lab-dev
 az aks get-credentials \
   --resource-group rg-aks-chaos-lab-dev \
   --name aks-aks-chaos-lab-dev
@@ -109,7 +149,7 @@ kustomize build k8s/base | kubectl apply -f -
 - **リソースグループ**: 全リソースを管理
 - **VNet + サブネット**: AKS(10.10.1.0/24) + PE(10.10.2.0/24)
 - **NSG**: `snet-aks` に NSG を関連付け、受信 TCP 80/443 を許可
-- **AKS**: Kubernetes 1.33, Advanced Networking, Container Insights有効, Auto-upgrade=patch（x.y 指定で最新パッチに追随）, SKU=Standard（Uptime SLA）, Availability Zones=1/2/3
+- **AKS**: Advanced Networking, Container Insights有効, Auto-upgrade=patch（x.y 指定で最新パッチに追随）, SKU=Standard/Automatic（Uptime SLA）, Availability Zones=1/2/3
   - 可観測性向上: Azure Monitor managed Prometheus（メトリクス）+ Grafana Dashboard + Container Insights（ログ/メトリクス）+ Cost Analysis。LA Workspaceは `log-...` を使用。
 - **ACR**: Premium SKU, Kubelet identityにAcrPull権限付与, Private Endpoint(`registry`サブリソース) + Private DNS(`privatelink.azurecr.io`) 構成, PublicNetworkAccess=Enabled
 - **Azure Managed Redis**: Private Endpoint経由, accessPolicyAssignments設定
@@ -188,16 +228,19 @@ kubectl describe ciliumnetworkpolicy -n chaos-lab chaos-app-egress-allowlist
   - `chaosNamespace`（既定: `chaos-lab`）
   - `chaosAppLabel`（既定: `chaos-app`）
   - `chaosDuration`（既定: `PT2M`）
-- 対応実験: PodChaos / NetworkChaos（遅延/停止）/ StressChaos / IOChaos / TimeChaos（それぞれ実験リソース）
-- 作成される実験リソース名:
-  - `exp-aks-pod-failure`
-  - `exp-aks-network-delay`
-  - `exp-aks-network-loss`
-  - `exp-aks-stress`
-  - `exp-aks-io`
-  - `exp-aks-time`
-  - `exp-aks-http`
-  - `exp-aks-dns`
+### 利用可能な実験
+| 実験種類 | 障害内容 | 実験リソース名 |
+|---|---|---|
+| **PodChaos** | Pod障害（unavailable） | `exp-aks-pod-failure` |
+| **NetworkChaos** | ネットワーク遅延 | `exp-aks-network-delay` |
+| **NetworkChaos** | ネットワーク停止（ブラックホール/100% loss） | `exp-aks-network-loss` |
+| **StressChaos** | CPU/メモリストレス | `exp-aks-stress` |
+| **IOChaos** | ファイルI/O遅延 | `exp-aks-io` |
+| **TimeChaos** | システム時刻操作 | `exp-aks-time` |
+| **HTTPChaos** | HTTP通信障害 | `exp-aks-http` |
+| **DNSChaos** | DNS解決障害 | `exp-aks-dns` |
+
+注意: Chaos Mesh の既知不具合により KernelChaos は現時点では除外しています。詳細: https://github.com/chaos-mesh/chaos-mesh/issues/4059
 
 #### 実験の開始（例: CLI）
 > azd を使用した場合は Chaos Mesh が自動導入されています。手動デプロイの場合は事前に Chaos Mesh を AKS に導入してください。
@@ -222,6 +265,31 @@ az rest \
   "/subscriptions/<SUB>/resourceGroups/<RG>/providers/Microsoft.Chaos/experiments/exp-aks-pod-failure/stop?api-version=2024-01-01"
 ```
 
+## 📈 負荷テスト
+
+- `src/` ディレクトリで `make` ターゲットを使って、Locust ベースの負荷を生成できます（`uv` と `kubectl` が必要）。
+- `BASE_URL` 未指定時は `AZURE_INGRESS_FQDN` を優先し自動検出、未設定の場合は Ingress から自動検出します。
+
+```bash
+cd src
+
+# smoke（軽量・クイック検証）
+make load-smoke
+
+# baseline（デフォルト）
+make load-baseline
+
+# stress / spike プロファイル
+make load-stress
+make load-spike
+
+# 手動で BASE_URL 指定（他のパラメータも同様に上書き可）
+BASE_URL=http://<host-or-ip> make load-baseline
+USERS=100 SPAWN_RATE=10 DURATION=300 make load-baseline
+```
+
+- 推奨: 実運用に近い検証のため、負荷をかけながら Azure Chaos Studio の実験を実行してください（例: 別ターミナルで `make load-baseline` を継続しつつ、PodChaos/NetworkChaos を開始）。
+
 注意:
 - 期間管理の方針: Chaos Mesh 側の jsonSpec に `duration`（既定: `meshDuration=300s`）を含め、Azure アクションの `duration` はフォールバックとして設定します（実装の優先順位に一致）。
 
@@ -233,8 +301,14 @@ az rest \
 # デプロイ計画 - AKS Chaos Lab
 
 ## 前提
+- **動作環境**: Linux (WSL) または macOS
 - ツール: azd >=1.18, az >=2.75, Docker, jq, kubectl, helm
 - サブスクリプション権限: Contributor以上
+
+## AKS SKUオプション
+本リポジトリは**AKS Base**モードと**AKS Automatic**モードの両方をサポートしています。パラメーターファイル（`infra/main.parameters.json`）で`aksSkuName`を変更することで選択可能です：
+- **Base**: 従来のAKS（デフォルト）
+- **Automatic**: より自動化された運用を提供する新しいAKSモード
 
 ## リソース構成（Bicep想定）
 - RG, VNet/Subnet
@@ -262,5 +336,26 @@ az rest \
 - Chaos: CPU/メモリ/Pod Kill 実験での動作とメトリクス/トレース確認
 
 ## ロールバック/クリーンアップ
+
+## Container Insights（AMA + DCR）運用ノート
+- 概要: 本プロジェクトは Azure Monitor agent(AMA) と Data Collection Rule(DCR) を用いた Container Insights を採用します。AKS 側の `azureMonitorProfile.containerInsights.enabled` はエージェント有効化のスイッチであり、実際の収集/送信先は DCR/DCRA で定義します。
+
+- Portal Insights と V1/V2 の関係（重要）:
+  - 現時点で、AKS の Portal「Insights」画面の一部カード（例: Logs and events の一部）は ContainerLog(V1) の有無を前提に表示判定している挙動が確認されています。公式ドキュメントで「V1 が必要」と明記された一次情報は見当たりませんが、運用上の回避として V1 を併用すると該当カードの「Enable logs」表示が解消されます。
+  - 本プロジェクトでは一時的な回避策として `Microsoft-ContainerLog`(V1) と `Microsoft-ContainerLogV2` の両方を収集しています。将来的に Portal 側の挙動が更新されたら V1 を停止してください。
+
+- DCR/DCRA の確認コマンド:
+  - DCRA 一覧: `az monitor data-collection rule association list --scope <AKS リソースID>`
+  - DCR 一覧: `az monitor data-collection rule list -g <ResourceGroup>`
+
+- 取り込み確認（KQL 例）:
+  - `ContainerLogV2 | take 10`
+  - `ContainerLog | take 10`
+  - `KubePodInventory | summarize count() by ClusterName | take 10`
+  - `InsightsMetrics | summarize count()`
+
+- コスト最適化のヒント:
+  - 名前空間フィルタ（DCR の `namespaceFilteringMode` と `namespacesForDataCollection`）で対象を絞り込む。
+  - V2 への移行が十分進んだら V1（`Microsoft-ContainerLog`）を停止する。
 - `azd down --force --purge`
 - RG削除確認

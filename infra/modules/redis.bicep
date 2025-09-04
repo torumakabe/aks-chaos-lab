@@ -54,7 +54,6 @@ resource redisPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetwo
   }
 }
 
-// Private Endpoint
 resource redisPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-07-01' = {
   name: 'pe-${redisName}'
   location: location
@@ -89,7 +88,6 @@ output redisId string = redisEnterprise.id
 output redisHost string = redisEnterprise.properties.hostName
 output redisPort int = 10000
 
-// Optional access policy assignment for Entra ID auth
 #disable-next-line BCP081
 resource redisAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-04-01' = if (!empty(principalObjectId)) {
   name: 'app'

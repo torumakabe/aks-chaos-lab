@@ -7,7 +7,6 @@ param tags object = {}
 @description('Azure Monitor Workspace name')
 param workspaceName string
 
-// Azure Monitor Workspace for managed Prometheus
 resource azureMonitorWorkspace 'Microsoft.Monitor/accounts@2023-04-03' = {
   name: workspaceName
   location: location

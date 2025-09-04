@@ -11,6 +11,7 @@ resources:
 - pdb.yaml
 - networkpolicy.yaml
 - ciliumnetworkpolicy-egress-allowlist.yaml
+- addon-vpa.yaml
 
 configMapGenerator:
 - envs:
@@ -83,5 +84,5 @@ replacements:
       namespace: chaos-lab
 images:
 - name: placeholder
-  newName: acrmd35j5wzi6bou.azurecr.io/aks-chaos-lab/api-dev
-  newTag: azd-deploy-1755951735
+  newName: acrdvzzwfdghxmrw.azurecr.io/aks-chaos-lab/api-check
+  newTag: azd-deploy-1757062246

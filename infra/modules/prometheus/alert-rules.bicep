@@ -14,12 +14,7 @@ param aksId string
 @description('Resource ID of the Action Group for alerts')
 param actionGroupId string = ''
 
-// Note: These parameters are preserved for future use when namespace/ingress filtering is supported
-// @description('Ingress name to target for app SLO alerts')
-// param appIngressName string = 'chaos-app'
-
-// @description('Namespace of the ingress to target for app SLO alerts')
-// param appIngressNamespace string = 'chaos-lab'
+ 
 
 resource recommendedMetricAlertsClusterLevel 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'recommended-metric-alerts-cluster-level-${split(aksId, '/')[8]}'
