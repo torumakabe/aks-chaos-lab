@@ -52,8 +52,6 @@ param enableDNSChaos bool = true
 @description('List of FQDNs or wildcard patterns for DNSChaos (e.g., example.com, *.example.com). Chaos Mesh supports glob-style wildcards; include multiple entries as needed.')
 param redisHosts array = []
 
-// Create Chaos Studio target for AKS cluster (required for Chaos Mesh experiments)
-// This enables the AKS cluster as a target in Chaos Studio
 #disable-next-line BCP081
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' existing = {
   name: last(split(aksId, '/'))
@@ -66,7 +64,6 @@ resource chaosTarget 'Microsoft.Chaos/targets@2024-01-01' = {
   properties: {}
 }
 
-// Enable required capabilities for Chaos Mesh experiments
 resource chaosCapabilityPodChaos 'Microsoft.Chaos/targets/capabilities@2024-01-01' = if (enablePodChaos) {
   name: 'podChaos-2.2'
   parent: chaosTarget
@@ -107,8 +104,6 @@ resource chaosCapabilityDNSChaos 'Microsoft.Chaos/targets/capabilities@2024-01-0
   parent: chaosTarget
 }
 
-// Helper: common selector and step scaffold
-// The target must reference the Chaos Studio target resource
 var selector = {
   id: 'aks'
   type: 'List'
@@ -120,12 +115,10 @@ var selector = {
   ]
 }
 
-// JSON specs as objects (stringify at use-site)
 var podChaosSpec = {
   action: 'pod-failure'
   mode: 'one'
   duration: meshDuration
-  // Note: pod-failure changes container images to pause image, making pods unavailable
   selector: {
     namespaces: [namespace]
     labelSelectors: { app: appLabel }
@@ -156,8 +149,6 @@ var networkChaosLossSpec = {
     labelSelectors: { app: appLabel }
   }
   direction: 'to'
-  // Chaos Mesh NetworkChaos expects an object for loss spec
-  // loss: percentage (string, 0-100), correlation: percentage (string, 0-100)
   loss: {
     loss: '100'
     correlation: '0'
@@ -247,7 +238,6 @@ var dnsChaosSpec = {
   }
 }
 
-// PodChaos: make one matching pod unavailable
 resource expPodChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enablePodChaos) {
   name: 'exp-aks-pod-failure'
   location: location
@@ -268,7 +258,7 @@ resource expPodChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enablePodCha
                 name: 'urn:csci:microsoft:azureKubernetesServiceChaosMesh:podChaos/2.2'
                 type: 'continuous'
                 selectorId: 'aks'
-                duration: defaultDuration // FALLBACK: jsonSpec duration (meshDuration) controls execution time
+                duration: defaultDuration
                 parameters: [
                   {
                     key: 'jsonSpec'
@@ -284,7 +274,6 @@ resource expPodChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enablePodCha
   }
 }
 
-// NetworkChaos: inject 200ms delay to matching pods
 resource expNetworkChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableNetworkChaos) {
   name: 'exp-aks-network-delay'
   location: location
@@ -305,7 +294,7 @@ resource expNetworkChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableNe
                 name: 'urn:csci:microsoft:azureKubernetesServiceChaosMesh:networkChaos/2.2'
                 type: 'continuous'
                 selectorId: 'aks'
-                duration: defaultDuration // FALLBACK: jsonSpec duration (meshDuration) controls execution time
+                duration: defaultDuration
                 parameters: [
                   {
                     key: 'jsonSpec'
@@ -321,7 +310,6 @@ resource expNetworkChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableNe
   }
 }
 
-// NetworkChaos (loss: 100%) - simulate complete blackhole towards targets
 resource expNetworkChaosLoss 'Microsoft.Chaos/experiments@2024-01-01' = if (enableNetworkChaosLoss) {
   name: 'exp-aks-network-loss'
   location: location
@@ -342,7 +330,7 @@ resource expNetworkChaosLoss 'Microsoft.Chaos/experiments@2024-01-01' = if (enab
                 name: 'urn:csci:microsoft:azureKubernetesServiceChaosMesh:networkChaos/2.2'
                 type: 'continuous'
                 selectorId: 'aks'
-                duration: defaultDuration // FALLBACK: jsonSpec duration (meshDuration) controls execution time
+                duration: defaultDuration
                 parameters: [
                   {
                     key: 'jsonSpec'
@@ -358,7 +346,6 @@ resource expNetworkChaosLoss 'Microsoft.Chaos/experiments@2024-01-01' = if (enab
   }
 }
 
-// StressChaos: CPU + memory stress on one pod
 resource expStressChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableStressChaos) {
   name: 'exp-aks-stress'
   location: location
@@ -379,7 +366,7 @@ resource expStressChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableStr
                 name: 'urn:csci:microsoft:azureKubernetesServiceChaosMesh:stressChaos/2.2'
                 type: 'continuous'
                 selectorId: 'aks'
-                duration: defaultDuration // FALLBACK: jsonSpec duration (meshDuration) controls execution time
+                duration: defaultDuration
                 parameters: [
                   {
                     key: 'jsonSpec'
@@ -395,7 +382,6 @@ resource expStressChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableStr
   }
 }
 
-// IOChaos: file system delay on /tmp
 resource expIOChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableIOChaos) {
   name: 'exp-aks-io'
   location: location
@@ -416,7 +402,7 @@ resource expIOChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableIOChaos
                 name: 'urn:csci:microsoft:azureKubernetesServiceChaosMesh:ioChaos/2.2'
                 type: 'continuous'
                 selectorId: 'aks'
-                duration: defaultDuration // FALLBACK: jsonSpec duration (meshDuration) controls execution time
+                duration: defaultDuration
                 parameters: [
                   {
                     key: 'jsonSpec'
@@ -432,7 +418,6 @@ resource expIOChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableIOChaos
   }
 }
 
-// TimeChaos: skew time by +300s
 resource expTimeChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableTimeChaos) {
   name: 'exp-aks-time'
   location: location
@@ -453,7 +438,7 @@ resource expTimeChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableTimeC
                 name: 'urn:csci:microsoft:azureKubernetesServiceChaosMesh:timeChaos/2.2'
                 type: 'continuous'
                 selectorId: 'aks'
-                duration: defaultDuration // FALLBACK: jsonSpec duration (meshDuration) controls execution time
+                duration: defaultDuration
                 parameters: [
                   {
                     key: 'jsonSpec'
@@ -469,7 +454,6 @@ resource expTimeChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableTimeC
   }
 }
 
-// KernelChaos: inject kernel-level syscall failures
 resource expKernelChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableKernelChaos) {
   name: 'exp-aks-kernel'
   location: location
@@ -505,7 +489,6 @@ resource expKernelChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableKer
   }
 }
 
-// HTTPChaos: inject HTTP request/response failures
 resource expHTTPChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableHTTPChaos) {
   name: 'exp-aks-http'
   location: location
@@ -579,99 +562,211 @@ resource expDNSChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableDNSCha
   }
 }
 
-// Azure Kubernetes Service Cluster Admin Role
-var chaosTargetRoleDefinitionId = subscriptionResourceId(
+// Azure Kubernetes Service RBAC Admin Role (required for Microsoft Entra authentication)
+var aksRBACAdminRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
-  '0ab0b1a8-8aac-4efd-b8c2-3ee1fb270be8'
+  '3498e952-d568-435e-9b2c-8d77e338d7f7'
 )
 
-resource roleAssignmentPodChaos 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enablePodChaos) {
-  // Use new stable seed aligned with resource rename to avoid update attempts
-  name: guid(aksId, 'exp-pod-failure', chaosTargetRoleDefinitionId)
+// Azure Kubernetes Service Cluster User Role (required for Microsoft Entra authentication)
+var aksClusterUserRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '4abbcc35-e782-43d8-92c5-2d3f1bd2253f'
+)
+
+// Role assignments for PodChaos experiment - RBAC Admin
+resource roleAssignmentPodChaosRBACAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enablePodChaos) {
+  name: guid(aksId, 'exp-pod-failure', 'rbac-admin')
   scope: aksCluster
   properties: {
-    roleDefinitionId: chaosTargetRoleDefinitionId
+    roleDefinitionId: aksRBACAdminRoleDefinitionId
     principalId: expPodChaos!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-resource roleAssignmentNetworkChaos 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableNetworkChaos) {
-  // Distinct seed per variant (delay)
-  name: guid(aksId, 'exp-network-delay', chaosTargetRoleDefinitionId)
+// Role assignments for PodChaos experiment - Cluster User
+resource roleAssignmentPodChaosClusterUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enablePodChaos) {
+  name: guid(aksId, 'exp-pod-failure', 'cluster-user')
   scope: aksCluster
   properties: {
-    roleDefinitionId: chaosTargetRoleDefinitionId
+    roleDefinitionId: aksClusterUserRoleDefinitionId
+    principalId: expPodChaos!.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Role assignments for NetworkChaos experiment - RBAC Admin
+resource roleAssignmentNetworkChaosRBACAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableNetworkChaos) {
+  name: guid(aksId, 'exp-network-delay', 'rbac-admin')
+  scope: aksCluster
+  properties: {
+    roleDefinitionId: aksRBACAdminRoleDefinitionId
     principalId: expNetworkChaos!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-resource roleAssignmentNetworkChaosLoss 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableNetworkChaosLoss) {
-  name: guid(aksId, 'exp-network-loss', chaosTargetRoleDefinitionId)
+// Role assignments for NetworkChaos experiment - Cluster User
+resource roleAssignmentNetworkChaosClusterUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableNetworkChaos) {
+  name: guid(aksId, 'exp-network-delay', 'cluster-user')
   scope: aksCluster
   properties: {
-    roleDefinitionId: chaosTargetRoleDefinitionId
+    roleDefinitionId: aksClusterUserRoleDefinitionId
+    principalId: expNetworkChaos!.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Role assignments for NetworkChaos Loss experiment - RBAC Admin
+resource roleAssignmentNetworkChaosLossRBACAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableNetworkChaosLoss) {
+  name: guid(aksId, 'exp-network-loss', 'rbac-admin')
+  scope: aksCluster
+  properties: {
+    roleDefinitionId: aksRBACAdminRoleDefinitionId
     principalId: expNetworkChaosLoss!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-resource roleAssignmentStressChaos 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableStressChaos) {
-  name: guid(aksId, 'exp-stress', chaosTargetRoleDefinitionId)
+// Role assignments for NetworkChaos Loss experiment - Cluster User
+resource roleAssignmentNetworkChaosLossClusterUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableNetworkChaosLoss) {
+  name: guid(aksId, 'exp-network-loss', 'cluster-user')
   scope: aksCluster
   properties: {
-    roleDefinitionId: chaosTargetRoleDefinitionId
+    roleDefinitionId: aksClusterUserRoleDefinitionId
+    principalId: expNetworkChaosLoss!.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Role assignments for StressChaos experiment - RBAC Admin
+resource roleAssignmentStressChaosRBACAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableStressChaos) {
+  name: guid(aksId, 'exp-stress', 'rbac-admin')
+  scope: aksCluster
+  properties: {
+    roleDefinitionId: aksRBACAdminRoleDefinitionId
     principalId: expStressChaos!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-resource roleAssignmentIOChaos 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableIOChaos) {
-  name: guid(aksId, 'exp-io', chaosTargetRoleDefinitionId)
+// Role assignments for StressChaos experiment - Cluster User
+resource roleAssignmentStressChaosClusterUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableStressChaos) {
+  name: guid(aksId, 'exp-stress', 'cluster-user')
   scope: aksCluster
   properties: {
-    roleDefinitionId: chaosTargetRoleDefinitionId
+    roleDefinitionId: aksClusterUserRoleDefinitionId
+    principalId: expStressChaos!.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Role assignments for IOChaos experiment - RBAC Admin
+resource roleAssignmentIOChaosRBACAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableIOChaos) {
+  name: guid(aksId, 'exp-io', 'rbac-admin')
+  scope: aksCluster
+  properties: {
+    roleDefinitionId: aksRBACAdminRoleDefinitionId
     principalId: expIOChaos!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-resource roleAssignmentTimeChaos 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableTimeChaos) {
-  name: guid(aksId, 'exp-time', chaosTargetRoleDefinitionId)
+// Role assignments for IOChaos experiment - Cluster User
+resource roleAssignmentIOChaosClusterUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableIOChaos) {
+  name: guid(aksId, 'exp-io', 'cluster-user')
   scope: aksCluster
   properties: {
-    roleDefinitionId: chaosTargetRoleDefinitionId
+    roleDefinitionId: aksClusterUserRoleDefinitionId
+    principalId: expIOChaos!.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Role assignments for TimeChaos experiment - RBAC Admin
+resource roleAssignmentTimeChaosRBACAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableTimeChaos) {
+  name: guid(aksId, 'exp-time', 'rbac-admin')
+  scope: aksCluster
+  properties: {
+    roleDefinitionId: aksRBACAdminRoleDefinitionId
     principalId: expTimeChaos!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-resource roleAssignmentKernelChaos 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableKernelChaos) {
-  name: guid(aksId, 'exp-kernel', chaosTargetRoleDefinitionId)
+// Role assignments for TimeChaos experiment - Cluster User
+resource roleAssignmentTimeChaosClusterUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableTimeChaos) {
+  name: guid(aksId, 'exp-time', 'cluster-user')
   scope: aksCluster
   properties: {
-    roleDefinitionId: chaosTargetRoleDefinitionId
+    roleDefinitionId: aksClusterUserRoleDefinitionId
+    principalId: expTimeChaos!.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Role assignments for KernelChaos experiment - RBAC Admin
+resource roleAssignmentKernelChaosRBACAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableKernelChaos) {
+  name: guid(aksId, 'exp-kernel', 'rbac-admin')
+  scope: aksCluster
+  properties: {
+    roleDefinitionId: aksRBACAdminRoleDefinitionId
     principalId: expKernelChaos!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-resource roleAssignmentHTTPChaos 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableHTTPChaos) {
-  name: guid(aksId, 'exp-http', chaosTargetRoleDefinitionId)
+// Role assignments for KernelChaos experiment - Cluster User
+resource roleAssignmentKernelChaosClusterUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableKernelChaos) {
+  name: guid(aksId, 'exp-kernel', 'cluster-user')
   scope: aksCluster
   properties: {
-    roleDefinitionId: chaosTargetRoleDefinitionId
+    roleDefinitionId: aksClusterUserRoleDefinitionId
+    principalId: expKernelChaos!.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Role assignments for HTTPChaos experiment - RBAC Admin
+resource roleAssignmentHTTPChaosRBACAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableHTTPChaos) {
+  name: guid(aksId, 'exp-http', 'rbac-admin')
+  scope: aksCluster
+  properties: {
+    roleDefinitionId: aksRBACAdminRoleDefinitionId
     principalId: expHTTPChaos!.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-resource roleAssignmentDNSChaos 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableDNSChaos) {
-  name: guid(aksId, 'exp-dns', chaosTargetRoleDefinitionId)
+// Role assignments for HTTPChaos experiment - Cluster User
+resource roleAssignmentHTTPChaosClusterUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableHTTPChaos) {
+  name: guid(aksId, 'exp-http', 'cluster-user')
   scope: aksCluster
   properties: {
-    roleDefinitionId: chaosTargetRoleDefinitionId
+    roleDefinitionId: aksClusterUserRoleDefinitionId
+    principalId: expHTTPChaos!.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Role assignments for DNSChaos experiment - RBAC Admin
+resource roleAssignmentDNSChaosRBACAdmin 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableDNSChaos) {
+  name: guid(aksId, 'exp-dns', 'rbac-admin')
+  scope: aksCluster
+  properties: {
+    roleDefinitionId: aksRBACAdminRoleDefinitionId
+    principalId: expDNSChaos!.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Role assignments for DNSChaos experiment - Cluster User
+resource roleAssignmentDNSChaosClusterUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableDNSChaos) {
+  name: guid(aksId, 'exp-dns', 'cluster-user')
+  scope: aksCluster
+  properties: {
+    roleDefinitionId: aksClusterUserRoleDefinitionId
     principalId: expDNSChaos!.identity.principalId
     principalType: 'ServicePrincipal'
   }

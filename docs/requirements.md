@@ -145,7 +145,7 @@ stateDiagram-v2
 - システムは常に 主要エンドポイントと基本機能の自動テスト（ユニットテスト）が存在するものとする。統合テストは必要に応じて段階的に追加する。
 
 ## 依存/制約
-- AKSのバージョンは1.33、ネットワークはAzure CNI Overlay + Cilium、Workload Identityを採用。
+- AKSのネットワークはAzure CNI Overlay + Cilium、Workload Identityを採用。
 - Advanced Container Networkingアドオンを有効化し、L7ネットワークポリシーと可観測性を強化。
   - chaos-app への受信トラフィックは Ingress Controller 経由のみに制限すること（`k8s/base/networkpolicy.yaml`）。
   - 送信は Redis と App Insights、認証（`login.microsoftonline.com`）等に限定すること（`k8s/base/ciliumnetworkpolicy-egress-allowlist.yaml`）。

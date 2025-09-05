@@ -11,9 +11,6 @@
     "environment": {
       "value": "${AZURE_ENV_NAME}"
     },
-    "nodeCount": {
-      "value": 1
-    },
     "nodeVmSize": {
       "value": "Standard_D4ds_v5"
     },
@@ -26,8 +23,14 @@
     "peSubnetPrefix": {
       "value": "10.10.2.0/24"
     },
+    "aksApiSubnetPrefix": {
+      "value": "10.10.3.0/28"
+    },
     "kubernetesVersion": {
       "value": "1.33"
+    },
+    "aksSkuName": {
+      "value": "Base"
     },
     "enablePrometheusWorkspace": {
       "value": true
@@ -37,6 +40,24 @@
     },
     "enablePrometheusRecordingRules": {
       "value": true
+    },
+    "enableChaosExperiments": {
+      "value": true
+    },
+    "enableContainerInsights": {
+      "value": true
+    },
+    "actionGroupId": {
+      "value": ""
+    },
+    "chaosNamespace": {
+      "value": "chaos-lab"
+    },
+    "chaosAppLabel": {
+      "value": "chaos-app"
+    },
+    "chaosDuration": {
+      "value": "PT5M"
     }
   }
 }

@@ -134,7 +134,7 @@ resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRule
       }
       {
         record: 'cluster:namespace:pod_cpu:active:kube_pod_container_resource_limits'
-        expression: 'kube_pod_container_resource_limits{resource="cpu",job="kube-state-metrics"}  * on (namespace, pod, cluster)group_left() max by (namespace, pod, cluster) ( (kube_pod_status_phase{phase=~"Pending|Running"} == 1) )'
+        expression: 'kube_pod_container_resource_limits{resource="cpu",job="kube-state-metrics"}  * on (namespace, pod, cluster) group_left() max by (namespace, pod, cluster) ( (kube_pod_status_phase{phase=~"Pending|Running"} == 1) )'
       }
       {
         record: 'namespace_cpu:kube_pod_container_resource_limits:sum'
@@ -180,7 +180,6 @@ resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRule
   }
 }
 
-// Application SLO recording rules (Web Application Routing nginx)
 resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: appSloRecordingRuleGroupName
   location: location
@@ -192,22 +191,18 @@ resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGrou
     interval: 'PT1M'
     rules: [
       {
-        // p95 latency for Web Application Routing nginx (cluster-wide)
         record: 'app:nginx_ingress_request:p95'
         expression: 'histogram_quantile(0.95, sum by (le) (rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])))'
       }
       {
-        // Error rate (4xx+5xx) cluster-wide - simplified with zero-traffic handling
         record: 'app:nginx_ingress_error_rate:ratio'
         expression: 'sum(rate(nginx_ingress_controller_request_duration_seconds_count{status=~"[45].."}[5m])) / clamp_min(sum(rate(nginx_ingress_controller_request_duration_seconds_count[5m])), 0.001)'
       }
       {
-        // Total request rate cluster-wide - simplified
         record: 'app:nginx_ingress_request_rate'
         expression: 'sum(rate(nginx_ingress_controller_request_duration_seconds_count[5m]))'
       }
       {
-        // Total requests count (for SLO calculations) - simplified
         record: 'app:nginx_ingress_request_total'
         expression: 'sum(nginx_ingress_controller_request_duration_seconds_count)'
       }

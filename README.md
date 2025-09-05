@@ -19,11 +19,10 @@
 
 ## 🌟 主な機能
 
-- **AKS Kubernetes 1.33** 対応
 - **Advanced Container Networking**: L7ネットワークポリシーと可観測性
 - **Azure Managed Redis + Entra ID認証**: パスワードレスでセキュアなデータストア接続  
 - **Workload Identity**: OIDC ベースの最新Azure認証方式
-- **Container Insights**: Log Analytics統合による統合監視
+- **Container Insights**: AMA + DCR による統合監視（Log Analytics 連携）
 - **Azure Chaos Studio**: AKS向けChaos Mesh実験（Kernel を除く主要7種類）対応による包括的障害注入
 - **自動スケーリング**: Cluster Autoscaler (1-3ノード) + HPA (2-4ポッド)
 
@@ -39,10 +38,25 @@
 - **動作環境**: Linux (WSL) または macOS
 - [Azure Developer CLI (azd)](https://learn.microsoft.com/azure/developer/azure-developer-cli/) **推奨**
 - Azure CLI + Bicep extension
+- **アドオンのVPAによるコスト最適化機能**: `aks-preview` 拡張機能 + プレビュー機能フラグ `AKS-AddonAutoscalingPreview` の登録が必要
+  ```bash
+  # aks-preview拡張機能のインストール
+  az extension add --name aks-preview
+  az extension update --name aks-preview
+  
+  # プレビュー機能の登録
+  az feature register --namespace "Microsoft.ContainerService" --name "AKS-AddonAutoscalingPreview"
+  az feature show --namespace "Microsoft.ContainerService" --name "AKS-AddonAutoscalingPreview"
+  az provider register --namespace Microsoft.ContainerService
+  ```
 - kubectl  
 - Python 3.13+ + [uv](https://github.com/astral-sh/uv)
 
 ### デプロイメント
+
+本リポジトリは**AKS Base**モードと**AKS Automatic**モードの両方をサポートしています。パラメーターファイル（`infra/main.parameters.json`）で`aksSkuName`を変更することで選択可能です：
+- **Base**: 従来のAKS（デフォルト）
+- **Automatic**: より自動化された運用を提供する新しいAKSモード
 
 **推奨: Azure Developer CLI**
 ```bash
@@ -87,6 +101,19 @@ make lint            # リント（ruff）
 make typecheck       # 型チェック（mypy）
 make qa              # リント+テスト+型チェック 一括
 ```
+
+### 環境削除
+```bash
+# Azure Developer CLI（推奨）
+azd down
+```
+
+> **⚠️ 注意**: `azd down`は依存関係を考慮せずに並列でリソースグループを削除しようとするため、Azure Monitor Workspace（AMW）と、AMWが管理するリソースグループの削除順序が不適切になり、DenyAssignmentAuthorizationFailedエラーで失敗する場合があります。  
+> この問題が発生した場合は、以下いずれかの方法で対処してください：
+> - **再実行**: `azd down`を再度実行
+> - **手動削除**: Azure CLIで直接削除 `az group delete --name <主リソースグループ名>`
+> 
+> 詳細: azdは削除時にBicepの依存関係定義を参照せず、Azure Resource Manager APIによる依存関係を考慮した削除も行いません。
 
 ## 📈 負荷テスト
 
@@ -155,7 +182,7 @@ graph TD
 - **OpenTelemetry** → Application Insights統合  
 - **Azure CNI Overlay + Cilium** データプレーン
 - **Advanced Container Networking** (L7ポリシー + 可観測性)
-- **Container Insights** → Log Analytics統合
+- **Container Insights** → AMA + DCR で Log Analytics 統合
 
 詳細な設計は [docs/design.md](docs/design.md) を参照
 
@@ -166,8 +193,9 @@ graph TD
 - Application Insights（トレース/ログ/メトリクス）: アプリ側の OpenTelemetry 設定済み（`APPLICATIONINSIGHTS_CONNECTION_STRING`）。
 - Azure Monitor managed Prometheus: AMA のアノテーションスクレイプ設定（`k8s/observability/*`）と収集パイプライン/ワークスペースを IaC で構成。
   - Prometheusレコーディング/アラート ルール: `infra/modules/prometheus/recording-rules.bicep` / `alert-rules.bicep`
+  - **注記**: ノード関連メトリクスは環境作成直後に収集されないことがあります。これはnode exporterのインストールが他のタスクより優先度が低いためです。最大24時間待つと導入されます。詳細: [Azure/prometheus-collector#483](https://github.com/Azure/prometheus-collector/issues/483)
 - Grafana ダッシュボード: Azure Portal の 対象AKS > Monitoring > Dashboards with Grafana から参照できます。
-- Container Insights: `addonProfiles.omsagent` によりコンテナログ/メトリクスを収集。
+- Container Insights: AMA + DCR（`azureMonitorProfile.containerInsights` と DCR/DCRA）によりコンテナログ/メトリクスを収集。
 
 詳細は [docs/deployment.md](docs/deployment.md) / [docs/design.md](docs/design.md) を参照してください。
 

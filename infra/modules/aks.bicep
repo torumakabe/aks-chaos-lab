@@ -12,10 +12,172 @@ param nodeResourceGroupName string
 param nodeVmSize string
 @description('AKS subnet id')
 param aksSubnetId string
+@description('AKS API Server subnet id (required for both Base and Automatic modes when using VNet Integration)')
+param aksApiSubnetId string = ''
 @description('Log Analytics workspace resource ID for Container Insights')
 param logAnalyticsWorkspaceId string
 
+@description('Action Group resource ID for alerts (optional, leave empty for lab use)')
+param actionGroupId string = ''
+
+@description('AKS SKU name (Base or Automatic). Default is "Base"')
+@allowed([
+  'Base'
+  'Automatic'
+])
+param skuName string = 'Base'
+
 var resourceGroupSuffix = uniqueString(resourceGroup().id)
+
+// KQL queries for auto-upgrade alerts
+var aksAutoUpgradeKqlTemplate = sys.loadTextContent('templates/aks-autoupgrade.kql')
+var aksAutoUpgradeKql = replace(aksAutoUpgradeKqlTemplate, '{{AKS_ID}}', aksCluster.id)
+var aksNodeOsAutoUpgradeKqlTemplate = sys.loadTextContent('templates/aks-nodeos-autoupgrade.kql')
+var aksNodeOsAutoUpgradeKql = replace(aksNodeOsAutoUpgradeKqlTemplate, '{{AKS_ID}}', aksCluster.id)
+
+// Common properties shared between Base and Automatic modes
+var aksCommonProperties = {
+  nodeResourceGroup: nodeResourceGroupName
+  dnsPrefix: 'dns${substring(resourceGroupSuffix, 0, 8)}'
+  metricsProfile: {
+    costAnalysis: { enabled: true }
+  }
+  workloadAutoScalerProfile: {
+    verticalPodAutoscaler: {
+      enabled: true
+      addonAutoscaling: 'Enabled'
+    }
+  }
+  // Enable Azure Monitor managed Prometheus (metrics) and container insights
+  azureMonitorProfile: {
+    containerInsights: {
+      enabled: true
+      logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceId
+    }
+    metrics: {
+      enabled: true
+      kubeStateMetrics: {
+        metricAnnotationsAllowList: ''
+        metricLabelsAllowlist: ''
+      }
+    }
+    appMonitoring: {
+      // Disabled by default to avoid double-instrumentation.
+      // Note: The chaos-app in this repository uses manual instrumentation (OpenTelemetry SDK).
+      // Flip to true only if you want AKS-managed auto-instrumentation instead.
+      autoInstrumentation: {
+        enabled: false
+      }
+      openTelemetryLogs: {
+        enabled: true
+      }
+      openTelemetryMetrics: {
+        enabled: true
+      }
+    }
+  }
+}
+
+// Base mode specific properties
+var aksBaseSpecificProperties = {
+  // In Base mode, allow explicit Kubernetes version control
+  kubernetesVersion: kubernetesVersion
+  oidcIssuerProfile: { enabled: true }
+  securityProfile: { workloadIdentity: { enabled: true } }
+  // Enable Azure RBAC for Kubernetes authorization to match Automatic mode security
+  aadProfile: {
+    managed: true
+    enableAzureRbac: true
+  }
+  // Enable API Server VNet Integration for Base mode
+  apiServerAccessProfile: {
+    enableVnetIntegration: true
+    subnetId: aksApiSubnetId
+  }
+  // Auto-upgrade settings
+  autoUpgradeProfile: {
+    upgradeChannel: 'patch'
+    nodeOSUpgradeChannel: 'NodeImage'
+  }
+  autoScalerProfile: {
+    'daemonset-eviction-for-occupied-nodes': true
+    'max-node-provision-time': '15m'
+    'scale-down-delay-after-add': '10m'
+  }
+  networkProfile: {
+    // Azure CNI overlay with Cilium dataplane
+    networkPlugin: 'azure'
+    networkPluginMode: 'overlay'
+    networkDataplane: 'cilium'
+    networkPolicy: 'cilium'
+    advancedNetworking: {
+      enabled: true
+      observability: {
+        enabled: true
+      }
+      security: {
+        enabled: true
+        advancedNetworkPolicies: 'FQDN'
+      }
+    }
+  }
+  ingressProfile: {
+    webAppRouting: {
+      enabled: true
+    }
+  }
+  agentPoolProfiles: [
+    {
+      name: 'default'
+      vmSize: nodeVmSize
+      mode: 'System'
+      // Distribute nodes across availability zones (1/2/3 if region supports)
+      availabilityZones: [
+        '1'
+        '2'
+        '3'
+      ]
+      vnetSubnetID: aksSubnetId
+      orchestratorVersion: kubernetesVersion
+      enableAutoScaling: true
+      minCount: 1
+      maxCount: 3
+    }
+  ]
+}
+
+// Automatic mode specific properties
+var aksAutomaticSpecificProperties = {
+  apiServerAccessProfile: {
+    enableVnetIntegration: true
+    subnetId: aksApiSubnetId
+  }
+  networkProfile: {
+    advancedNetworking: {
+      enabled: true
+      observability: {
+        enabled: true
+      }
+      security: {
+        enabled: true
+        advancedNetworkPolicies: 'FQDN'
+      }
+    }
+  }
+  // Agent pools are automatically managed in Automatic mode
+  agentPoolProfiles: [
+    {
+      name: 'system'
+      vnetSubnetID: aksSubnetId
+      mode: 'System'
+      count: 3
+    }
+  ]
+}
+
+// Compose final properties using union
+var aksBaseProperties = union(aksCommonProperties, aksBaseSpecificProperties)
+var aksAutomaticProperties = union(aksCommonProperties, aksAutomaticSpecificProperties)
 
 // User Assigned Managed Identity for AKS cluster
 resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
@@ -29,10 +191,9 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-06-02-previ
   name: aksName
   location: location
   tags: tags
-  kind: 'Base'
   // Enable Uptime SLA by switching AKS SKU tier
   sku: {
-    name: 'Base'
+    name: skuName
     tier: 'Standard'
   }
   identity: {
@@ -41,113 +202,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-06-02-previ
       '${aksIdentity.id}': {}
     }
   }
-  properties: {
-    nodeResourceGroup: nodeResourceGroupName
-    enableRBAC: true
-    supportPlan: 'KubernetesOfficial'
-    // Auto-upgrade settings
-    autoUpgradeProfile: {
-      upgradeChannel: 'patch'
-      nodeOSUpgradeChannel: 'NodeImage'
-    }
-    autoScalerProfile: {
-      'balance-similar-node-groups': 'false'
-      'daemonset-eviction-for-empty-nodes': false
-      'daemonset-eviction-for-occupied-nodes': true
-      'ignore-daemonsets-utilization': false
-      'max-node-provision-time': '15m'
-      'scale-down-delay-after-add': '10m'
-      'skip-nodes-with-local-storage': 'false'
-    }
-    kubernetesVersion: kubernetesVersion
-    dnsPrefix: 'dns${substring(resourceGroupSuffix, 0, 8)}'
-    oidcIssuerProfile: { enabled: true }
-    securityProfile: { workloadIdentity: { enabled: true } }
-    networkProfile: {
-      // Azure CNI overlay with Cilium dataplane
-      networkPlugin: 'azure'
-      networkPluginMode: 'overlay'
-      networkDataplane: 'cilium'
-      networkPolicy: 'cilium'
-      loadBalancerSku: 'standard'
-      outboundType: 'loadBalancer'
-      advancedNetworking: {
-        enabled: true
-        observability: {
-          enabled: true
-        }
-        security: {
-          enabled: true
-          advancedNetworkPolicies: 'FQDN'
-        }
-      }
-    }
-    ingressProfile: {
-      webAppRouting: {
-        enabled: true
-      }
-    }
-    metricsProfile: {
-      costAnalysis: { enabled: true }
-    }
-    addonProfiles: {
-      omsagent: {
-        enabled: true
-        config: {
-          logAnalyticsWorkspaceResourceID: logAnalyticsWorkspaceId
-          enableContainerLogV2: 'true'
-        }
-      }
-    }
-    // Enable Azure Monitor managed Prometheus (metrics) and app monitoring pipeline
-    azureMonitorProfile: {
-      containerInsights: {
-        enabled: true
-        logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceId
-      }
-      metrics: {
-        enabled: true
-        kubeStateMetrics: {
-          metricAnnotationsAllowList: ''
-          metricLabelsAllowlist: ''
-        }
-      }
-      appMonitoring: {
-        // Disabled by default to avoid double-instrumentation.
-        // Note: The chaos-app in this repository uses manual instrumentation (OpenTelemetry SDK).
-        // Flip to true only if you want AKS-managed auto-instrumentation instead.
-        autoInstrumentation: {
-          enabled: false
-        }
-        openTelemetryLogs: {
-          enabled: true
-        }
-        openTelemetryMetrics: {
-          enabled: true
-        }
-      }
-    }
-    agentPoolProfiles: [
-      {
-        name: 'default'
-        vmSize: nodeVmSize
-        osType: 'Linux'
-        type: 'VirtualMachineScaleSets'
-        mode: 'System'
-        // Distribute nodes across availability zones (1/2/3 if region supports)
-        availabilityZones: [
-          '1'
-          '2'
-          '3'
-        ]
-        vnetSubnetID: aksSubnetId
-        orchestratorVersion: kubernetesVersion
-        enableAutoScaling: true
-        minCount: 1
-        maxCount: 3
-      }
-    ]
-  }
+  properties: skuName == 'Base' ? aksBaseProperties : aksAutomaticProperties
   dependsOn: [
     aksSubnetNetworkContributorRole
   ]
@@ -246,3 +301,113 @@ output aksId string = aksCluster.id
 output aksNameOut string = aksCluster.name
 output kubeletObjectId string = aksCluster.properties.identityProfile.kubeletidentity.objectId
 output oidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL
+
+// AKS control plane auto-upgrade alert (native resource)
+resource aksAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2025-01-01-preview' = {
+  name: 'aks-autoupgrade'
+  location: location
+  tags: tags
+  kind: 'LogAlert'
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    displayName: 'aks-autoupgrade'
+    description: 'AKS Kubernetes version auto-upgrade detected via ARG events'
+    enabled: true
+    scopes: [aksCluster.id]
+    evaluationFrequency: 'PT30M'
+    windowSize: 'PT60M'
+    severity: 3
+    autoMitigate: true
+    criteria: {
+      allOf: [
+        {
+          query: aksAutoUpgradeKql
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 0
+          metricMeasureColumn: ''
+          dimensions: []
+        }
+      ]
+    }
+    actions: {
+      actionGroups: actionGroupId != '' ? [actionGroupId] : []
+    }
+  }
+}
+
+// Assign Reader role to the alert rule's managed identity so it can query ARG
+resource aksAutoUpgradeRuleRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(
+    subscription().id,
+    resourceGroup().id,
+    aksAutoUpgradeAlertRule.name,
+    'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
+  )
+  scope: resourceGroup()
+  properties: {
+    principalId: aksAutoUpgradeAlertRule.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+    )
+  }
+}
+
+// Node OS auto-upgrade alert (native resource)
+resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2025-01-01-preview' = {
+  name: 'aks-nodeos-autoupgrade'
+  location: location
+  tags: tags
+  kind: 'LogAlert'
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    displayName: 'aks-nodeos-autoupgrade'
+    description: 'AKS Node OS auto-upgrade detected via ARG events'
+    enabled: true
+    scopes: [aksCluster.id]
+    evaluationFrequency: 'PT30M'
+    windowSize: 'PT60M'
+    severity: 3
+    autoMitigate: true
+    criteria: {
+      allOf: [
+        {
+          query: aksNodeOsAutoUpgradeKql
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 0
+          metricMeasureColumn: ''
+          dimensions: []
+        }
+      ]
+    }
+    actions: {
+      actionGroups: actionGroupId != '' ? [actionGroupId] : []
+    }
+  }
+}
+
+// Assign Reader role to the alert rule's managed identity so it can query ARG
+resource aksNodeOSAutoUpgradeAlertRuleRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(
+    subscription().id,
+    resourceGroup().id,
+    aksNodeOSAutoUpgradeAlertRule.name,
+    'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
+  )
+  scope: resourceGroup()
+  properties: {
+    principalId: aksNodeOSAutoUpgradeAlertRule.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+    )
+  }
+}

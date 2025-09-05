@@ -10,6 +10,8 @@ param vnetAddressPrefix string
 param aksSubnetPrefix string
 @description('Private Endpoint subnet prefix')
 param peSubnetPrefix string
+@description('AKS API Server subnet prefix')
+param aksApiSubnetPrefix string
 @description('Resource token for unique naming')
 param resourceToken string
 
@@ -21,7 +23,43 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-07-01' = {
     addressSpace: {
       addressPrefixes: [vnetAddressPrefix]
     }
-    privateEndpointVNetPolicies: 'Disabled'
+    subnets: [
+      {
+        name: 'snet-aks'
+        properties: {
+          addressPrefix: aksSubnetPrefix
+          networkSecurityGroup: {
+            id: aksSubnetNetworkSecurityGroup.id
+          }
+          privateEndpointNetworkPolicies: 'Disabled'
+          defaultOutboundAccess: false
+        }
+      }
+      {
+        name: 'snet-pe'
+        properties: {
+          addressPrefix: peSubnetPrefix
+          privateEndpointNetworkPolicies: 'Disabled'
+          defaultOutboundAccess: false
+        }
+      }
+      {
+        name: 'snet-aks-api'
+        properties: {
+          addressPrefix: aksApiSubnetPrefix
+          privateEndpointNetworkPolicies: 'Disabled'
+          defaultOutboundAccess: false
+          delegations: [
+            {
+              name: 'Microsoft.ContainerService.managedClusters'
+              properties: {
+                serviceName: 'Microsoft.ContainerService/managedClusters'
+              }
+            }
+          ]
+        }
+      }
+    ]
   }
 }
 
@@ -52,32 +90,6 @@ resource aksSubnetNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@
   }
 }
 
-@description('AKS subnet')
-resource aksSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-07-01' = {
-  name: 'snet-aks'
-  parent: virtualNetwork
-  properties: {
-    addressPrefix: aksSubnetPrefix
-    networkSecurityGroup: {
-      id: aksSubnetNetworkSecurityGroup.id
-    }
-    privateEndpointNetworkPolicies: 'Disabled'
-    defaultOutboundAccess: false
-  }
-}
-
-@description('Private Endpoint subnet')
-resource privateEndpointSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-07-01' = {
-  name: 'snet-pe'
-  parent: virtualNetwork
-  properties: {
-    addressPrefix: peSubnetPrefix
-    privateEndpointNetworkPolicies: 'Disabled'
-    defaultOutboundAccess: false
-  }
-}
-
-// Public IP for Ingress
 resource ingressPublicIP 'Microsoft.Network/publicIPAddresses@2023-04-01' = {
   name: 'pip-ingress-${resourceToken}'
   location: location
@@ -94,8 +106,9 @@ resource ingressPublicIP 'Microsoft.Network/publicIPAddresses@2023-04-01' = {
 }
 
 output vnetId string = virtualNetwork.id
-output aksSubnetId string = aksSubnet.id
-output peSubnetId string = privateEndpointSubnet.id
+output aksSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-aks')
+output peSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-pe')
+output aksApiSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-aks-api')
 output vnetNameOut string = virtualNetwork.name
 output publicIPAddress string = ingressPublicIP.properties.ipAddress
 output publicIPId string = ingressPublicIP.id
