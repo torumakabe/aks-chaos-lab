@@ -4,7 +4,7 @@ param location string
 param aksName string
 @description('Tags object')
 param tags object = {}
-@description('Kubernetes version (x.y or x.y.z)')
+@description('Kubernetes version (x.y or x.y.z). Only used in Base mode; Automatic mode automatically selects and manages stable versions.')
 param kubernetesVersion string = '1.33'
 @description('Node resource group name for AKS managed resources')
 param nodeResourceGroupName string
@@ -12,7 +12,7 @@ param nodeResourceGroupName string
 param nodeVmSize string
 @description('AKS subnet id')
 param aksSubnetId string
-@description('AKS API Server subnet id (required for both Base and Automatic modes when using VNet Integration)')
+@description('AKS API Server subnet id')
 param aksApiSubnetId string = ''
 @description('Log Analytics workspace resource ID for Container Insights')
 param logAnalyticsWorkspaceId string
@@ -20,7 +20,7 @@ param logAnalyticsWorkspaceId string
 @description('Action Group resource ID for alerts (optional, leave empty for lab use)')
 param actionGroupId string = ''
 
-@description('AKS SKU name (Base or Automatic). Default is "Base"')
+@description('AKS SKU mode - "Base" for traditional AKS with Cluster Autoscaler; "Automatic" for automated operations with Node Auto Provisioning. Default is "Base"')
 @allowed([
   'Base'
   'Automatic'
@@ -36,6 +36,7 @@ var aksNodeOsAutoUpgradeKqlTemplate = sys.loadTextContent('templates/aks-nodeos-
 var aksNodeOsAutoUpgradeKql = replace(aksNodeOsAutoUpgradeKqlTemplate, '{{AKS_ID}}', aksCluster.id)
 
 // Common properties shared between Base and Automatic modes
+// Both modes use the same identity, monitoring, and basic configurations
 var aksCommonProperties = {
   nodeResourceGroup: nodeResourceGroupName
   dnsPrefix: 'dns${substring(resourceGroupSuffix, 0, 8)}'
@@ -79,6 +80,7 @@ var aksCommonProperties = {
 }
 
 // Base mode specific properties
+// Provides full control over Kubernetes version, node pools, and networking
 var aksBaseSpecificProperties = {
   // In Base mode, allow explicit Kubernetes version control
   kubernetesVersion: kubernetesVersion
@@ -147,6 +149,7 @@ var aksBaseSpecificProperties = {
 }
 
 // Automatic mode specific properties
+// Simplifies operations with automated version management and optimized node configuration
 var aksAutomaticSpecificProperties = {
   apiServerAccessProfile: {
     enableVnetIntegration: true
@@ -165,6 +168,7 @@ var aksAutomaticSpecificProperties = {
     }
   }
   // Agent pools are automatically managed in Automatic mode
+  // System pool is fixed at 3 nodes for high availability
   agentPoolProfiles: [
     {
       name: 'system'
@@ -175,7 +179,8 @@ var aksAutomaticSpecificProperties = {
   ]
 }
 
-// Compose final properties using union
+// Compose final properties based on selected SKU mode
+// Union merges common properties with mode-specific configurations
 var aksBaseProperties = union(aksCommonProperties, aksBaseSpecificProperties)
 var aksAutomaticProperties = union(aksCommonProperties, aksAutomaticSpecificProperties)
 

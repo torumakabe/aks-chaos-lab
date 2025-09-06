@@ -24,7 +24,8 @@
 - **Workload Identity**: OIDC ベースの最新Azure認証方式
 - **Container Insights**: AMA + DCR による統合監視（Log Analytics 連携）
 - **Azure Chaos Studio**: AKS向けChaos Mesh実験（Kernel を除く主要7種類）対応による包括的障害注入
-- **自動スケーリング**: Cluster Autoscaler (1-3ノード) + HPA (2-4ポッド)
+- **自動スケーリング**: ノード自動スケーリング (Base: Cluster Autoscaler、Automatic: Node Auto Provisioning) + HPA
+- **自動アップグレード**: スケジュール指定可能な自動更新とアラート通知
 
 ## ドキュメント
 - 要件: docs/requirements.md
@@ -55,8 +56,11 @@
 ### デプロイメント
 
 本リポジトリは**AKS Base**モードと**AKS Automatic**モードの両方をサポートしています。パラメーターファイル（`infra/main.parameters.json`）で`aksSkuName`を変更することで選択可能です：
-- **Base**: 従来のAKS（デフォルト）
+
+- **Base** (デフォルト): 従来のAKSで、詳細な制御が可能
 - **Automatic**: より自動化された運用を提供する新しいAKSモード
+
+[Azure Kubernetes Service \(AKS\) Automatic の概要 \- Azure Kubernetes Service \| Microsoft Learn](https://learn.microsoft.com/ja-jp/azure/aks/intro-aks-automatic)
 
 **推奨: Azure Developer CLI**
 ```bash
