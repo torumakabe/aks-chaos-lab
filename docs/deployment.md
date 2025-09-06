@@ -36,7 +36,7 @@ azd config set alpha.aks.helm on
   - **SKU**: BaseとAutomaticの両方をサポート（パラメーターで選択可能）
     - **Base**: 従来のAKS
     - **Automatic**: より自動化された運用を提供する新しいAKSモード
-  - **Cluster Autoscaler**: 有効（最小1ノード、最大3ノード）
+  - **ノード自動スケーリング**: Base - Cluster Autoscaler、Automatic - Node Auto Provisioning
   - **Cost Analysis**: AKS コスト分析アドオンを有効化
   - **Availability Zones**: 1 / 2 / 3（リージョン対応時）
 - **Advanced Container Networking**: L7ネットワークポリシー + 可観測性

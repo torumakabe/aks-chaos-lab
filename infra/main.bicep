@@ -21,13 +21,13 @@ param aksSubnetPrefix string = '10.10.1.0/24'
 @description('Private Endpoint subnet address prefix')
 param peSubnetPrefix string = '10.10.2.0/24'
 
-@description('AKS API Server subnet address prefix (required for Automatic mode)')
+@description('AKS API Server subnet address prefix')
 param aksApiSubnetPrefix string = '10.10.3.0/28'
 
-@description('Kubernetes version for AKS (x.y or x.y.z)')
+@description('Kubernetes version for AKS (x.y or x.y.z). Only used in Base mode; Automatic mode automatically selects and manages stable versions.')
 param kubernetesVersion string = '1.33'
 
-@description('AKS SKU name (Base or Automatic). Default is "Base"')
+@description('AKS SKU mode - "Base" for traditional AKS with Cluster Autoscaler; "Automatic" for automated operations with Node Auto Provisioning. Default is "Base"')
 @allowed([
   'Base'
   'Automatic'
