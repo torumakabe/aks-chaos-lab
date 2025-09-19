@@ -88,6 +88,7 @@ var chaosAppIdentityName = '${abbrs.managedIdentityUserAssignedIdentities}${appN
 var nodeResourceGroupName = '${resourceGroupName}-node'
 var serviceAccountNamespace = 'chaos-lab'
 var serviceAccountName = 'chaos-app-sa'
+var fleetName = 'fleet-${appName}-${environment}'
 
 // Modules
 module network './modules/network.bicep' = {
@@ -192,6 +193,21 @@ module aksCluster './modules/aks.bicep' = {
     skuName: aksSkuName
     nodeResourceGroupName: nodeResourceGroupName
     logAnalyticsWorkspaceId: azmonitorCore.outputs.logAnalyticsId
+  }
+}
+
+module fleetManager './modules/fleet.bicep' = if (aksSkuName == 'Base') {
+  name: 'fleet'
+  scope: resourceGroup
+  params: {
+    location: location
+    tags: tags
+    fleetName: fleetName
+    aksClusterId: aksCluster.outputs.aksId
+    fleetMemberName: 'base-cluster'
+    updateStrategyName: 'base-manual-approval'
+    updateStageName: 'base-stage'
+    approvalDisplayName: 'Base cluster manual approval'
     actionGroupId: actionGroupId
   }
 }
