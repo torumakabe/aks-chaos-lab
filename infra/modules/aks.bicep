@@ -17,9 +17,6 @@ param aksApiSubnetId string = ''
 @description('Log Analytics workspace resource ID for Container Insights')
 param logAnalyticsWorkspaceId string
 
-@description('Action Group resource ID for alerts (optional, leave empty for lab use)')
-param actionGroupId string = ''
-
 @description('AKS SKU mode - "Base" for traditional AKS with Cluster Autoscaler; "Automatic" for automated operations with Node Auto Provisioning. Default is "Base"')
 @allowed([
   'Base'
@@ -28,12 +25,6 @@ param actionGroupId string = ''
 param skuName string = 'Base'
 
 var resourceGroupSuffix = uniqueString(resourceGroup().id)
-
-// KQL queries for auto-upgrade alerts
-var aksAutoUpgradeKqlTemplate = sys.loadTextContent('templates/aks-autoupgrade.kql')
-var aksAutoUpgradeKql = replace(aksAutoUpgradeKqlTemplate, '{{AKS_ID}}', aksCluster.id)
-var aksNodeOsAutoUpgradeKqlTemplate = sys.loadTextContent('templates/aks-nodeos-autoupgrade.kql')
-var aksNodeOsAutoUpgradeKql = replace(aksNodeOsAutoUpgradeKqlTemplate, '{{AKS_ID}}', aksCluster.id)
 
 // Common properties shared between Base and Automatic modes
 // Both modes use the same identity, monitoring, and basic configurations
@@ -98,11 +89,6 @@ var aksBaseSpecificProperties = {
   apiServerAccessProfile: {
     enableVnetIntegration: true
     subnetId: aksApiSubnetId
-  }
-  // Auto-upgrade settings
-  autoUpgradeProfile: {
-    upgradeChannel: 'patch'
-    nodeOSUpgradeChannel: 'NodeImage'
   }
   autoScalerProfile: {
     'daemonset-eviction-for-occupied-nodes': true
@@ -262,160 +248,7 @@ resource aksResourceGroupNetworkContributorRole 'Microsoft.Authorization/roleAss
 // Output AKS cluster identity principal ID for additional role assignments
 output aksIdentityPrincipalId string = aksIdentity.properties.principalId
 
-// AKS Managed Auto-Upgrade Schedule (monthly on first Wednesday)
-#disable-next-line BCP081
-resource aksMaintenanceConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2025-06-02-preview' = {
-  parent: aksCluster
-  name: 'aksManagedAutoUpgradeSchedule'
-  properties: {
-    maintenanceWindow: {
-      durationHours: 4
-      schedule: {
-        relativeMonthly: {
-          dayOfWeek: 'Wednesday'
-          intervalMonths: 1
-          weekIndex: 'First'
-        }
-      }
-      startDate: '2025-04-01'
-      startTime: '00:00'
-      utcOffset: '+09:00'
-    }
-  }
-}
-
-// AKS Managed Node OS Upgrade Schedule (weekly on Wednesday)
-#disable-next-line BCP081
-resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2025-06-02-preview' = {
-  parent: aksCluster
-  name: 'aksManagedNodeOSUpgradeSchedule'
-  properties: {
-    maintenanceWindow: {
-      durationHours: 4
-      schedule: {
-        weekly: {
-          dayOfWeek: 'Wednesday'
-          intervalWeeks: 1
-        }
-      }
-      startDate: '2025-04-01'
-      startTime: '00:00'
-      utcOffset: '+09:00'
-    }
-  }
-}
-
 output aksId string = aksCluster.id
 output aksNameOut string = aksCluster.name
 output kubeletObjectId string = aksCluster.properties.identityProfile.kubeletidentity.objectId
 output oidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL
-
-// AKS control plane auto-upgrade alert (native resource)
-resource aksAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2025-01-01-preview' = {
-  name: 'aks-autoupgrade'
-  location: location
-  tags: tags
-  kind: 'LogAlert'
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    displayName: 'aks-autoupgrade'
-    description: 'AKS Kubernetes version auto-upgrade detected via ARG events'
-    enabled: true
-    scopes: [aksCluster.id]
-    evaluationFrequency: 'PT30M'
-    windowSize: 'PT60M'
-    severity: 3
-    autoMitigate: true
-    criteria: {
-      allOf: [
-        {
-          query: aksAutoUpgradeKql
-          timeAggregation: 'Count'
-          operator: 'GreaterThan'
-          threshold: 0
-          metricMeasureColumn: ''
-          dimensions: []
-        }
-      ]
-    }
-    actions: {
-      actionGroups: actionGroupId != '' ? [actionGroupId] : []
-    }
-  }
-}
-
-// Assign Reader role to the alert rule's managed identity so it can query ARG
-resource aksAutoUpgradeRuleRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(
-    subscription().id,
-    resourceGroup().id,
-    aksAutoUpgradeAlertRule.name,
-    'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
-  )
-  scope: resourceGroup()
-  properties: {
-    principalId: aksAutoUpgradeAlertRule.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      'acdd72a7-3385-48ef-bd42-f606fba81ae7'
-    )
-  }
-}
-
-// Node OS auto-upgrade alert (native resource)
-resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2025-01-01-preview' = {
-  name: 'aks-nodeos-autoupgrade'
-  location: location
-  tags: tags
-  kind: 'LogAlert'
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    displayName: 'aks-nodeos-autoupgrade'
-    description: 'AKS Node OS auto-upgrade detected via ARG events'
-    enabled: true
-    scopes: [aksCluster.id]
-    evaluationFrequency: 'PT30M'
-    windowSize: 'PT60M'
-    severity: 3
-    autoMitigate: true
-    criteria: {
-      allOf: [
-        {
-          query: aksNodeOsAutoUpgradeKql
-          timeAggregation: 'Count'
-          operator: 'GreaterThan'
-          threshold: 0
-          metricMeasureColumn: ''
-          dimensions: []
-        }
-      ]
-    }
-    actions: {
-      actionGroups: actionGroupId != '' ? [actionGroupId] : []
-    }
-  }
-}
-
-// Assign Reader role to the alert rule's managed identity so it can query ARG
-resource aksNodeOSAutoUpgradeAlertRuleRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(
-    subscription().id,
-    resourceGroup().id,
-    aksNodeOSAutoUpgradeAlertRule.name,
-    'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
-  )
-  scope: resourceGroup()
-  properties: {
-    principalId: aksNodeOSAutoUpgradeAlertRule.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      'acdd72a7-3385-48ef-bd42-f606fba81ae7'
-    )
-  }
-}

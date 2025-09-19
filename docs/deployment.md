@@ -63,6 +63,36 @@ azd config set alpha.aks.helm on
 本リポジトリは**AKS Base**モードと**AKS Automatic**モードの両方をサポートしています。パラメーターファイル（`infra/main.parameters.json`）で`aksSkuName`を変更することで選択可能です：
 - **Base**: 従来のAKS（デフォルト）
 - **Automatic**: より自動化された運用を提供する新しいAKSモード
+Base モードを選択した場合、Bicep は次を自動的にプロビジョニングします。
+- Azure Kubernetes Fleet Manager フリート（`fleet-${appName}-${environment}`）
+- AKS クラスタをフリート メンバーとして登録（グループ名 `base-cluster`）
+- `beforeGates` に Approval ゲートを持つ更新戦略（`base-manual-approval`）
+- Stable チャンネルの自動アップグレード プロファイル（制御プレーン＋ノードイメージを承認後に更新、`nodeImageSelection.type=Latest`）
+- NodeImage チャンネルの自動アップグレード プロファイル（ノードイメージのみ承認後に更新、`nodeImageSelection` は省略）
+- Azure Monitor Scheduled Query Rule `fleet-approval-pending`（ARG から Approval Gate の Pending を検出し、アクション グループへ通知）
+
+承認ワークフローは手動で実施する必要があります：
+```bash
+# Fleet CLI 拡張機能をインストール
+AZURE_CONFIG_DIR=$(mktemp -d) az extension add --name fleet
+
+# Pending 状態のゲートを確認（例）
+AZURE_CONFIG_DIR=$(mktemp -d) az fleet gate list \
+  --resource-group rg-aks-chaos-lab-dev \
+  --fleet-name fleet-aks-chaos-lab-dev \
+  --state Pending \
+  --query "[0].name"
+
+# ゲートを承認（取得した gate-name を指定）
+AZURE_CONFIG_DIR=$(mktemp -d) az fleet gate approve \
+  --resource-group rg-aks-chaos-lab-dev \
+  --fleet-name fleet-aks-chaos-lab-dev \
+  --gate-name <gate-name>
+```
+> `rg-aks-chaos-lab-dev` および `fleet-aks-chaos-lab-dev` は既定値（`appName=aks-chaos-lab`, `environment=dev`）の例です。環境に応じて置き換えてください。
+
+承認が完了すると Update Run が生成され、Fleet が AKS 制御プレーンとノード OS の更新を実行します。承認しない限り Update Run は開始されません。
+アクション グループ ID (`actionGroupId`) を指定しない場合でもアラート リソースは作成されますが通知は行われません（ARG クエリによるモニタリング用途）。
 
 ### 方法1: Azure Developer CLI (推奨)
 

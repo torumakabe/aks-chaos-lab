@@ -61,6 +61,25 @@
 - **Base** (デフォルト): 従来のAKSで、詳細な制御が可能
 - **Automatic**: より自動化された運用を提供する新しいAKSモード
 
+Base モードを選んだ場合は、Azure Kubernetes Fleet Manager が更新管理を担います。
+- Fleet フリート／メンバー／更新戦略／自動アップグレード プロファイルが `infra/modules/fleet.bicep` で自動作成されます。
+- 更新戦略は `beforeGates` に Approval ゲートを含み、手動承認が完了するまで Update Run は開始されません。
+- Control plane 用（Stable／`nodeImageSelection=Latest`）と NodeImage 用（`nodeImageSelection` 省略）の autoUpgradeProfile を生成し、双方が同じ承認ゲートを共有します。
+- Azure Monitor の Scheduled Query Rule `fleet-approval-pending` が作成され、Approval Gate が Pending の間アクション グループに通知します。
+- CLI からの承認例：
+  ```bash
+  AZURE_CONFIG_DIR=$(mktemp -d) az extension add --name fleet
+  AZURE_CONFIG_DIR=$(mktemp -d) az fleet gate list \
+    --resource-group rg-aks-chaos-lab-dev \
+    --fleet-name fleet-aks-chaos-lab-dev \
+    --state Pending
+  AZURE_CONFIG_DIR=$(mktemp -d) az fleet gate approve \
+    --resource-group rg-aks-chaos-lab-dev \
+    --fleet-name fleet-aks-chaos-lab-dev \
+    --gate-name <gate-name>
+  ```
+  > リソース名はパラメータ（`appName`, `environment`）に応じて読み替えてください。
+
 [Azure Kubernetes Service \(AKS\) Automatic の概要 \- Azure Kubernetes Service \| Microsoft Learn](https://learn.microsoft.com/ja-jp/azure/aks/intro-aks-automatic)
 
 **推奨: Azure Developer CLI**
