@@ -86,8 +86,8 @@ resource fleetUpdateStrategy 'Microsoft.ContainerService/fleets/updateStrategies
   ]
 }
 
-resource controlPlaneAutoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfiles@2025-04-01-preview' = {
-  name: 'default-controlplane-auto-upgrade'
+resource autoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfiles@2025-04-01-preview' = {
+  name: 'default-auto-upgrade'
   parent: fleet
   properties: {
     updateStrategyId: fleetUpdateStrategy.id
@@ -143,7 +143,7 @@ resource fleetPendingApprovalAlert 'Microsoft.Insights/scheduledQueryRules@2025-
     }
   }
   dependsOn: [
-    controlPlaneAutoUpgradeProfile
+    autoUpgradeProfile
     nodeImageAutoUpgradeProfile
   ]
 }
@@ -169,5 +169,5 @@ resource fleetPendingApprovalAlertReader 'Microsoft.Authorization/roleAssignment
 output fleetId string = fleet.id
 output fleetMemberId string = fleetMember.id
 output updateStrategyId string = fleetUpdateStrategy.id
-output controlPlaneAutoUpgradeProfileId string = controlPlaneAutoUpgradeProfile.id
+output autoUpgradeProfileId string = autoUpgradeProfile.id
 output nodeImageAutoUpgradeProfileId string = nodeImageAutoUpgradeProfile.id

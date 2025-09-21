@@ -74,17 +74,17 @@ Base モードを選択した場合、Bicep は次を自動的にプロビジョ
 承認ワークフローは手動で実施する必要があります：
 ```bash
 # Fleet CLI 拡張機能をインストール
-AZURE_CONFIG_DIR=$(mktemp -d) az extension add --name fleet
+az extension add --name fleet
 
 # Pending 状態のゲートを確認（例）
-AZURE_CONFIG_DIR=$(mktemp -d) az fleet gate list \
+az fleet gate list \
   --resource-group rg-aks-chaos-lab-dev \
   --fleet-name fleet-aks-chaos-lab-dev \
   --state Pending \
   --query "[0].name"
 
 # ゲートを承認（取得した gate-name を指定）
-AZURE_CONFIG_DIR=$(mktemp -d) az fleet gate approve \
+az fleet gate approve \
   --resource-group rg-aks-chaos-lab-dev \
   --fleet-name fleet-aks-chaos-lab-dev \
   --gate-name <gate-name>

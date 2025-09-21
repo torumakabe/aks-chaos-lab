@@ -8,7 +8,7 @@
 - 競合リスク: 両プロファイルが同じメンバーに Update Run を発火するため、承認ゲートで人手による調整が必要。ただしガイドライン上併用がベストプラクティス。
 **出力**:
 - 必要な変更点リスト
-  - Stable 用 autoUpgradeProfile の名称変更（例: `default-controlplane-auto-upgrade`）
+  - Stable 用 autoUpgradeProfile の名称変更（例: `default-auto-upgrade`）
   - NodeImage 用 autoUpgradeProfile の追加（例: `default-nodeimage-auto-upgrade`）
   - どちらも `updateStrategyId` を既存戦略に設定し、Manual Gate を共有
   - NodeImage プロファイルにも `nodeImageSelection.type=Latest` を設定

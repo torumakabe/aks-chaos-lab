@@ -3,10 +3,10 @@
 **コンテキスト**: 設計で Dual autoUpgradeProfile 方針を決定済み。
 **実行**:
 - `infra/modules/fleet.bicep`
-  - 既存の `autoUpgradeProfile` を `controlPlaneAutoUpgradeProfile` に名称変更し、`name: default-controlplane-auto-upgrade` に変更。
+  - 制御プレーン向けの `autoUpgradeProfile` リソースを追加し、`name: default-auto-upgrade` を設定。
   - `nodeImageAutoUpgradeProfile` を追加し、`channel: 'NodeImage'`（`nodeImageSelection` は仕様上省略）を設定。
   - Scheduled Query Rule `fleet-approval-pending` の `dependsOn` を両プロファイルに更新。
-  - 出力を `controlPlaneAutoUpgradeProfileId` と `nodeImageAutoUpgradeProfileId` に更新。
+  - 出力を `autoUpgradeProfileId` と `nodeImageAutoUpgradeProfileId` に更新。
 - ドキュメント更新
   - `docs/requirements.md` に 2種類の autoUpgradeProfile 併用要件を追記。
   - `docs/design.md` を Dual プロファイル構成＆Mermaid図に更新。
