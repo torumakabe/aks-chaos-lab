@@ -36,7 +36,6 @@ param autoUpgradeChannel string = 'Stable'
 
 var memberGroupName = fleetMemberName
 
-
 resource fleet 'Microsoft.ContainerService/fleets@2025-04-01-preview' = {
   name: fleetName
   location: location
@@ -94,7 +93,7 @@ resource autoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfil
     channel: autoUpgradeChannel
     disabled: false
     nodeImageSelection: {
-      type: 'Latest'
+      type: 'Consistent'
     }
   }
 }
