@@ -98,16 +98,6 @@ resource autoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfil
   }
 }
 
-resource nodeImageAutoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfiles@2025-04-01-preview' = {
-  name: 'default-nodeimage-auto-upgrade'
-  parent: fleet
-  properties: {
-    updateStrategyId: fleetUpdateStrategy.id
-    channel: 'NodeImage'
-    disabled: false
-  }
-}
-
 resource fleetPendingApprovalAlert 'Microsoft.Insights/scheduledQueryRules@2025-01-01-preview' = {
   name: 'fleet-approval-pending'
   location: location
@@ -143,7 +133,6 @@ resource fleetPendingApprovalAlert 'Microsoft.Insights/scheduledQueryRules@2025-
   }
   dependsOn: [
     autoUpgradeProfile
-    nodeImageAutoUpgradeProfile
   ]
 }
 
@@ -169,4 +158,3 @@ output fleetId string = fleet.id
 output fleetMemberId string = fleetMember.id
 output updateStrategyId string = fleetUpdateStrategy.id
 output autoUpgradeProfileId string = autoUpgradeProfile.id
-output nodeImageAutoUpgradeProfileId string = nodeImageAutoUpgradeProfile.id
