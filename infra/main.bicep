@@ -193,6 +193,7 @@ module aksCluster './modules/aks.bicep' = {
     skuName: aksSkuName
     nodeResourceGroupName: nodeResourceGroupName
     logAnalyticsWorkspaceId: azmonitorCore.outputs.logAnalyticsId
+    actionGroupId: actionGroupId
   }
 }
 
