@@ -22,6 +22,7 @@
 - **Advanced Container Networking**: L7ネットワークポリシーと可観測性
 - **Azure Managed Redis + Entra ID認証**: パスワードレスでセキュアなデータストア接続  
 - **Workload Identity**: OIDC ベースの最新Azure認証方式
+- **Azure AD統合とローカルアカウント無効化**: Entra IDのみの認証を強制し、アイデンティティガバナンスと監査性を向上
 - **Container Insights**: AMA + DCR による統合監視（Log Analytics 連携）
 - **Azure Chaos Studio**: AKS向けChaos Mesh実験（Kernel を除く主要7種類）対応による包括的障害注入
 - **自動スケーリング**: ノード自動スケーリング (Base: Cluster Autoscaler、Automatic: Node Auto Provisioning) + HPA
