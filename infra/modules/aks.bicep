@@ -40,8 +40,6 @@ var aksNodeOsAutoUpgradeKql = replace(aksNodeOsAutoUpgradeKqlTemplate, '{{AKS_ID
 var aksCommonProperties = {
   nodeResourceGroup: nodeResourceGroupName
   dnsPrefix: 'dns${substring(resourceGroupSuffix, 0, 8)}'
-  // Disable local accounts to enforce Azure AD/Entra ID-only authentication
-  disableLocalAccounts: true
   metricsProfile: {
     costAnalysis: { enabled: true }
   }
@@ -93,6 +91,9 @@ var aksBaseSpecificProperties = {
     managed: true
     enableAzureRbac: true
   }
+  // Disable local accounts to enforce Azure AD/Entra ID-only authentication
+  // Note: In Automatic mode, local accounts are disabled by default
+  disableLocalAccounts: true
   // Enable API Server VNet Integration for Base mode
   apiServerAccessProfile: {
     enableVnetIntegration: true

@@ -183,7 +183,8 @@ sequenceDiagram
 ### セキュリティ・認証  
 - **Azure AD/Entra ID統合とローカルアカウント無効化**: 
   - `aadProfile.managed: true` および `aadProfile.enableAzureRbac: true` によりAzure RBACでKubernetes認可を実現
-  - `disableLocalAccounts: true` によりローカルアカウント（kubectl証明書ベース認証）を無効化し、Entra IDのみの認証を強制
+  - Base モード: `disableLocalAccounts: true` によりローカルアカウント（kubectl証明書ベース認証）を無効化し、Entra IDのみの認証を強制
+  - Automatic モード: ローカルアカウントは既定で無効化されているため追加設定不要
   - アイデンティティガバナンス、条件付きアクセスポリシー、監査性の向上
 - **Workload Identity**: Federated Identity Credential + ServiceAccount による最新OIDC認証方式
   - User Assigned Managed Identity (UAMI) によるAKSとの統合

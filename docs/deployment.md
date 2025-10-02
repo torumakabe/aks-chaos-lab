@@ -39,7 +39,9 @@ azd config set alpha.aks.helm on
   - **ノード自動スケーリング**: Base - Cluster Autoscaler、Automatic - Node Auto Provisioning
   - **Cost Analysis**: AKS コスト分析アドオンを有効化
   - **Availability Zones**: 1 / 2 / 3（リージョン対応時）
-  - **セキュリティ**: ローカルアカウントを無効化し、Azure AD/Entra IDのみの認証を強制（`disableLocalAccounts: true`）
+  - **セキュリティ**: ローカルアカウントを無効化し、Azure AD/Entra IDのみの認証を強制
+    - Base モード: `disableLocalAccounts: true` を明示的に設定
+    - Automatic モード: 既定でローカルアカウントが無効化されているため追加設定不要
     - クラスターへのアクセスは `az aks get-credentials` で取得する Azure AD トークンベースの認証が必要
     - アイデンティティガバナンス、条件付きアクセスポリシー、監査性が向上
 - **Advanced Container Networking**: L7ネットワークポリシー + 可観測性
