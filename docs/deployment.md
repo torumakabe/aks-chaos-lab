@@ -39,6 +39,11 @@ azd config set alpha.aks.helm on
   - **ノード自動スケーリング**: Base - Cluster Autoscaler、Automatic - Node Auto Provisioning
   - **Cost Analysis**: AKS コスト分析アドオンを有効化
   - **Availability Zones**: 1 / 2 / 3（リージョン対応時）
+  - **セキュリティ**: ローカルアカウントを無効化し、Azure AD/Entra IDのみの認証を強制
+    - Base モード: `disableLocalAccounts: true` を明示的に設定
+    - Automatic モード: 既定でローカルアカウントが無効化されているため追加設定不要
+    - クラスターへのアクセスは `az aks get-credentials` で取得する Azure AD トークンベースの認証が必要
+    - アイデンティティガバナンス、条件付きアクセスポリシー、監査性が向上
 - **Advanced Container Networking**: L7ネットワークポリシー + 可観測性
 - **Container Insights**: AMA + DCR による統合監視（`azureMonitorProfile.containerInsights` + DCR/DCRA）。Portal 互換のため一時的に ContainerLog(V1) も併用しています。
 - **Prometheus (Managed)**: Azure Monitor managed Prometheus を有効化（`azureMonitorProfile.metrics.enabled=true`）。Azure Monitor Workspace(AMW) は既定で作成（`enablePrometheusWorkspace=true`、無効化可）。

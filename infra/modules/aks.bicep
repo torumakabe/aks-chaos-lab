@@ -91,6 +91,9 @@ var aksBaseSpecificProperties = {
     managed: true
     enableAzureRbac: true
   }
+  // Disable local accounts to enforce Azure AD/Entra ID-only authentication
+  // Note: In Automatic mode, local accounts are disabled by default
+  disableLocalAccounts: true
   // Enable API Server VNet Integration for Base mode
   apiServerAccessProfile: {
     enableVnetIntegration: true
