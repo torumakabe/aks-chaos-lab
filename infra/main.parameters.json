@@ -27,7 +27,7 @@
       "value": "10.10.3.0/28"
     },
     "kubernetesVersion": {
-      "value": "1.32"
+      "value": "1.33"
     },
     "aksSkuName": {
       "value": "Base"
