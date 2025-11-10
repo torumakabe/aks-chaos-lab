@@ -37,6 +37,37 @@ graph TD
   Prom -->|Dashboards| Grafana
 ```
 
+## AKS 更新管理 (Base モード)
+- Base モード選択時（`aksSkuName=Base`）は、Kubernetesバージョンの自動アップグレードとNode OSイメージの自動アップグレードを分離して管理する。
+- **Kubernetesバージョンの更新**: Azure Kubernetes Fleet Manager を使用
+  - `infra/modules/fleet.bicep` で Fleet をデプロイ
+  - AKS クラスタを Fleet メンバー（`group=base-cluster`）として登録
+  - 更新戦略の `beforeGates` に `type: Approval` のゲートを定義し、手動承認が完了するまで Update Run を開始しない
+  - autoUpgradeProfile（`channel=Stable`、`nodeImageSelection.type=Consistent`）を作成
+  - Azure Monitor の Scheduled Query Rule (`fleet-approval-pending`) を追加し、ARG から Approval Gate の Pending 状態を検出してアクション グループへ通知
+- **Node OSイメージの更新**: AKSネイティブの自動アップグレード機能を使用
+  - `infra/modules/aks.bicep` で `autoUpgradeProfile.nodeOSUpgradeChannel=NodeImage` を設定
+  - メンテナンスウィンドウ（`aksManagedNodeOSUpgradeSchedule`）を設定（毎週水曜日 00:00 JST、4時間）
+  - Azure Monitor の Scheduled Query Rule (`aks-nodeos-autoupgrade`) を追加し、ARG からNode OSアップグレードイベントを検出してアクション グループへ通知
+
+```mermaid
+flowchart TD
+    A["aksSkuName == 'Base'"] --> B["Fleet Manager"]
+    A --> K["AKS Native Auto-Upgrade"]
+    
+    B --> C["Fleet Member\<br>(group=base-cluster)"]
+    B --> D["Update Strategy\<br>Approval Gate"]
+    D --> E["Auto Upgrade Profile\<br>(channel=Stable)"]
+    E --> F["Fleet Update Run\<br>(Kubernetes version)"]
+    F --> G["AKS Managed Cluster"]
+    
+    K --> L["autoUpgradeProfile\<br>(nodeOSUpgradeChannel=NodeImage)"]
+    K --> M["Maintenance Window\<br>(Weekly Wednesday)"]
+    L --> N["Node OS Upgrade"]
+    M --> N
+    N --> G
+```
+
 ## データフロー
 
 ### アプリケーション リクエスト

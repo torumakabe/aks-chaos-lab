@@ -15,6 +15,11 @@
 - システムは常に OpenTelemetry によるトレース/メトリクス/ログを Application Insights へ送信できるものとする（設定により制御可能）。
 - システムは常に Entra ID のユーザー割当マネージドIDを用いて Redis にパスワードレスで接続するものとする（AKS上では Workload Identity を使用）。
 - システムは常に コンフィグは Kubernetes の ConfigMap/Secret で管理され、環境変数としてアプリに注入されるものとする（azd の Kustomize `env` で Bicep outputs を一時 `.env` に出力し、kustomize の ConfigMapGenerator（静的は `literals`、動的は `envs`）+ replacements で適用）。
+- システムは aksSkuName が Base のとき、Kubernetesバージョンの更新は Azure Kubernetes Fleet Manager を使用し、手動承認制御により管理するものとする。
+- システムは aksSkuName が Base のとき、Node OSイメージの更新は AKS ネイティブの自動アップグレード機能（`nodeOSUpgradeChannel=NodeImage`）を使用し、メンテナンスウィンドウ（毎週水曜日）で自動実行するものとする。
+- システムは aksSkuName が Base のとき、Fleet 更新戦略の beforeGates に定義された承認（Approval Gate）が完了するまで Kubernetes バージョンのアップデートを開始しないものとする。
+- システムは aksSkuName が Base のとき、Fleet の Manual Gate が Pending の場合に Azure Monitor アラート（`fleet-approval-pending`）を発火し、承認待ち状態を通知するものとする。
+- システムは aksSkuName が Base のとき、Node OS 自動アップグレードが実行された場合に Azure Monitor アラート（`aks-nodeos-autoupgrade`）を発火し、アップグレード実行を通知するものとする。
 
 ## カオス注入（イベント/状態駆動）
 - Chaos Studioの実験が開始されたとき、システムは [ネットワーク遮断] 発生時にRedis接続が失敗し適切なリトライ/タイムアウト/エラーハンドリングを行うものとする。

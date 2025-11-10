@@ -32,10 +32,13 @@ azd config set alpha.aks.helm on
 ```
 
 ## 構成要素
-- **AKS**: Azure CNI Overlay + Cilium, Workload Identity, Auto-upgrade: patch
+- **AKS**: Azure CNI Overlay + Cilium, Workload Identity
   - **SKU**: BaseとAutomaticの両方をサポート（パラメーターで選択可能）
     - **Base**: 従来のAKS
     - **Automatic**: より自動化された運用を提供する新しいAKSモード
+  - **自動アップグレード（Baseモード）**:
+    - Kubernetesバージョン: Fleet Manager経由で手動承認制御
+    - Node OSイメージ: AKSネイティブ自動アップグレード（`nodeOSUpgradeChannel=NodeImage`、毎週水曜日メンテナンスウィンドウ）
   - **ノード自動スケーリング**: Base - Cluster Autoscaler、Automatic - Node Auto Provisioning
   - **Cost Analysis**: AKS コスト分析アドオンを有効化
   - **Availability Zones**: 1 / 2 / 3（リージョン対応時）
@@ -63,6 +66,44 @@ azd config set alpha.aks.helm on
 本リポジトリは**AKS Base**モードと**AKS Automatic**モードの両方をサポートしています。パラメーターファイル（`infra/main.parameters.json`）で`aksSkuName`を変更することで選択可能です：
 - **Base**: 従来のAKS（デフォルト）
 - **Automatic**: より自動化された運用を提供する新しいAKSモード
+
+Base モードを選択した場合、Bicep は更新管理のために次を自動的にプロビジョニングします：
+
+**Kubernetesバージョンの更新（Fleet Manager経由）**:
+- Azure Kubernetes Fleet Manager フリート（`fleet-${appName}-${environment}`）
+- AKS クラスタをフリート メンバーとして登録（グループ名 `base-cluster`）
+- `beforeGates` に Approval ゲートを持つ更新戦略（`base-manual-approval`）
+- Stable チャンネルの自動アップグレード プロファイル（制御プレーン更新を承認後に実行、`nodeImageSelection.type=Consistent`）
+- Azure Monitor Scheduled Query Rule `fleet-approval-pending`（ARG から Approval Gate の Pending を検出し、アクション グループへ通知）
+
+**Node OSイメージの更新（AKSネイティブ機能）**:
+- AKS自動アップグレードプロファイル（`nodeOSUpgradeChannel=NodeImage`）
+- メンテナンスウィンドウ設定（`aksManagedNodeOSUpgradeSchedule`、毎週水曜日 00:00 JST、4時間）
+- Azure Monitor Scheduled Query Rule `aks-nodeos-autoupgrade`（ARG からNode OSアップグレードイベントを検出し、アクション グループへ通知）
+
+承認ワークフローは手動で実施する必要があります：
+```bash
+# Fleet CLI 拡張機能をインストール
+az extension add --name fleet
+
+# Pending 状態のゲートを確認（例）
+az fleet gate list \
+  --resource-group rg-aks-chaos-lab-dev \
+  --fleet-name fleet-aks-chaos-lab-dev \
+  --state Pending \
+  --query "[0].name"
+
+# ゲートを承認（取得した gate-name を指定）
+az fleet gate approve \
+  --resource-group rg-aks-chaos-lab-dev \
+  --fleet-name fleet-aks-chaos-lab-dev \
+  --gate-name <gate-name>
+```
+> `rg-aks-chaos-lab-dev` および `fleet-aks-chaos-lab-dev` は既定値（`appName=aks-chaos-lab`, `environment=dev`）の例です。環境に応じて置き換えてください。
+
+承認が完了すると Update Run が生成され、Fleet が AKS 制御プレーンの Kubernetes バージョンを更新します。承認しない限り Update Run は開始されません。
+Node OS イメージの更新は AKS のメンテナンスウィンドウ（毎週水曜日）に自動実行され、Fleet の承認は不要です。
+アクション グループ ID (`actionGroupId`) を指定しない場合でもアラート リソースは作成されますが通知は行われません（ARG クエリによるモニタリング用途）。
 
 ### 方法1: Azure Developer CLI (推奨)
 
@@ -154,7 +195,10 @@ kustomize build k8s/base | kubectl apply -f -
 - **リソースグループ**: 全リソースを管理
 - **VNet + サブネット**: AKS(10.10.1.0/24) + PE(10.10.2.0/24)
 - **NSG**: `snet-aks` に NSG を関連付け、受信 TCP 80/443 を許可
-- **AKS**: Advanced Networking, Container Insights有効, Auto-upgrade=patch（x.y 指定で最新パッチに追随）, SKU=Standard/Automatic（Uptime SLA）, Availability Zones=1/2/3
+- **AKS**: Advanced Networking, Container Insights有効, SKU=Standard/Automatic（Uptime SLA）, Availability Zones=1/2/3
+  - **自動アップグレード（Baseモード）**:
+    - Kubernetesバージョン: Fleet Manager経由（手動承認制御、`channel=Stable`）
+    - Node OSイメージ: AKSネイティブ（`nodeOSUpgradeChannel=NodeImage`、メンテナンスウィンドウ: 毎週水曜日）
   - 可観測性向上: Azure Monitor managed Prometheus（メトリクス）+ Grafana Dashboard + Container Insights（ログ/メトリクス）+ Cost Analysis。LA Workspaceは `log-...` を使用。
 - **ACR**: Premium SKU, Kubelet identityにAcrPull権限付与, Private Endpoint(`registry`サブリソース) + Private DNS(`privatelink.azurecr.io`) 構成, PublicNetworkAccess=Enabled
 - **Azure Managed Redis**: Private Endpoint経由, accessPolicyAssignments設定

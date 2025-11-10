@@ -30,8 +30,6 @@ param skuName string = 'Base'
 var resourceGroupSuffix = uniqueString(resourceGroup().id)
 
 // KQL queries for auto-upgrade alerts
-var aksAutoUpgradeKqlTemplate = sys.loadTextContent('templates/aks-autoupgrade.kql')
-var aksAutoUpgradeKql = replace(aksAutoUpgradeKqlTemplate, '{{AKS_ID}}', aksCluster.id)
 var aksNodeOsAutoUpgradeKqlTemplate = sys.loadTextContent('templates/aks-nodeos-autoupgrade.kql')
 var aksNodeOsAutoUpgradeKql = replace(aksNodeOsAutoUpgradeKqlTemplate, '{{AKS_ID}}', aksCluster.id)
 
@@ -99,9 +97,8 @@ var aksBaseSpecificProperties = {
     enableVnetIntegration: true
     subnetId: aksApiSubnetId
   }
-  // Auto-upgrade settings
+  // Auto-upgrade settings - only NodeImage for node OS upgrades
   autoUpgradeProfile: {
-    upgradeChannel: 'patch'
     nodeOSUpgradeChannel: 'NodeImage'
   }
   autoScalerProfile: {
@@ -262,28 +259,6 @@ resource aksResourceGroupNetworkContributorRole 'Microsoft.Authorization/roleAss
 // Output AKS cluster identity principal ID for additional role assignments
 output aksIdentityPrincipalId string = aksIdentity.properties.principalId
 
-// AKS Managed Auto-Upgrade Schedule (monthly on first Wednesday)
-#disable-next-line BCP081
-resource aksMaintenanceConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2025-06-02-preview' = {
-  parent: aksCluster
-  name: 'aksManagedAutoUpgradeSchedule'
-  properties: {
-    maintenanceWindow: {
-      durationHours: 4
-      schedule: {
-        relativeMonthly: {
-          dayOfWeek: 'Wednesday'
-          intervalMonths: 1
-          weekIndex: 'First'
-        }
-      }
-      startDate: '2025-04-01'
-      startTime: '00:00'
-      utcOffset: '+09:00'
-    }
-  }
-}
-
 // AKS Managed Node OS Upgrade Schedule (weekly on Wednesday)
 #disable-next-line BCP081
 resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2025-06-02-preview' = {
@@ -302,66 +277,6 @@ resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/main
       startTime: '00:00'
       utcOffset: '+09:00'
     }
-  }
-}
-
-output aksId string = aksCluster.id
-output aksNameOut string = aksCluster.name
-output kubeletObjectId string = aksCluster.properties.identityProfile.kubeletidentity.objectId
-output oidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL
-
-// AKS control plane auto-upgrade alert (native resource)
-resource aksAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2025-01-01-preview' = {
-  name: 'aks-autoupgrade'
-  location: location
-  tags: tags
-  kind: 'LogAlert'
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    displayName: 'aks-autoupgrade'
-    description: 'AKS Kubernetes version auto-upgrade detected via ARG events'
-    enabled: true
-    scopes: [aksCluster.id]
-    evaluationFrequency: 'PT30M'
-    windowSize: 'PT60M'
-    severity: 3
-    autoMitigate: true
-    criteria: {
-      allOf: [
-        {
-          query: aksAutoUpgradeKql
-          timeAggregation: 'Count'
-          operator: 'GreaterThan'
-          threshold: 0
-          metricMeasureColumn: ''
-          dimensions: []
-        }
-      ]
-    }
-    actions: {
-      actionGroups: actionGroupId != '' ? [actionGroupId] : []
-    }
-  }
-}
-
-// Assign Reader role to the alert rule's managed identity so it can query ARG
-resource aksAutoUpgradeRuleRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(
-    subscription().id,
-    resourceGroup().id,
-    aksAutoUpgradeAlertRule.name,
-    'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
-  )
-  scope: resourceGroup()
-  properties: {
-    principalId: aksAutoUpgradeAlertRule.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      'acdd72a7-3385-48ef-bd42-f606fba81ae7'
-    )
   }
 }
 
@@ -419,3 +334,8 @@ resource aksNodeOSAutoUpgradeAlertRuleRoleAssignment 'Microsoft.Authorization/ro
     )
   }
 }
+
+output aksId string = aksCluster.id
+output aksNameOut string = aksCluster.name
+output kubeletObjectId string = aksCluster.properties.identityProfile.kubeletidentity.objectId
+output oidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL

@@ -1,0 +1,10 @@
+arg("").aksresources
+| where type == 'microsoft.containerservice/fleets/gates'
+| extend gateType = tostring(properties.gateType)
+| extend gateState = tostring(properties.state)
+| extend targetId = tostring(properties.target.id)
+| extend displayName = tostring(properties.displayName)
+| extend gateResourceId = tolower(id)
+| where gateType == 'Approval' and gateState == 'Pending'
+| where gateResourceId startswith '{{FLEET_RESOURCE_ID}}/gates/'
+| project id, displayName, gateState, targetId
