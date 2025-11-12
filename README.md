@@ -63,6 +63,8 @@
 
 [Azure Kubernetes Service \(AKS\) Automatic の概要 \- Azure Kubernetes Service \| Microsoft Learn](https://learn.microsoft.com/ja-jp/azure/aks/intro-aks-automatic)
 
+> **注意**: AKS Automatic モードは現在一時的に無効化されています。解決に時間を要する可能性が高いため、Base モードのみをご利用ください。詳細は [Issue #18](https://github.com/torumakabe/aks-chaos-lab/issues/18) をご参照ください。
+
 Base モードを選んだ場合は、Azure Kubernetes Fleet Manager が更新管理を担います。
 - Fleet フリート／メンバー／更新戦略／自動アップグレード プロファイルが `infra/modules/fleet.bicep` で自動作成されます。
 - 更新戦略は `beforeGates` に Approval ゲートを含み、手動承認が完了するまで Update Run は開始されません。
