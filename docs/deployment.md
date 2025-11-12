@@ -33,18 +33,17 @@ azd config set alpha.aks.helm on
 
 ## 構成要素
 - **AKS**: Azure CNI Overlay + Cilium, Workload Identity
-  - **SKU**: BaseとAutomaticの両方をサポート（パラメーターで選択可能）
+  - **SKU**: Base モードをサポート
     - **Base**: 従来のAKS
-    - **Automatic**: より自動化された運用を提供する新しいAKSモード
+    - **注意**: Automatic モードは現在一時的に無効化されています
   - **自動アップグレード（Baseモード）**:
     - Kubernetesバージョン: Fleet Manager経由で手動承認制御
     - Node OSイメージ: AKSネイティブ自動アップグレード（`nodeOSUpgradeChannel=NodeImage`、毎週水曜日メンテナンスウィンドウ）
-  - **ノード自動スケーリング**: Base - Cluster Autoscaler、Automatic - Node Auto Provisioning
+  - **ノード自動スケーリング**: Cluster Autoscaler
   - **Cost Analysis**: AKS コスト分析アドオンを有効化
   - **Availability Zones**: 1 / 2 / 3（リージョン対応時）
   - **セキュリティ**: ローカルアカウントを無効化し、Azure AD/Entra IDのみの認証を強制
-    - Base モード: `disableLocalAccounts: true` を明示的に設定
-    - Automatic モード: 既定でローカルアカウントが無効化されているため追加設定不要
+    - `disableLocalAccounts: true` を明示的に設定
     - クラスターへのアクセスは `az aks get-credentials` で取得する Azure AD トークンベースの認証が必要
     - アイデンティティガバナンス、条件付きアクセスポリシー、監査性が向上
 - **Advanced Container Networking**: L7ネットワークポリシー + 可観測性
@@ -63,9 +62,9 @@ azd config set alpha.aks.helm on
 
 ## デプロイ手順
 
-本リポジトリは**AKS Base**モードと**AKS Automatic**モードの両方をサポートしています。パラメーターファイル（`infra/main.parameters.json`）で`aksSkuName`を変更することで選択可能です：
-- **Base**: 従来のAKS（デフォルト）
-- **Automatic**: より自動化された運用を提供する新しいAKSモード
+本リポジトリは**AKS Base**モードをサポートしています。
+
+> **注意**: AKS Automatic モードは現在一時的に無効化されています。Base モードのみをご利用ください。
 
 Base モードを選択した場合、Bicep は更新管理のために次を自動的にプロビジョニングします：
 
@@ -195,7 +194,8 @@ kustomize build k8s/base | kubectl apply -f -
 - **リソースグループ**: 全リソースを管理
 - **VNet + サブネット**: AKS(10.10.1.0/24) + PE(10.10.2.0/24)
 - **NSG**: `snet-aks` に NSG を関連付け、受信 TCP 80/443 を許可
-- **AKS**: Advanced Networking, Container Insights有効, SKU=Standard/Automatic（Uptime SLA）, Availability Zones=1/2/3
+- **AKS**: Advanced Networking, Container Insights有効, SKU=Standard/Base（Uptime SLA）, Availability Zones=1/2/3
+  - **注意**: Automatic SKU は現在一時的に無効化されています
   - **自動アップグレード（Baseモード）**:
     - Kubernetesバージョン: Fleet Manager経由（手動承認制御、`channel=Stable`）
     - Node OSイメージ: AKSネイティブ（`nodeOSUpgradeChannel=NodeImage`、メンテナンスウィンドウ: 毎週水曜日）
@@ -355,9 +355,9 @@ USERS=100 SPAWN_RATE=10 DURATION=300 make load-baseline
 - サブスクリプション権限: Contributor以上
 
 ## AKS SKUオプション
-本リポジトリは**AKS Base**モードと**AKS Automatic**モードの両方をサポートしています。パラメーターファイル（`infra/main.parameters.json`）で`aksSkuName`を変更することで選択可能です：
-- **Base**: 従来のAKS（デフォルト）
-- **Automatic**: より自動化された運用を提供する新しいAKSモード
+本リポジトリは**AKS Base**モードをサポートしています。
+
+> **注意**: AKS Automatic モードは現在一時的に無効化されています。Base モードのみをご利用ください。
 
 ## リソース構成（Bicep想定）
 - RG, VNet/Subnet

@@ -56,14 +56,11 @@
 
 ### デプロイメント
 
-本リポジトリは**AKS Base**モードと**AKS Automatic**モードの両方をサポートしています。パラメーターファイル（`infra/main.parameters.json`）で`aksSkuName`を変更することで選択可能です：
+本リポジトリは**AKS Base**モードをサポートしています。
 
-- **Base** (デフォルト): 従来のAKSで、詳細な制御が可能
-- **Automatic**: より自動化された運用を提供する新しいAKSモード
+> **注意**: AKS Automatic モードは現在一時的に無効化されています。Base モードのみをご利用ください。
 
-[Azure Kubernetes Service \(AKS\) Automatic の概要 \- Azure Kubernetes Service \| Microsoft Learn](https://learn.microsoft.com/ja-jp/azure/aks/intro-aks-automatic)
-
-Base モードを選んだ場合は、Azure Kubernetes Fleet Manager が更新管理を担います。
+Base モードでは、Azure Kubernetes Fleet Manager が更新管理を担います。
 - Fleet フリート／メンバー／更新戦略／自動アップグレード プロファイルが `infra/modules/fleet.bicep` で自動作成されます。
 - 更新戦略は `beforeGates` に Approval ゲートを含み、手動承認が完了するまで Update Run は開始されません。
 - Control plane 用（Stable／`nodeImageSelection=Latest`）と NodeImage 用（`nodeImageSelection` 省略）の autoUpgradeProfile を生成し、双方が同じ承認ゲートを共有します。
