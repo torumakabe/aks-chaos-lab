@@ -20,9 +20,10 @@ param logAnalyticsWorkspaceId string
 @description('Action Group resource ID for alerts (optional, leave empty for lab use)')
 param actionGroupId string = ''
 
-@description('AKS SKU mode - "Base" for traditional AKS with Cluster Autoscaler. Note: "Automatic" mode is temporarily disabled.')
+@description('AKS SKU mode - "Base" for traditional AKS with Cluster Autoscaler; "Automatic" for automated operations with Node Auto Provisioning. Default is "Base"')
 @allowed([
   'Base'
+  'Automatic'
 ])
 param skuName string = 'Base'
 
