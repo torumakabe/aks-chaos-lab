@@ -196,7 +196,7 @@ resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGrou
       }
       {
         record: 'app:nginx_ingress_error_rate:ratio'
-        expression: 'sum(rate(nginx_ingress_controller_request_duration_seconds_count{status=~"[45].."}[5m])) / sum(rate(nginx_ingress_controller_request_duration_seconds_count[5m]))'
+        expression: 'sum(rate(nginx_ingress_controller_request_duration_seconds_count{status=~"(4(0[0138]|29)|5..)"}[5m])) / sum(rate(nginx_ingress_controller_request_duration_seconds_count[5m]))'
       }
       {
         record: 'app:nginx_ingress_request_rate'
