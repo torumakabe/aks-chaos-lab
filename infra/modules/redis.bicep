@@ -12,7 +12,7 @@ param privateEndpointSubnetId string
 @description('Principal objectId to grant Redis DB access (optional)')
 param principalObjectId string = ''
 
-resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-04-01' = {
+resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-07-01' = {
   name: redisName
   location: location
   tags: tags
@@ -21,10 +21,11 @@ resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-04-01' = {
   properties: {
     minimumTlsVersion: '1.2'
     highAvailability: 'Enabled'
+    publicNetworkAccess: 'Disabled'
   }
 }
 
-resource redisEnterpriseDatabase 'Microsoft.Cache/redisEnterprise/databases@2025-04-01' = {
+resource redisEnterpriseDatabase 'Microsoft.Cache/redisEnterprise/databases@2025-07-01' = {
   name: 'default'
   parent: redisEnterprise
   properties: {
@@ -88,7 +89,6 @@ output redisId string = redisEnterprise.id
 output redisHost string = redisEnterprise.properties.hostName
 output redisPort int = 10000
 
-#disable-next-line BCP081
 resource redisAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-04-01' = if (!empty(principalObjectId)) {
   name: 'app'
   parent: redisEnterpriseDatabase
