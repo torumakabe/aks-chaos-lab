@@ -51,8 +51,6 @@ param enableContainerInsights bool = true
 @description('Action Group resource ID for alerts (optional, leave empty for lab use)')
 param actionGroupId string = ''
 
- 
-
 @description('Chaos experiments namespace (Kubernetes)')
 param chaosNamespace string = 'chaos-lab'
 
@@ -161,7 +159,6 @@ module prometheusAlertRules './modules/prometheus/alert-rules.bicep' = if (enabl
     prometheusWorkspaceId: prometheusWorkspaceResourceId
     aksId: aksCluster.outputs.aksId
     actionGroupId: actionGroupId
-    
   }
 }
 
