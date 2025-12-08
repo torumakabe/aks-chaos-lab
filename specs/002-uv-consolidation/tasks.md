@@ -81,7 +81,7 @@
 
 ## Phase 5: User Story 4 - CI ワークフローの更新 (Priority: P4)
 
-**Goal**: CI ワークフローで公式 Action を使用し、uv バージョンを `.uv-version` と一致させる
+**Goal**: CI ワークフローで公式 Action を使用し、uv バージョンを `pyproject.toml` と一致させる
 
 **Independent Test**: GitHub Actions ワークフローが成功する
 
@@ -89,11 +89,11 @@
 
 - [X] T017 [US4] CI ワークフローで `astral-sh/setup-uv@v7` を使用 in `.github/workflows/ci.yml`
   - 手動キャッシュ設定を削除（setup-uv が自動管理）
-  - `version-file: "src/.uv-version"` でバージョンを指定
+  - `version-file: "src/pyproject.toml"` でバージョンを指定（`[tool.uv] required-version`）
 - [X] T018 [US4] `uv sync --group dev` を `uv sync --group dev --locked` に変更
 - [X] T019 [US4] `setup-python` Action を削除（setup-uv が Python も管理可能）
 - [X] T020 [US4] ローカルで CI ワークフローの YAML 構文を検証
-- [ ] T021 [US4] GitHub にプッシュして CI が成功することを確認
+- [X] T021 [US4] GitHub にプッシュして CI が成功することを確認
 
 **Checkpoint**: User Story 4 完了 - CI が公式 Action を使用し、バージョン一貫性が確保
 
@@ -104,8 +104,8 @@
 **Purpose**: 最終検証とドキュメント更新
 
 - [X] T014 [P] `make check-uv-version` が正常に動作することを確認
-- [ ] T022 全成功基準（SC-001〜SC-007）の最終確認
-- [ ] T023 spec.md の Status を In Progress から Complete に更新
+- [X] T022 全成功基準（SC-001〜SC-007）の最終確認
+- [X] T023 spec.md の Status を In Progress から Complete に更新
 
 ---
 

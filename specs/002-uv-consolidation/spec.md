@@ -2,7 +2,7 @@
 
 **Feature Branch**: `002-uv-consolidation`  
 **Created**: 2025-12-08  
-**Status**: In Progress  
+**Status**: Complete  
 **Input**: User description: "Pythonアプリケーションの依存パッケージ管理をuvに一本化。requirements.txtの利用を廃止する"
 
 ## User Scenarios & Testing *(mandatory)*
@@ -63,7 +63,7 @@
 
 **Acceptance Scenarios**:
 
-1. **Given** 更新された CI ワークフロー、**When** GitHub Actions が実行される、**Then** `.uv-version` で指定されたバージョンの uv が使用される
+1. **Given** 更新された CI ワークフロー、**When** GitHub Actions が実行される、**Then** `pyproject.toml` の `required-version` で指定されたバージョンの uv が使用される
 2. **Given** 更新された CI ワークフロー、**When** `uv sync` が実行される、**Then** `--locked` フラグにより lockfile の整合性が検証される
 3. **Given** 更新された CI ワークフロー、**When** 公式 Action `astral-sh/setup-uv` が使用される、**Then** キャッシュが自動管理され、ワークフローが簡素化される
 
@@ -74,7 +74,7 @@
 - uv がインストールされていない環境でのビルドはどうなるか？ → Dockerfile 内で uv をインストールするため問題なし
 - Docker ビルドキャッシュの効率は維持されるか？ → pyproject.toml と uv.lock を先にコピーし、依存関係インストール後にアプリケーションコードをコピーする層分離により維持
 - マルチステージビルドは必要か？ → 現時点では不要。将来的に uv をランタイムイメージに含めたくない場合は検討
-- CI で `.uv-version` が見つからない場合は？ → `astral-sh/setup-uv` の `version-file` オプションで明示的にパスを指定
+- CI で `pyproject.toml` が見つからない場合は？ → `astral-sh/setup-uv` の `version-file` オプションで明示的にパスを指定
 
 ## Requirements *(mandatory)*
 
@@ -87,15 +87,14 @@
 - **FR-005**: Docker ビルドキャッシュの効率を維持するため、依存関係ファイルとアプリケーションコードは別の層でコピーされなければならない（MUST）
 - **FR-006**: ビルドされたコンテナはセキュリティのため non-root ユーザーで実行されなければならない（MUST）
 - **FR-007**: CI ワークフローは公式 Action `astral-sh/setup-uv` を使用しなければならない（MUST）
-- **FR-008**: CI ワークフローは `.uv-version` ファイルから uv バージョンを読み込まなければならない（MUST）
+- **FR-008**: CI ワークフローは `pyproject.toml` の `[tool.uv] required-version` から uv バージョンを読み込まなければならない（MUST）
 - **FR-009**: CI ワークフローは `uv sync --locked` を使用して lockfile の整合性を検証しなければならない（MUST）
 
 ### Key Entities
 
-- **pyproject.toml**: プロジェクトの依存関係定義ファイル。uv および PEP 621 に準拠
+- **pyproject.toml**: プロジェクトの依存関係定義ファイル。uv および PEP 621 に準拠。`[tool.uv] required-version` で uv バージョンも管理
 - **uv.lock**: uv が生成するロックファイル。依存関係のバージョンを固定
 - **Dockerfile**: コンテナイメージのビルド定義
-- **.uv-version**: uv バージョンを一元管理するファイル。Dockerfile と CI が参照
 - **ci.yml**: GitHub Actions CI ワークフロー定義
 
 ## Success Criteria *(mandatory)*
@@ -107,7 +106,7 @@
 - **SC-003**: `make qa` がすべて成功する（既存のテスト・リント・型チェックが通る）
 - **SC-004**: requirements.txt がリポジトリから削除されている
 - **SC-005**: Makefile に requirements ターゲットが存在しない
-- **SC-006**: CI ワークフローが `astral-sh/setup-uv` を使用し、`.uv-version` からバージョンを読み込んでいる
+- **SC-006**: CI ワークフローが `astral-sh/setup-uv` を使用し、`pyproject.toml` の `required-version` からバージョンを読み込んでいる
 - **SC-007**: CI ワークフローの全ジョブが成功する
 
 ## Assumptions

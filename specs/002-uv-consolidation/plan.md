@@ -51,8 +51,7 @@ specs/002-uv-consolidation/
 src/
 ├── Dockerfile           # 変更対象: pip → uv sync
 ├── Makefile             # 変更対象: requirements 削除, check-uv-version 追加
-├── .uv-version          # 新規: uv バージョン一元管理
-├── pyproject.toml       # 既存（変更なし）
+├── pyproject.toml       # 変更対象: [tool.uv] required-version 追加
 ├── uv.lock              # 既存（変更なし）
 ├── requirements.txt     # 削除対象
 └── app/                 # 変更なし
