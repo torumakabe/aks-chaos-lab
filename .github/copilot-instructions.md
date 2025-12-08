@@ -10,10 +10,7 @@
 - 一時的ではない、その後も継続的にテストに使うべきファイルは、`tests`ディレクトリを作成し、その中に入れる。
 - 調査や検証が完了したら、不要になった一時ファイルは削除する。
 
-# 仕様駆動ワークフローの遵守
+# ワークフロー
 
-- すべての開発タスクは `.github/prompts/spec-driven-workflow-v1.md`（仕様駆動ワークフロー v1）に従って進める。
-- 6フェーズ（分析→設計→実装→検証→反映→引き継ぎ）を順守し、各フェーズ間は承認ゲートを設ける。承認なしに次フェーズへ進まない。
-- /docs 直下の主要ドキュメント（`requirements.md`、`design.md`、`api.md`、`deployment.md`）を常に最新に保ち、変更があれば即時更新する。図表は Mermaid 記法を用いる。
-- 履歴的ドキュメントは `/docs/history/`（implementation/、validation/、reflection/ など）に保存する。
-- 実装時は必ず 型チェック/リント/フォーマット/テスト を実行し、全て合格を確認する（プロジェクト設定に準拠）。
+- Spec Kitワークフローに従う（/speckit.specify, /speckit.plan, /speckit.tasks, /speckit.implement）
+- 詳細なルールは `.specify/memory/constitution.md` を参照
