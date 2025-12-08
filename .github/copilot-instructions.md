@@ -18,3 +18,9 @@
   - 依存パッケージのバージョン更新（セキュリティパッチ、バグ修正）
   - 軽微なドキュメント修正（誤字、リンク修正）
 - 詳細なルールは `.specify/memory/constitution.md` を参照
+
+## Active Technologies
+- Python 3.13 + uv (パッケージマネージャー)、FastAPI、uvicorn (002-uv-consolidation)
+
+## Recent Changes
+- 002-uv-consolidation: Added Python 3.13 + uv (パッケージマネージャー)、FastAPI、uvicorn
