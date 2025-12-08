@@ -12,5 +12,9 @@
 
 # ワークフロー
 
-- Spec Kitワークフローに従う（/speckit.specify, /speckit.plan, /speckit.tasks, /speckit.implement）
+- 機能開発は Spec Kit ワークフローに従う（/speckit.specify, /speckit.plan, /speckit.tasks, /speckit.implement）
+- 以下のような変更は Spec Kit ワークフローを経由せず直接実施する：
+  - API バージョンの更新（Azure API、Kubernetes API など）
+  - 依存パッケージのバージョン更新（セキュリティパッチ、バグ修正）
+  - 軽微なドキュメント修正（誤字、リンク修正）
 - 詳細なルールは `.specify/memory/constitution.md` を参照
