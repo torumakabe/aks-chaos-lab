@@ -6,7 +6,7 @@ YELLOW := \033[0;33m
 RED := \033[0;31m
 NC := \033[0m # No Color
 
-.PHONY: help install test test-cov test-integration test-load test-all lint typecheck format format-check check clean build requirements run load-smoke load-baseline load-stress load-spike sync sync-dev qa
+.PHONY: help install test test-cov test-integration test-load test-all lint typecheck format format-check check clean build run load-smoke load-baseline load-stress load-spike sync sync-dev qa check-uv-version
 
 help: ## Show help
 	@echo 'Usage: make [target]'
@@ -29,9 +29,6 @@ sync-dev: ## uv sync for dev group
 	@echo -e "$(YELLOW)Syncing dev dependencies...$(NC)"
 	@uv sync --group dev
 	@echo -e "$(GREEN)✓ Dev dependencies synced$(NC)"
-
-requirements: ## Generate requirements.txt from pyproject.toml
-	uv pip compile pyproject.toml -o requirements.txt
 
 test: ## Run unit tests
 	@echo -e "$(YELLOW)Running unit tests...$(NC)"
@@ -84,7 +81,7 @@ clean: ## Clean caches
 	@rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage 2>/dev/null || true
 	@echo -e "$(GREEN)✓ Caches cleaned$(NC)"
 
-build: requirements ## Build Docker image locally
+build: ## Build Docker image locally
 	@echo -e "$(YELLOW)Building Docker image...$(NC)"
 	@docker build -f Dockerfile -t aks-chaos-lab:local .
 	@echo -e "$(GREEN)✓ Docker image built$(NC)"
@@ -117,3 +114,23 @@ qa: ## Lint + Test + Typecheck (quick)
 	@echo -e "$(YELLOW)  → Type checking...$(NC)"
 	@PYTHONPATH=. uv run mypy app
 	@echo -e "$(GREEN)✓ All QA checks passed$(NC)"
+
+check-uv-version: ## Check uv version consistency (local vs Docker)
+	@echo -e "$(YELLOW)Checking uv version consistency...$(NC)"
+	@expected=$$(cat .uv-version 2>/dev/null || echo "not set"); \
+	local_ver=$$(uv --version 2>/dev/null | awk '{print $$2}' || echo "not installed"); \
+	docker_ver=$$(grep -oP 'ghcr\.io/astral-sh/uv:\K[0-9]+\.[0-9]+\.[0-9]+' Dockerfile 2>/dev/null | head -1 || echo "not found"); \
+	echo "  Expected (.uv-version): $$expected"; \
+	echo "  Local uv:               $$local_ver"; \
+	echo "  Docker uv:              $$docker_ver"; \
+	if [ "$$docker_ver" != "$$expected" ]; then \
+		echo -e "$(RED)✗ Docker uv version mismatch with .uv-version$(NC)"; \
+		exit 1; \
+	fi; \
+	if [ "$$local_ver" != "$$expected" ]; then \
+		echo -e "$(YELLOW)⚠ Warning: Local uv ($$local_ver) differs from expected ($$expected)$(NC)"; \
+		echo "  Note: Patch version differences within same minor version are compatible"; \
+		echo "  Lockfile compatibility is enforced by 'uv sync --locked' in Docker build"; \
+	else \
+		echo -e "$(GREEN)✓ All uv versions match$(NC)"; \
+	fi
