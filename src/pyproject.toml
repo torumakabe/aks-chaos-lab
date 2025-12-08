@@ -92,3 +92,6 @@ exclude_lines = [
   "raise NotImplementedError",
   "if __name__ == .__main__.:",
 ]
+
+[tool.uv]
+required-version = ">=0.9.16"

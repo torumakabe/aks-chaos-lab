@@ -117,14 +117,14 @@ qa: ## Lint + Test + Typecheck (quick)
 
 check-uv-version: ## Check uv version consistency (local vs Docker)
 	@echo -e "$(YELLOW)Checking uv version consistency...$(NC)"
-	@expected=$$(cat .uv-version 2>/dev/null || echo "not set"); \
+	@expected=$$(grep -oP 'required-version\s*=\s*">=\K[0-9]+\.[0-9]+\.[0-9]+' pyproject.toml 2>/dev/null || echo "not set"); \
 	local_ver=$$(uv --version 2>/dev/null | awk '{print $$2}' || echo "not installed"); \
 	docker_ver=$$(grep -oP 'ghcr\.io/astral-sh/uv:\K[0-9]+\.[0-9]+\.[0-9]+' Dockerfile 2>/dev/null | head -1 || echo "not found"); \
-	echo "  Expected (.uv-version): $$expected"; \
-	echo "  Local uv:               $$local_ver"; \
-	echo "  Docker uv:              $$docker_ver"; \
+	echo "  Expected (pyproject.toml required-version): $$expected"; \
+	echo "  Local uv:                                   $$local_ver"; \
+	echo "  Docker uv:                                  $$docker_ver"; \
 	if [ "$$docker_ver" != "$$expected" ]; then \
-		echo -e "$(RED)✗ Docker uv version mismatch with .uv-version$(NC)"; \
+		echo -e "$(RED)✗ Docker uv version mismatch with pyproject.toml$(NC)"; \
 		exit 1; \
 	fi; \
 	if [ "$$local_ver" != "$$expected" ]; then \
