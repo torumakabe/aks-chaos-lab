@@ -1,0 +1,276 @@
+# Platform Integration Test Workflow
+# Manual trigger for full-stack integration testing with temporary Azure environment
+
+name: Platform Integration Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to test'
+        required: false
+        default: 'main'
+        type: string
+      test_scope:
+        description: 'Test scope'
+        required: false
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - infra-only
+          - app-only
+      aks_sku:
+        description: 'AKS SKU mode'
+        required: false
+        default: 'Base'
+        type: choice
+        options:
+          - Base
+          - Automatic
+
+concurrency:
+  group: integration-test
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_ENV_NAME: inttest-${{ github.run_id }}
+  AZURE_LOCATION: japaneast
+
+jobs:
+  validate:
+    name: Validate Bicep Templates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: integration-test
+    outputs:
+      env_name: ${{ env.AZURE_ENV_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate Bicep Templates
+        run: |
+          echo "::group::Bicep Build"
+          az bicep build --file infra/main.bicep
+          echo "::endgroup::"
+
+          echo "## ✅ Bicep Validation Passed" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`${{ inputs.branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Run ID: \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+
+  provision:
+    name: Provision Infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: validate
+    if: inputs.test_scope != 'app-only'
+    environment: integration-test
+    outputs:
+      resource_group: ${{ steps.provision.outputs.resource_group }}
+      ingress_fqdn: ${{ steps.provision.outputs.ingress_fqdn }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Azure Developer CLI
+        uses: Azure/setup-azd@v2
+
+      - name: Initialize azd environment
+        run: |
+          echo "::group::azd env new"
+          azd env new ${{ env.AZURE_ENV_NAME }} --no-prompt
+          azd env set AZURE_LOCATION ${{ env.AZURE_LOCATION }}
+          azd env set AZURE_SUBSCRIPTION_ID ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          azd env set aksSkuName ${{ inputs.aks_sku }}
+          echo "::endgroup::"
+
+      - name: Provision infrastructure
+        id: provision
+        run: |
+          echo "::group::azd provision"
+          azd provision --no-prompt || {
+            echo "## ❌ Provision Failed" >> $GITHUB_STEP_SUMMARY
+            echo "Run ID: \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "Environment: \`${{ env.AZURE_ENV_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "Check the logs above for details." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
+          echo "::endgroup::"
+
+          # Output resource group and ingress FQDN for subsequent jobs
+          RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
+          INGRESS_FQDN=$(azd env get-value AZURE_INGRESS_FQDN)
+          echo "resource_group=$RESOURCE_GROUP" >> $GITHUB_OUTPUT
+          echo "ingress_fqdn=$INGRESS_FQDN" >> $GITHUB_OUTPUT
+
+          echo "## ✅ Provision Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- Resource Group: \`$RESOURCE_GROUP\`" >> $GITHUB_STEP_SUMMARY
+          echo "- AKS SKU: \`${{ inputs.aks_sku }}\`" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: provision
+    if: inputs.test_scope != 'infra-only'
+    environment: integration-test
+    outputs:
+      ingress_fqdn: ${{ needs.provision.outputs.ingress_fqdn }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Azure Developer CLI
+        uses: Azure/setup-azd@v2
+
+      - name: Select azd environment
+        run: |
+          azd env select ${{ env.AZURE_ENV_NAME }}
+
+      - name: Deploy application
+        run: |
+          echo "::group::azd deploy"
+          azd deploy --no-prompt || {
+            echo "## ❌ Deploy Failed" >> $GITHUB_STEP_SUMMARY
+            echo "Run ID: \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "Check the logs above for details." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
+          echo "::endgroup::"
+
+          echo "## ✅ Deploy Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- Ingress FQDN: \`${{ needs.provision.outputs.ingress_fqdn }}\`" >> $GITHUB_STEP_SUMMARY
+
+  test:
+    name: Run Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: deploy
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Smoke test - Health endpoint
+        env:
+          INGRESS_FQDN: ${{ needs.deploy.outputs.ingress_fqdn }}
+        run: |
+          echo "::group::Smoke Test - /health"
+          # Wait for ingress to be ready
+          sleep 30
+
+          # Test health endpoint
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${INGRESS_FQDN}/health" --max-time 30 || echo "000")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Health check passed (HTTP $HTTP_STATUS)"
+            echo "## ✅ Smoke Test Passed" >> $GITHUB_STEP_SUMMARY
+            echo "- Endpoint: \`https://${INGRESS_FQDN}/health\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Status: HTTP $HTTP_STATUS" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Health check failed (HTTP $HTTP_STATUS)"
+            echo "## ❌ Smoke Test Failed" >> $GITHUB_STEP_SUMMARY
+            echo "- Endpoint: \`https://${INGRESS_FQDN}/health\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Status: HTTP $HTTP_STATUS" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+          echo "::endgroup::"
+
+      - name: Run platform integration tests
+        env:
+          INTEGRATION_TEST_URL: https://${{ needs.deploy.outputs.ingress_fqdn }}
+        run: |
+          echo "::group::Platform Integration Tests"
+          cd src
+          uv sync --group dev
+          PYTHONPATH=. uv run pytest tests/integration/test_platform.py -v --tb=short || {
+            echo "## ❌ Integration Tests Failed" >> $GITHUB_STEP_SUMMARY
+            echo "Check the logs above for details." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
+          echo "::endgroup::"
+
+          echo "## ✅ Integration Tests Passed" >> $GITHUB_STEP_SUMMARY
+
+  cleanup:
+    name: Cleanup Resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [validate, provision, deploy, test]
+    if: always() && needs.provision.result != 'skipped'
+    environment: integration-test
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install Azure Developer CLI
+        uses: Azure/setup-azd@v2
+
+      - name: Delete resource group
+        run: |
+          echo "::group::Cleanup Resources"
+          RESOURCE_GROUP="${{ needs.provision.outputs.resource_group }}"
+
+          if [ -n "$RESOURCE_GROUP" ]; then
+            echo "Deleting resource group: $RESOURCE_GROUP"
+            az group delete --name "$RESOURCE_GROUP" --yes --no-wait || true
+            echo "Resource group deletion initiated (async)"
+          else
+            echo "No resource group to delete"
+          fi
+          echo "::endgroup::"
+
+      - name: Delete azd environment
+        run: |
+          echo "::group::Delete azd environment"
+          azd env delete ${{ env.AZURE_ENV_NAME }} --yes --force || true
+          echo "::endgroup::"
+
+          echo "## 🧹 Cleanup Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment: \`${{ env.AZURE_ENV_NAME }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Resource Group: \`${{ needs.provision.outputs.resource_group }}\`" >> $GITHUB_STEP_SUMMARY

@@ -21,6 +21,8 @@
 
 ## Active Technologies
 - Python 3.13 + uv (パッケージマネージャー)、FastAPI、uvicorn (002-uv-consolidation)
+- YAML (GitHub Actions) + Bash (テストスクリプト) + Azure CLI, Azure Developer CLI (azd), Bicep CLI, curl (003-platform-integration-test)
+- N/A（一時的なAzureリソース） (003-platform-integration-test)
 
 ## Recent Changes
 - 002-uv-consolidation: Added Python 3.13 + uv (パッケージマネージャー)、FastAPI、uvicorn

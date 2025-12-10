@@ -29,6 +29,8 @@ dev = [
   "locust>=2.20.0",
   "freezegun>=1.4.0",
   "httpx>=0.25.0",
+  "requests>=2.31.0",
+  "types-requests>=2.31.0",
 ]
 
 [build-system]
