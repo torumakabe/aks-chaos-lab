@@ -4,12 +4,12 @@
 name: Platform Integration Test
 
 on:
-  # TODO: Remove push trigger after initial testing
-  push:
-    branches:
-      - 003-platform-integration-test
-    paths:
-      - '.github/workflows/integration-test.yml'
+  # TODO: Uncomment push trigger for testing, then remove after merge to main
+  # push:
+  #   branches:
+  #     - 003-platform-integration-test
+  #   paths:
+  #     - '.github/workflows/integration-test.yml'
   workflow_dispatch:
     inputs:
       branch:
@@ -104,8 +104,16 @@ jobs:
       - name: Install Azure Developer CLI
         uses: Azure/setup-azd@v2
 
+      - name: Install kubelogin
+        uses: Azure/use-kubelogin@v1
+
       - name: Login to azd
         run: azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --federated-credential-provider github --tenant-id ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Configure azd alpha features
+        run: |
+          azd config set alpha.aks.helm on
+          azd config set alpha.aks.kustomize on
 
       - name: Initialize azd environment
         run: |
@@ -164,8 +172,16 @@ jobs:
       - name: Install Azure Developer CLI
         uses: Azure/setup-azd@v2
 
+      - name: Install kubelogin
+        uses: Azure/use-kubelogin@v1
+
       - name: Login to azd
         run: azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --federated-credential-provider github --tenant-id ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Configure azd alpha features
+        run: |
+          azd config set alpha.aks.helm on
+          azd config set alpha.aks.kustomize on
 
       - name: Select azd environment
         run: |
