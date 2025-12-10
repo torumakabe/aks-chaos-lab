@@ -104,6 +104,9 @@ jobs:
       - name: Install Azure Developer CLI
         uses: Azure/setup-azd@v2
 
+      - name: Login to azd
+        run: azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --federated-credential-provider github --tenant-id ${{ secrets.AZURE_TENANT_ID }}
+
       - name: Initialize azd environment
         run: |
           echo "::group::azd env new"
@@ -160,6 +163,9 @@ jobs:
 
       - name: Install Azure Developer CLI
         uses: Azure/setup-azd@v2
+
+      - name: Login to azd
+        run: azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --federated-credential-provider github --tenant-id ${{ secrets.AZURE_TENANT_ID }}
 
       - name: Select azd environment
         run: |
@@ -256,6 +262,9 @@ jobs:
 
       - name: Install Azure Developer CLI
         uses: Azure/setup-azd@v2
+
+      - name: Login to azd
+        run: azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --federated-credential-provider github --tenant-id ${{ secrets.AZURE_TENANT_ID }}
 
       - name: Delete resource group
         run: |
