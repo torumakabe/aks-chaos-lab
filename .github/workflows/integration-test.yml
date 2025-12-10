@@ -4,6 +4,12 @@
 name: Platform Integration Test
 
 on:
+  # TODO: Remove push trigger after initial testing
+  push:
+    branches:
+      - 003-platform-integration-test
+    paths:
+      - '.github/workflows/integration-test.yml'
   workflow_dispatch:
     inputs:
       branch:
