@@ -59,7 +59,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ inputs.branch || github.ref_name }}
 
       - name: Azure Login
         uses: azure/login@v2
@@ -75,7 +75,7 @@ jobs:
           echo "::endgroup::"
 
           echo "## ✅ Bicep Validation Passed" >> $GITHUB_STEP_SUMMARY
-          echo "- Branch: \`${{ inputs.branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`${{ inputs.branch || github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Run ID: \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
 
   provision:
@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     needs: validate
-    if: inputs.test_scope != 'app-only'
+    if: (inputs.test_scope || 'full') != 'app-only'
     environment: integration-test
     outputs:
       resource_group: ${{ steps.provision.outputs.resource_group }}
@@ -92,7 +92,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ inputs.branch || github.ref_name }}
 
       - name: Azure Login
         uses: azure/login@v2
@@ -110,7 +110,7 @@ jobs:
           azd env new ${{ env.AZURE_ENV_NAME }} --no-prompt
           azd env set AZURE_LOCATION ${{ env.AZURE_LOCATION }}
           azd env set AZURE_SUBSCRIPTION_ID ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          azd env set aksSkuName ${{ inputs.aks_sku }}
+          azd env set aksSkuName ${{ inputs.aks_sku || 'Base' }}
           echo "::endgroup::"
 
       - name: Provision infrastructure
@@ -134,14 +134,14 @@ jobs:
 
           echo "## ✅ Provision Completed" >> $GITHUB_STEP_SUMMARY
           echo "- Resource Group: \`$RESOURCE_GROUP\`" >> $GITHUB_STEP_SUMMARY
-          echo "- AKS SKU: \`${{ inputs.aks_sku }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- AKS SKU: \`${{ inputs.aks_sku || 'Base' }}\`" >> $GITHUB_STEP_SUMMARY
 
   deploy:
     name: Deploy Application
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: provision
-    if: inputs.test_scope != 'infra-only'
+    if: (inputs.test_scope || 'full') != 'infra-only'
     environment: integration-test
     outputs:
       ingress_fqdn: ${{ needs.provision.outputs.ingress_fqdn }}
@@ -149,7 +149,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ inputs.branch || github.ref_name }}
 
       - name: Azure Login
         uses: azure/login@v2
@@ -188,7 +188,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.branch }}
+          ref: ${{ inputs.branch || github.ref_name }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
