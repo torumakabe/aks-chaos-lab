@@ -276,12 +276,6 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Install Azure Developer CLI
-        uses: Azure/setup-azd@v2
-
-      - name: Login to azd
-        run: azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --federated-credential-provider github --tenant-id ${{ secrets.AZURE_TENANT_ID }}
-
       - name: Delete resource group
         run: |
           echo "::group::Cleanup Resources"
@@ -296,12 +290,5 @@ jobs:
           fi
           echo "::endgroup::"
 
-      - name: Delete azd environment
-        run: |
-          echo "::group::Delete azd environment"
-          azd env delete ${{ env.AZURE_ENV_NAME }} --yes --force || true
-          echo "::endgroup::"
-
           echo "## 🧹 Cleanup Completed" >> $GITHUB_STEP_SUMMARY
-          echo "- Environment: \`${{ env.AZURE_ENV_NAME }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Resource Group: \`${{ needs.provision.outputs.resource_group }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Resource Group: \`$RESOURCE_GROUP\`" >> $GITHUB_STEP_SUMMARY
