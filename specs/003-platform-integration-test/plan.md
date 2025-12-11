@@ -68,26 +68,27 @@ docs/
 \`\`\`mermaid
 graph TD
     A[workflow_dispatch] --> B[validate]
-    B --> C[provision]
-    C --> D[deploy]
-    D --> E[test]
-    E --> F[cleanup]
+    B --> C[provision-and-deploy]
+    C --> D[test]
+    D --> E[cleanup]
     
-    B -->|failure| F
-    C -->|failure| F
-    D -->|failure| F
-    E -->|always| F
+    B -->|failure| E
+    C -->|failure| E
+    D -->|always| E
 \`\`\`
+
+> **Note**: provision と deploy は元々別ジョブだったが、azd env の環境変数共有を簡素化するため統合した。
 
 ### Job Details
 
 | Job | Description | Timeout | Dependencies |
 |-----|-------------|---------|--------------|
 | validate | Bicepテンプレートの検証 | 15分 | - |
-| provision | azd provisionで環境構築 | 25分 | validate |
-| deploy | azd deployでアプリデプロイ | 10分 | provision |
-| test | 統合テスト実行 | 10分 | deploy |
+| provision-and-deploy | azd provision + deploy | 35分 | validate |
+| test | 統合テスト実行 | 10分 | provision-and-deploy |
 | cleanup | リソースグループ削除 | 15分 | always (成功・失敗問わず) |
+
+> **Note**: provisionとdeployはazd envの環境変数共有の簡素化のため、単一ジョブに統合した。
 
 ### Input Parameters
 

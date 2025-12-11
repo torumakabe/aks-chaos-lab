@@ -76,12 +76,13 @@
 - 統合テスト中にパイプラインがキャンセルされた場合、クリーンアップジョブが実行されてリソースリークを防ぐ
 - Azureの一時的な障害でデプロイが失敗した場合、設定可能なリトライ機構が動作する
 - 統合テスト環境のクリーンアップに失敗した場合、GitHub Actionsの失敗ステータスで通知され、手動対応を促す
+- Ingress Controllerが自己署名SSL証明書を使用している場合、統合テストでは証明書検証を無効化する（verify=False）
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: パイプラインは`bicep build`と`az deployment group what-if`を実行してBicepテンプレートを検証しなければならない
+- **FR-001**: パイプラインは`bicep build`を実行してBicepテンプレートを検証しなければならない
 - **FR-002**: パイプラインは統合テスト用の一時的なAzure環境を`azd provision`を使用してプロビジョニングできなければならない
 - **FR-003**: パイプラインはプロビジョニングされた環境に対してアプリケーションを`azd deploy`を使用してデプロイできなければならない
 - **FR-004**: パイプラインはデプロイされたアプリケーションに対して、`/health`エンドポイントおよびRedis連携エンドポイントのHTTPベースの統合テストを実行できなければならない
@@ -117,6 +118,7 @@
 - 統合テスト環境は本番環境とは別のリソースグループに作成される
 - テスト環境の識別には一意のサフィックス（GitHub Actions Run IDなど）が使用される
 - 既存の`azure.yaml`と`infra/`のBicepテンプレートが統合テスト環境のプロビジョニングに使用される
+- 統合テスト用のMSIには `Contributor` ロールに加えて `Azure Kubernetes Service RBAC Cluster Admin` ロールが必要（AKSへのkubectl操作のため）
 
 ## Clarifications
 

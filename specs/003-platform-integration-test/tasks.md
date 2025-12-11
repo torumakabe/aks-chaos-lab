@@ -54,7 +54,7 @@
 ### Implementation for User Story 1
 
 - [x] T007 [US1] validateジョブを実装: checkout, Azure login, bicep build `.github/workflows/integration-test.yml`
-- [x] T008 [US1] validateジョブにwhat-if分析を追加 `.github/workflows/integration-test.yml`
+- [ ] T008 [US1] ~~validateジョブにwhat-if分析を追加~~ → スキップ：bicep buildのみで十分と判断 `.github/workflows/integration-test.yml`
 - [x] T009 [US1] validateジョブのタイムアウト設定（15分） `.github/workflows/integration-test.yml`
 - [x] T010 [US1] validateジョブのログ構造化（::group::使用） `.github/workflows/integration-test.yml`
 
