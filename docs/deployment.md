@@ -457,11 +457,18 @@ MSI_PRINCIPAL_ID=$(az identity show \
   --resource-group rg-aks-chaos-lab-msi \
   --query principalId -o tsv)
 
-# Contributor ロールを割り当て
+# Contributor ロールを割り当て（Azure リソースの作成・管理用）
 az role assignment create \
   --assignee-object-id $MSI_PRINCIPAL_ID \
   --assignee-principal-type ServicePrincipal \
   --role Contributor \
+  --scope /subscriptions/$(az account show --query id -o tsv)
+
+# AKS RBAC Cluster Admin ロールを割り当て（Kubernetes API 操作用）
+az role assignment create \
+  --assignee-object-id $MSI_PRINCIPAL_ID \
+  --assignee-principal-type ServicePrincipal \
+  --role "Azure Kubernetes Service RBAC Cluster Admin" \
   --scope /subscriptions/$(az account show --query id -o tsv)
 ```
 
