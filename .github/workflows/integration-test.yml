@@ -189,25 +189,43 @@ jobs:
           INGRESS_FQDN: ${{ needs.provision-and-deploy.outputs.ingress_fqdn }}
         run: |
           echo "::group::Smoke Test - /health"
-          # Wait for ingress to be ready
-          sleep 30
 
-          # Test health endpoint
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${INGRESS_FQDN}/health" --max-time 30 || echo "000")
+          # Retry loop - wait for ingress and app to be ready
+          MAX_RETRIES=12
+          RETRY_INTERVAL=30
+          RETRY_COUNT=0
+          HTTP_STATUS="000"
 
-          if [ "$HTTP_STATUS" = "200" ]; then
-            echo "Health check passed (HTTP $HTTP_STATUS)"
-            echo "## ✅ Smoke Test Passed" >> $GITHUB_STEP_SUMMARY
-            echo "- Endpoint: \`https://${INGRESS_FQDN}/health\`" >> $GITHUB_STEP_SUMMARY
-            echo "- Status: HTTP $HTTP_STATUS" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "Health check failed (HTTP $HTTP_STATUS)"
-            echo "## ❌ Smoke Test Failed" >> $GITHUB_STEP_SUMMARY
-            echo "- Endpoint: \`https://${INGRESS_FQDN}/health\`" >> $GITHUB_STEP_SUMMARY
-            echo "- Status: HTTP $HTTP_STATUS" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
+          echo "Waiting for application to be ready at https://${INGRESS_FQDN}/health"
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${INGRESS_FQDN}/health" --max-time 30 -k || echo "000")
+            echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: HTTP $HTTP_STATUS"
+
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "Health check passed (HTTP $HTTP_STATUS)"
+              echo "## ✅ Smoke Test Passed" >> $GITHUB_STEP_SUMMARY
+              echo "- Endpoint: \`https://${INGRESS_FQDN}/health\`" >> $GITHUB_STEP_SUMMARY
+              echo "- Status: HTTP $HTTP_STATUS" >> $GITHUB_STEP_SUMMARY
+              echo "- Attempts: $((RETRY_COUNT + 1))" >> $GITHUB_STEP_SUMMARY
+              echo "::endgroup::"
+              exit 0
+            fi
+
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "Waiting ${RETRY_INTERVAL}s before next attempt..."
+              sleep $RETRY_INTERVAL
+            fi
+          done
+
+          echo "Health check failed after $MAX_RETRIES attempts (last HTTP $HTTP_STATUS)"
+          echo "## ❌ Smoke Test Failed" >> $GITHUB_STEP_SUMMARY
+          echo "- Endpoint: \`https://${INGRESS_FQDN}/health\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: HTTP $HTTP_STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "- Attempts: $MAX_RETRIES" >> $GITHUB_STEP_SUMMARY
           echo "::endgroup::"
+          exit 1
 
       - name: Run platform integration tests
         env:
