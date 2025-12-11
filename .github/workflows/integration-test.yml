@@ -78,10 +78,10 @@ jobs:
           echo "- Branch: \`${{ inputs.branch || github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Run ID: \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
 
-  provision:
-    name: Provision Infrastructure
+  provision-and-deploy:
+    name: Provision and Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     needs: validate
     if: (inputs.test_scope || 'full') != 'app-only'
     environment: integration-test
@@ -149,49 +149,8 @@ jobs:
           echo "- Resource Group: \`$RESOURCE_GROUP\`" >> $GITHUB_STEP_SUMMARY
           echo "- AKS SKU: \`${{ inputs.aks_sku || 'Base' }}\`" >> $GITHUB_STEP_SUMMARY
 
-  deploy:
-    name: Deploy Application
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: provision
-    if: (inputs.test_scope || 'full') != 'infra-only'
-    environment: integration-test
-    outputs:
-      ingress_fqdn: ${{ needs.provision.outputs.ingress_fqdn }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch || github.ref_name }}
-
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Install Azure Developer CLI
-        uses: Azure/setup-azd@v2
-
-      - name: Install kubelogin
-        uses: Azure/use-kubelogin@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Login to azd
-        run: azd auth login --client-id ${{ secrets.AZURE_CLIENT_ID }} --federated-credential-provider github --tenant-id ${{ secrets.AZURE_TENANT_ID }}
-
-      - name: Configure azd alpha features
-        run: |
-          azd config set alpha.aks.helm on
-          azd config set alpha.aks.kustomize on
-
-      - name: Select azd environment
-        run: |
-          azd env select ${{ env.AZURE_ENV_NAME }}
-
       - name: Deploy application
+        if: (inputs.test_scope || 'full') != 'infra-only'
         run: |
           echo "::group::azd deploy"
           azd deploy --no-prompt || {
@@ -203,13 +162,14 @@ jobs:
           echo "::endgroup::"
 
           echo "## ✅ Deploy Completed" >> $GITHUB_STEP_SUMMARY
-          echo "- Ingress FQDN: \`${{ needs.provision.outputs.ingress_fqdn }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Ingress FQDN: \`${{ steps.provision.outputs.ingress_fqdn }}\`" >> $GITHUB_STEP_SUMMARY
 
   test:
     name: Run Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: deploy
+    needs: provision-and-deploy
+    if: (inputs.test_scope || 'full') == 'full'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -226,7 +186,7 @@ jobs:
 
       - name: Smoke test - Health endpoint
         env:
-          INGRESS_FQDN: ${{ needs.deploy.outputs.ingress_fqdn }}
+          INGRESS_FQDN: ${{ needs.provision-and-deploy.outputs.ingress_fqdn }}
         run: |
           echo "::group::Smoke Test - /health"
           # Wait for ingress to be ready
@@ -251,7 +211,7 @@ jobs:
 
       - name: Run platform integration tests
         env:
-          INTEGRATION_TEST_URL: https://${{ needs.deploy.outputs.ingress_fqdn }}
+          INTEGRATION_TEST_URL: https://${{ needs.provision-and-deploy.outputs.ingress_fqdn }}
         run: |
           echo "::group::Platform Integration Tests"
           cd src
@@ -269,8 +229,8 @@ jobs:
     name: Cleanup Resources
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [validate, provision, deploy, test]
-    if: always() && needs.provision.result != 'skipped'
+    needs: [validate, provision-and-deploy, test]
+    if: always() && needs.provision-and-deploy.result != 'skipped'
     environment: integration-test
     steps:
       - name: Azure Login
