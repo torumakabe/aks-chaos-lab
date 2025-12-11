@@ -408,3 +408,141 @@ USERS=100 SPAWN_RATE=10 DURATION=300 make load-baseline
   - V2 への移行が十分進んだら V1（`Microsoft-ContainerLog`）を停止する。
 - `azd down --force --purge`
 - RG削除確認
+
+## 統合テストパイプライン
+
+GitHub Actionsを使用した手動トリガー型の統合テストパイプラインを提供しています。
+
+### 概要
+
+`.github/workflows/integration-test.yml` は、一時的なAzure環境を自動的にプロビジョニングし、アプリケーションをデプロイ、統合テストを実行後にクリーンアップするパイプラインです。
+
+### 特徴
+
+- **手動トリガー（workflow_dispatch）**: コストと時間を考慮し、PRごとの自動実行ではなく必要なタイミングで手動実行
+- **OIDC認証**: GitHub ActionsからAzureへのセキュアな認証（シークレット不要）
+- **GitHub Environment**: `integration-test` 環境を使用し、どのブランチからでも実行可能
+- **環境分離**: `inttest-{run_id}` 命名規則で一時環境を作成
+- **自動クリーンアップ**: テスト成功・失敗に関わらずリソースを削除
+
+### セットアップ方法
+
+#### 1. Azure リソースの作成
+
+**User Managed Identity の作成**
+
+```bash
+# リソースグループの作成
+az group create --name rg-aks-chaos-lab-msi --location japaneast
+
+# User Managed Identity の作成
+az identity create \
+  --name msi-aks-chaos-lab \
+  --resource-group rg-aks-chaos-lab-msi \
+  --location japaneast
+
+# Client ID を取得（後で GitHub に設定）
+az identity show \
+  --name msi-aks-chaos-lab \
+  --resource-group rg-aks-chaos-lab-msi \
+  --query clientId -o tsv
+```
+
+**サブスクリプションへの Contributor ロール割り当て**
+
+```bash
+# MSI の Principal ID を取得
+MSI_PRINCIPAL_ID=$(az identity show \
+  --name msi-aks-chaos-lab \
+  --resource-group rg-aks-chaos-lab-msi \
+  --query principalId -o tsv)
+
+# Contributor ロールを割り当て（Azure リソースの作成・管理用）
+az role assignment create \
+  --assignee-object-id $MSI_PRINCIPAL_ID \
+  --assignee-principal-type ServicePrincipal \
+  --role Contributor \
+  --scope /subscriptions/$(az account show --query id -o tsv)
+
+# AKS RBAC Cluster Admin ロールを割り当て（Kubernetes API 操作用）
+az role assignment create \
+  --assignee-object-id $MSI_PRINCIPAL_ID \
+  --assignee-principal-type ServicePrincipal \
+  --role "Azure Kubernetes Service RBAC Cluster Admin" \
+  --scope /subscriptions/$(az account show --query id -o tsv)
+```
+
+**Federated Identity Credential の作成（Environment ベース）**
+
+```bash
+# GitHub Environment 用の Federated Credential を作成
+az identity federated-credential create \
+  --name "github-env-integration-test" \
+  --identity-name msi-aks-chaos-lab \
+  --resource-group rg-aks-chaos-lab-msi \
+  --issuer "https://token.actions.githubusercontent.com" \
+  --subject "repo:torumakabe/aks-chaos-lab:environment:integration-test" \
+  --audiences "api://AzureADTokenExchange"
+```
+
+> **Note**: Environment ベースの Federated Credential を使用することで、どのブランチからでもワークフローを実行できます。
+
+#### 2. GitHub Environment と Secrets の作成
+
+GitHub CLI を使用して Environment と Secrets を作成します：
+
+```bash
+# Environment の作成
+gh api repos/<owner>/<repo>/environments/integration-test -X PUT --silent
+
+# Secrets の値を取得
+CLIENT_ID=$(az identity show --name msi-aks-chaos-lab --resource-group rg-aks-chaos-lab-msi --query clientId -o tsv)
+TENANT_ID=$(az account show --query tenantId -o tsv)
+SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+# Environment Secrets の設定
+gh secret set AZURE_CLIENT_ID --env integration-test --body "$CLIENT_ID"
+gh secret set AZURE_TENANT_ID --env integration-test --body "$TENANT_ID"
+gh secret set AZURE_SUBSCRIPTION_ID --env integration-test --body "$SUBSCRIPTION_ID"
+
+# 設定確認
+gh secret list --env integration-test
+```
+
+> **Note**: Variables ではなく **Secrets** として設定することで、ログへの露出を防ぎます。
+
+### 使用方法
+
+1. GitHub リポジトリの **Actions** タブを開く
+2. **Platform Integration Test** ワークフローを選択
+3. **Run workflow** をクリック
+4. パラメータを設定:
+   - **Branch**: テスト対象ブランチ（空欄の場合はトリガーしたブランチを使用）
+   - **Test scope**: `full` / `infra-only` / `app-only`
+   - **AKS SKU**: `Base` / `Automatic`（デフォルト: `Base`）
+5. **Run workflow** で実行開始
+
+> **Note**: `--ref` オプションでブランチを指定して実行した場合、Branch 入力を空欄にすることでそのブランチのコードがテストされます。
+
+### ジョブ構成
+
+| ジョブ | 説明 | タイムアウト |
+|-------|------|-------------|
+| validate | Bicepテンプレートの検証 | 15分 |
+| provision-and-deploy | azd provision + deploy で環境構築とアプリデプロイ | 35分 |
+| test | 統合テスト実行（Smoke test + pytest） | 10分 |
+| cleanup | リソースグループ削除 | 15分 |
+
+### 実行時間の目安
+
+- **全体所要時間**: 約25-30分
+- **同時実行制限**: 1（後続はキューイング）
+
+### トラブルシューティング
+
+- **プロビジョニング失敗**: Azure クォータ制限、リージョンの容量不足を確認
+- **デプロイ失敗**: ACRへのプッシュ権限、AKSへのデプロイ権限を確認
+- **Kubernetes API エラー（namespaces forbidden）**: MSI に `Azure Kubernetes Service RBAC Cluster Admin` ロールが割り当てられているか確認
+- **Smoke test 失敗（HTTP 000）**: アプリケーションの起動に時間がかかっている可能性。リトライロジックが含まれているため、自動的に再試行されます
+- **SSL証明書エラー**: 自己署名証明書を使用しているため、統合テストでは `verify=False` が必要（テストコードに設定済み）
+- **クリーンアップ失敗**: 手動でリソースグループ `rg-aks-chaos-lab-inttest-{run_id}` を削除
