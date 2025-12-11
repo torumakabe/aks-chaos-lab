@@ -13,9 +13,9 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch to test'
+        description: 'Branch to test (leave empty to use triggering branch)'
         required: false
-        default: 'main'
+        default: ''
         type: string
       test_scope:
         description: 'Test scope'
