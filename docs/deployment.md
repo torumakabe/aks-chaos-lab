@@ -517,24 +517,25 @@ gh secret list --env integration-test
 2. **Platform Integration Test** ワークフローを選択
 3. **Run workflow** をクリック
 4. パラメータを設定:
-   - **Branch**: テスト対象ブランチ（デフォルト: `main`）
+   - **Branch**: テスト対象ブランチ（空欄の場合はトリガーしたブランチを使用）
    - **Test scope**: `full` / `infra-only` / `app-only`
    - **AKS SKU**: `Base` / `Automatic`（デフォルト: `Base`）
 5. **Run workflow** で実行開始
+
+> **Note**: `--ref` オプションでブランチを指定して実行した場合、Branch 入力を空欄にすることでそのブランチのコードがテストされます。
 
 ### ジョブ構成
 
 | ジョブ | 説明 | タイムアウト |
 |-------|------|-------------|
 | validate | Bicepテンプレートの検証 | 15分 |
-| provision | azd provisionで環境構築 | 25分 |
-| deploy | azd deployでアプリデプロイ | 10分 |
-| test | 統合テスト実行 | 10分 |
+| provision-and-deploy | azd provision + deploy で環境構築とアプリデプロイ | 35分 |
+| test | 統合テスト実行（Smoke test + pytest） | 10分 |
 | cleanup | リソースグループ削除 | 15分 |
 
 ### 実行時間とコスト
 
-- **全体所要時間**: 約50-60分
+- **全体所要時間**: 約25-30分
 - **コスト目安**: 1回あたり数百円程度（AKS、Redis、ACRなどの一時利用）
 - **同時実行制限**: 1（後続はキューイング）
 
@@ -542,4 +543,7 @@ gh secret list --env integration-test
 
 - **プロビジョニング失敗**: Azure クォータ制限、リージョンの容量不足を確認
 - **デプロイ失敗**: ACRへのプッシュ権限、AKSへのデプロイ権限を確認
-- **クリーンアップ失敗**: 手動でリソースグループ `rg-inttest-{run_id}` を削除
+- **Kubernetes API エラー（namespaces forbidden）**: MSI に `Azure Kubernetes Service RBAC Cluster Admin` ロールが割り当てられているか確認
+- **Smoke test 失敗（HTTP 000）**: アプリケーションの起動に時間がかかっている可能性。リトライロジックが含まれているため、自動的に再試行されます
+- **SSL証明書エラー**: 自己署名証明書を使用しているため、統合テストでは `verify=False` が必要（テストコードに設定済み）
+- **クリーンアップ失敗**: 手動でリソースグループ `rg-aks-chaos-lab-inttest-{run_id}` を削除
