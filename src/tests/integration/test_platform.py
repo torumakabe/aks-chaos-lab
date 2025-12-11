@@ -10,9 +10,14 @@ Usage:
 """
 
 import os
+import warnings
 
 import pytest
 import requests
+import urllib3
+
+# Suppress SSL warnings for self-signed certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 @pytest.fixture
@@ -29,12 +34,12 @@ class TestHealthEndpoint:
 
     def test_health_returns_200(self, base_url: str) -> None:
         """Verify health endpoint returns HTTP 200."""
-        response = requests.get(f"{base_url}/health", timeout=30)
+        response = requests.get(f"{base_url}/health", timeout=30, verify=False)
         assert response.status_code == 200
 
     def test_health_returns_json(self, base_url: str) -> None:
         """Verify health endpoint returns valid JSON."""
-        response = requests.get(f"{base_url}/health", timeout=30)
+        response = requests.get(f"{base_url}/health", timeout=30, verify=False)
         data = response.json()
         assert "status" in data
         assert data["status"] == "healthy"
@@ -45,18 +50,18 @@ class TestRootEndpoint:
 
     def test_root_returns_200(self, base_url: str) -> None:
         """Verify root endpoint returns HTTP 200."""
-        response = requests.get(f"{base_url}/", timeout=30)
+        response = requests.get(f"{base_url}/", timeout=30, verify=False)
         assert response.status_code == 200
 
     def test_root_returns_json(self, base_url: str) -> None:
         """Verify root endpoint returns valid JSON."""
-        response = requests.get(f"{base_url}/", timeout=30)
+        response = requests.get(f"{base_url}/", timeout=30, verify=False)
         data = response.json()
         assert "message" in data
 
     def test_root_includes_redis_data(self, base_url: str) -> None:
         """Verify root endpoint includes Redis cache data when available."""
-        response = requests.get(f"{base_url}/", timeout=30)
+        response = requests.get(f"{base_url}/", timeout=30, verify=False)
         # Redis data should be present (either cached or fresh)
         # Verify response is valid JSON with expected structure
         data = response.json()
@@ -70,7 +75,7 @@ class TestAPIAvailability:
     def test_api_responds_within_timeout(self, base_url: str) -> None:
         """Verify API responds within reasonable timeout."""
         try:
-            response = requests.get(f"{base_url}/health", timeout=10)
+            response = requests.get(f"{base_url}/health", timeout=10, verify=False)
             assert response.status_code == 200
         except requests.exceptions.Timeout:
             pytest.fail("API did not respond within 10 seconds")
@@ -78,5 +83,5 @@ class TestAPIAvailability:
     def test_multiple_requests_succeed(self, base_url: str) -> None:
         """Verify multiple consecutive requests succeed."""
         for _ in range(5):
-            response = requests.get(f"{base_url}/health", timeout=30)
+            response = requests.get(f"{base_url}/health", timeout=30, verify=False)
             assert response.status_code == 200
