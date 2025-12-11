@@ -283,14 +283,17 @@ jobs:
       - name: Delete resource group
         run: |
           echo "::group::Cleanup Resources"
-          RESOURCE_GROUP="${{ needs.provision.outputs.resource_group }}"
+          # Use predictable resource group name based on run_id
+          # This ensures cleanup works even if provision job failed mid-way
+          RESOURCE_GROUP="rg-aks-chaos-lab-inttest-${{ github.run_id }}"
 
-          if [ -n "$RESOURCE_GROUP" ]; then
+          echo "Checking for resource group: $RESOURCE_GROUP"
+          if az group exists --name "$RESOURCE_GROUP" | grep -q true; then
             echo "Deleting resource group: $RESOURCE_GROUP"
             az group delete --name "$RESOURCE_GROUP" --yes --no-wait || true
             echo "Resource group deletion initiated (async)"
           else
-            echo "No resource group to delete"
+            echo "Resource group does not exist or already deleted"
           fi
           echo "::endgroup::"
 
