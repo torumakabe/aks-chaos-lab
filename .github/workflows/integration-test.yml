@@ -117,7 +117,7 @@ jobs:
           azd env new ${{ env.AZURE_ENV_NAME }} --no-prompt
           azd env set AZURE_LOCATION ${{ env.AZURE_LOCATION }}
           azd env set AZURE_SUBSCRIPTION_ID ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          azd env set aksSkuName ${{ inputs.aks_sku || 'Base' }}
+          azd env set AKS_SKU_NAME ${{ inputs.aks_sku || 'Base' }}
           echo "::endgroup::"
 
       - name: Provision infrastructure

@@ -27,9 +27,10 @@ param aksApiSubnetPrefix string = '10.10.3.0/28'
 @description('Kubernetes version for AKS (x.y or x.y.z). Only used in Base mode; Automatic mode automatically selects and manages stable versions.')
 param kubernetesVersion string = '1.33'
 
-@description('AKS SKU mode - "Base" for traditional AKS with Cluster Autoscaler. Note: "Automatic" mode is temporarily disabled.')
+@description('AKS SKU mode - "Base" for traditional AKS with Cluster Autoscaler; "Automatic" for automated operations with Node Auto Provisioning.')
 @allowed([
   'Base'
+  'Automatic'
 ])
 param aksSkuName string = 'Base'
 
