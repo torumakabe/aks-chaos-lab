@@ -10,7 +10,6 @@ Usage:
 """
 
 import os
-import warnings
 
 import pytest
 import requests
