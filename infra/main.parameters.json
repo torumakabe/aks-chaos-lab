@@ -30,7 +30,7 @@
       "value": "1.33"
     },
     "aksSkuName": {
-      "value": "Base"
+      "value": "${AKS_SKU_NAME:Base}"
     },
     "enablePrometheusWorkspace": {
       "value": true
