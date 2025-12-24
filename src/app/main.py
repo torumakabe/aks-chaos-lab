@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from time import monotonic
@@ -56,7 +57,7 @@ def _update_health_cache(resp: HealthResponse, status_code: int) -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> Any:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application lifespan with graceful startup and shutdown.
 
     This function handles:
