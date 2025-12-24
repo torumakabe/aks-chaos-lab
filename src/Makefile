@@ -59,7 +59,7 @@ lint: ## Run linting
 
 typecheck: ## Run type checking
 	@echo -e "$(YELLOW)Running type checker...$(NC)"
-	@uv run mypy app/
+	@uv run pyright app/
 	@echo -e "$(GREEN)✓ Type checking complete$(NC)"
 
 format: ## Format code
@@ -78,7 +78,7 @@ clean: ## Clean caches
 	@echo -e "$(YELLOW)Cleaning caches...$(NC)"
 	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
-	@rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage 2>/dev/null || true
+	@rm -rf .pytest_cache .ruff_cache htmlcov .coverage 2>/dev/null || true
 	@echo -e "$(GREEN)✓ Caches cleaned$(NC)"
 
 build: ## Build Docker image locally
@@ -112,7 +112,7 @@ qa: ## Lint + Test + Typecheck (quick)
 	@echo -e "$(YELLOW)  → Testing...$(NC)"
 	@PYTHONPATH=. uv run pytest -q
 	@echo -e "$(YELLOW)  → Type checking...$(NC)"
-	@PYTHONPATH=. uv run mypy app
+	@PYTHONPATH=. uv run pyright app
 	@echo -e "$(GREEN)✓ All QA checks passed$(NC)"
 
 check-uv-version: ## Check uv version consistency (local vs Docker)

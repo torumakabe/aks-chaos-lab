@@ -26,7 +26,7 @@ dev = [
   "pytest-cov>=4.1.0",
   "pytest-env>=1.1.0",
   "ruff>=0.1.0",
-  "mypy>=1.8.0",
+  "pyright>=1.1.0",
   "locust>=2.20.0",
   "freezegun>=1.4.0",
   "httpx>=0.25.0",
@@ -63,12 +63,11 @@ ignore = ["E501", "S101"]                                                       
   "SIM117", # multiple with statements OK in tests
 ]
 
-[tool.mypy]
-python_version = "3.13"
-warn_return_any = true
-warn_unused_configs = true
-ignore_missing_imports = true
-strict_optional = true
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "standard"
+reportMissingImports = false
+reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
