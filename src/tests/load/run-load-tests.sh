@@ -18,7 +18,12 @@ if [ -z "${BASE_URL:-}" ]; then
     # 1) Prefer azd environment variable AZURE_INGRESS_FQDN (scheme is http)
     if [ -z "${AZURE_INGRESS_FQDN:-}" ] && command -v azd >/dev/null 2>&1; then
         # Try to load azd env values into current shell context
-        eval "$(azd env get-values 2>/dev/null || true)"
+        # Filter to only valid KEY=value lines to avoid eval errors from azd error messages
+        _azd_output=$(azd env get-values 2>/dev/null || true)
+        if [ -n "${_azd_output}" ]; then
+            eval "$(echo "${_azd_output}" | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' || true)"
+        fi
+        unset _azd_output
     fi
 
     if [ -n "${AZURE_INGRESS_FQDN:-}" ]; then
