@@ -57,12 +57,26 @@
 
 ---
 
-## Phase 4: Polish & Cross-Cutting Concerns
+## Phase 4: User Story 4 - CI/CDワークフローの更新 (Priority: P1)
+
+**Goal**: GitHub Actions CIワークフローがpyrightを使用する
+
+**Independent Test**: CIワークフローファイルを確認し、pyrightが使用されていることを確認
+
+### Implementation
+
+- [x] T010 [US4] GitHub Actions CIワークフローのtypecheckジョブを`mypy`から`pyright`に変更 in `.github/workflows/ci.yml`
+
+**Checkpoint**: CIワークフローがpyrightを使用するように更新完了
+
+---
+
+## Phase 5: Polish & Cross-Cutting Concerns
 
 **Purpose**: ドキュメント更新と最終検証
 
-- [x] T010 [P] Constitutionの型チェッカー記述を「mypy」から「pyright」に更新 in `.specify/memory/constitution.md`
-- [x] T011 最終検証: `cd src && make qa`を実行して全チェックがパスすることを確認
+- [x] T011 [P] Constitutionの型チェッカー記述を「mypy」から「pyright」に更新 in `.specify/memory/constitution.md`
+- [x] T012 最終検証: `cd src && make qa`を実行して全チェックがパスすることを確認
 
 ---
 
@@ -73,7 +87,8 @@
 - **Phase 1 (Setup)**: No dependencies - 最初に実行
 - **Phase 2 (US1 & US2)**: Phase 1の完了後に実行
 - **Phase 3 (US3)**: Phase 2と並行可能
-- **Phase 4 (Polish)**: Phase 2, 3の完了後に実行
+- **Phase 4 (US4 CI/CD)**: Phase 1の完了後に実行（Phase 2, 3と並行可能）
+- **Phase 5 (Polish)**: Phase 2, 3, 4の完了後に実行
 
 ### Within Each Phase
 

@@ -52,6 +52,21 @@
 
 ---
 
+### User Story 4 - CI/CDワークフローの実行 (Priority: P1)
+
+開発者として、GitHub ActionsのCIワークフローがpyrightを使用して型チェックを実行するようにしたい。
+
+**Why this priority**: CIでの型チェックはコード品質を保証するための重要な自動化であり、ローカル環境との一貫性が必須。
+
+**Independent Test**: GitHub Actionsでpushまたはpull_request時にpyrightによる型チェックが成功することを確認。
+
+**Acceptance Scenarios**:
+
+1. **Given** CIワークフローが更新された環境、**When** pushまたはPRを作成する、**Then** pyrightによる型チェックがCIで実行される
+2. **Given** 型エラーのないコード、**When** CIが実行される、**Then** typecheckジョブが成功する
+
+---
+
 ### Edge Cases
 
 - mypyの設定が残っている場合、混乱を避けるため削除または無効化する
@@ -67,7 +82,8 @@
 - **FR-004**: `make clean`はpyrightのキャッシュを削除しなければならない
 - **FR-005**: pyproject.tomlにpyrightの設定を追加しなければならない
 - **FR-006**: mypy関連の設定と依存関係を削除しなければならない
-- **FR-007**: 現在の全Pythonコードがpyrightの型チェックをエラーなしでパスしなければならない
+- **FR-007**: GitHub Actions CIワークフローのtypecheckジョブはpyrightを使用しなければならない
+- **FR-008**: 現在の全Pythonコードがpyrightの型チェックをエラーなしでパスしなければならない
 
 ## Assumptions
 
@@ -82,4 +98,5 @@
 - **SC-001**: `make typecheck`がpyrightを使用して成功終了する
 - **SC-002**: `make qa`がすべてのチェック（フォーマット、lint、テスト、型チェック）で成功終了する
 - **SC-003**: 現在のすべてのPythonコードがpyrightの型チェックをエラーなしでパスする
-- **SC-004**: mypyへの依存関係が完全に削除される
+- **SC-004**: GitHub Actions CIワークフローのtypecheckジョブがpyrightを使用して成功する
+- **SC-005**: mypyへの依存関係が完全に削除される
