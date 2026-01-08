@@ -47,7 +47,7 @@ stateDiagram-v2
 
 共通事項:
 - 対象セレクタ: `namespace=chaos-lab`, `label app=chaos-app`（デフォルト、Bicep 変数で上書き可）
-- 既定時間: `PT2M`（Bicep `duration` で調整可能。短時間・低影響を原則）
+- 既定時間: `300s`（Chaos Mesh jsonSpec の duration。Azure アクション側 duration はフォールバックで `PT5M`）
 - ガードレール: p95 レイテンシ 2x 以上の持続、5xx 率 > 5% が 30 秒続く場合は実験中止
 - 観測: Application Insights（トレース/メトリクス/例外）、Managed Prometheus（WARメトリクス）、Kubernetes（Events/Pod再起動/HPA）
 
@@ -127,7 +127,7 @@ stateDiagram-v2
 - システムは常に Azure Monitor managed Prometheus（AMAのアノテーション・スクレイプ）により、Web Application Routing の Nginx メトリクスをホスト名ラベル付きで収集可能とするものとする。
 - システムは常に Ingress コントローラは高可用（複数レプリカ）で稼働するものとする（明示的な副作用設定はマニフェストに含めない）。
 
-- システムは常に bicep と Azure Developer CLI (azd) のみを用いて再現可能にプロビジョニング/デプロイできるものとする（GitHub Actionsは使用しない）。
+- システムは常に bicep と Azure Developer CLI (azd) を主として用い、再現可能にプロビジョニング/デプロイできるものとする（統合テスト用途として GitHub Actions も提供可）。
 - システムは常に 主要なパラメータ（スケール、トレースサンプリング、Redis設定）を環境変数で変更可能なものとする。
 - システムは常に 負荷テストとカオス実験の自動実行手順が提供されるものとする。
 - システムは常に BASE_URL が未指定のとき、azd 環境変数 `AZURE_INGRESS_FQDN` を用いて `http://<FQDN>` としてエンドポイントを自動構成できるものとする（未取得時は Ingress 自動検出にフォールバック）。

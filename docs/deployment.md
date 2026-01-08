@@ -164,7 +164,7 @@ cd src
 make test            # 単体テスト
 make test-cov        # カバレッジレポート生成（htmlcov/）
 make lint            # リント（ruff）
-make typecheck       # 型チェック（mypy）
+make typecheck       # 型チェック（pyright）
 make qa              # リント+テスト+型チェック 一括
 ```
 
@@ -252,7 +252,7 @@ kustomize build k8s/base | kubectl apply -f -
 {
   "type": "continuous",
   "selectorId": "aks",
-  "duration": "PT2M",
+  "duration": "PT5M",
   "parameters": [
     {"key": "jsonSpec", "value": "{\"action\":\"pod-failure\",\"mode\":\"one\",\"selector\":{\"namespaces\":[\"chaos-lab\"],\"labelSelectors\":{\"app\":\"chaos-app\"}},\"duration\":\"300s\"}"}
   ]
@@ -276,7 +276,7 @@ kubectl describe ciliumnetworkpolicy -n chaos-lab chaos-app-egress-allowlist
   - `enableChaosExperiments`（既定: true）
   - `chaosNamespace`（既定: `chaos-lab`）
   - `chaosAppLabel`（既定: `chaos-app`）
-  - `chaosDuration`（既定: `PT2M`）
+  - `chaosDuration`（既定: `PT5M`）
 ### 利用可能な実験
 | 実験種類 | 障害内容 | 実験リソース名 |
 |---|---|---|
