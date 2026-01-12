@@ -224,6 +224,8 @@ __marimo__/
 
 tmp/
 
+*.log
+
 AGENTS.md
 CLAUDE.md
 
