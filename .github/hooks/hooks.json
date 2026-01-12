@@ -1,0 +1,17 @@
+{
+    "version": 1,
+    "hooks": {
+        "sessionStart": [
+            {
+                "type": "command",
+                "bash": ".github/hooks/scripts/session-start.sh"
+            }
+        ],
+        "sessionEnd": [
+            {
+                "type": "command",
+                "bash": ".github/hooks/scripts/session-end.sh"
+            }
+        ]
+    }
+}
