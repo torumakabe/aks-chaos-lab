@@ -1,11 +1,15 @@
 ---
 name: bicep-what-if-analysis
 description: azd up/azd provisionの影響分析、Bicep what-if実行とノイズフィルタリング。インフラ変更・デプロイ前の影響確認時に使用。
+allowed-tools:
+  - microsoft_docs_search
+  - microsoft_docs_fetch
 ---
 
 # Bicep What-If 分析
 
 インフラ変更前の影響範囲確認とノイズフィルタリングを支援します。
+任意の azd プロジェクトで使用可能です。
 
 ## ⚠️ このスキルを使うべき状況
 
@@ -25,48 +29,68 @@ What-if は Azure Resource Manager API を呼び出し、**現在デプロイ済
 
 ```bash
 # フィルタ済みwhat-if分析（推奨）
+# azdプロジェクトのルートディレクトリで実行
 ./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh
 
 # 生出力が必要な場合
 ./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh --raw
 
+# カスタムテンプレートとパラメータを指定
+./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh \
+  --template infra/custom.bicep \
+  --parameters "vmSize=Standard_D2s_v3" \
+  --parameters "nodeCount=3"
+
 # 破壊的変更のみ抽出
-./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh | jq 'select(.changeType == "Delete")'
+./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh | jq '.changes[] | select(.changeType == "Delete")'
 ```
 
 ## 前提条件
 
 - `azd env`が初期化済み（`AZURE_LOCATION`等が設定済み）
 - Azure CLIでログイン済み
+- azdプロジェクトのルートディレクトリで実行（`azure.yaml`が存在する場所）
 
 ## ノイズ判定基準
 
-### 無視して良い変更
+以下は代表的なパターンです。**判断が難しい場合は、動的に公式ドキュメントを参照してください。**
 
-| リソース | プロパティ | 理由 |
+### 無視して良い変更（代表例）
+
+| カテゴリ | プロパティ | 理由 |
 |---------|-----------|------|
-| 全リソース | `provisioningState` | 読み取り専用 |
-| 全リソース | `etag` | 常に変化 |
-| 全リソース | `resourceGuid`, `uniqueId` | 動的生成 |
-| AKS | `currentOrchestratorVersion` | 読み取り専用 |
-| AKS | `nodeImageVersion` | 読み取り専用 |
-| AKS | `fqdn`, `azurePortalFQDN` | 動的生成 |
-| AKS | `powerState.code` | 読み取り専用 |
-| AKS | `identityProfile.*` | 動的生成 |
-| Managed Identity | `principalId`, `clientId`, `tenantId` | 読み取り専用 |
+| 全リソース共通 | `provisioningState` | 読み取り専用（デプロイ後に設定される） |
+| 全リソース共通 | `etag` | リソース更新のたびに変化 |
+| 全リソース共通 | `resourceGuid`, `uniqueId` | Azure が動的に生成 |
+| 全リソース共通 | `systemData.*` | 作成日時・更新日時等のメタデータ |
+| Managed Identity | `principalId`, `clientId`, `tenantId` | 読み取り専用（作成後に設定される） |
 
-### 要注意の変更（破壊的変更の可能性）
+### 要注意の変更（代表例）
 
-以下が `Modify` で表示された場合は**リソース再作成**の可能性があります：
-
-| リソース | プロパティ | 影響 |
+| カテゴリ | プロパティ | 影響 |
 |---------|-----------|------|
-| AKS | `networkProfile.networkPlugin` | クラスター再作成 |
-| AKS | `networkProfile.networkPluginMode` | クラスター再作成 |
-| AKS | `apiServerAccessProfile.subnetId` | クラスター再作成 |
-| AKS | `agentPoolProfiles[*].vnetSubnetID` | ノードプール再作成 |
-| Redis | `sku.name`, `sku.capacity` | データロスの可能性 |
-| VNet | `addressSpace.addressPrefixes` | 依存リソースへ影響 |
+| 全リソース共通 | `location` | リージョン変更は再作成必須 |
+| 全リソース共通 | `kind` | リソース種別の変更 |
+| 全リソース共通 | `sku.name`, `sku.tier`, `sku.capacity` | SKU変更（リソースにより再作成） |
+| ネットワーク系 | `subnetId`, `vnetSubnetID`, `addressPrefixes` | ネットワーク構成の根本変更 |
+| AKS | `networkPlugin`, `networkPluginMode` | ネットワークプラグイン変更は再作成必須 |
+
+### 🔍 判断が難しい場合の確認方法
+
+上記リストは網羅的ではありません。不明なプロパティや変更の影響が判断できない場合は、以下を確認してください：
+
+1. **Microsoft Learn でリソース仕様を確認**
+   - `microsoft_docs_search` ツールで「`<リソースタイプ> ARM template properties`」を検索
+   - 例: `AKS ARM template properties`, `Storage Account Bicep reference`
+
+2. **ARM/Bicep リファレンスで読み取り専用プロパティを確認**
+   - URL パターン: `https://learn.microsoft.com/azure/templates/<provider>/<resource-type>`
+   - 例: `https://learn.microsoft.com/azure/templates/microsoft.containerservice/managedclusters`
+   - 「readOnly」「output only」と記載されたプロパティはノイズ
+
+3. **破壊的変更の判断**
+   - `microsoft_docs_search` ツールで「`<リソースタイプ> update limitations`」や「`<プロパティ名> immutable`」を検索
+   - リソースの「制限事項」「更新の制約」セクションを確認
 
 ## 分析フロー
 
@@ -111,9 +135,23 @@ azd env refresh
 ### 特定リソースの詳細を確認したい
 
 ```bash
-# リソースIDでフィルタ
+# リソースIDでフィルタ（例：AKSクラスター）
 ./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh | \
-  jq 'select(.resourceId | contains("managedClusters"))'
+  jq '.changes[] | select(.resourceId | contains("managedClusters"))'
+
+# リソースタイプでフィルタ（例：ストレージアカウント）
+./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh | \
+  jq '.changes[] | select(.resourceType | contains("storageAccounts"))'
+```
+
+### カスタムパラメータを使用したい
+
+```bash
+# azure.yaml から自動検出せず、明示的にテンプレートとパラメータを指定
+./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh \
+  --template infra/main.bicep \
+  --parameters "environment=dev" \
+  --parameters "sku=Standard"
 ```
 
 ## このスキルを使わない場合
