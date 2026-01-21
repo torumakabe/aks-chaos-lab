@@ -107,7 +107,7 @@ WHATIF_ARGS=(
   --location "$AZURE_LOCATION"
   --template-file "$TEMPLATE_FILE"
   --parameters location="$AZURE_LOCATION"
-  --parameters environment="$AZURE_ENV_NAME"
+  --parameters environmentName="$AZURE_ENV_NAME"
 )
 
 # azd環境変数からBicepパラメータに一致するもののみを自動検出
@@ -118,8 +118,8 @@ while IFS='=' read -r key value; do
   value="${value#\"}"
   # Bicepで定義されたパラメータのみ渡す
   if echo "$ALLOWED_PARAMS" | grep -qw "$key"; then
-    # location と environment は既に設定済みなのでスキップ
-    if [[ "$key" != "location" && "$key" != "environment" ]]; then
+    # location と environmentName は既に設定済みなのでスキップ
+    if [[ "$key" != "location" && "$key" != "environmentName" ]]; then
       WHATIF_ARGS+=(--parameters "$key=$value")
     fi
   fi
