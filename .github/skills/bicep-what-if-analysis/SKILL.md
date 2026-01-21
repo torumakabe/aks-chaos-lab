@@ -1,15 +1,19 @@
 ---
 name: bicep-what-if-analysis
 description: azd up/azd provisionの影響分析、Bicep what-if実行とノイズフィルタリング。インフラ変更・デプロイ前の影響確認時に使用。
-allowed-tools:
-  - microsoft_docs_search
-  - microsoft_docs_fetch
 ---
 
 # Bicep What-If 分析
 
 インフラ変更前の影響範囲確認とノイズフィルタリングを支援します。
 任意の azd プロジェクトで使用可能です。
+
+## Tools
+
+| Tool | Use For |
+|------|---------|
+| `microsoft_docs_search` | ノイズ判断が難しい場合のドキュメント検索 |
+| `microsoft_docs_fetch` | 詳細なプロパティ仕様の取得 |
 
 ## ⚠️ このスキルを使うべき状況
 
