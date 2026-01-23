@@ -45,6 +45,20 @@ description: azd up/provision や Bicep 変更の影響分析（what-if実行と
 
 詳細は [references/noise.md](references/noise.md) を参照。
 
+### 重要：「破壊的ではない」と「ノイズ」は異なる
+
+| 分類 | 説明 | 例 |
+|------|------|-----|
+| **ノイズ** | 実際のリソースに影響しない変更。無視して良い | `provisioningState`, `etag`, `redundancyMode`（読み取り専用） |
+| **破壊的ではない変更** | リソース再作成は不要だが、実際に適用される変更 | `tags`, `sku.tier`（明示的に設定可能なプロパティ） |
+| **破壊的変更** | リソースの再作成が必要な変更 | `location`, `networkPlugin` |
+
+**判断の誤りを避けるために:**
+
+1. **読み取り専用プロパティのみがノイズ** - ドキュメントに「readOnly」「output only」「populated by the server」と記載されているもの
+2. **ユーザーが設定可能なプロパティはノイズではない** - `tags`、SKU設定、構成オプションなど
+3. **複数プロパティをまとめて評価しない** - 同一リソースでも各プロパティを個別に判断する
+
 ## 分析フロー
 
 ```
