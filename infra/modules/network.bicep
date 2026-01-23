@@ -90,7 +90,7 @@ resource aksSubnetNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@
   }
 }
 
-resource ingressPublicIP 'Microsoft.Network/publicIPAddresses@2023-04-01' = {
+resource ingressPublicIP 'Microsoft.Network/publicIPAddresses@2024-07-01' = {
   name: 'pip-ingress-${resourceToken}'
   location: location
   tags: tags

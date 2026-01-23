@@ -89,7 +89,7 @@ output redisId string = redisEnterprise.id
 output redisHost string = redisEnterprise.properties.hostName
 output redisPort int = 10000
 
-resource redisAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-04-01' = if (!empty(principalObjectId)) {
+resource redisAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = if (!empty(principalObjectId)) {
   name: 'app'
   parent: redisEnterpriseDatabase
   properties: {

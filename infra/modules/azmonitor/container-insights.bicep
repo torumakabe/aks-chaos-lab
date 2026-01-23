@@ -86,7 +86,7 @@ var streamWithKubeMonAgentEvents = union(selectedStreams, [
   'Microsoft-KubeMonAgentEvents'
 ])
 
-resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2023-03-11' = {
+resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' = {
   name: dataCollectionRuleName
   location: location
   tags: tags
@@ -133,7 +133,7 @@ resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2025-06-
   name: aksClusterName
 }
 
-resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2023-03-11' = {
+resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11' = {
   name: dataCollectionRuleAssociationName
   scope: existingAksCluster
   properties: {
