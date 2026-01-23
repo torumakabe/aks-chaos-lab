@@ -32,7 +32,7 @@
 ## 判断が難しい場合の確認方法
 
 1. **Microsoft Learn でリソース仕様を確認**
-   - `MS-Learn-microsoft_docs_search` ツールで「`<リソースタイプ> ARM template properties`」を検索
+   - `microsoft_docs_search` ツールで「`<リソースタイプ> ARM template properties`」を検索
    - 例: `AKS ARM template properties`, `Storage Account Bicep reference`
 
 2. **ARM/Bicep リファレンスで読み取り専用プロパティを確認**
@@ -41,5 +41,5 @@
    - 「readOnly」「output only」と記載されたプロパティはノイズ
 
 3. **破壊的変更の判断**
-   - `MS-Learn-microsoft_docs_search` ツールで「`<リソースタイプ> update limitations`」や「`<プロパティ名> immutable`」を検索
+   - `microsoft_docs_search` ツールで「`<リソースタイプ> update limitations`」や「`<プロパティ名> immutable`」を検索
    - リソースの「制限事項」「更新の制約」セクションを確認
