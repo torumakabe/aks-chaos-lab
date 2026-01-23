@@ -12,8 +12,8 @@ description: azd up/provision や Bicep 変更の影響分析（what-if実行と
 
 | Tool | Use For |
 |------|---------|
-| `MS-Learn-microsoft_docs_search` | ノイズ判断が難しい場合のドキュメント検索 |
-| `MS-Learn-microsoft_docs_fetch` | 詳細なプロパティ仕様の取得 |
+| `microsoft_docs_search` | ノイズ判断が難しい場合のドキュメント検索 |
+| `microsoft_docs_fetch` | 詳細なプロパティ仕様の取得 |
 
 ## クイックスタート
 
