@@ -1,6 +1,6 @@
 ---
 name: bicep-what-if-analysis
-description: azd up/azd provisionの影響分析、Bicep what-if実行とノイズフィルタリング。インフラ変更・デプロイ前の影響確認時に使用。
+description: azd up/provision や Bicep 変更の影響分析（what-if実行とノイズ除去）。「デプロイ前の差分確認」「破壊的変更の有無」「変更影響の確認」を求める場合に使用。
 ---
 
 # Bicep What-If 分析
@@ -12,22 +12,8 @@ description: azd up/azd provisionの影響分析、Bicep what-if実行とノイ�
 
 | Tool | Use For |
 |------|---------|
-| `microsoft_docs_search` | ノイズ判断が難しい場合のドキュメント検索 |
-| `microsoft_docs_fetch` | 詳細なプロパティ仕様の取得 |
-
-## ⚠️ このスキルを使うべき状況
-
-以下のいずれかに該当する場合、**必ずこのスキルを呼び出してください**：
-
-| ユーザーの質問・依頼 | 理由 |
-|---------------------|------|
-| 「azd up の影響は？」「azd provision で何が変わる？」 | 実際のAzure環境との差分が必要 |
-| 「このBicep変更の影響を教えて」 | 静的分析では不十分、what-ifが必要 |
-| 「デプロイしても大丈夫？」「破壊的変更はある？」 | リスク評価にwhat-if結果が必須 |
-| 「インフラの変更点を確認したい」 | 現在の状態との比較が必要 |
-
-**静的コード分析（Bicepファイルを読むだけ）では不十分です。**
-What-if は Azure Resource Manager API を呼び出し、**現在デプロイ済みの状態との実際の差分**を取得します。
+| `MS-Learn-microsoft_docs_search` | ノイズ判断が難しい場合のドキュメント検索 |
+| `MS-Learn-microsoft_docs_fetch` | 詳細なプロパティ仕様の取得 |
 
 ## クイックスタート
 
@@ -57,44 +43,7 @@ What-if は Azure Resource Manager API を呼び出し、**現在デプロイ済
 
 ## ノイズ判定基準
 
-以下は代表的なパターンです。**判断が難しい場合は、動的に公式ドキュメントを参照してください。**
-
-### 無視して良い変更（代表例）
-
-| カテゴリ | プロパティ | 理由 |
-|---------|-----------|------|
-| 全リソース共通 | `provisioningState` | 読み取り専用（デプロイ後に設定される） |
-| 全リソース共通 | `etag` | リソース更新のたびに変化 |
-| 全リソース共通 | `resourceGuid`, `uniqueId` | Azure が動的に生成 |
-| 全リソース共通 | `systemData.*` | 作成日時・更新日時等のメタデータ |
-| Managed Identity | `principalId`, `clientId`, `tenantId` | 読み取り専用（作成後に設定される） |
-
-### 要注意の変更（代表例）
-
-| カテゴリ | プロパティ | 影響 |
-|---------|-----------|------|
-| 全リソース共通 | `location` | リージョン変更は再作成必須 |
-| 全リソース共通 | `kind` | リソース種別の変更 |
-| 全リソース共通 | `sku.name`, `sku.tier`, `sku.capacity` | SKU変更（リソースにより再作成） |
-| ネットワーク系 | `subnetId`, `vnetSubnetID`, `addressPrefixes` | ネットワーク構成の根本変更 |
-| AKS | `networkPlugin`, `networkPluginMode` | ネットワークプラグイン変更は再作成必須 |
-
-### 🔍 判断が難しい場合の確認方法
-
-上記リストは網羅的ではありません。不明なプロパティや変更の影響が判断できない場合は、以下を確認してください：
-
-1. **Microsoft Learn でリソース仕様を確認**
-   - `microsoft_docs_search` ツールで「`<リソースタイプ> ARM template properties`」を検索
-   - 例: `AKS ARM template properties`, `Storage Account Bicep reference`
-
-2. **ARM/Bicep リファレンスで読み取り専用プロパティを確認**
-   - URL パターン: `https://learn.microsoft.com/azure/templates/<provider>/<resource-type>`
-   - 例: `https://learn.microsoft.com/azure/templates/microsoft.containerservice/managedclusters`
-   - 「readOnly」「output only」と記載されたプロパティはノイズ
-
-3. **破壊的変更の判断**
-   - `microsoft_docs_search` ツールで「`<リソースタイプ> update limitations`」や「`<プロパティ名> immutable`」を検索
-   - リソースの「制限事項」「更新の制約」セクションを確認
+詳細は [references/noise.md](references/noise.md) を参照してください。
 
 ## 分析フロー
 
@@ -157,6 +106,13 @@ azd env refresh
   --parameters "environment=dev" \
   --parameters "sku=Standard"
 ```
+
+## Dependencies
+
+- **az**: Azure CLI（`az deployment sub what-if` の実行に必要）
+- **azd**: Azure Developer CLI（環境変数の取得に必要）
+- **jq**: JSON フィルタリングに必要
+- **python3**: パラメータファイルのプレースホルダー展開に必要（`--parameters` オプションで直接指定する場合は不要）
 
 ## このスキルを使わない場合
 
