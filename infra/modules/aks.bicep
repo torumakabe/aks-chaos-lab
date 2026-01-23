@@ -185,7 +185,7 @@ var aksBaseProperties = union(aksCommonProperties, aksBaseSpecificProperties)
 var aksAutomaticProperties = union(aksCommonProperties, aksAutomaticSpecificProperties)
 
 // User Assigned Managed Identity for AKS cluster
-resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   name: 'id-${aksName}'
   location: location
   tags: tags

@@ -21,13 +21,13 @@ param audience string = 'api://AzureADTokenExchange'
 
 var federatedIdentitySubject = 'system:serviceaccount:${serviceAccountNamespace}:${serviceAccountName}'
 
-resource userAssignedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+resource userAssignedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   name: identityName
   location: location
   tags: tags
 }
 
-resource federatedIdentityCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2023-01-31' = {
+resource federatedIdentityCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = {
   name: 'k8s-${serviceAccountNamespace}-${serviceAccountName}'
   parent: userAssignedManagedIdentity
   properties: {
