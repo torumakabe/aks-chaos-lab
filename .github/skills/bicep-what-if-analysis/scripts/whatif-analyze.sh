@@ -9,6 +9,7 @@ set -euo pipefail
 
 # オプション解析
 RAW_OUTPUT=false
+SUMMARY_OUTPUT=false
 DEBUG_MODE=false
 TEMPLATE_FILE=""
 EXTRA_PARAMS=()
@@ -16,6 +17,10 @@ while [[ $# -gt 0 ]]; do
   case $1 in
     --raw)
       RAW_OUTPUT=true
+      shift
+      ;;
+    --summary)
+      SUMMARY_OUTPUT=true
       shift
       ;;
     --debug)
@@ -31,9 +36,10 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: $0 [--raw] [--debug] [--template <path>] [--parameters <key=value>]..."
+      echo "Usage: $0 [--summary] [--raw] [--debug] [--template <path>] [--parameters <key=value>]..."
       echo ""
       echo "Options:"
+      echo "  --summary              Output summary (counts, modified resources list)"
       echo "  --raw                  Output raw what-if results without filtering"
       echo "  --debug                Enable debug output (show parameters passed to az)"
       echo "  --template, -t <path>  Bicep template file (default: auto-detect from azure.yaml)"
@@ -41,6 +47,7 @@ while [[ $# -gt 0 ]]; do
       echo "  -h, --help             Show this help message"
       echo ""
       echo "Examples:"
+      echo "  $0 --summary                    # Quick overview (recommended first step)"
       echo "  $0                              # Auto-detect template, filtered output"
       echo "  $0 --raw                        # Raw output without noise filtering"
       echo "  $0 --debug                      # Show debug info for troubleshooting"
@@ -55,6 +62,12 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# 排他オプションの検証
+if [[ "$RAW_OUTPUT" == "true" && "$SUMMARY_OUTPUT" == "true" ]]; then
+  echo "Error: --raw and --summary are mutually exclusive options." >&2
+  exit 1
+fi
 
 # ログ関数
 log_info() { echo "[INFO] $*" >&2; }
@@ -296,8 +309,12 @@ if [[ "$RAW_OUTPUT" == "true" ]]; then
   exit 0
 fi
 
-# フィルタリングモード
-log_info "Running what-if with noise filtering..."
+# サマリーモードまたはフィルタリングモード
+if [[ "$SUMMARY_OUTPUT" == "true" ]]; then
+  log_info "Running what-if (summary mode)..."
+else
+  log_info "Running what-if with noise filtering..."
+fi
 
 # 一時ファイルに出力（パイプ処理の問題を回避）
 TEMP_FILE=$(mktemp)
@@ -340,15 +357,36 @@ if ! jq empty "$TEMP_FILE" 2>/dev/null; then
 fi
 
 # jqでフィルタリング
-jq '
-  # ノイズパターン（読み取り専用/動的な値）
-  # 一般的なAzureリソースで共通するノイズプロパティ
-  def is_noise: . as $path | $path | test("provisioningState|etag|principalId|clientId|tenantId|fqdn|azurePortalFQDN|nodeImageVersion|currentOrchestratorVersion|uniqueId|resourceGuid|powerState\\.code|identityProfile|createdAt|modifiedAt|createdBy|lastModifiedBy|systemData");
+FILTERED_OUTPUT=$(jq '
+  # ノイズパターン（明らかな読み取り専用プロパティのみ）
+  # noise.md で定義された「デプロイしても適用されない」プロパティに限定
+  # 重要: これはパターンマッチで明らかなノイズのみを除外する
+  #       それ以外のすべてのプロパティは、プロセスベースで評価する必要がある
+  # 注意: tags, networkSecurityGroup 等のユーザー設定可能なプロパティは含めない
+  def is_noise: . as $path | $path | test("(^|\\.)provisioningState$|(^|\\.)etag$|(^|\\.)resourceGuid$|(^|\\.)uniqueId$|(^|\\.)systemData($|\\.)|(^|\\.)principalId$|(^|\\.)clientId$|(^|\\.)tenantId$|(^|\\.)createdAt$|(^|\\.)modifiedAt$|(^|\\.)createdBy$|(^|\\.)lastModifiedBy$");
 
   # 破壊的変更パターン（リソースの再作成が必要になる可能性があるプロパティ）
   def is_destructive: . as $path | $path | test("networkPlugin|networkPluginMode|subnetId|vnetSubnetID|addressPrefixes|sku\\.name|sku\\.tier|sku\\.capacity|kind|location");
 
+  # children を再帰的にフラット化する関数
+  # ネストした配列変更（subnets[n].properties.networkSecurityGroup 等）を展開
+  def flatten_delta:
+    def flatten_recursive($prefix):
+      if . == null then []
+      elif type == "array" then
+        [.[] | flatten_recursive($prefix)] | add // []
+      else
+        (if $prefix == "" then .path else ($prefix + "." + .path) end) as $fullpath |
+        if .children != null and (.children | length > 0) then
+          [.children[] | flatten_recursive($fullpath)] | add // []
+        else
+          [. + {path: $fullpath}]
+        end
+      end;
+    flatten_recursive("");
+
   # 変更をフィルタリング
+  # 明らかなノイズ以外はすべて表示（プロセスベース評価のため）
   [.changes[]
   | select(.changeType != "NoChange" and .changeType != "NoEffect" and .changeType != "Ignore")
   | {
@@ -357,14 +395,21 @@ jq '
       resourceName: (if .resourceId == null or (.resourceId | startswith("[")) then "dynamic" else (.resourceId | split("/") | .[-1] // "unknown") end),
       changeType: .changeType,
       unsupportedReason: .unsupportedReason,
+      # 明らかなノイズ以外のすべての変更を表示（プロセスベース評価が必要）
       significantChanges: (
         if .delta == null then []
-        else [.delta[] | select((.path | is_noise | not) and .propertyChangeType != "NoEffect")]
+        else [.delta | flatten_delta | .[] | select((.path | is_noise | not) and .propertyChangeType != "NoEffect")]
         end
       ),
       potentiallyDestructive: (
         if .delta == null then false
-        else ([.delta[] | select(.path | is_destructive)] | length > 0)
+        else ([.delta | flatten_delta | .[] | select(.path | is_destructive)] | length > 0)
+        end
+      ),
+      # プロパティ削除の件数（実リソースから設定が外れる可能性）
+      propertyDeletionCount: (
+        if .delta == null then 0
+        else ([.delta | flatten_delta | .[] | select(.propertyChangeType == "Delete")] | length)
         end
       )
     }
@@ -376,13 +421,32 @@ jq '
         modify: [.[] | select(.changeType == "Modify")] | length,
         delete: [.[] | select(.changeType == "Delete")] | length,
         unsupported: [.[] | select(.changeType == "Unsupported")] | length,
-        potentiallyDestructive: [.[] | select(.potentiallyDestructive == true)] | length
+        potentiallyDestructive: [.[] | select(.potentiallyDestructive == true)] | length,
+        withPropertyDeletions: [.[] | select(.propertyDeletionCount > 0)] | length
       },
       changes: .
     }
-' "$TEMP_FILE"
+' "$TEMP_FILE")
+
+# サマリーモードの場合はサマリーと重要な変更を出力
+# すべての変更タイプを同等に扱い、優先順位付けしない
+if [[ "$SUMMARY_OUTPUT" == "true" ]]; then
+  echo "$FILTERED_OUTPUT" | jq '{
+    summary: .summary,
+    destructiveChanges: [.changes[] | select(.potentiallyDestructive == true) | {resourceName, resourceType}],
+    changesWithDeletions: [.changes[] | select(.propertyDeletionCount > 0) | {resourceName, resourceType, propertyDeletionCount}],
+    resourceCreations: [.changes[] | select(.changeType == "Create") | .resourceName],
+    resourceDeletions: [.changes[] | select(.changeType == "Delete") | .resourceName],
+    modifiedResources: [.changes[] | select(.changeType == "Modify") | {resourceName, resourceType}] | unique
+  }'
+else
+  echo "$FILTERED_OUTPUT"
+fi
 
 log_info ""
 log_info "=== Analysis Complete ==="
-log_info "Tip: Use 'jq .changes[]' to see individual changes"
-log_info "Tip: Use 'jq .summary' to see only the summary"
+if [[ "$SUMMARY_OUTPUT" == "true" ]]; then
+  log_info "Tip: Run without --summary to see all changes"
+else
+  log_info "Tip: Use --summary for a quick overview"
+fi
