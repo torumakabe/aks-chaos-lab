@@ -1,137 +1,153 @@
 ---
 name: bicep-what-if-analysis
-description: azd up/provision や Bicep 変更の影響分析（what-if実行とノイズ除去）。「デプロイ前の差分確認」「破壊的変更の有無」「変更影響の確認」を求める場合に使用。
+description: Bicep/azd デプロイ前の what-if 分析。「差分確認」「変更影響」「破壊的変更」「デプロイしたら何が変わる」「Bicep と実リソースの比較」を求める場合に使用。
 ---
 
 # Bicep What-If 分析
 
-インフラ変更前の影響範囲確認とノイズフィルタリングを支援する。
-任意の azd プロジェクトで使用可能。
+## 分析フロー（必須）
 
-## Tools
+以下の手順に従う。スキップ不可。
 
-| Tool | Use For |
-|------|---------|
-| `microsoft_docs_search` | ノイズ判断が難しい場合のドキュメント検索 |
-| `microsoft_docs_fetch` | 詳細なプロパティ仕様の取得 |
-
-## クイックスタート
+### Step 1: サマリー実行
 
 ```bash
-# フィルタ済みwhat-if分析（推奨）
-# azdプロジェクトのルートディレクトリで実行
-./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh
-
-# 生出力が必要な場合
-./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh --raw
-
-# カスタムテンプレートとパラメータを指定
-./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh \
-  --template infra/custom.bicep \
-  --parameters "vmSize=Standard_D2s_v3" \
-  --parameters "nodeCount=3"
-
-# 破壊的変更のみ抽出
-./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh | jq '.changes[] | select(.changeType == "Delete")'
+./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh --summary
 ```
+
+### Step 2: 結果確認（すべて報告、優先順位なし）
+
+**重要**: 以下のすべての項目を同等に扱う。特定の項目を優先的に確認しない。
+
+| 確認項目 | 0件でも報告 | 詳細確認が必要 |
+|---------|-------------|---------------|
+| `resourceDeletions` | Yes | リソース削除がある場合 |
+| `destructiveChanges` | Yes | リソース再作成がある場合 |
+| `changesWithDeletions` | Yes | **必ず詳細確認**（プロパティ削除） |
+| `resourceCreations` | Yes | リソース作成がある場合 |
+| `modifiedResources` | No（件数のみ） | - |
+| `unsupported` | Yes（必ず詳細説明） | 説明が必要 |
+
+**changesWithDeletions の重要性**:
+- Bicep定義と実リソースの乖離を示す
+- リソース再作成なしでも影響大の可能性
+- 1件でもあれば、**必ず全プロパティを詳細確認**
+
+**サポート外リソースの報告ルール**:
+- サマリーに件数を含める場合、必ず詳細説明を追加する
+- 「サポート外 (分析対象外・問題なし)」のように安心材料を併記する
+- 対象リソースと理由を具体的に説明する
+- 「デプロイは正常に実行される」ことを明記する
+
+### Step 3: 詳細確認（プロセスベース）
+
+`changesWithDeletions` が 1 件以上の場合、**必須**：
+
+```bash
+./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh
+```
+
+**プロセスベースアプローチ（重要）**:
+
+すべてのプロパティ削除に対して、以下のプロセスを**一律に**適用：
+
+```
+1. 削除されるプロパティを特定
+   - トップレベル: properties.xxx
+   - ネスト: properties.config.xxx
+   - 配列要素: properties.subnets[1].xxx
+
+2. Bicep定義を確認（grep/viewツール）
+   - 定義あり → 次へ
+   - 定義なし → 🔴 乖離
+
+3. ARMリファレンスで readOnly を確認
+   - readOnly: true → ✅ ノイズ
+   - readOnly: false → ⚠️ 実削除
+   - 不明 → ❓ 要調査
+```
+
+**禁止事項**:
+- 特定のリソースタイプやプロパティだけを確認して終わらない
+- 「重要そう」「起きやすそう」という事前判断をしない
+- `potentiallyDestructive: false` のリソースをスキップしない
+- 大量の変更があっても流し読みしない
+- 「たぶんノイズだろう」と推測しない
+
+**必須事項**:
+- `changesWithDeletions` に含まれる**全リソースの全プロパティ**を列挙する
+- 各プロパティに上記プロセスを適用する
+- 判定根拠を明示する（Bicep定義の有無、readOnlyの値）
+- 判定に自信がない場合は「要確認」と報告する（ノイズと推測しない）
+
+### Step 4: 報告
+
+1. サマリー表（変更タイプ別件数）
+2. 注意が必要な変更の詳細
+3. 各変更の評価（ノイズ / 実際の変更 / 要確認）
+4. サポート外リソースの説明（件数が1件以上の場合）
+5. 推奨アクション
+
+**報告時の必須要素**:
+- サポート外リソースがある場合、「問題ではない」ことを明示
+- 単に「サポート外: N件」だけを記載しない
+- 不安を与えずに、正確な情報を伝える
+
+## スクリプトオプション
+
+| オプション | 用途 |
+|-----------|------|
+| `--summary` | サマリー（最初に実行） |
+| (なし) | フィルタ済み全出力 |
+| `--raw` | Azure CLI 生出力 |
+| `--template`, `--parameters` | カスタム指定 |
+
+## 重要な概念
+
+### プロパティ削除の意味
+
+`changesWithDeletions` は **実リソースに存在する設定が Bicep に未定義** であることを示す。
+
+- Bicep定義にないプロパティ → デプロイで削除される（**乖離**）
+- Bicep定義にあるが読み取り専用 → デプロイしても適用されない（**ノイズ**）
+
+リソース再作成を伴わなくても、セキュリティや可用性に影響する可能性がある。
+
+### プロセスベースアプローチ
+
+**チェックリストではなくプロセス**で評価する：
+
+- 特定のリソースタイプ（VNet, NSG等）のリストに依存しない
+- 特定のプロパティ（tags, networkSecurityGroup等）の優先順位付けをしない
+- すべてのプロパティ削除に同じプロセスを一律適用
+- 未知のリソースや新しいAzureサービスにも対応可能
+
+評価プロセス:
+1. Bicep定義を確認（定義の有無）
+2. ARM リファレンスで readOnly を確認
+3. 結果を報告（乖離 / ノイズ / 要調査）
+
+### ノイズ判定
+
+スクリプトは**明らかな読み取り専用プロパティ**（`provisioningState`, `etag` 等）のみを自動フィルタする。
+それ以外のプロパティは、上記のプロセスで評価する。
+
+判定基準の詳細は [references/noise.md](references/noise.md) を参照。
 
 ## 前提条件
 
-- `azd env`が初期化済み（`AZURE_LOCATION`等が設定済み）
-- Azure CLIでログイン済み
-- azdプロジェクトのルートディレクトリで実行（`azure.yaml`が存在する場所）
-
-## ノイズ判定基準
-
-詳細は [references/noise.md](references/noise.md) を参照。
-
-### 重要：「破壊的ではない」と「ノイズ」は異なる
-
-| 分類 | 説明 | 例 |
-|------|------|-----|
-| **ノイズ** | 実際のリソースに影響しない変更。無視して良い | `provisioningState`, `etag`, `redundancyMode`（読み取り専用） |
-| **破壊的ではない変更** | リソース再作成は不要だが、実際に適用される変更 | `tags`, `sku.tier`（明示的に設定可能なプロパティ） |
-| **破壊的変更** | リソースの再作成が必要な変更 | `location`, `networkPlugin` |
-
-**判断の誤りを避けるために:**
-
-1. **読み取り専用プロパティのみがノイズ** - ドキュメントに「readOnly」「output only」「populated by the server」と記載されているもの
-2. **ユーザーが設定可能なプロパティはノイズではない** - `tags`、SKU設定、構成オプションなど
-3. **複数プロパティをまとめて評価しない** - 同一リソースでも各プロパティを個別に判断する
-
-## 分析フロー
-
-```
-1. what-if実行
-   ↓
-2. 変更タイプで分類
-   - NoChange / NoEffect / Ignore → 無視
-   - Create / Delete / Modify → 詳細確認
-   ↓
-3. Modifyの詳細確認
-   - ノイズリストに該当 → 無視
-   - 破壊的変更リストに該当 → 要注意
-   - それ以外 → 意図した変更か確認
-```
-
-## 変更タイプの意味
-
-| タイプ | 説明 | 対応 |
-|--------|------|------|
-| **Create** | 新規作成 | 設定内容を確認 |
-| **Delete** | 削除 | 意図した削除か確認 |
-| **Modify** | 変更あり | 破壊的変更か確認 |
-| **NoChange** | 変更なし | 無視 |
-| **NoEffect** | 影響なし（読み取り専用等） | 無視 |
-| **Ignore** | 評価対象外 | 通常は無視 |
+- `azd env` 初期化済み
+- Azure CLI ログイン済み
+- azd プロジェクトルートで実行
 
 ## トラブルシューティング
 
-### "AZURE_LOCATION is not set" エラー
-
-```bash
-# azd環境を初期化
-azd env refresh
-```
-
-### what-ifが大量の変更を報告する
-
-- APIバージョン更新後は多くの「変更」が報告されることがある
-- `--raw`オプションで生出力を確認し、実際の差分を確認する
-
-### 特定リソースの詳細を確認したい
-
-```bash
-# リソースIDでフィルタ（例：AKSクラスター）
-./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh | \
-  jq '.changes[] | select(.resourceId | contains("managedClusters"))'
-
-# リソースタイプでフィルタ（例：ストレージアカウント）
-./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh | \
-  jq '.changes[] | select(.resourceType | contains("storageAccounts"))'
-```
-
-### カスタムパラメータを使用したい
-
-```bash
-# azure.yaml から自動検出せず、明示的にテンプレートとパラメータを指定
-./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh \
-  --template infra/main.bicep \
-  --parameters "environment=dev" \
-  --parameters "sku=Standard"
-```
+| 問題 | 対処 |
+|------|------|
+| "AZURE_LOCATION is not set" | `azd env refresh` |
+| 大量の変更 | `--raw` で生出力確認 |
+| 特定リソース確認 | `jq '.changes[] \| select(.resourceType == "xxx")'` |
 
 ## Dependencies
 
-- **az**: Azure CLI（`az deployment sub what-if` の実行に必要）
-- **azd**: Azure Developer CLI（環境変数の取得に必要）
-- **jq**: JSON フィルタリングに必要
-- **python3**: パラメータファイルのプレースホルダー展開に必要（`--parameters` オプションで直接指定する場合は不要）
-
-## このスキルを使わない場合
-
-以下の場合は静的分析で十分である：
-
-- 「Bicepファイルの構文を確認して」（リンター実行）
-- 「このモジュールは何を作成する？」（コードリーディング）
-- 「パラメータのデフォルト値は？」（ファイル参照）
+az, azd, jq, python3
