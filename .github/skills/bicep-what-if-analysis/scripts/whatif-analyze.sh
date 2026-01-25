@@ -276,10 +276,12 @@ else
   done <<< "$AZD_ENV_OUTPUT"
 fi
 
-# 追加パラメータを追加
-for param in "${EXTRA_PARAMS[@]}"; do
-  WHATIF_ARGS+=(--parameters "$param")
-done
+# 追加パラメータを追加（配列が空でない場合のみ）
+if [[ ${#EXTRA_PARAMS[@]} -gt 0 ]]; then
+  for param in "${EXTRA_PARAMS[@]}"; do
+    WHATIF_ARGS+=(--parameters "$param")
+  done
+fi
 
 # デバッグ: 渡すパラメータを表示
 log_debug "What-if arguments:"
