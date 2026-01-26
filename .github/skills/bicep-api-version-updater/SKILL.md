@@ -20,9 +20,16 @@ BicepファイルのAzureリソースAPIバージョンを最新の安定版に�
 
 ### bicepschemaを使用しない理由
 
-> **注意:** 以下は挙動観察に基づく注意点であり、公式ドキュメントに明記された仕様ではない。
+Azure MCP Serverの`bicepschema`と`az provider show`では、APIバージョンの取得元が異なる。
 
-Azure MCP Serverの`bicepschema`が返すAPIバージョンと、`az provider show`が返す最新GA版が異なるケースが観察されている（例: Microsoft.Network/virtualNetworksでbicepschemaは2024-07-01、az provider showは2025-05-01を返す）。この差異が「既に最新」の誤判断を招く可能性があるため、最新版の判定には`az provider show`を使用する。
+| ツール | データソース | 更新タイミング |
+|--------|-------------|---------------|
+| `bicepschema` | Bicep CLIに同梱された型定義（[Azure/bicep-types-az](https://github.com/Azure/bicep-types-az)） | Bicep CLIのリリース時 |
+| `az provider show` | Azureリソースプロバイダーへのリアルタイム問い合わせ | 常に最新 |
+
+この設計上の差異により、`bicepschema`が返す「最新版」がBicep CLIのバージョンに依存し、実際の最新GA版より古い場合がある。最新版の判定には`az provider show`を使用する。
+
+> **参考:** `bicepschema`の最新版選択ロジックは[ApiVersionSelector.cs](https://github.com/microsoft/mcp/blob/main/tools/Azure.Mcp.Tools.BicepSchema/src/Services/Support/ApiVersionSelector.cs)で実装されており、安定版を優先してソート・選択する仕様となっている。
 
 ### az provider showの制限
 
@@ -83,8 +90,10 @@ APIバージョンに `-preview` が含まれる場合は**更新をスキップ
 ```bash
 az provider show -n Microsoft.Network \
   --query "resourceTypes[?resourceType=='virtualNetworks'].apiVersions" \
-  -o tsv | tr '\t' '\n' | grep -iv preview | head -1
+  -o tsv | tr '\t' '\n' | grep -iv preview | sort -r | head -1
 ```
+
+> **注意:** `az provider show` の返すAPIバージョン一覧は降順ソートされているように見えるが、公式ドキュメントでは保証されていない。`sort -r` でクライアント側ソートを行い、確実に最新版を取得する。
 
 複数リソースタイプの一括取得:
 ```bash
@@ -98,7 +107,7 @@ do
   echo "=== $provider/$resource ==="
   az provider show -n "$provider" \
     --query "resourceTypes[?resourceType=='$resource'].apiVersions" \
-    -o tsv 2>/dev/null | tr '\t' '\n' | grep -iv preview | head -1
+    -o tsv 2>/dev/null | tr '\t' '\n' | grep -iv preview | sort -r | head -1
 done
 ```
 
