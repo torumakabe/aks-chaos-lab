@@ -72,6 +72,8 @@ Azure MCP Serverの`bicepschema`と`az provider show`では、APIバージョン
 grep -E "^resource\s+" infra/**/*.bicep
 ```
 
+> **対象外:** `resourceInput<'Type@version'>` / `resourceOutput<'Type@version'>` 構文（Bicep 0.34.1以降）は本スキルの対象外。これらは型定義用でありリソースをデプロイしないため、APIバージョン更新の優先度が異なる。
+
 ### Step 2: プレビュー版のスキップ判定
 
 APIバージョンに `-preview` が含まれる場合は**更新をスキップ**。
