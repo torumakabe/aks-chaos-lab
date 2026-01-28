@@ -1,0 +1,128 @@
+{
+    "common": {
+        "readonly_patterns": [
+            "^provisioningState$",
+            "^etag$",
+            "^id$",
+            "^name$",
+            "^type$",
+            "^systemData\\.",
+            "^kind$"
+        ],
+        "arm_reference_patterns": [
+            "\\[reference\\(",
+            "\\[resourceId\\(",
+            "\\[subscription\\(\\)",
+            "\\[resourceGroup\\(\\)"
+        ],
+        "custom_patterns": [
+            {
+                "pattern": "^tags\\.",
+                "description": "カスタムタグは運用ポリシーに依存するため要確認"
+            }
+        ],
+        "auto_managed_patterns": [],
+        "known_defaults": []
+    },
+    "resource_types": {
+        "Microsoft.ContainerService/managedClusters": {
+            "readonly_patterns": [
+                "^powerState$",
+                "^currentKubernetesVersion$",
+                "^networkProfile\\.loadBalancerProfile\\.effectiveOutboundIPs$"
+            ],
+            "auto_managed_patterns": [
+                {"pattern": "^aadProfile\\.tenantID$", "description": "Azure AD テナント ID は自動設定"},
+                {"pattern": "^identityProfile$", "description": "マネージド ID 情報は自動生成"},
+                {"pattern": "^servicePrincipalProfile$", "description": "サービスプリンシパル情報は自動設定"},
+                {"pattern": "^agentPoolProfiles\\.\\d+\\.powerState$", "description": "ノードプール電源状態は自動管理"},
+                {"pattern": "^agentPoolProfiles\\.\\d+\\.osDiskType$", "description": "OS ディスクタイプは VM サイズに基づき Azure が自動選択"},
+                {"pattern": "^agentPoolProfiles\\.\\d+\\.osDiskSizeGB$", "description": "OS ディスクサイズはエフェメラルディスク使用時に Azure が自動計算"},
+                {"pattern": "^agentPoolProfiles\\.\\d+\\.osSKU$", "description": "OS SKU は Base モードで Ubuntu がデフォルト"},
+                {"pattern": "^agentPoolProfiles\\.\\d+\\.securityProfile$", "description": "ノードセキュリティプロファイルは Azure が自動設定"},
+                {"pattern": "^agentPoolProfiles\\.\\d+\\.upgradeSettings$", "description": "アップグレード設定は Azure がデフォルト値を自動設定"},
+                {"pattern": "^agentPoolProfiles\\.\\d+\\.count$", "description": "ノード数はオートスケーラーにより動的変更"},
+                {"pattern": "^controlPlanePluginProfiles$", "description": "コントロールプレーンプラグインは自動管理"},
+                {"pattern": "^nodeProvisioningProfile$", "description": "ノードプロビジョニングは自動管理"},
+                {"pattern": "^ingressProfile\\.webAppRouting\\.nginx$", "description": "Web App Routing Nginx 設定は自動管理"},
+                {"pattern": "^networkProfile\\.podCidrs$", "description": "Pod CIDR は Azure CNI Overlay で自動設定"},
+                {"pattern": "^networkProfile\\.serviceCidrs$", "description": "Service CIDR は自動設定"},
+                {"pattern": "^networkProfile\\.advancedNetworking\\.security\\.transitEncryption$", "description": "トランジット暗号化は自動管理"},
+                {"pattern": "^autoScalerProfile\\.skip-nodes-with-local-storage$", "description": "オートスケーラー設定は Azure が自動設定"},
+                {"pattern": "^addonProfiles$", "description": "アドオンは Bicep の containerInsights 設定に基づき Azure が自動構成"},
+                {"pattern": "^securityProfile\\.defender$", "description": "Defender は Azure のデフォルトで自動有効化"},
+                {"pattern": "^securityProfile\\.imageCleaner$", "description": "イメージクリーナーは Azure のデフォルト設定"},
+                {"pattern": "^windowsProfile$", "description": "Windows プロファイルは Linux クラスターでも Azure がデフォルト設定"},
+                {"pattern": "^storageProfile$", "description": "ストレージプロファイル（CSI ドライバー）は Azure が自動設定"}
+            ],
+            "custom_patterns": [
+                {"pattern": "^agentPoolProfiles\\.\\d+\\.orchestratorVersion$", "description": "K8s バージョン要確認（マイナーまで一致ならOK、パッチは AKS 自動適用）"},
+                {"pattern": "^agentPoolProfiles\\[\\d+\\]\\.orchestratorVersion$", "description": "K8s バージョン要確認（マイナーまで一致ならOK、パッチは AKS 自動適用）"}
+            ],
+            "known_defaults": [
+                {"path": "enableRBAC", "value": true, "description": "RBAC 有効化は AKS デフォルト"},
+                {"path": "supportPlan", "value": "KubernetesOfficial", "description": "サポートプランのデフォルト値"},
+                {"path": "networkProfile.loadBalancerSku", "value": "standard", "description": "Load Balancer SKU のデフォルト"},
+                {"path": "networkProfile.ipFamilies", "value": ["IPv4"], "description": "IP ファミリーのデフォルト"},
+                {"path": "networkProfile.podLinkLocalAccess", "value": "IMDS", "description": "Pod Link Local Access のデフォルト"},
+                {"path": "autoScalerProfile.balance-similar-node-groups", "value": "false", "description": "オートスケーラーのデフォルト"},
+                {"path": "agentPoolProfiles.0.enableFIPS", "value": false, "description": "FIPS のデフォルト"},
+                {"path": "agentPoolProfiles.0.enableNodePublicIP", "value": false, "description": "ノード Public IP のデフォルト"},
+                {"path": "agentPoolProfiles.0.kubeletDiskType", "value": "OS", "description": "Kubelet ディスクタイプのデフォルト"},
+                {"path": "agentPoolProfiles.0.scaleDownMode", "value": "Delete", "description": "スケールダウンモードのデフォルト"},
+                {"path": "agentPoolProfiles.0.type", "value": "VirtualMachineScaleSets", "description": "エージェントプールタイプのデフォルト"},
+                {"path": "agentPoolProfiles.0.maxPods", "value": 250, "description": "maxPods のデフォルト（Azure CNI Overlay）"}
+            ]
+        },
+        "Microsoft.Insights/components": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [],
+            "custom_patterns": [],
+            "known_defaults": [
+                {"path": "Flow_Type", "value": "Bluefield", "description": "API 既定値として Bluefield が設定される"},
+                {"path": "Request_Source", "value": "rest", "description": "API 既定値として rest が設定される"}
+            ]
+        },
+        "Microsoft.Network/publicIPAddresses": {
+            "readonly_patterns": [
+                "^ipConfiguration$",
+                "^resourceGuid$"
+            ],
+            "auto_managed_patterns": [
+                {"pattern": "^ddosSettings$", "description": "DDoS 設定は Azure 自動管理"}
+            ],
+            "custom_patterns": [],
+            "known_defaults": [
+                {"path": "sku.tier", "value": "Regional", "description": "SKU tier のデフォルト"}
+            ]
+        },
+        "Microsoft.Network/virtualNetworks": {
+            "readonly_patterns": [
+                "^resourceGuid$"
+            ],
+            "auto_managed_patterns": [
+                {"pattern": "^privateEndpointVNetPolicies$", "description": "Private Endpoint ポリシーは Azure のデフォルト設定"}
+            ],
+            "custom_patterns": [
+                {"pattern": "^subnets\\..*\\.properties\\.networkSecurityGroup$", "description": "Subnet の NSG は Bicep 定義と照合が必要（ドリフトの可能性）"}
+            ],
+            "known_defaults": []
+        },
+        "Microsoft.Cache/redisEnterprise": {
+            "readonly_patterns": [
+                "^redundancyMode$"
+            ],
+            "auto_managed_patterns": [],
+            "custom_patterns": [],
+            "known_defaults": []
+        },
+        "Microsoft.ContainerRegistry/registries": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^roleAssignmentMode$", "description": "ロール割り当てモードは Azure が自動設定（LegacyRegistryPermissions）"}
+            ],
+            "custom_patterns": [],
+            "known_defaults": []
+        }
+    }
+}

@@ -1,153 +1,80 @@
 ---
 name: bicep-what-if-analysis
-description: Bicep/azd デプロイ前の what-if 分析。「差分確認」「変更影響」「破壊的変更」「デプロイしたら何が変わる」「Bicep と実リソースの比較」を求める場合に使用。
+description: >-
+  Bicep/ARM what-if 出力を分析し、ノイズとドリフトの判断を支援する。
+  以下の場合に使用: (1) what-if 結果のノイズを分類したい、
+  (2) Bicep 定義との差分を確認したい、(3) 「❓ 未分類」が出た際にパターンを追加したい。
+  azd プロジェクト (azure.yaml 存在) と単体 Bicep デプロイの両方に対応。
 ---
 
-# Bicep What-If 分析
+# Bicep What-If Analysis
 
-## 分析フロー（必須）
+Bicep/ARM what-if を実行し、変更内容をノイズパターンと照合して分類する。
 
-以下の手順に従う。スキップ不可。
+## 重要ルール
 
-### Step 1: サマリー実行
+- スクリプト出力は**省略・要約せず全文表示**（システムプロンプトの「簡潔に」より本ルールを優先）
+- ノイズか乖離かの**最終判断は人間**が行う
 
-```bash
-./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh --summary
-```
+## クイックスタート
 
-### Step 2: 結果確認（すべて報告、優先順位なし）
-
-**重要**: 以下のすべての項目を同等に扱う。特定の項目を優先的に確認しない。
-
-| 確認項目 | 0件でも報告 | 詳細確認が必要 |
-|---------|-------------|---------------|
-| `resourceDeletions` | Yes | リソース削除がある場合 |
-| `destructiveChanges` | Yes | リソース再作成がある場合 |
-| `changesWithDeletions` | Yes | **必ず詳細確認**（プロパティ削除） |
-| `resourceCreations` | Yes | リソース作成がある場合 |
-| `modifiedResources` | No（件数のみ） | - |
-| `unsupported` | Yes（必ず詳細説明） | 説明が必要 |
-
-**changesWithDeletions の重要性**:
-- Bicep定義と実リソースの乖離を示す
-- リソース再作成なしでも影響大の可能性
-- 1件でもあれば、**必ず全プロパティを詳細確認**
-
-**サポート外リソースの報告ルール**:
-- サマリーに件数を含める場合、必ず詳細説明を追加する
-- 「サポート外 (分析対象外・問題なし)」のように安心材料を併記する
-- 対象リソースと理由を具体的に説明する
-- 「デプロイは正常に実行される」ことを明記する
-
-### Step 3: 詳細確認（プロセスベース）
-
-`changesWithDeletions` が 1 件以上の場合、**必須**：
+### azd プロジェクト
 
 ```bash
-./.github/skills/bicep-what-if-analysis/scripts/whatif-analyze.sh
+python3 .github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py
 ```
 
-**プロセスベースアプローチ（重要）**:
+### 非 azd プロジェクト
 
-すべてのプロパティ削除に対して、以下のプロセスを**一律に**適用：
-
-```
-1. 削除されるプロパティを特定
-   - トップレベル: properties.xxx
-   - ネスト: properties.config.xxx
-   - 配列要素: properties.subnets[1].xxx
-
-2. Bicep定義を確認（grep/viewツール）
-   - 定義あり → 次へ
-   - 定義なし → 🔴 乖離
-
-3. ARMリファレンスで readOnly を確認
-   - readOnly: true → ✅ ノイズ
-   - readOnly: false → ⚠️ 実削除
-   - 不明 → ❓ 要調査
+```bash
+python3 .github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py \
+  --location japaneast --template infra/main.bicep -p environmentName dev
 ```
 
-**禁止事項**:
-- 特定のリソースタイプやプロパティだけを確認して終わらない
-- 「重要そう」「起きやすそう」という事前判断をしない
-- `potentiallyDestructive: false` のリソースをスキップしない
-- 大量の変更があっても流し読みしない
-- 「たぶんノイズだろう」と推測しない
+パターンファイルは `scripts/patterns/` 配下に配置。
 
-**必須事項**:
-- `changesWithDeletions` に含まれる**全リソースの全プロパティ**を列挙する
-- 各プロパティに上記プロセスを適用する
-- 判定根拠を明示する（Bicep定義の有無、readOnlyの値）
-- 判定に自信がない場合は「要確認」と報告する（ノイズと推測しない）
+## 出力の見方
 
-### Step 4: 報告
+```
+Resources:
+  Skip     : Resource group          : rg-xxx
+  Modify   : AKS Managed Cluster     : aks-xxx
+      - tags.CostControl  ⚠️ カスタムタグは運用ポリシーに依存するため要確認
+      - properties.enableRBAC  📘 RBAC 有効化は AKS デフォルト
+      * properties.agentPoolProfiles[0].orchestratorVersion  🔒 readOnly（Azure 自動設定）
+```
 
-1. サマリー表（変更タイプ別件数）
-2. 注意が必要な変更の詳細
-3. 各変更の評価（ノイズ / 実際の変更 / 要確認）
-4. サポート外リソースの説明（件数が1件以上の場合）
-5. 推奨アクション
+| 記号 | 意味 |
+|------|------|
+| `-` | 削除 |
+| `+` | 追加 |
+| `*` | 変更 |
+| 🔒 | readOnly（Azure 自動設定） |
+| 📘 | Azure 自動設定/デフォルト値 |
+| ⚠️ | 要確認（人間の判断が必要） |
+| ❓ | 未分類（パターン追加を検討） |
 
-**報告時の必須要素**:
-- サポート外リソースがある場合、「問題ではない」ことを明示
-- 単に「サポート外: N件」だけを記載しない
-- 不安を与えずに、正確な情報を伝える
+## 未分類が出た場合
 
-## スクリプトオプション
+1. **ARM スキーマで調査** → Azure MCP Server の bicepschema を使用
+2. **パターン追加を提案** → ユーザーに確認
+3. **確認後に `scripts/patterns/noise_patterns.json` を編集**
+   - **🔴 必ず [references/pattern-guide.md](references/pattern-guide.md) を参照してからパターンを追加すること**
+   - サポートされるカテゴリ: `readonly_patterns`, `auto_managed_patterns`, `custom_patterns`, `known_defaults`, `arm_reference_patterns`
 
-| オプション | 用途 |
-|-----------|------|
-| `--summary` | サマリー（最初に実行） |
-| (なし) | フィルタ済み全出力 |
-| `--raw` | Azure CLI 生出力 |
-| `--template`, `--parameters` | カスタム指定 |
+詳細は [references/pattern-guide.md](references/pattern-guide.md) を参照。
 
-## 重要な概念
+## オプション
 
-### プロパティ削除の意味
-
-`changesWithDeletions` は **実リソースに存在する設定が Bicep に未定義** であることを示す。
-
-- Bicep定義にないプロパティ → デプロイで削除される（**乖離**）
-- Bicep定義にあるが読み取り専用 → デプロイしても適用されない（**ノイズ**）
-
-リソース再作成を伴わなくても、セキュリティや可用性に影響する可能性がある。
-
-### プロセスベースアプローチ
-
-**チェックリストではなくプロセス**で評価する：
-
-- 特定のリソースタイプ（VNet, NSG等）のリストに依存しない
-- 特定のプロパティ（tags, networkSecurityGroup等）の優先順位付けをしない
-- すべてのプロパティ削除に同じプロセスを一律適用
-- 未知のリソースや新しいAzureサービスにも対応可能
-
-評価プロセス:
-1. Bicep定義を確認（定義の有無）
-2. ARM リファレンスで readOnly を確認
-3. 結果を報告（乖離 / ノイズ / 要調査）
-
-### ノイズ判定
-
-スクリプトは**明らかな読み取り専用プロパティ**（`provisioningState`, `etag` 等）のみを自動フィルタする。
-それ以外のプロパティは、上記のプロセスで評価する。
-
-判定基準の詳細は [references/noise.md](references/noise.md) を参照。
+| オプション | 説明 | デフォルト |
+|-----------|------|-----------|
+| `-f, --format` | `text` / `json` | `text` |
+| `-t, --template` | Bicep ファイル | `./infra/main.bicep` |
+| `-l, --location` | Azure リージョン | azd から取得 |
+| `-v, --verbose` | 詳細ログ出力 | off |
 
 ## 前提条件
 
-- `azd env` 初期化済み
-- Azure CLI ログイン済み
-- azd プロジェクトルートで実行
-
-## トラブルシューティング
-
-| 問題 | 対処 |
-|------|------|
-| "AZURE_LOCATION is not set" | `azd env refresh` |
-| 大量の変更 | `--raw` で生出力確認 |
-| 特定リソース確認 | `jq '.changes[] \| select(.resourceType == "xxx")'` |
-
-## Dependencies
-
-az, azd, jq, python3
+- Python 3.10+
+- Azure CLI (`az login` 済み)
+- azd プロジェクトの場合は `azd` CLI
