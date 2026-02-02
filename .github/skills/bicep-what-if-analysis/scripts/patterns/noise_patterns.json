@@ -53,7 +53,8 @@
                 {"pattern": "^securityProfile\\.defender$", "description": "Defender は Azure のデフォルトで自動有効化"},
                 {"pattern": "^securityProfile\\.imageCleaner$", "description": "イメージクリーナーは Azure のデフォルト設定"},
                 {"pattern": "^windowsProfile$", "description": "Windows プロファイルは Linux クラスターでも Azure がデフォルト設定"},
-                {"pattern": "^storageProfile$", "description": "ストレージプロファイル（CSI ドライバー）は Azure が自動設定"}
+                {"pattern": "^storageProfile$", "description": "ストレージプロファイル（CSI ドライバー）は Azure が自動設定"},
+                {"pattern": "^serviceMeshProfile$", "description": "サービスメッシュプロファイルは Bicep 未定義時に Azure が Disabled をデフォルト設定"}
             ],
             "custom_patterns": [
                 {"pattern": "^agentPoolProfiles\\.\\d+\\.orchestratorVersion$", "description": "K8s バージョン要確認（マイナーまで一致ならOK、パッチは AKS 自動適用）"},
