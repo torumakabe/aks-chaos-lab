@@ -306,7 +306,13 @@ resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2
           operator: 'GreaterThan'
           threshold: 0
           metricMeasureColumn: ''
-          dimensions: []
+          dimensions: [
+            {
+              name: 'status'
+              operator: 'Include'
+              values: ['*']
+            }
+          ]
         }
       ]
     }
