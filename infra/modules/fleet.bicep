@@ -158,3 +158,4 @@ output fleetId string = fleet.id
 output fleetMemberId string = fleetMember.id
 output updateStrategyId string = fleetUpdateStrategy.id
 output autoUpgradeProfileId string = autoUpgradeProfile.id
+output pendingApprovalAlertPrincipalId string = fleetPendingApprovalAlert.identity.principalId
