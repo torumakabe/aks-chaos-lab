@@ -306,7 +306,13 @@ resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2
           operator: 'GreaterThan'
           threshold: 0
           metricMeasureColumn: ''
-          dimensions: []
+          dimensions: [
+            {
+              name: 'status'
+              operator: 'Include'
+              values: ['*']
+            }
+          ]
         }
       ]
     }
@@ -317,7 +323,8 @@ resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2
 }
 
 // Assign Reader role to the alert rule's managed identity so it can query ARG
-resource aksNodeOSAutoUpgradeAlertRuleRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+// Resource group scope
+resource aksNodeOSAutoUpgradeAlertRuleRgRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(
     subscription().id,
     resourceGroup().id,
@@ -339,3 +346,4 @@ output aksId string = aksCluster.id
 output aksNameOut string = aksCluster.name
 output kubeletObjectId string = aksCluster.properties.identityProfile.kubeletidentity.objectId
 output oidcIssuerUrl string = aksCluster.properties.oidcIssuerProfile.issuerURL
+output nodeOsAutoUpgradeAlertPrincipalId string = aksNodeOSAutoUpgradeAlertRule.identity.principalId

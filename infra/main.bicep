@@ -193,6 +193,20 @@ module aksCluster './modules/aks.bicep' = {
   }
 }
 
+// Subscription-scoped Reader role for AKS Node OS auto-upgrade alert
+// Required for ARG queries per official documentation
+resource aksNodeOsAutoUpgradeAlertSubReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(subscription().id, 'aks-nodeos-autoupgrade-alert', 'Reader')
+  properties: {
+    principalId: aksCluster.outputs.nodeOsAutoUpgradeAlertPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
+    )
+  }
+}
+
 module fleetManager './modules/fleet.bicep' = if (aksSkuName == 'Base') {
   name: 'fleet'
   scope: resourceGroup
@@ -206,6 +220,20 @@ module fleetManager './modules/fleet.bicep' = if (aksSkuName == 'Base') {
     updateStageName: 'base-stage'
     approvalDisplayName: 'Base cluster manual approval'
     actionGroupId: actionGroupId
+  }
+}
+
+// Subscription-scoped Reader role for Fleet pending approval alert
+// Required for ARG queries per official documentation
+resource fleetPendingApprovalAlertSubReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (aksSkuName == 'Base') {
+  name: guid(subscription().id, 'fleet-pending-approval-alert', 'Reader')
+  properties: {
+    principalId: fleetManager.outputs.pendingApprovalAlertPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
+    )
   }
 }
 
