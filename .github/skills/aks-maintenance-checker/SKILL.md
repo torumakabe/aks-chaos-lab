@@ -3,7 +3,7 @@ name: aks-maintenance-checker
 description: AKSクラスターおよびFleet Managerのメンテナンス状況（予定・実行中・完了・失敗）を確認。「メンテナンス状況」「アップグレード履歴」「Fleet更新状態」を求める場合に使用。
 ---
 
-# AKS Maintenance Events
+# AKS Maintenance Events Checker
 
 AKSクラスターおよびAzure Kubernetes Fleet Managerの実際のメンテナンスイベントを確認する。
 
@@ -345,8 +345,3 @@ aksresources
 - **クエリ構文の違い:**
   - `az graph query` CLI: テーブル名のみ（例: `containerserviceeventresources`）
   - Azure Monitor アラートルール: `arg("").` プレフィックスが必要（例: `arg("").containerserviceeventresources`）
-
-## 関連スキル
-
-- **bicep-api-version-updater**: BicepファイルのAPIバージョン更新
-- **bicep-what-if-analysis**: デプロイ前の影響分析とノイズ除去
