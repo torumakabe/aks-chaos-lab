@@ -212,7 +212,3 @@ az bicep build --file infra/main.bicep 2>&1
 
 - 「特定のプレビュー機能を使いたい」（意図的なプレビュー使用）
 - 「APIバージョンを固定したい」（安定性優先）
-
-## 関連スキル
-
-- **bicep-what-if-analysis**: デプロイ前の影響分析とノイズ除去
