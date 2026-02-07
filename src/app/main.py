@@ -23,7 +23,7 @@ from app.telemetry import record_span_error, setup_telemetry
 def _load_settings() -> Settings:
     # pydantic-settings builds from env; mypy complains about required fields when not using env
     # so we ignore constructor validation at type-check level.
-    return Settings()  # type: ignore[call-arg]
+    return Settings()
 
 
 settings: Settings = _load_settings()

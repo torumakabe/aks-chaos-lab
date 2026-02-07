@@ -46,7 +46,7 @@ jobs:
         run: uv run ruff check app/
 
   typecheck:
-    name: Pyright Typecheck
+    name: ty Typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -59,9 +59,9 @@ jobs:
       - name: Sync deps (dev)
         working-directory: src
         run: uv sync --group dev --locked
-      - name: Pyright
+      - name: ty check
         working-directory: src
-        run: uv run pyright app/
+        run: uv run ty check app/
   tests:
     name: Pytest
     runs-on: ubuntu-latest

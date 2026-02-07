@@ -59,7 +59,7 @@ def setup_telemetry(app: Any, connection_string: str | None = None) -> None:
         # Lazy import to avoid circular dependency
         from app.config import Settings
 
-        settings = Settings()  # type: ignore[call-arg]
+        settings = Settings()
         if not settings.telemetry_enabled:
             logger.info("Telemetry disabled via TELEMETRY_ENABLED")
             return
@@ -159,7 +159,7 @@ def record_redis_metrics(connected: bool, latency_ms: int) -> None:
     # Lazy import to avoid circular dependency
     from app.config import Settings
 
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
     if not settings.custom_metrics_enabled or not _meter:
         return
     try:

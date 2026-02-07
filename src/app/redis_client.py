@@ -70,7 +70,7 @@ class RedisClient:
         # DefaultAzureCredential will use AZURE_CLIENT_ID env var to select UAMI
         self._credential_provider = create_from_default_azure_credential(self._SCOPE)
 
-        client = aioredis.Redis(  # type: ignore[call-overload]
+        client = aioredis.Redis(
             host=self._host,
             port=self._port,
             ssl=self._settings.redis_ssl,
@@ -83,7 +83,7 @@ class RedisClient:
             health_check_interval=30,
             decode_responses=True,
         )
-        return cast(Redis, client)
+        return client
 
     async def connect(self) -> None:
         """Connect to Redis and verify connectivity."""
@@ -109,7 +109,7 @@ class RedisClient:
     async def close(self) -> None:
         """Close Redis client and cleanup resources."""
         if self._client:
-            await self._client.aclose()  # type: ignore[attr-defined]
+            await self._client.aclose()
             self._client = None
         self._credential_provider = None
 
