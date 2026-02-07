@@ -23,7 +23,7 @@
 - Python 3.13 + uv (パッケージマネージャー)、FastAPI、uvicorn (002-uv-consolidation)
 - YAML (GitHub Actions) + Bash (テストスクリプト) + Azure CLI, Azure Developer CLI (azd), Bicep CLI, curl (003-platform-integration-test)
 - N/A（一時的なAzureリソース） (003-platform-integration-test)
-- Python 3.13 + pyright (新規追加), ruff, pytest, FastAPI, uvicorn (004-mypy-to-pyright)
+- Python 3.13 + ty (型チェッカー), ruff, pytest, FastAPI, uvicorn (004-mypy-to-pyright)
 
 ## Recent Changes
 - 002-uv-consolidation: Added Python 3.13 + uv (パッケージマネージャー)、FastAPI、uvicorn

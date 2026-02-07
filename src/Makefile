@@ -59,7 +59,7 @@ lint: ## Run linting
 
 typecheck: ## Run type checking
 	@echo -e "$(YELLOW)Running type checker...$(NC)"
-	@uv run pyright app/
+	@uv run ty check app/
 	@echo -e "$(GREEN)✓ Type checking complete$(NC)"
 
 format: ## Format code
@@ -112,7 +112,7 @@ qa: ## Lint + Test + Typecheck (quick)
 	@echo -e "$(YELLOW)  → Testing...$(NC)"
 	@PYTHONPATH=. uv run pytest -q
 	@echo -e "$(YELLOW)  → Type checking...$(NC)"
-	@PYTHONPATH=. uv run pyright app
+	@PYTHONPATH=. uv run ty check app
 	@echo -e "$(GREEN)✓ All QA checks passed$(NC)"
 
 check-uv-version: ## Check uv version consistency (local vs Docker)

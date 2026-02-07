@@ -164,7 +164,7 @@ cd src
 make test            # 単体テスト
 make test-cov        # カバレッジレポート生成（htmlcov/）
 make lint            # リント（ruff）
-make typecheck       # 型チェック（pyright）
+make typecheck       # 型チェック（ty）
 make qa              # リント+テスト+型チェック 一括
 ```
 
