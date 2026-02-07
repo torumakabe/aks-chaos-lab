@@ -7,7 +7,12 @@ from app.azd_env import get_azd_env_value
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        populate_by_name=True,
+        extra="ignore",
+    )
     # App
     app_port: int = Field(8000, alias="APP_PORT")
     log_level: str = Field("INFO", alias="LOG_LEVEL")
@@ -48,8 +53,3 @@ class Settings(BaseSettings):
     telemetry_enabled: bool = Field(True, alias="TELEMETRY_ENABLED")
     custom_metrics_enabled: bool = Field(True, alias="CUSTOM_METRICS_ENABLED")
     telemetry_sampling_rate: float = Field(0.1, alias="TELEMETRY_SAMPLING_RATE")
-
-    model_config = {
-        "populate_by_name": True,
-        "extra": "ignore",
-    }
