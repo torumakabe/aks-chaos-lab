@@ -61,7 +61,7 @@ jobs:
         run: uv sync --group dev --locked
       - name: ty check
         working-directory: src
-        run: uv run ty check app/
+        run: uv run ty check app/ tests/
   tests:
     name: Pytest
     runs-on: ubuntu-latest
