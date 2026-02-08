@@ -64,9 +64,7 @@ def _update_health_cache(resp: HealthResponse, status_code: int) -> None:
 
 def get_settings(request: Request) -> Settings:
     """Return runtime Settings, preferring app.state if available."""
-    state_settings = getattr(
-        getattr(request.app, "state", None), "settings", None
-    )
+    state_settings = getattr(getattr(request.app, "state", None), "settings", None)
     if isinstance(state_settings, Settings):
         return state_settings
     return settings
@@ -74,9 +72,7 @@ def get_settings(request: Request) -> Settings:
 
 def get_redis_client(request: Request) -> RedisClient | None:
     """Return RedisClient from app.state, falling back to global."""
-    state_client = getattr(
-        getattr(request.app, "state", None), "redis_client", None
-    )
+    state_client = getattr(getattr(request.app, "state", None), "redis_client", None)
     if state_client is not None:
         return state_client
     return redis_client

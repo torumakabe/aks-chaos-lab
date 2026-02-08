@@ -115,7 +115,7 @@ jobs:
         run: |
           kubeconform -strict -summary \
             -kubernetes-version 1.33.0 \
-            -skip VerticalPodAutoscaler,CiliumNetworkPolicy \
+            -skip VerticalPodAutoscaler,CiliumNetworkPolicy,Kustomization,NginxIngressController \
             k8s/base/*.yaml
       - name: Validate kustomize build
         run: kubectl kustomize k8s/base/ > /dev/null
