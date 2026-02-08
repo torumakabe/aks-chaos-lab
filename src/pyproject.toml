@@ -50,6 +50,8 @@ select = ["E", "F", "I", "N", "UP", "ASYNC", "S", "B", "A", "C4", "T20", "SIM"]
 ignore = ["E501", "S101"]                                                       # E501: line too long, S101: use of assert in tests
 
 [tool.ruff.lint.per-file-ignores]
+# FastAPI Depends() in function defaults is the official pattern
+"app/main.py" = ["B008"]
 # Test files can use more relaxed security rules
 "tests/**/*.py" = [
   "S311",   # random usage OK in tests
@@ -88,6 +90,7 @@ source = ["app"]
 omit = ["*/tests/*", "*/__pycache__/*"]
 
 [tool.coverage.report]
+fail_under = 70
 exclude_lines = [
   "pragma: no cover",
   "def __repr__",

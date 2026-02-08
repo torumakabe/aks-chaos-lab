@@ -191,6 +191,9 @@ resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-3
   tags: tags
 }
 
+// TODO: Migrate to GA API version when available
+// Reason: addonAutoscaling (VPA) requires preview API
+// Check: az provider show -n Microsoft.ContainerService --query "resourceTypes[?resourceType=='managedClusters'].apiVersions" -o tsv
 #disable-next-line BCP081
 resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
   name: aksName
@@ -260,6 +263,7 @@ resource aksResourceGroupNetworkContributorRole 'Microsoft.Authorization/roleAss
 output aksIdentityPrincipalId string = aksIdentity.properties.principalId
 
 // AKS Managed Node OS Upgrade Schedule (weekly on Wednesday)
+// TODO: Migrate to GA API version when available (same as aksCluster)
 #disable-next-line BCP081
 resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2025-06-02-preview' = {
   parent: aksCluster
@@ -281,6 +285,8 @@ resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/main
 }
 
 // Node OS auto-upgrade alert (native resource)
+// TODO: Migrate to GA API version when available
+// Check: az provider show -n Microsoft.Insights --query "resourceTypes[?resourceType=='scheduledQueryRules'].apiVersions" -o tsv
 resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2025-01-01-preview' = {
   name: 'aks-nodeos-autoupgrade'
   location: location

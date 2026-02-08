@@ -30,10 +30,10 @@ class BasicUser(HttpUser):
                 )
             except Exception:
                 # Log if the event notification itself fails
-                self.logger.exception(
+                self.logger.exception(  # ty: ignore[unresolved-attribute]
                     "Failed to fire request_failure event for %s", path
                 )
-            self.logger.exception("AttributeError during GET %s", path)
+            self.logger.exception("AttributeError during GET %s", path)  # ty: ignore[unresolved-attribute]
             return None
         except Exception as exc:
             # Record other exceptions similarly
@@ -46,10 +46,10 @@ class BasicUser(HttpUser):
                     exception=exc,
                 )
             except Exception:
-                self.logger.exception(
+                self.logger.exception(  # ty: ignore[unresolved-attribute]
                     "Failed to fire request_failure event for %s", path
                 )
-            self.logger.exception("Unhandled exception during GET %s", path)
+            self.logger.exception("Unhandled exception during GET %s", path)  # ty: ignore[unresolved-attribute]
             return None
 
     @task(5)
