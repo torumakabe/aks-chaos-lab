@@ -78,7 +78,7 @@ jobs:
         run: uv sync --group dev --locked
       - name: Run unit tests with coverage
         working-directory: src
-        run: uv run pytest -q --cov=app --cov-report=term-missing
+        run: uv run pytest -q --cov=app --cov-report=term-missing --cov-fail-under=70
   bicep:
     name: Bicep Build
     runs-on: ubuntu-latest
