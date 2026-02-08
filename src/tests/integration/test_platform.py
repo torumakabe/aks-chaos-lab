@@ -24,8 +24,8 @@ def base_url() -> str:
     """Get the base URL for integration tests from environment variable."""
     url = os.environ.get("INTEGRATION_TEST_URL")
     if not url:
-        pytest.skip("INTEGRATION_TEST_URL environment variable not set")
-    return url.rstrip("/")
+        pytest.skip("INTEGRATION_TEST_URL environment variable not set")  # ty: ignore[too-many-positional-arguments, invalid-argument-type]
+    return url.rstrip("/")  # ty: ignore[possibly-missing-attribute]
 
 
 class TestHealthEndpoint:
@@ -77,7 +77,7 @@ class TestAPIAvailability:
             response = requests.get(f"{base_url}/health", timeout=10, verify=False)
             assert response.status_code == 200
         except requests.exceptions.Timeout:
-            pytest.fail("API did not respond within 10 seconds")
+            pytest.fail("API did not respond within 10 seconds")  # ty: ignore[invalid-argument-type]
 
     def test_multiple_requests_succeed(self, base_url: str) -> None:
         """Verify multiple consecutive requests succeed."""

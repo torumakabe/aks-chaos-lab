@@ -12,7 +12,7 @@ def test_telemetry_disabled_in_tests() -> None:
     assert os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING") == ""
 
     # Check settings
-    settings = Settings()  # type: ignore[call-arg]
+    settings = Settings()
     assert not settings.telemetry_enabled
     assert (
         settings.applicationinsights_connection_string is None
