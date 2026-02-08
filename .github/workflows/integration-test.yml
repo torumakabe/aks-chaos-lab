@@ -68,6 +68,13 @@ jobs:
           az bicep build --file infra/main.bicep
           echo "::endgroup::"
 
+          echo "::group::ARM Deployment Validation"
+          az deployment sub validate \
+            --location ${{ env.AZURE_LOCATION }} \
+            --template-file infra/main.bicep \
+            --parameters location=${{ env.AZURE_LOCATION }}
+          echo "::endgroup::"
+
           echo "## ✅ Bicep Validation Passed" >> $GITHUB_STEP_SUMMARY
           echo "- Branch: \`${{ inputs.branch || github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Run ID: \`${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
