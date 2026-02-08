@@ -1,25 +1,31 @@
-import os
 from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
-from app.main import settings as app_settings
+from app.config import Settings
+from app.main import app, get_redis_client, get_settings
+
+
+def _test_settings() -> Settings:
+    """Return Settings with Redis and telemetry disabled for tests."""
+    s = Settings()
+    s.redis_enabled = False
+    s.redis_host = None
+    s.telemetry_enabled = False
+    s.applicationinsights_connection_string = None
+    s.appinsights_connection_string = None
+    return s
 
 
 @pytest.fixture(scope="module")
 def client() -> Generator[TestClient]:
-    # Set environment variables to disable telemetry completely in tests
-    os.environ["TELEMETRY_ENABLED"] = "false"
-    os.environ["APPLICATIONINSIGHTS_CONNECTION_STRING"] = ""
-
-    # Disable Redis and Telemetry for deterministic tests
-    app_settings.redis_enabled = False  # type: ignore[assignment]
-    app_settings.redis_host = None  # type: ignore[assignment]
-    app_settings.telemetry_enabled = False  # type: ignore[assignment]
-    app_settings.applicationinsights_connection_string = None  # type: ignore[assignment]
-    app_settings.appinsights_connection_string = None  # type: ignore[assignment]
+    """Provide a TestClient with Redis/telemetry disabled via DI overrides."""
+    _cached = _test_settings()
+    app.dependency_overrides[get_settings] = lambda: _cached
+    app.dependency_overrides[get_redis_client] = lambda: None
 
     with TestClient(app) as c:
         yield c
+
+    app.dependency_overrides.clear()

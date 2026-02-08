@@ -9,7 +9,7 @@ from time import monotonic
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
 
@@ -21,8 +21,10 @@ from app.telemetry import record_span_error, setup_telemetry
 
 # Global instances
 def _load_settings() -> Settings:
-    # pydantic-settings builds from env; mypy complains about required fields when not using env
-    # so we ignore constructor validation at type-check level.
+    """Build Settings from environment variables.
+
+    pydantic-settings reads env vars at construction time.
+    """
     return Settings()
 
 
@@ -54,6 +56,30 @@ def _update_health_cache(resp: HealthResponse, status_code: int) -> None:
     _health_cache["payload"] = resp
     _health_cache["status_code"] = status_code
     _health_cache["_ts"] = monotonic()
+
+
+# --- Dependency Injection providers ---
+# Override these via app.dependency_overrides in tests.
+
+
+def get_settings(request: Request) -> Settings:
+    """Return runtime Settings, preferring app.state if available."""
+    state_settings = getattr(
+        getattr(request.app, "state", None), "settings", None
+    )
+    if isinstance(state_settings, Settings):
+        return state_settings
+    return settings
+
+
+def get_redis_client(request: Request) -> RedisClient | None:
+    """Return RedisClient from app.state, falling back to global."""
+    state_client = getattr(
+        getattr(request.app, "state", None), "redis_client", None
+    )
+    if state_client is not None:
+        return state_client
+    return redis_client
 
 
 @asynccontextmanager
@@ -159,14 +185,15 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
 
 
 @app.get("/", response_model=MainResponse)
-async def root(request: Request) -> MainResponse | JSONResponse:
+async def root(
+    request: Request,
+    runtime_settings: Settings = Depends(get_settings),
+    client: RedisClient | None = Depends(get_redis_client),
+) -> MainResponse | JSONResponse:
+    """Return main response with optional Redis data."""
     timestamp = datetime.now(UTC).isoformat()
     redis_data: str | None = "Redis unavailable"
     redis_error: str | None = None
-
-    cfg = getattr(getattr(request, "app", object()), "state", object())
-    runtime_settings: Settings = getattr(cfg, "settings", settings)
-    client: RedisClient | None = getattr(cfg, "redis_client", None) or redis_client
 
     if client and runtime_settings.redis_enabled:
         try:
@@ -217,7 +244,12 @@ async def root(request: Request) -> MainResponse | JSONResponse:
 
 
 @app.get("/health", response_model=HealthResponse)
-async def health(request: Request) -> HealthResponse | JSONResponse:
+async def health(
+    request: Request,
+    runtime_settings: Settings = Depends(get_settings),
+    client: RedisClient | None = Depends(get_redis_client),
+) -> HealthResponse | JSONResponse:
+    """Return health status including Redis connectivity."""
     if _is_health_cache_valid() and isinstance(
         _health_cache.get("payload"), HealthResponse
     ):
@@ -232,10 +264,6 @@ async def health(request: Request) -> HealthResponse | JSONResponse:
 
     redis_connected = False
     redis_latency_ms = 0
-
-    cfg = getattr(getattr(request, "app", object()), "state", object())
-    runtime_settings: Settings = getattr(cfg, "settings", settings)
-    client: RedisClient | None = getattr(cfg, "redis_client", None) or redis_client
 
     # If Redis is disabled or host is unset, skip connection and treat as healthy
     if not runtime_settings.redis_enabled or not runtime_settings.redis_host:
