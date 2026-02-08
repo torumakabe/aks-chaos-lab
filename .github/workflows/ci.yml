@@ -99,3 +99,23 @@ jobs:
         run: bicep restore infra/main.bicep
       - name: Validate Bicep Templates
         run: bicep build infra/main.bicep
+  k8s-validate:
+    name: K8s Manifest Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install kubeconform
+        run: |
+          set -euxo pipefail
+          KUBECONFORM_VERSION=v0.6.7
+          curl -sL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | \
+            tar xz -C /usr/local/bin
+      - name: Validate K8s manifests
+        run: |
+          kubeconform -strict -summary \
+            -kubernetes-version 1.33.0 \
+            -skip VerticalPodAutoscaler,CiliumNetworkPolicy \
+            k8s/base/*.yaml
+      - name: Validate kustomize build
+        run: kubectl kustomize k8s/base/ > /dev/null
