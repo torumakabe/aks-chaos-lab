@@ -8,6 +8,7 @@ permissions:
   contents: read
 engine:
   id: copilot
+  model: claude-opus-4.6
 network:
   allowed:
     - defaults
@@ -34,7 +35,7 @@ timeout-minutes: 15
 以下のコマンドで Azure Updates RSS フィードを取得し、直近7日間の AKS 関連エントリを抽出してください。
 
 ```bash
-curl -sL "https://www.microsoft.com/releasecommunications/api/v2/azure/rss" > /tmp/azure-updates.xml
+curl -sL -H "Accept: application/rss+xml" "https://www.microsoft.com/releasecommunications/api/v2/azure/rss" > /tmp/azure-updates.xml
 ```
 
 次に Python で AKS 関連エントリを抽出します:
