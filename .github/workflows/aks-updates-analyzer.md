@@ -15,7 +15,7 @@ network:
     - github
     - "www.microsoft.com"
 tools:
-  bash: ["curl", "python3"]
+  bash: ["python3"]
 safe-outputs:
   create-issue:
     title-prefix: "[AKS Updates] "
@@ -32,60 +32,84 @@ timeout-minutes: 15
 
 ## Step 1: Azure Updates RSS フィードから AKS 関連エントリを取得
 
-以下のコマンドで Azure Updates RSS フィードを取得し、直近7日間の AKS 関連エントリを抽出してください。
+以下の Python スクリプトで Azure Updates RSS フィードの取得と AKS 関連エントリの抽出を一括で実行してください。
+**重要**: curl ではなく必ず以下の python3 スクリプトを使ってください。
 
 ```bash
-curl -sL -H "Accept: application/rss+xml" "https://www.microsoft.com/releasecommunications/api/v2/azure/rss" > /tmp/azure-updates.xml
-```
-
-次に Python で AKS 関連エントリを抽出します:
-
-```bash
-python3 -c "
+python3 << 'PYEOF'
+import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import json
+import sys
 
-tree = ET.parse('/tmp/azure-updates.xml')
-root = tree.getroot()
+url = "https://www.microsoft.com/releasecommunications/api/v2/azure/rss"
+headers = {
+    "Accept": "application/rss+xml",
+    "User-Agent": "AKS-Updates-Analyzer/1.0"
+}
 
+try:
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = resp.read()
+    print(f"RSS feed downloaded: {len(data)} bytes", file=sys.stderr)
+except Exception as e:
+    print(f"RSS feed download failed: {e}", file=sys.stderr)
+    print("[]")
+    sys.exit(0)
+
+root = ET.fromstring(data)
 now = datetime.now(timezone.utc)
 week_ago = now - timedelta(days=7)
 
-items = root.findall('.//item')
-keywords = ['kubernetes', 'aks', 'k8s', 'container service']
+items = root.findall(".//item")
+keywords = ["kubernetes", "aks", "k8s", "container service"]
 aks_items = []
 
 for item in items:
-    title = item.find('title').text or ''
-    desc = item.find('description').text or ''
-    link = item.find('link').text or ''
-    pub_date_str = item.find('pubDate').text or ''
-    text = (title + ' ' + desc).lower()
+    title = item.find("title").text or ""
+    desc = item.find("description").text or ""
+    link = item.find("link").text or ""
+    pub_date_str = item.find("pubDate").text or ""
+    text = (title + " " + desc).lower()
     if any(kw in text for kw in keywords):
         try:
             pub_date = parsedate_to_datetime(pub_date_str)
             if pub_date >= week_ago:
                 aks_items.append({
-                    'title': title.strip(),
-                    'date': pub_date_str,
-                    'link': link,
-                    'desc': desc.strip()[:500]
+                    "title": title.strip(),
+                    "date": pub_date_str,
+                    "link": link,
+                    "desc": desc.strip()[:500]
                 })
-        except:
+        except Exception:
             pass
 
 print(json.dumps(aks_items, indent=2, ensure_ascii=False))
-"
+PYEOF
 ```
 
 ## Step 2: GitHub AKS リリースノートを取得
 
 GitHub の Azure/AKS リポジトリから最新のリリースノートを取得してください。
+GitHub MCP ツール（github-get_latest_release や github-list_releases）を使うか、以下の Python スクリプトで取得してください。
 
 ```bash
-curl -sL "https://github.com/Azure/AKS/releases" | head -c 30000
+python3 << 'PYEOF'
+import urllib.request
+import sys
+
+url = "https://github.com/Azure/AKS/releases"
+req = urllib.request.Request(url, headers={"User-Agent": "AKS-Updates-Analyzer/1.0"})
+try:
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = resp.read(30000).decode("utf-8", errors="replace")
+    print(data)
+except Exception as e:
+    print(f"Failed to fetch AKS releases: {e}", file=sys.stderr)
+PYEOF
 ```
 
 最新のリリース（直近1〜2週間以内に公開されたもの）の内容を分析してください。
