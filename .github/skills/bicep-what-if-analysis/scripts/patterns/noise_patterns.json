@@ -124,6 +124,15 @@
             ],
             "custom_patterns": [],
             "known_defaults": []
+        },
+        "Microsoft.Chaos/experiments": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^identity\\.principalId$", "description": "SystemAssigned ID のプリンシパル ID は Azure が自動生成"},
+                {"pattern": "^identity\\.tenantId$", "description": "SystemAssigned ID のテナント ID は Azure が自動設定"}
+            ],
+            "custom_patterns": [],
+            "known_defaults": []
         }
     }
 }
