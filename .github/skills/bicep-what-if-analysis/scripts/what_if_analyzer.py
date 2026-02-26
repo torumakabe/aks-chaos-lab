@@ -1374,22 +1374,23 @@ def is_main_resource(resource_type: str, resource_id: str) -> bool:
     スコープレベルでデプロイされる主要リソースのみを表示する。
 
     判定基準:
-    1. リソース ID のセグメント数で判定（子リソースは親/子 の形式）
-    2. 特定のリソースタイプをフィルタリング
+    1. リソース ID の最後の /providers/ セグメント以降で子リソースを判定
+       （拡張リソースの nested providers にも対応）
+    2. display_config.json の filtered_resource_types でフィルタリング
     """
     # リソース ID からスコープを判定
     # 子リソースは /providers/Type/name/childType/childName のような形式
-    # 例: /subscriptions/.../Microsoft.ContainerService/managedClusters/aks-xxx/extensions/...
+    # 拡張リソースは .../providers/Microsoft.Xxx/.../providers/Microsoft.Yyy/... の形式
     if resource_id:
-        # providers 以降のパスを抽出
-        providers_idx = resource_id.lower().find("/providers/")
-        if providers_idx >= 0:
-            provider_path = resource_id[providers_idx + len("/providers/") :]
-            # Microsoft.Xxx/resourceType/name/childType/childName のようなパス
-            # セグメント数が 3 より多い場合は子リソース
+        resource_id_lower = resource_id.lower()
+        # 最後の /providers/ セグメントを基準にする（拡張リソース対応）
+        # 拡張リソース例: .../managedClusters/aks-xxx/providers/Microsoft.Chaos/targets/xxx
+        last_providers_idx = resource_id_lower.rfind("/providers/")
+        if last_providers_idx >= 0:
+            provider_path = resource_id[last_providers_idx + len("/providers/") :]
             segments = [s for s in provider_path.split("/") if s]
             # Microsoft.Xxx, resourceType, name の 3 つが基本
-            # それ以上あれば子リソース
+            # それ以上あれば子リソース（最後の provider 基準）
             if len(segments) > 3:
                 return False
 

@@ -55,7 +55,7 @@ resource redisPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetwo
   }
 }
 
-resource redisPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-07-01' = {
+resource redisPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-05-01' = {
   name: 'pe-${redisName}'
   location: location
   tags: tags
@@ -75,7 +75,7 @@ resource redisPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-07-01' = 
   }
 }
 
-resource redisPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-07-01' = {
+resource redisPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-05-01' = {
   parent: redisPrivateEndpoint
   name: 'default'
   properties: {

@@ -1,6 +1,6 @@
 # uv version pinned - keep in sync with .uv-version
 # Run 'make check-uv-version' to verify consistency
-FROM ghcr.io/astral-sh/uv:0.9.16 AS uv
+FROM ghcr.io/astral-sh/uv:0.10.6 AS uv
 
 FROM python:3.13-slim
 

@@ -88,7 +88,7 @@ class RedisClient:
     async def connect(self) -> None:
         """Connect to Redis and verify connectivity."""
         self._client = self._build_client()
-        await self._client.ping()
+        await self._client.ping()  # ty: ignore[invalid-await]
 
     async def reset_connections(self) -> int:
         """Forcefully close all connections in the pool.
@@ -139,7 +139,7 @@ class RedisClient:
             raise RuntimeError("Redis client is not connected")
         start = time.time()
         try:
-            res = await self._client.ping()
+            res = await self._client.ping()  # ty: ignore[invalid-await]
             latency_ms = int((time.time() - start) * 1000)
             with suppress(Exception):
                 record_redis_metrics(True, latency_ms)
