@@ -4,34 +4,34 @@ version = "0.1.0"
 description = "AKS Chaos Lab demo app (FastAPI + Redis + OpenTelemetry)"
 requires-python = ">=3.13"
 dependencies = [
-  "fastapi>=0.109.0",
-  "uvicorn>=0.27.0",
-  "redis>=5.0.0",
-  "azure-identity>=1.15.0",
-  "redis-entraid>=0.3.0",
-  "aiohttp>=3.9.0",
-  "azure-monitor-opentelemetry>=1.2.0",
-  "opentelemetry-instrumentation-redis>=0.46b0",
-  "opentelemetry-instrumentation-logging>=0.46b0",
-  "opentelemetry-instrumentation-fastapi>=0.46b0",
-  "pydantic>=2.5.0",
-  "pydantic-settings>=2.1.0",
-  "starlette>=0.49.1",
+  "fastapi>=0.133.1",
+  "uvicorn>=0.41.0",
+  "redis>=7.2.1",
+  "azure-identity>=1.24.0",
+  "redis-entraid>=1.1.0",
+  "aiohttp>=3.13.3",
+  "azure-monitor-opentelemetry>=1.8.6",
+  "opentelemetry-instrumentation-redis>=0.60b0",
+  "opentelemetry-instrumentation-logging>=0.60b0",
+  "opentelemetry-instrumentation-fastapi>=0.60b0",
+  "pydantic>=2.12.5",
+  "pydantic-settings>=2.13.1",
+  "starlette>=0.52.1",
 ]
 
 [dependency-groups]
 dev = [
-  "pytest>=7.4.0",
-  "pytest-asyncio>=0.23.0",
-  "pytest-cov>=4.1.0",
-  "pytest-env>=1.1.0",
-  "ruff>=0.1.0",
-  "ty>=0.0.15",
-  "locust>=2.20.0",
-  "freezegun>=1.4.0",
-  "httpx>=0.25.0",
-  "requests>=2.31.0",
-  "types-requests>=2.31.0",
+  "pytest>=9.0.2",
+  "pytest-asyncio>=1.3.0",
+  "pytest-cov>=7.0.0",
+  "pytest-env>=1.5.0",
+  "ruff>=0.15.2",
+  "ty>=0.0.18",
+  "locust>=2.43.3",
+  "freezegun>=1.5.5",
+  "httpx>=0.28.1",
+  "requests>=2.32.5",
+  "types-requests>=2.32.4",
 ]
 
 [build-system]
@@ -100,4 +100,4 @@ exclude_lines = [
 ]
 
 [tool.uv]
-required-version = ">=0.9.16"
+required-version = ">=0.10.6"

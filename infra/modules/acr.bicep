@@ -52,7 +52,7 @@ resource containerRegistryPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/
   }
 }
 
-resource containerRegistryPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-07-01' = {
+resource containerRegistryPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-05-01' = {
   name: 'pe-${registryName}'
   location: location
   tags: tags
@@ -72,7 +72,7 @@ resource containerRegistryPrivateEndpoint 'Microsoft.Network/privateEndpoints@20
   }
 }
 
-resource containerRegistryPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-07-01' = {
+resource containerRegistryPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-05-01' = {
   parent: containerRegistryPrivateEndpoint
   name: 'default'
   properties: {
