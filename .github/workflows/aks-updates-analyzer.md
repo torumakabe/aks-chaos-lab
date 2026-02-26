@@ -41,7 +41,6 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
-import json
 import sys
 
 url = "https://www.microsoft.com/releasecommunications/api/v2/azure/rss"
@@ -57,7 +56,7 @@ try:
     print(f"RSS feed downloaded: {len(data)} bytes", file=sys.stderr)
 except Exception as e:
     print(f"RSS feed download failed: {e}", file=sys.stderr)
-    print("[]")
+    print("Azure Updates: 取得失敗")
     sys.exit(0)
 
 root = ET.fromstring(data)
@@ -66,8 +65,9 @@ week_ago = now - timedelta(days=7)
 
 items = root.findall(".//item")
 keywords = ["kubernetes", "aks", "k8s", "container service"]
-aks_items = []
+count = 0
 
+print("=== Azure Updates (AKS関連/直近1週間) ===")
 for item in items:
     title = item.find("title").text or ""
     desc = item.find("description").text or ""
@@ -78,21 +78,19 @@ for item in items:
         try:
             pub_date = parsedate_to_datetime(pub_date_str)
             if pub_date >= week_ago:
-                aks_items.append({
-                    "title": title.strip(),
-                    "date": pub_date_str,
-                    "link": link,
-                    "markdown_link": f"[{title.strip()}]({link})",
-                    "desc": desc.strip()[:500]
-                })
+                count += 1
+                print(f"- [{title.strip()}]({link})")
+                print(f"  概要: {desc.strip()[:300]}")
+                print()
         except Exception:
             pass
 
-print(json.dumps(aks_items, indent=2, ensure_ascii=False))
+if count == 0:
+    print("該当するアップデートはありませんでした。")
 PYEOF
 ```
 
-**注意**: 出力の `markdown_link` フィールドには `[タイトル](URL)` 形式のリンクが含まれています。Step 5 の Issue テーブルでは、このフィールドをそのまま「アップデート」列に使用してください。
+スクリプトの出力は `- [タイトル](URL)` 形式の Markdown リンクです。Step 5 の Issue テーブルの「アップデート」列には、**この出力のリンクをそのままコピーして使用**してください。
 
 ## Step 2: GitHub AKS リリースノートを取得
 
@@ -119,29 +117,28 @@ try:
     print(f"Fetched {len(releases)} releases from GitHub API", file=sys.stderr)
 except Exception as e:
     print(f"GitHub API request failed: {e}", file=sys.stderr)
-    print("[]")
+    print("GitHub AKS Releases: 取得失敗")
     sys.exit(0)
 
 now = datetime.now(timezone.utc)
 two_weeks_ago = now - timedelta(days=14)
-recent = []
 
 for r in releases:
     pub = datetime.fromisoformat(r["published_at"].replace("Z", "+00:00"))
     if pub >= two_weeks_ago:
-        recent.append({
-            "tag": r["tag_name"],
-            "name": r["name"],
-            "url": r["html_url"],
-            "published_at": r["published_at"],
-            "body": r.get("body", "")
-        })
-
-print(json.dumps(recent, indent=2, ensure_ascii=False))
+        name = r["name"] or r["tag_name"]
+        url = r["html_url"]
+        print(f"=== [{name}]({url}) ===")
+        print()
+        print(r.get("body", ""))
+        print()
 PYEOF
 ```
 
-出力にはリリースノートの全文（`body`）と URL が含まれます。以下の情報に注目して分析してください:
+出力にはリリースノートの全文と `[リリース名](URL)` 形式のリンクが含まれます。
+リリースノートに記載された個別のアップデート項目を Issue テーブルに記載する際は、リリースページへのリンクを付けてください（例: `[項目名](リリースページURL)`）。
+
+以下の情報に注目して分析してください:
 
 - **コンポーネントバージョン更新**（Cilium、ingress-nginx、Konnectivity、etcd 等）とそのセキュリティ修正（CVE）
 - **Kubernetes パッチバージョン**の追加
@@ -182,7 +179,7 @@ Step 1〜3 の情報を照合し、**Step 1 と Step 2 で取得した全アッ�
 - ⚪ **影響なし**: このリポジトリが**使用していない**機能に関するアップデート
 
 各項目には具体的な推奨アクションと、元ソースへの Markdown リンク（`[タイトル](URL)`）を必ず含めてください。
-Step 1 の `markdown_link` フィールド、または Step 2 の `url` フィールドを使用してリンクを付けてください。
+リンクは Step 1 および Step 2 の出力に含まれる URL を使用してください。**HTML の `<a>` タグは使わず、必ず Markdown の `[テキスト](URL)` 形式を使ってください。**
 
 ## Step 5: Issue を作成
 
