@@ -14,6 +14,9 @@ network:
     - defaults
     - github
     - "www.microsoft.com"
+    - "azure.microsoft.com"
+    - "learn.microsoft.com"
+    - "releases.aks.azure.com"
 tools:
   bash: ["python3"]
 safe-outputs:
