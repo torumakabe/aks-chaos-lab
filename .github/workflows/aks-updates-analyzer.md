@@ -96,26 +96,58 @@ PYEOF
 
 ## Step 2: GitHub AKS リリースノートを取得
 
-GitHub の Azure/AKS リポジトリから最新のリリースノートを取得してください。
-GitHub MCP ツール（github-get_latest_release や github-list_releases）を使うか、以下の Python スクリプトで取得してください。
+以下の Python スクリプトで GitHub API から Azure/AKS リポジトリの最新リリースノートを取得してください。
+**重要**: HTML スクレイピングではなく必ず以下の GitHub API スクリプトを使ってください。
 
 ```bash
 python3 << 'PYEOF'
 import urllib.request
+import json
 import sys
+from datetime import datetime, timedelta, timezone
 
-url = "https://github.com/Azure/AKS/releases"
-req = urllib.request.Request(url, headers={"User-Agent": "AKS-Updates-Analyzer/1.0"})
+url = "https://api.github.com/repos/Azure/AKS/releases?per_page=5"
+headers = {
+    "Accept": "application/vnd.github+json",
+    "User-Agent": "AKS-Updates-Analyzer/1.0"
+}
+
 try:
+    req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=30) as resp:
-        data = resp.read(30000).decode("utf-8", errors="replace")
-    print(data)
+        releases = json.loads(resp.read())
+    print(f"Fetched {len(releases)} releases from GitHub API", file=sys.stderr)
 except Exception as e:
-    print(f"Failed to fetch AKS releases: {e}", file=sys.stderr)
+    print(f"GitHub API request failed: {e}", file=sys.stderr)
+    print("[]")
+    sys.exit(0)
+
+now = datetime.now(timezone.utc)
+two_weeks_ago = now - timedelta(days=14)
+recent = []
+
+for r in releases:
+    pub = datetime.fromisoformat(r["published_at"].replace("Z", "+00:00"))
+    if pub >= two_weeks_ago:
+        recent.append({
+            "tag": r["tag_name"],
+            "name": r["name"],
+            "url": r["html_url"],
+            "published_at": r["published_at"],
+            "body": r.get("body", "")
+        })
+
+print(json.dumps(recent, indent=2, ensure_ascii=False))
 PYEOF
 ```
 
-最新のリリース（直近1〜2週間以内に公開されたもの）の内容を分析してください。
+出力にはリリースノートの全文（`body`）と URL が含まれます。以下の情報に注目して分析してください:
+
+- **コンポーネントバージョン更新**（Cilium、ingress-nginx、Konnectivity、etcd 等）とそのセキュリティ修正（CVE）
+- **Kubernetes パッチバージョン**の追加
+- **Breaking Changes / 動作変更**
+- **機能の非推奨化・廃止予告**
+- **新リージョン対応**
 
 ## Step 3: リポジトリの現在の AKS 構成を確認
 
@@ -136,13 +168,21 @@ PYEOF
 
 ## Step 4: 影響度分析
 
-Step 1〜3 の情報を照合し、各アップデートを以下のカテゴリに分類してください:
+Step 1〜3 の情報を照合し、**Step 1 と Step 2 で取得した全アップデートを漏れなく**以下のカテゴリに分類してください:
 
-- 🔴 **要対応**: リポジトリに直接影響し、セキュリティ修正やバージョン更新等のアクションが必要なもの
-- 🟡 **認識しておくべき**: 間接的な影響があり、将来の計画に考慮すべきもの
-- ⚪ **影響なし**: このリポジトリの構成では影響がないもの
+- 🔴 **要対応**: このリポジトリが**使用中**の機能・コンポーネントに影響する以下のいずれか:
+  - セキュリティ修正（CVE）を含むコンポーネント更新
+  - 非推奨化・廃止（Retirement / Deprecation）の影響を受けるもの
+  - 破壊的変更（Breaking Changes）の影響を受けるもの
+- 🟡 **認識しておくべき**: 使用中の機能に関連するが即座のアクション不要:
+  - Kubernetes パッチバージョン更新
+  - 新リージョン対応
+  - 将来バージョンでの動作変更予告
+  - マネージドコンポーネントの自動更新（CVE を含まないもの）
+- ⚪ **影響なし**: このリポジトリが**使用していない**機能に関するアップデート
 
 各項目には具体的な推奨アクションと、元ソースへの Markdown リンク（`[タイトル](URL)`）を必ず含めてください。
+Step 1 の `markdown_link` フィールド、または Step 2 の `url` フィールドを使用してリンクを付けてください。
 
 ## Step 5: Issue を作成
 
@@ -189,5 +229,6 @@ Step 1〜3 の情報を照合し、各アップデートを以下のカテゴリ
 
 **重要**:
 - 該当するアップデートがない場合でも、「今週は該当するアップデートはありませんでした」と Issue を作成してください
-- テーブル内のリンクは Markdown リンク形式で記載してください
+- テーブル内のリンクは必ず Markdown リンク形式（`[タイトル](URL)`）で記載してください。HTML の `<a>` タグは使わないでください
+- リンク（URL）が不明なアップデートはテーブルに記載しないでください
 - 分析の根拠を明確に記載してください
