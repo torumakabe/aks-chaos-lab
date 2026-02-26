@@ -82,6 +82,7 @@ for item in items:
                     "title": title.strip(),
                     "date": pub_date_str,
                     "link": link,
+                    "markdown_link": f"[{title.strip()}]({link})",
                     "desc": desc.strip()[:500]
                 })
         except Exception:
@@ -90,6 +91,8 @@ for item in items:
 print(json.dumps(aks_items, indent=2, ensure_ascii=False))
 PYEOF
 ```
+
+**注意**: 出力の `markdown_link` フィールドには `[タイトル](URL)` 形式のリンクが含まれています。Step 5 の Issue テーブルでは、このフィールドをそのまま「アップデート」列に使用してください。
 
 ## Step 2: GitHub AKS リリースノートを取得
 
