@@ -90,7 +90,8 @@
                 "^resourceGuid$"
             ],
             "auto_managed_patterns": [
-                {"pattern": "^ddosSettings$", "description": "DDoS 設定は Azure 自動管理"}
+                {"pattern": "^ddosSettings$", "description": "DDoS 設定は Azure 自動管理"},
+                {"pattern": "^ipTags$", "description": "IP タグは Bicep 未指定時に Azure が空配列を設定"}
             ],
             "custom_patterns": [],
             "known_defaults": [
@@ -120,7 +121,8 @@
         "Microsoft.ContainerRegistry/registries": {
             "readonly_patterns": [],
             "auto_managed_patterns": [
-                {"pattern": "^roleAssignmentMode$", "description": "ロール割り当てモードは Azure が自動設定（LegacyRegistryPermissions）"}
+                {"pattern": "^roleAssignmentMode$", "description": "ロール割り当てモードは Azure が自動設定（LegacyRegistryPermissions）"},
+                {"pattern": "^networkRuleBypassAllowedForTasks$", "description": "ACR タスクのネットワークバイパス設定は Azure 内部管理（Bicep スキーマ外）"}
             ],
             "custom_patterns": [],
             "known_defaults": []
@@ -130,6 +132,15 @@
             "auto_managed_patterns": [
                 {"pattern": "^identity\\.principalId$", "description": "SystemAssigned ID のプリンシパル ID は Azure が自動生成"},
                 {"pattern": "^identity\\.tenantId$", "description": "SystemAssigned ID のテナント ID は Azure が自動設定"}
+            ],
+            "custom_patterns": [],
+            "known_defaults": []
+        },
+        "Microsoft.Network/virtualNetworks/subnets/providers/roleAssignments": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^principalId$", "description": "マネージド ID の principalId は reference() 解決時に what-if がノイズ検出"},
+                {"pattern": "^principalType$", "description": "principalType は ARM what-if が null と指定値の差分をノイズ検出"}
             ],
             "custom_patterns": [],
             "known_defaults": []
