@@ -19,7 +19,9 @@ from what_if_analyzer import (
     DisplayConfigLoader,
     NoisePatternLoader,
     evaluate_property_change,
+    extract_resource_changes,
     flatten_property_changes,
+    format_azd_style_output,
     get_reference_info,
     is_readonly_property,
     contains_arm_reference,
@@ -166,6 +168,107 @@ class TestFlattenPropertyChanges(unittest.TestCase):
         self.assertEqual(result[0]["path"], "properties.addressSpace.addressPrefixes")
 
 
+class TestExtractResourceChanges(unittest.TestCase):
+    """extract_resource_changes のテスト"""
+
+    def test_normalizes_unsupported_extension_resource(self) -> None:
+        """Unsupported な extensionResourceId を正規化する"""
+        what_if_result = {
+            "changes": [
+                {
+                    "changeType": "Unsupported",
+                    "resourceId": (
+                        "[extensionResourceId("
+                        "'/subscriptions/test-sub/resourceGroups/test-rg/"
+                        "providers/Microsoft.ContainerRegistry/registries/acrtest', "
+                        "'Microsoft.Authorization/roleAssignments', "
+                        "guid('/subscriptions/test-sub/resourceGroups/test-rg/"
+                        "providers/Microsoft.ContainerRegistry/registries/acrtest', "
+                        "reference('/subscriptions/test-sub/resourceGroups/test-rg/"
+                        "providers/Microsoft.ContainerService/managedClusters/akstest', "
+                        "'2025-06-02-preview').identityProfile.kubeletidentity.objectId, "
+                        "'AcrPull'))]"
+                    ),
+                }
+            ]
+        }
+
+        result = extract_resource_changes(what_if_result)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(
+            result[0]["resourceType"],
+            "Microsoft.ContainerRegistry/registries/providers/roleAssignments",
+        )
+        self.assertEqual(result[0]["resourceName"], "<dynamic>")
+        self.assertEqual(
+            result[0]["resourceId"],
+            "/subscriptions/test-sub/resourceGroups/test-rg/providers/"
+            "Microsoft.ContainerRegistry/registries/acrtest/providers/"
+            "Microsoft.Authorization/roleAssignments/<dynamic>",
+        )
+        self.assertEqual(
+            result[0]["originalResourceId"],
+            what_if_result["changes"][0]["resourceId"],
+        )
+
+    def test_uses_last_providers_segment_for_nested_extensions(self) -> None:
+        """ネストした拡張リソースでも最後の providers を使う"""
+        what_if_result = {
+            "changes": [
+                {
+                    "changeType": "Unsupported",
+                    "resourceId": (
+                        "[extensionResourceId("
+                        "'/subscriptions/test-sub/resourceGroups/test-rg/"
+                        "providers/Microsoft.ContainerService/managedClusters/"
+                        "akstest/providers/Microsoft.Chaos/targets/chaosmesh', "
+                        "'Microsoft.Authorization/roleAssignments', guid('scope', 'id'))]"
+                    ),
+                }
+            ]
+        }
+
+        result = extract_resource_changes(what_if_result)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(
+            result[0]["resourceType"],
+            "Microsoft.Chaos/targets/providers/roleAssignments",
+        )
+        self.assertEqual(
+            result[0]["resourceId"],
+            "/subscriptions/test-sub/resourceGroups/test-rg/providers/"
+            "Microsoft.ContainerService/managedClusters/akstest/providers/"
+            "Microsoft.Chaos/targets/chaosmesh/providers/"
+            "Microsoft.Authorization/roleAssignments/<dynamic>",
+        )
+
+    def test_keeps_existing_type_for_regular_extension_resource_ids(self) -> None:
+        """通常の拡張リソース ID は既存の型抽出を維持する"""
+        what_if_result = {
+            "changes": [
+                {
+                    "changeType": "Modify",
+                    "resourceId": (
+                        "/subscriptions/test-sub/resourceGroups/test-rg/providers/"
+                        "Microsoft.Network/virtualNetworks/vnettest/subnets/snet-app/"
+                        "providers/Microsoft.Authorization/roleAssignments/assignment1"
+                    ),
+                    "delta": [],
+                }
+            ]
+        }
+
+        result = extract_resource_changes(what_if_result)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(
+            result[0]["resourceType"],
+            "Microsoft.Network/virtualNetworks/subnets/providers/roleAssignments",
+        )
+
+
 class TestNoisePatternLoader(unittest.TestCase):
     """NoisePatternLoader のテスト"""
 
@@ -258,6 +361,79 @@ class TestGetReferenceInfo(unittest.TestCase):
             bicep_definition={"status": "notDefined"},
         )
         self.assertIn("❓", result)
+
+
+class TestFormatAzdStyleOutput(unittest.TestCase):
+    """format_azd_style_output のテスト"""
+
+    def test_filters_known_acr_acrpull_unsupported(self) -> None:
+        """既知の ACR AcrPull Unsupported だけを非表示にする"""
+        output_data = {
+            "changes": [
+                {
+                    "operation": "Unsupported",
+                    "resourceId": (
+                        "/subscriptions/test-sub/resourceGroups/test-rg/providers/"
+                        "Microsoft.ContainerRegistry/registries/acrtest/providers/"
+                        "Microsoft.Authorization/roleAssignments/<dynamic>"
+                    ),
+                    "resourceType": (
+                        "Microsoft.ContainerRegistry/registries/providers/"
+                        "roleAssignments"
+                    ),
+                    "originalResourceId": (
+                        "[extensionResourceId("
+                        "'/subscriptions/test-sub/resourceGroups/test-rg/"
+                        "providers/Microsoft.ContainerRegistry/registries/acrtest', "
+                        "'Microsoft.Authorization/roleAssignments', "
+                        "guid('scope', reference('aks', '2025-06-02-preview')."
+                        "identityProfile.kubeletidentity.objectId, 'AcrPull'))]"
+                    ),
+                    "resourceName": "<dynamic>",
+                    "propertyChanges": [],
+                }
+            ]
+        }
+
+        result = format_azd_style_output(output_data)
+
+        self.assertEqual(result.strip(), "Resources:")
+
+    def test_keeps_other_acr_role_assignment_unsupported_visible(self) -> None:
+        """AcrPull kubelet 以外の ACR role assignment は表示する"""
+        output_data = {
+            "changes": [
+                {
+                    "operation": "Unsupported",
+                    "resourceId": (
+                        "/subscriptions/test-sub/resourceGroups/test-rg/providers/"
+                        "Microsoft.ContainerRegistry/registries/acrtest/providers/"
+                        "Microsoft.Authorization/roleAssignments/<dynamic>"
+                    ),
+                    "resourceType": (
+                        "Microsoft.ContainerRegistry/registries/providers/"
+                        "roleAssignments"
+                    ),
+                    "originalResourceId": (
+                        "[extensionResourceId("
+                        "'/subscriptions/test-sub/resourceGroups/test-rg/"
+                        "providers/Microsoft.ContainerRegistry/registries/acrtest', "
+                        "'Microsoft.Authorization/roleAssignments', "
+                        "guid('scope', 'pipeline-sp-id', 'AcrPush'))]"
+                    ),
+                    "resourceName": "<dynamic>",
+                    "propertyChanges": [],
+                }
+            ]
+        }
+
+        result = format_azd_style_output(output_data)
+
+        self.assertIn("Unsupported", result)
+        self.assertIn(
+            "Microsoft.ContainerRegistry/registries/providers/roleAssignments",
+            result,
+        )
 
 
 class TestPatternStats(unittest.TestCase):
