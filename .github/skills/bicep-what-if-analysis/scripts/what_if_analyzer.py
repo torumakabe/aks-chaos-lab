@@ -1158,6 +1158,102 @@ def flatten_property_changes(
     return changes
 
 
+def extract_resource_type_from_id(
+    resource_id: str, use_last_provider: bool = False
+) -> str:
+    """
+    Azure リソース ID からリソースタイプを抽出する。
+
+    Parameters:
+        resource_id: Azure リソース ID
+        use_last_provider: True の場合は最後の providers セグメントを基準にする
+
+    Returns:
+        リソースタイプ。抽出できない場合は空文字列。
+    """
+    if "providers/" not in resource_id:
+        return ""
+
+    find_provider = resource_id.rfind if use_last_provider else resource_id.find
+    provider_idx = find_provider("providers/") + len("providers/")
+    after_provider = resource_id[provider_idx:]
+    type_parts = after_provider.split("/")
+    if len(type_parts) < 2:
+        return ""
+
+    type_segments = [type_parts[0], type_parts[1]]
+    for i in range(3, len(type_parts), 2):
+        type_segments.append(type_parts[i])
+    return "/".join(type_segments)
+
+
+def normalize_unsupported_extension_resource(
+    resource_id: str,
+) -> tuple[str, str, str] | None:
+    """
+    extensionResourceId() 形式の Unsupported リソースを正規化する。
+
+    what-if は extensionResourceId() をそのまま返すことがあり、そのままでは
+    resourceType/resourceName の抽出が崩れる。親スコープの ARM ID と拡張
+    リソースタイプから、表示・フィルタリングに使える擬似リソース ID を作る。
+
+    Parameters:
+        resource_id: what-if が返した resourceId
+
+    Returns:
+        (normalized_resource_id, resource_type, resource_name)。
+        解析できない場合は None。
+    """
+    match = re.match(
+        r"^\[extensionResourceId\('(?P<scope>[^']+)',\s*"
+        r"'(?P<extension_type>[^']+)'",
+        resource_id,
+    )
+    if match is None:
+        return None
+
+    scope_id = match.group("scope")
+    extension_type = match.group("extension_type")
+    scope_type = extract_resource_type_from_id(scope_id, use_last_provider=True)
+    if not scope_type:
+        return None
+
+    extension_name = extension_type.split("/")[-1]
+    normalized_resource_id = (
+        f"{scope_id}/providers/{extension_type}/<dynamic>"
+    )
+    resource_type = f"{scope_type}/providers/{extension_name}"
+    resource_name = "<dynamic>"
+    return normalized_resource_id, resource_type, resource_name
+
+
+def is_known_acr_acrpull_unsupported(change: dict[str, Any]) -> bool:
+    """
+    既知の ACR AcrPull Unsupported ノイズかどうかを判定する。
+
+    Parameters:
+        change: extract_resource_changes() が返す変更情報
+
+    Returns:
+        既知ノイズの場合は True、それ以外は False。
+    """
+    if change.get("operation") != "Unsupported":
+        return False
+
+    resource_type = str(change.get("resourceType", "")).lower()
+    if resource_type != "microsoft.containerregistry/registries/providers/roleassignments":
+        return False
+
+    original_resource_id = str(change.get("originalResourceId", "")).lower()
+    required_terms = (
+        "microsoft.containerregistry/registries",
+        "microsoft.authorization/roleassignments",
+        "acrpull",
+        "kubeletidentity.objectid",
+    )
+    return all(term in original_resource_id for term in required_terms)
+
+
 def extract_resource_changes(
     what_if_result: dict[str, Any], bicep_dir: str = "./infra"
 ) -> list[dict[str, Any]]:
@@ -1168,27 +1264,18 @@ def extract_resource_changes(
         resource_id = change.get("resourceId", "")
         change_type = change.get("changeType", "Unknown")
 
-        # リソースタイプと名前を抽出
+        normalized_resource_id = resource_id
+        resource_type = extract_resource_type_from_id(resource_id)
         parts = resource_id.split("/")
         resource_name = parts[-1] if parts else ""
 
-        # providers/Microsoft.xxx/resourceType/name の形式からタイプを抽出
-        # 子リソースの場合も正しく抽出する（例: managedClusters/agentPools）
-        resource_type = ""
-        if "providers/" in resource_id:
-            provider_idx = resource_id.find("providers/") + len("providers/")
-            after_provider = resource_id[provider_idx:]
-            type_parts = after_provider.split("/")
-            # タイプセグメントのみを抽出（インデックス 0,1,3,5... = 名前をスキップ）
-            # 例: Microsoft.ContainerService/managedClusters/aks-main/agentPools/system
-            #     -> [Microsoft.ContainerService, managedClusters, aks-main, agentPools, system]
-            #     -> Microsoft.ContainerService/managedClusters/agentPools
-            if len(type_parts) >= 2:
-                type_segments = [type_parts[0], type_parts[1]]  # Provider/ParentType
-                # 子リソースタイプを追加（インデックス 3, 5, 7, ...）
-                for i in range(3, len(type_parts), 2):
-                    type_segments.append(type_parts[i])
-                resource_type = "/".join(type_segments)
+        normalized_unsupported = normalize_unsupported_extension_resource(resource_id)
+        if change_type == "Unsupported" and normalized_unsupported is not None:
+            (
+                normalized_resource_id,
+                resource_type,
+                resource_name,
+            ) = normalized_unsupported
 
         # プロパティ変更をフラット化（リソースタイプを渡す）
         delta = change.get("delta", [])
@@ -1197,7 +1284,8 @@ def extract_resource_changes(
         changes.append(
             {
                 "operation": change_type,
-                "resourceId": resource_id,
+                "resourceId": normalized_resource_id,
+                "originalResourceId": resource_id,
                 "resourceType": resource_type,
                 "resourceName": resource_name,
                 "propertyChanges": property_changes,
@@ -1366,7 +1454,7 @@ def get_resource_type_display_name(resource_type: str) -> str:
     return display_names.get(resource_type, resource_type)
 
 
-def is_main_resource(resource_type: str, resource_id: str) -> bool:
+def is_main_resource(change: dict[str, Any]) -> bool:
     """
     azd が表示する主要リソースかどうかを判定する。
 
@@ -1375,9 +1463,16 @@ def is_main_resource(resource_type: str, resource_id: str) -> bool:
 
     判定基準:
     1. リソース ID の最後の /providers/ セグメント以降で子リソースを判定
-       （拡張リソースの nested providers にも対応）
+        （拡張リソースの nested providers にも対応）
     2. display_config.json の filtered_resource_types でフィルタリング
+    3. 既知の Unsupported ノイズを個別ルールで除外
     """
+    resource_type = change.get("resourceType", "")
+    resource_id = change.get("resourceId", "")
+
+    if is_known_acr_acrpull_unsupported(change):
+        return False
+
     # リソース ID からスコープを判定
     # 子リソースは /providers/Type/name/childType/childName のような形式
     # 拡張リソースは .../providers/Microsoft.Xxx/.../providers/Microsoft.Yyy/... の形式
@@ -1432,7 +1527,7 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
     main_resources = [
         c
         for c in output_data["changes"]
-        if is_main_resource(c["resourceType"], c.get("resourceId", ""))
+        if is_main_resource(c)
     ]
 
     # 最大幅を計算（整列用）
