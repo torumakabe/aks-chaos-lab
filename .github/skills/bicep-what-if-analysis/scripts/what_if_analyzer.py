@@ -219,6 +219,20 @@ class NoisePatternLoader:
                 results.append((item["pattern"], item["description"]))
         return results
 
+    def get_create_false_positive_patterns(
+        self, resource_type: str = ""
+    ) -> list[tuple[str, str]]:
+        """Create false positive パターンを返す（共通 + リソースタイプ別）。"""
+        results = []
+        for item in self._get_common().get("create_false_positive_patterns", []):
+            results.append((item["pattern"], item["description"]))
+        if resource_type:
+            for item in self._get_resource_type(resource_type).get(
+                "create_false_positive_patterns", []
+            ):
+                results.append((item["pattern"], item["description"]))
+        return results
+
     def record_pattern_match(
         self, pattern: str, category: str, resource_type: str = ""
     ) -> None:
@@ -1254,6 +1268,51 @@ def is_known_acr_acrpull_unsupported(change: dict[str, Any]) -> bool:
     return all(term in original_resource_id for term in required_terms)
 
 
+def is_create_false_positive(change: dict[str, Any]) -> bool:
+    """
+    Create 操作が ARM what-if の誤検知かどうかを判定する。
+
+    判定基準:
+    A（構造的フィルタ）: before/after 両方 null の Create は、ARM API が
+        リソース状態を返せていないことを意味する。Go SDK 経由の what-if で有効。
+        CLI 経由では after が常に populated されるため発動しない。
+    B（パターンフィルタ）: noise_patterns.json の
+        create_false_positive_patterns に resourceType/resourceName/resourceId が
+        マッチする場合。CLI 経由のメイン判定手段。
+
+    Parameters:
+        change: extract_resource_changes() で構築されたリソース変更辞書
+
+    Returns:
+        True の場合、この Create は false positive と判定される
+    """
+    if change.get("operation") != "Create":
+        return False
+
+    # A: before/after 両方 null → 構造的 false positive
+    if change.get("beforeState") is None and change.get("afterState") is None:
+        return True
+
+    # B: パターンマッチによる false positive
+    # resourceType, resourceName, resourceId のいずれかにマッチすれば true
+    loader = get_pattern_loader()
+    fp_patterns = loader.get_create_false_positive_patterns(
+        change.get("resourceType", "")
+    )
+    resource_type = change.get("resourceType", "")
+    resource_name = change.get("resourceName", "")
+    resource_id = change.get("resourceId", "")
+    for pattern, _description in fp_patterns:
+        if (
+            re.search(pattern, resource_type)
+            or re.search(pattern, resource_name)
+            or re.search(pattern, resource_id)
+        ):
+            return True
+
+    return False
+
+
 def extract_resource_changes(
     what_if_result: dict[str, Any], bicep_dir: str = "./infra"
 ) -> list[dict[str, Any]]:
@@ -1281,16 +1340,27 @@ def extract_resource_changes(
         delta = change.get("delta", [])
         property_changes = flatten_property_changes(delta, "", bicep_dir, resource_type)
 
-        changes.append(
-            {
-                "operation": change_type,
-                "resourceId": normalized_resource_id,
-                "originalResourceId": resource_id,
-                "resourceType": resource_type,
-                "resourceName": resource_name,
-                "propertyChanges": property_changes,
-            }
+        # リソースレベルの before/after 状態を取得
+        before_state = change.get("before")
+        after_state = change.get("after")
+
+        change_entry: dict[str, Any] = {
+            "operation": change_type,
+            "resourceId": normalized_resource_id,
+            "originalResourceId": resource_id,
+            "resourceType": resource_type,
+            "resourceName": resource_name,
+            "propertyChanges": property_changes,
+            "beforeState": before_state,
+            "afterState": after_state,
+        }
+
+        # Create false positive 判定
+        change_entry["likelyFalsePositive"] = is_create_false_positive(
+            change_entry
         )
+
+        changes.append(change_entry)
 
     return changes
 
@@ -1330,11 +1400,14 @@ def build_output(
     changes = extract_resource_changes(what_if_result, bicep_dir)
 
     # サマリー集計
+    create_false_positives = 0
     summary = {"create": 0, "modify": 0, "delete": 0, "noChange": 0, "ignore": 0}
     for change in changes:
         op = change["operation"].lower()
         if op == "create":
             summary["create"] += 1
+            if change.get("likelyFalsePositive", False):
+                create_false_positives += 1
         elif op == "modify":
             summary["modify"] += 1
         elif op == "delete":
@@ -1373,6 +1446,7 @@ def build_output(
             "timestamp": datetime.now(timezone.utc).isoformat(),
         },
         "summary": summary,
+        "createFalsePositives": create_false_positives,
         "evaluationSummary": evaluation_summary,
         "bicepSummary": bicep_summary,
         "changes": changes,
@@ -1496,7 +1570,49 @@ def is_main_resource(change: dict[str, Any]) -> bool:
     if resource_type.lower() in filtered_types:
         return False
 
+    # 拡張リソースの実際のプロバイダー型でもフィルタリング
+    # 例: resourceType が "Microsoft.ContainerService/managedClusters/providers/roleAssignments" の場合、
+    # 表示上の型は親パスを含むが、実際の Azure プロバイダー型は "Microsoft.Authorization/roleAssignments"。
+    # リソース ID の最後の /providers/ セグメントから実際の型を抽出してマッチングする。
+    if resource_id:
+        actual_provider_type = _extract_actual_provider_type(resource_id)
+        if actual_provider_type and actual_provider_type.lower() in filtered_types:
+            return False
+
     return True
+
+
+def _extract_actual_provider_type(resource_id: str) -> str | None:
+    """
+    リソース ID から実際の Azure リソースプロバイダー型を抽出する。
+
+    拡張リソースの場合、resourceType にはパス情報が含まれるが、
+    リソース ID の最後の /providers/ セグメントから実際の型が取得できる。
+
+    例:
+        /subscriptions/.../providers/Microsoft.ContainerService/managedClusters/aks/
+        providers/Microsoft.Authorization/roleAssignments/guid
+        → "Microsoft.Authorization/roleAssignments"
+
+    Parameters:
+        resource_id: Azure リソース ID
+
+    Returns:
+        実際のプロバイダー型（Microsoft.Xxx/yyy 形式）。抽出できない場合は None。
+    """
+    resource_id_lower = resource_id.lower()
+    last_providers_idx = resource_id_lower.rfind("/providers/")
+    if last_providers_idx < 0:
+        return None
+
+    provider_path = resource_id[last_providers_idx + len("/providers/") :]
+    segments = [s for s in provider_path.split("/") if s]
+
+    # Microsoft.Xxx/resourceType の 2 セグメント以上が必要
+    if len(segments) >= 2:
+        return f"{segments[0]}/{segments[1]}"
+
+    return None
 
 
 def format_azd_style_output(output_data: dict[str, Any]) -> str:
@@ -1530,16 +1646,24 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
         if is_main_resource(c)
     ]
 
+    # Create false positive をフィルタ（件数は記録）
+    false_positive_count = sum(
+        1 for c in main_resources if c.get("likelyFalsePositive", False)
+    )
+    visible_resources = [
+        c for c in main_resources if not c.get("likelyFalsePositive", False)
+    ]
+
     # 最大幅を計算（整列用）
     max_op_len = 8  # "Modify" など
     max_type_len = 0
-    for change in main_resources:
+    for change in visible_resources:
         display_type = get_resource_type_display_name(change["resourceType"])
         if len(display_type) > max_type_len:
             max_type_len = len(display_type)
 
     # 各リソースを出力
-    for change in main_resources:
+    for change in visible_resources:
         op = change["operation"]
         display_op = operation_display.get(op) or op
         display_type = get_resource_type_display_name(change["resourceType"])
@@ -1573,6 +1697,13 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
                     lines.append(f"      {symbol} {path}  {ref_info}")
                 else:
                     lines.append(f"      {symbol} {path}")
+
+    # false positive サマリーを表示
+    if false_positive_count > 0:
+        lines.append(
+            f"  ({false_positive_count} 件の Create を非表示: "
+            "ARM what-if の既知制限による false positive)"
+        )
 
     return "\n".join(lines)
 

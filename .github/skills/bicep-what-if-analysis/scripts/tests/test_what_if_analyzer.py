@@ -18,11 +18,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from what_if_analyzer import (
     DisplayConfigLoader,
     NoisePatternLoader,
+    _extract_actual_provider_type,
     evaluate_property_change,
     extract_resource_changes,
     flatten_property_changes,
     format_azd_style_output,
     get_reference_info,
+    is_create_false_positive,
+    is_main_resource,
     is_readonly_property,
     contains_arm_reference,
 )
@@ -399,8 +402,8 @@ class TestFormatAzdStyleOutput(unittest.TestCase):
 
         self.assertEqual(result.strip(), "Resources:")
 
-    def test_keeps_other_acr_role_assignment_unsupported_visible(self) -> None:
-        """AcrPull kubelet 以外の ACR role assignment は表示する"""
+    def test_filters_acr_role_assignment_by_provider_type(self) -> None:
+        """ACR の拡張リソース role assignment は実際のプロバイダー型でフィルタされる"""
         output_data = {
             "changes": [
                 {
@@ -429,11 +432,9 @@ class TestFormatAzdStyleOutput(unittest.TestCase):
 
         result = format_azd_style_output(output_data)
 
-        self.assertIn("Unsupported", result)
-        self.assertIn(
-            "Microsoft.ContainerRegistry/registries/providers/roleAssignments",
-            result,
-        )
+        # 拡張リソース型マッチングにより Microsoft.Authorization/roleAssignments として
+        # filtered_resource_types にマッチしフィルタされる
+        self.assertEqual(result.strip(), "Resources:")
 
 
 class TestPatternStats(unittest.TestCase):
@@ -450,6 +451,273 @@ class TestPatternStats(unittest.TestCase):
         loader = NoisePatternLoader("/nonexistent/path.json")
         unused = loader.get_unused_patterns(days=30)
         self.assertEqual(unused, [])
+
+
+class TestExtractActualProviderType(unittest.TestCase):
+    """_extract_actual_provider_type のテスト"""
+
+    def test_extension_resource_role_assignment(self) -> None:
+        """AKS スコープのロールアサインメントから実際のプロバイダー型を抽出"""
+        resource_id = (
+            "/subscriptions/sub/resourceGroups/rg/providers/"
+            "Microsoft.ContainerService/managedClusters/aks-test/providers/"
+            "Microsoft.Authorization/roleAssignments/guid-123"
+        )
+        result = _extract_actual_provider_type(resource_id)
+        self.assertEqual(result, "Microsoft.Authorization/roleAssignments")
+
+    def test_regular_resource(self) -> None:
+        """通常リソースはプロバイダー型をそのまま返す"""
+        resource_id = (
+            "/subscriptions/sub/resourceGroups/rg/providers/"
+            "Microsoft.Chaos/experiments/exp-aks-test"
+        )
+        result = _extract_actual_provider_type(resource_id)
+        self.assertEqual(result, "Microsoft.Chaos/experiments")
+
+    def test_empty_resource_id(self) -> None:
+        """空の ID は None を返す"""
+        self.assertIsNone(_extract_actual_provider_type(""))
+
+
+class TestIsMainResourceExtensionType(unittest.TestCase):
+    """is_main_resource の拡張リソース型マッチングテスト"""
+
+    def test_aks_scoped_role_assignment_is_filtered(self) -> None:
+        """AKS スコープのロールアサインメントはフィルタされる"""
+        change = {
+            "operation": "Create",
+            "resourceType": "Microsoft.ContainerService/managedClusters/providers/roleAssignments",
+            "resourceId": (
+                "/subscriptions/sub/resourceGroups/rg/providers/"
+                "Microsoft.ContainerService/managedClusters/aks-test/providers/"
+                "Microsoft.Authorization/roleAssignments/guid-123"
+            ),
+            "resourceName": "guid-123",
+        }
+        self.assertFalse(is_main_resource(change))
+
+    def test_chaos_experiment_is_not_filtered(self) -> None:
+        """Chaos experiments はフィルタされない（主要ワークロードリソース）"""
+        change = {
+            "operation": "Create",
+            "resourceType": "Microsoft.Chaos/experiments",
+            "resourceId": (
+                "/subscriptions/sub/resourceGroups/rg/providers/"
+                "Microsoft.Chaos/experiments/exp-aks-pod-failure"
+            ),
+            "resourceName": "exp-aks-pod-failure",
+        }
+        self.assertTrue(is_main_resource(change))
+
+
+class TestIsCreateFalsePositiveWithPattern(unittest.TestCase):
+    """is_create_false_positive のパターンマッチテスト（resourceType 対応）"""
+
+    def test_chaos_experiment_create_is_false_positive_by_pattern(self) -> None:
+        """Chaos experiments の Create はパターン B で false positive 判定"""
+        change = {
+            "operation": "Create",
+            "resourceType": "Microsoft.Chaos/experiments",
+            "resourceName": "exp-aks-pod-failure",
+            "resourceId": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Chaos/experiments/exp-aks-pod-failure",
+            "beforeState": None,
+            "afterState": {"type": "Microsoft.Chaos/experiments"},
+            "propertyChanges": [],
+        }
+        self.assertTrue(is_create_false_positive(change))
+
+    def test_non_matching_create_is_not_false_positive(self) -> None:
+        """パターンにマッチしない Create は false positive ではない"""
+        change = {
+            "operation": "Create",
+            "resourceType": "Microsoft.Network/virtualNetworks",
+            "resourceName": "vnet-test",
+            "resourceId": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet-test",
+            "beforeState": None,
+            "afterState": {"type": "Microsoft.Network/virtualNetworks"},
+            "propertyChanges": [],
+        }
+        self.assertFalse(is_create_false_positive(change))
+
+
+class TestIsCreateFalsePositive(unittest.TestCase):
+    """is_create_false_positive のテスト"""
+
+    def test_create_with_null_before_and_after_is_false_positive(self) -> None:
+        """before/after 両方 null の Create は false positive"""
+        change = {
+            "operation": "Create",
+            "resourceType": "Microsoft.Chaos/experiments",
+            "resourceName": "exp-aks-pod-failure",
+            "resourceId": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Chaos/experiments/exp-aks-pod-failure",
+            "beforeState": None,
+            "afterState": None,
+            "propertyChanges": [],
+        }
+        self.assertTrue(is_create_false_positive(change))
+
+    def test_create_with_after_state_is_not_false_positive(self) -> None:
+        """after がある Create でパターン外のリソースは正当な新規作成"""
+        change = {
+            "operation": "Create",
+            "resourceType": "Microsoft.Network/virtualNetworks",
+            "resourceName": "vnet-new",
+            "resourceId": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet-new",
+            "beforeState": None,
+            "afterState": {"type": "Microsoft.Network/virtualNetworks", "name": "vnet-new"},
+            "propertyChanges": [],
+        }
+        self.assertFalse(is_create_false_positive(change))
+
+    def test_modify_operation_is_not_false_positive(self) -> None:
+        """Modify 操作は false positive 判定の対象外"""
+        change = {
+            "operation": "Modify",
+            "resourceType": "Microsoft.ContainerService/managedClusters",
+            "resourceName": "aks-test",
+            "resourceId": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.ContainerService/managedClusters/aks-test",
+            "beforeState": None,
+            "afterState": None,
+            "propertyChanges": [],
+        }
+        self.assertFalse(is_create_false_positive(change))
+
+    def test_create_with_before_state_is_not_false_positive(self) -> None:
+        """before がある Create は false positive ではない"""
+        change = {
+            "operation": "Create",
+            "resourceType": "Microsoft.Authorization/roleAssignments",
+            "resourceName": "role-1",
+            "resourceId": "/subscriptions/sub/providers/Microsoft.Authorization/roleAssignments/role-1",
+            "beforeState": {"type": "Microsoft.Authorization/roleAssignments"},
+            "afterState": None,
+            "propertyChanges": [],
+        }
+        self.assertFalse(is_create_false_positive(change))
+
+
+class TestExtractResourceChangesWithFalsePositive(unittest.TestCase):
+    """extract_resource_changes の false positive フラグテスト"""
+
+    def test_create_with_null_state_gets_flagged(self) -> None:
+        """before/after null の Create に likelyFalsePositive フラグが付く"""
+        what_if_result = {
+            "changes": [
+                {
+                    "changeType": "Create",
+                    "resourceId": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.Chaos/experiments/exp-aks-pod-failure"
+                    ),
+                }
+            ]
+        }
+        result = extract_resource_changes(what_if_result)
+        self.assertEqual(len(result), 1)
+        self.assertTrue(result[0]["likelyFalsePositive"])
+
+    def test_create_with_after_state_not_flagged(self) -> None:
+        """after がありパターン外の Create には likelyFalsePositive フラグが付かない"""
+        what_if_result = {
+            "changes": [
+                {
+                    "changeType": "Create",
+                    "resourceId": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.Network/virtualNetworks/vnet-new"
+                    ),
+                    "after": {
+                        "type": "Microsoft.Network/virtualNetworks",
+                        "name": "vnet-new",
+                    },
+                }
+            ]
+        }
+        result = extract_resource_changes(what_if_result)
+        self.assertEqual(len(result), 1)
+        self.assertFalse(result[0]["likelyFalsePositive"])
+
+    def test_modify_not_flagged(self) -> None:
+        """Modify 操作には likelyFalsePositive フラグが付かない"""
+        what_if_result = {
+            "changes": [
+                {
+                    "changeType": "Modify",
+                    "resourceId": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.ContainerService/managedClusters/aks-test"
+                    ),
+                    "delta": [],
+                }
+            ]
+        }
+        result = extract_resource_changes(what_if_result)
+        self.assertEqual(len(result), 1)
+        self.assertFalse(result[0]["likelyFalsePositive"])
+
+
+class TestFormatAzdStyleOutputFalsePositive(unittest.TestCase):
+    """format_azd_style_output の false positive フィルタリングテスト"""
+
+    def test_false_positive_create_hidden_with_summary(self) -> None:
+        """false positive の Create は非表示でサマリー行が出る"""
+        output_data = {
+            "changes": [
+                {
+                    "operation": "Create",
+                    "resourceId": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.Chaos/experiments/exp-aks-pod-failure"
+                    ),
+                    "resourceType": "Microsoft.Chaos/experiments",
+                    "resourceName": "exp-aks-pod-failure",
+                    "propertyChanges": [],
+                    "likelyFalsePositive": True,
+                    "beforeState": None,
+                    "afterState": None,
+                },
+                {
+                    "operation": "Modify",
+                    "resourceId": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.ContainerService/managedClusters/aks-test"
+                    ),
+                    "resourceType": "Microsoft.ContainerService/managedClusters",
+                    "resourceName": "aks-test",
+                    "propertyChanges": [],
+                    "likelyFalsePositive": False,
+                    "beforeState": {},
+                    "afterState": {},
+                },
+            ]
+        }
+        result = format_azd_style_output(output_data)
+        self.assertNotIn("exp-aks-pod-failure", result)
+        self.assertIn("aks-test", result)
+        self.assertIn("1 件の Create を非表示", result)
+    def test_no_summary_when_no_false_positives(self) -> None:
+        """false positive がない場合はサマリー行なし"""
+        output_data = {
+            "changes": [
+                {
+                    "operation": "Create",
+                    "resourceId": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.Chaos/experiments/exp-aks-new"
+                    ),
+                    "resourceType": "Microsoft.Chaos/experiments",
+                    "resourceName": "exp-aks-new",
+                    "propertyChanges": [],
+                    "likelyFalsePositive": False,
+                    "beforeState": None,
+                    "afterState": {"type": "Microsoft.Chaos/experiments"},
+                },
+            ]
+        }
+        result = format_azd_style_output(output_data)
+        self.assertIn("exp-aks-new", result)
+        self.assertNotIn("非表示", result)
 
 
 if __name__ == "__main__":

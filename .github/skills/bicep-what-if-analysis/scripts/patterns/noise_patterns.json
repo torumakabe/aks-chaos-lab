@@ -22,7 +22,13 @@
             }
         ],
         "auto_managed_patterns": [],
-        "known_defaults": []
+        "known_defaults": [],
+        "create_false_positive_patterns": [
+            {
+                "pattern": "^Microsoft\\.Chaos/experiments$",
+                "description": "Chaos experiments は CLI what-if で毎回 Create と報告される既知制限"
+            }
+        ]
     },
     "resource_types": {
         "Microsoft.ContainerService/managedClusters": {
