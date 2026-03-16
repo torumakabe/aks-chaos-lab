@@ -63,6 +63,7 @@
                 {"pattern": "^serviceMeshProfile$", "description": "サービスメッシュプロファイルは Bicep 未定義時に Azure が Disabled をデフォルト設定"}
             ],
             "custom_patterns": [
+                {"pattern": "^kubernetesVersion$", "description": "K8s バージョン要確認（マイナーまで一致ならOK、パッチは AKS 自動適用）"},
                 {"pattern": "^agentPoolProfiles\\.\\d+\\.orchestratorVersion$", "description": "K8s バージョン要確認（マイナーまで一致ならOK、パッチは AKS 自動適用）"},
                 {"pattern": "^agentPoolProfiles\\[\\d+\\]\\.orchestratorVersion$", "description": "K8s バージョン要確認（マイナーまで一致ならOK、パッチは AKS 自動適用）"}
             ],
