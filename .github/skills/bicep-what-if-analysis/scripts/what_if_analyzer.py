@@ -256,6 +256,37 @@ class NoisePatternLoader:
 
         return self._stats
 
+    def _get_valid_stat_keys(self) -> set[str]:
+        """現在のパターン定義から有効な統計キーの集合を返す。"""
+        valid_keys: set[str] = set()
+        data = self._load()
+
+        pattern_categories = [
+            "custom_patterns",
+            "auto_managed_patterns",
+            "create_false_positive_patterns",
+        ]
+
+        # 共通パターン（リソースタイプなし）
+        common = data.get("common", {})
+        for category in pattern_categories:
+            for item in common.get(category, []):
+                if isinstance(item, dict) and "pattern" in item:
+                    valid_keys.add(f"{category}:{item['pattern']}")
+
+        # リソースタイプ別パターン
+        for resource_type, resource_patterns in (
+            data.get("resource_types", {}).items()
+        ):
+            for category in pattern_categories:
+                for item in resource_patterns.get(category, []):
+                    if isinstance(item, dict) and "pattern" in item:
+                        valid_keys.add(
+                            f"{resource_type}:{category}:{item['pattern']}"
+                        )
+
+        return valid_keys
+
     def save_stats(self) -> None:
         """統計ファイルを保存する。"""
         stats = self._load_stats()
@@ -271,6 +302,13 @@ class NoisePatternLoader:
             stats["patterns"][key]["matchCount"] = (
                 stats["patterns"][key].get("matchCount", 0) + 1
             )
+
+        # パターン定義に存在しない古いキーを削除
+        valid_keys = self._get_valid_stat_keys()
+        stale_keys = [k for k in stats["patterns"] if k not in valid_keys]
+        for key in stale_keys:
+            logger.info("Removing stale pattern stat entry: %s", key)
+            del stats["patterns"][key]
 
         try:
             with open(self._stats_file, "w", encoding="utf-8") as f:
