@@ -58,48 +58,48 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-06-02-previ
   scope: resourceGroup()
 }
 
-resource chaosTarget 'Microsoft.Chaos/targets@2024-01-01' = {
+resource chaosTarget 'Microsoft.Chaos/targets@2025-01-01' = {
   name: 'microsoft-azurekubernetesservicechaosmesh'
   scope: aksCluster
   properties: {}
 }
 
-resource chaosCapabilityPodChaos 'Microsoft.Chaos/targets/capabilities@2024-01-01' = if (enablePodChaos) {
+resource chaosCapabilityPodChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enablePodChaos) {
   name: 'podChaos-2.2'
   parent: chaosTarget
 }
 
-resource chaosCapabilityNetworkChaos 'Microsoft.Chaos/targets/capabilities@2024-01-01' = if (enableNetworkChaos) {
+resource chaosCapabilityNetworkChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableNetworkChaos) {
   name: 'networkChaos-2.2'
   parent: chaosTarget
 }
 
-resource chaosCapabilityStressChaos 'Microsoft.Chaos/targets/capabilities@2024-01-01' = if (enableStressChaos) {
+resource chaosCapabilityStressChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableStressChaos) {
   name: 'stressChaos-2.2'
   parent: chaosTarget
 }
 
-resource chaosCapabilityIOChaos 'Microsoft.Chaos/targets/capabilities@2024-01-01' = if (enableIOChaos) {
+resource chaosCapabilityIOChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableIOChaos) {
   name: 'ioChaos-2.2'
   parent: chaosTarget
 }
 
-resource chaosCapabilityTimeChaos 'Microsoft.Chaos/targets/capabilities@2024-01-01' = if (enableTimeChaos) {
+resource chaosCapabilityTimeChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableTimeChaos) {
   name: 'timeChaos-2.2'
   parent: chaosTarget
 }
 
-resource chaosCapabilityKernelChaos 'Microsoft.Chaos/targets/capabilities@2024-01-01' = if (enableKernelChaos) {
+resource chaosCapabilityKernelChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableKernelChaos) {
   name: 'kernelChaos-2.2'
   parent: chaosTarget
 }
 
-resource chaosCapabilityHTTPChaos 'Microsoft.Chaos/targets/capabilities@2024-01-01' = if (enableHTTPChaos) {
+resource chaosCapabilityHTTPChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableHTTPChaos) {
   name: 'httpChaos-2.2'
   parent: chaosTarget
 }
 
-resource chaosCapabilityDNSChaos 'Microsoft.Chaos/targets/capabilities@2024-01-01' = if (enableDNSChaos) {
+resource chaosCapabilityDNSChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableDNSChaos) {
   name: 'dnsChaos-2.2'
   parent: chaosTarget
 }
@@ -238,7 +238,7 @@ var dnsChaosSpec = {
   }
 }
 
-resource expPodChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enablePodChaos) {
+resource expPodChaos 'Microsoft.Chaos/experiments@2025-01-01' = if (enablePodChaos) {
   name: 'exp-aks-pod-failure'
   location: location
   identity: {
@@ -274,7 +274,7 @@ resource expPodChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enablePodCha
   }
 }
 
-resource expNetworkChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableNetworkChaos) {
+resource expNetworkChaos 'Microsoft.Chaos/experiments@2025-01-01' = if (enableNetworkChaos) {
   name: 'exp-aks-network-delay'
   location: location
   identity: {
@@ -310,7 +310,7 @@ resource expNetworkChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableNe
   }
 }
 
-resource expNetworkChaosLoss 'Microsoft.Chaos/experiments@2024-01-01' = if (enableNetworkChaosLoss) {
+resource expNetworkChaosLoss 'Microsoft.Chaos/experiments@2025-01-01' = if (enableNetworkChaosLoss) {
   name: 'exp-aks-network-loss'
   location: location
   identity: {
@@ -346,7 +346,7 @@ resource expNetworkChaosLoss 'Microsoft.Chaos/experiments@2024-01-01' = if (enab
   }
 }
 
-resource expStressChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableStressChaos) {
+resource expStressChaos 'Microsoft.Chaos/experiments@2025-01-01' = if (enableStressChaos) {
   name: 'exp-aks-stress'
   location: location
   identity: {
@@ -382,7 +382,7 @@ resource expStressChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableStr
   }
 }
 
-resource expIOChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableIOChaos) {
+resource expIOChaos 'Microsoft.Chaos/experiments@2025-01-01' = if (enableIOChaos) {
   name: 'exp-aks-io'
   location: location
   identity: {
@@ -418,7 +418,7 @@ resource expIOChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableIOChaos
   }
 }
 
-resource expTimeChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableTimeChaos) {
+resource expTimeChaos 'Microsoft.Chaos/experiments@2025-01-01' = if (enableTimeChaos) {
   name: 'exp-aks-time'
   location: location
   identity: {
@@ -454,7 +454,7 @@ resource expTimeChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableTimeC
   }
 }
 
-resource expKernelChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableKernelChaos) {
+resource expKernelChaos 'Microsoft.Chaos/experiments@2025-01-01' = if (enableKernelChaos) {
   name: 'exp-aks-kernel'
   location: location
   identity: {
@@ -489,7 +489,7 @@ resource expKernelChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableKer
   }
 }
 
-resource expHTTPChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableHTTPChaos) {
+resource expHTTPChaos 'Microsoft.Chaos/experiments@2025-01-01' = if (enableHTTPChaos) {
   name: 'exp-aks-http'
   location: location
   identity: {
@@ -526,7 +526,7 @@ resource expHTTPChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableHTTPC
 }
 
 // DNSChaos: inject DNS resolution failures
-resource expDNSChaos 'Microsoft.Chaos/experiments@2024-01-01' = if (enableDNSChaos) {
+resource expDNSChaos 'Microsoft.Chaos/experiments@2025-01-01' = if (enableDNSChaos) {
   name: 'exp-aks-dns'
   location: location
   identity: {
