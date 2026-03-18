@@ -194,17 +194,15 @@ module aksCluster './modules/aks.bicep' = {
   }
 }
 
-// Subscription-scoped Reader role for AKS Node OS auto-upgrade alert
-// Required for ARG queries per official documentation
-resource aksNodeOsAutoUpgradeAlertSubReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(subscription().id, 'aks-nodeos-autoupgrade-alert', 'Reader')
-  properties: {
-    principalId: aksCluster.outputs.nodeOsAutoUpgradeAlertPrincipalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
-    )
+// Alert role assignments - subscription scope
+// Separated into a module so principalId (a runtime value) can be passed as a parameter,
+// which makes it a deploy-time value in the module context and usable in guid() for names.
+module alertSubRoleAssignments './modules/alert-sub-role-assignments.bicep' = {
+  name: 'alertSubRoleAssignments'
+  params: {
+    aksAlertPrincipalId: aksCluster.outputs.nodeOsAutoUpgradeAlertPrincipalId
+    fleetAlertPrincipalId: aksSkuName == 'Base' ? fleetManager.outputs.pendingApprovalAlertPrincipalId : ''
+    enableFleet: aksSkuName == 'Base'
   }
 }
 
@@ -224,17 +222,14 @@ module fleetManager './modules/fleet.bicep' = if (aksSkuName == 'Base') {
   }
 }
 
-// Subscription-scoped Reader role for Fleet pending approval alert
-// Required for ARG queries per official documentation
-resource fleetPendingApprovalAlertSubReaderRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (aksSkuName == 'Base') {
-  name: guid(subscription().id, 'fleet-pending-approval-alert', 'Reader')
-  properties: {
-    principalId: fleetManager.outputs.pendingApprovalAlertPrincipalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
-    )
+// Alert role assignments - resource group scope
+module alertRgRoleAssignments './modules/alert-rg-role-assignments.bicep' = {
+  name: 'alertRgRoleAssignments'
+  scope: resourceGroup
+  params: {
+    aksAlertPrincipalId: aksCluster.outputs.nodeOsAutoUpgradeAlertPrincipalId
+    fleetAlertPrincipalId: aksSkuName == 'Base' ? fleetManager.outputs.pendingApprovalAlertPrincipalId : ''
+    enableFleet: aksSkuName == 'Base'
   }
 }
 
@@ -288,6 +283,26 @@ module chaosExperiments './modules/chaos/experiments.bicep' = if (enableChaosExp
     defaultDuration: chaosDuration
     // Pass as array; when omitted, experiments module falls back to *.*.redis.azure.net
     redisHosts: [redisEnterprise.outputs.redisHost]
+  }
+}
+
+// Chaos experiment role assignments - separated into a module so principalId
+// (a runtime value from SystemAssigned identity) can be passed as a parameter,
+// making it a deploy-time value usable in guid() for role assignment names.
+module chaosRoleAssignments './modules/chaos/role-assignments.bicep' = if (enableChaosExperiments) {
+  name: 'chaosRoleAssignments'
+  scope: resourceGroup
+  params: {
+    aksId: aksCluster.outputs.aksId
+    podChaosPrincipalId: chaosExperiments.outputs.podChaosPrincipalId
+    networkChaosPrincipalId: chaosExperiments.outputs.networkChaosPrincipalId
+    networkChaosLossPrincipalId: chaosExperiments.outputs.networkChaosLossPrincipalId
+    stressChaosPrincipalId: chaosExperiments.outputs.stressChaosPrincipalId
+    ioChaosPrincipalId: chaosExperiments.outputs.ioChaosPrincipalId
+    timeChaosPrincipalId: chaosExperiments.outputs.timeChaosPrincipalId
+    kernelChaosPrincipalId: chaosExperiments.outputs.kernelChaosPrincipalId
+    httpChaosPrincipalId: chaosExperiments.outputs.httpChaosPrincipalId
+    dnsChaosPrincipalId: chaosExperiments.outputs.dnsChaosPrincipalId
   }
 }
 

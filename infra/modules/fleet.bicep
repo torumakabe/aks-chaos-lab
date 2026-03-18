@@ -136,24 +136,6 @@ resource fleetPendingApprovalAlert 'Microsoft.Insights/scheduledQueryRules@2023-
   ]
 }
 
-resource fleetPendingApprovalAlertReader 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(
-    subscription().id,
-    resourceGroup().id,
-    fleetPendingApprovalAlert.name,
-    'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
-  )
-  scope: resourceGroup()
-  properties: {
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      'acdd72a7-3385-48ef-bd42-f606fba81ae7'
-    )
-    principalId: fleetPendingApprovalAlert.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
 output fleetId string = fleet.id
 output fleetMemberId string = fleetMember.id
 output updateStrategyId string = fleetUpdateStrategy.id
