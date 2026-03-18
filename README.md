@@ -29,10 +29,8 @@
 - **自動アップグレード**: スケジュール指定可能な自動更新とアラート通知
 
 ## ドキュメント
-- 要件: docs/requirements.md
-- 設計: docs/design.md
-- デプロイ: docs/deployment.md
-- API: docs/api.md
+- AI コンテキスト（Priming Document）: .github/copilot-instructions.md
+- フィーチャーコンテキストガイド: docs/feature-context-guide.md
 
 ## 🚀 クイックスタート
 
@@ -107,7 +105,7 @@ az aks get-credentials \
   --name aks-aks-chaos-lab-dev
 ```
 
-詳細は [docs/deployment.md](docs/deployment.md) を参照
+詳細はクイックスタートの手順を参照
 
 ### ローカル開発
 ```bash
@@ -208,7 +206,6 @@ graph TD
 - **Advanced Container Networking** (L7ポリシー + 可観測性)
 - **Container Insights** → AMA + DCR で Log Analytics 統合
 
-詳細な設計は [docs/design.md](docs/design.md) を参照
 
 ## 🔭 可観測性
 
@@ -221,7 +218,6 @@ graph TD
 - Grafana ダッシュボード: Azure Portal の 対象AKS > Monitoring > Dashboards with Grafana から参照できます。
 - Container Insights: AMA + DCR（`azureMonitorProfile.containerInsights` と DCR/DCRA）によりコンテナログ/メトリクスを収集。
 
-詳細は [docs/deployment.md](docs/deployment.md) / [docs/design.md](docs/design.md) を参照してください。
 
 ## 🔥 Chaos実験（Azure Chaos Studio）
 
