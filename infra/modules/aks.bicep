@@ -144,6 +144,15 @@ var aksBaseSpecificProperties = {
       enableAutoScaling: true
       minCount: 1
       maxCount: 3
+      // Blue-green upgrade strategy for safer node OS auto-upgrades (preview)
+      // Requires API version 2025-08-02-preview or later
+      upgradeStrategy: 'BlueGreen'
+      upgradeSettingsBlueGreen: {
+        drainBatchSize: '50%'
+        drainTimeoutInMinutes: 30
+        batchSoakDurationInMinutes: 15
+        finalSoakDurationInMinutes: 60
+      }
     }
   ]
 }
@@ -195,7 +204,7 @@ resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-3
 // Reason: addonAutoscaling (VPA) requires preview API
 // Check: az provider show -n Microsoft.ContainerService --query "resourceTypes[?resourceType=='managedClusters'].apiVersions" -o tsv
 #disable-next-line BCP081
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-08-02-preview' = {
   name: aksName
   location: location
   tags: tags
@@ -265,7 +274,7 @@ output aksIdentityPrincipalId string = aksIdentity.properties.principalId
 // AKS Managed Node OS Upgrade Schedule (weekly on Wednesday)
 // TODO: Migrate to GA API version when available (same as aksCluster)
 #disable-next-line BCP081
-resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2025-06-02-preview' = {
+resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2025-08-02-preview' = {
   parent: aksCluster
   name: 'aksManagedNodeOSUpgradeSchedule'
   properties: {

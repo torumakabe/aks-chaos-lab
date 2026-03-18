@@ -55,6 +55,10 @@
                 {"pattern": "^networkProfile\\.serviceCidrs$", "description": "Service CIDR は自動設定"},
                 {"pattern": "^networkProfile\\.advancedNetworking\\.security\\.transitEncryption$", "description": "トランジット暗号化は自動管理"},
                 {"pattern": "^autoScalerProfile\\.skip-nodes-with-local-storage$", "description": "オートスケーラー設定は Azure が自動設定"},
+                {"pattern": "^agentPoolProfiles\\.\\d+\\.upgradeStrategy$", "description": "BlueGreen アップグレード戦略はプレビュー API 機能のため what-if が差分をノイズ出力"},
+                {"pattern": "^agentPoolProfiles\\.\\d+\\.upgradeSettingsBlueGreen$", "description": "BlueGreen アップグレード設定はプレビュー API 機能のため what-if が差分をノイズ出力"},
+                {"pattern": "^ingressProfile\\.webAppRouting\\.defaultDomain$", "description": "Web App Routing のデフォルトドメインは Azure が自動生成"},
+                {"pattern": "^networkProfile\\.advancedNetworking\\.performance$", "description": "Advanced Networking の performance 設定は advancedNetworking 有効時に Azure が自動追加"},
                 {"pattern": "^addonProfiles$", "description": "アドオンは Bicep の containerInsights 設定に基づき Azure が自動構成"},
                 {"pattern": "^securityProfile\\.defender$", "description": "Defender は Azure のデフォルトで自動有効化"},
                 {"pattern": "^securityProfile\\.imageCleaner$", "description": "イメージクリーナーは Azure のデフォルト設定"},
@@ -138,7 +142,9 @@
             "readonly_patterns": [],
             "auto_managed_patterns": [
                 {"pattern": "^identity\\.principalId$", "description": "SystemAssigned ID のプリンシパル ID は Azure が自動生成"},
-                {"pattern": "^identity\\.tenantId$", "description": "SystemAssigned ID のテナント ID は Azure が自動設定"}
+                {"pattern": "^identity\\.tenantId$", "description": "SystemAssigned ID のテナント ID は Azure が自動設定"},
+                {"pattern": "^tags$", "description": "Chaos experiments のタグは azd/Azure Policy による自動付与でノイズ出力される"},
+                {"pattern": "^steps\\.\\d+\\.branches\\.\\d+\\.actions\\.\\d+\\.parameters\\.\\d+\\.value$", "description": "Chaos Mesh JSON スペックは string() シリアライゼーション差異（キー順序・空白）でノイズ出力"}
             ],
             "custom_patterns": [],
             "known_defaults": []
