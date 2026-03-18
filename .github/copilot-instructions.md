@@ -1,70 +1,67 @@
-# 応答のスタイル
+# AKS Chaos Lab — AI コンテキスト
 
-- 応答は日本語を使う。
+## 概要
 
-# プロジェクト概要
+AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを一括管理する。
 
-AKS (Azure Kubernetes Service) 上で Chaos Engineering を実践するためのラボ環境。Azure Developer CLI (azd) でインフラとアプリを一括管理する。
+## 技術スタック
 
-- **アプリ**: Python 3.13 + FastAPI (`src/`)
-- **IaC**: Bicep (`infra/`)
-- **K8s マニフェスト**: Kustomize (`k8s/`)
-- **パッケージ管理**: uv
-- **型チェッカー**: ty (Astral)
-- **リンター/フォーマッター**: ruff
-- **テスト**: pytest
+- **アプリ**: Python 3.13 + FastAPI + uvicorn (`src/`)
+- **IaC**: Bicep, subscription scope (`infra/`)
+- **K8s**: Kustomize (`k8s/`)
+- **依存**: Redis (Managed, Entra ID auth), Application Insights, Prometheus
+- **パッケージ管理**: uv (`python`/`pip` 直接実行禁止)
+- **品質検証**: ruff + ty + pytest → `cd src && make qa`
+- **Bicep 検証**: `az bicep build --file infra/main.bicep`
 
-# ファイル管理とプロジェクト構造
+## プロジェクト構造
 
-- ルートフォルダは必要最低限のファイル数に保ち、プロジェクト構造を明確に保つ。
-- README ではないドキュメントは、`docs`ディレクトリを作成し、その中に入れる。ドキュメントの形式は Markdown とする。
-- 一時的なテストやデバッグ用のファイルを作成する場合は、ルートフォルダではなく`tmp`ディレクトリを作成し、その中で実行する。
-- 一時的ではない、その後も継続的にテストに使うべきファイルは、`tests`ディレクトリを作成し、その中に入れる。
-- 調査や検証が完了したら、不要になった一時ファイルは削除する。
-
-# Git ブランチ管理
-
-- **main ブランチに直接コミットしてはならない**。必ずフィーチャーブランチを作成し、PR 経由でマージする。
-- ブランチ命名例:
-  - 機能追加: `feature/<機能名>` または Spec Kit の `<番号>-<短縮名>`（例: `005-aks-nap-mode`）
-  - バグ修正: `fix/<修正内容>`
-  - メンテナンス: `chore/<内容>`
-
-# 破壊的操作の確認
-
-- `git reset`, `git push --force`, ブランチ削除、`azd down` など**取り消しが困難な操作**は、実行前にユーザーの明示的な許可を得ること。
-- ユーザーが「できるか」「可能か」と質問した場合は、**回答のみ行い、実行はしない**。実行の指示があるまで待つこと。
-
-# Python 開発
-
-- Python の実行には必ず `uv run` を使う（`python` を直接呼ばない）。
-- パッケージ追加は `uv add`、同期は `uv sync`。
-
-## 開発コマンド（`src/` ディレクトリ内で実行）
-
-```bash
-# 品質検証（リント + テスト + 型チェック）を一括実行
-cd src && make qa
-
-# 個別実行
-make test          # ユニットテスト
-make lint          # ruff リント（自動修正あり）
-make typecheck     # ty 型チェック
-make format        # ruff フォーマット
-make format-check  # フォーマット確認（変更なし）
+```
+src/app/          # FastAPI アプリ (main.py, config.py, models.py, redis_client.py)
+infra/modules/    # Bicep モジュール (aks, network, redis, acr, identity, chaos 等)
+k8s/base/         # Kustomize ベースマニフェスト
+k8s/chaos/        # Chaos Mesh 実験
+tests/unit/       # ユニットテスト
+tests/load/       # Locust 負荷テスト (smoke, baseline, stress, spike)
+docs/             # ガイド、フィーチャーコンテキストドキュメント
 ```
 
-## Bicep 検証
+## 参考リソース
 
-```bash
-az bicep build --file infra/main.bicep
-```
+- [Reducing Friction for AI-Assisted Development](https://martinfowler.com/articles/reduce-friction-ai/) — 本リポジトリのワークフロー（Knowledge Priming, Design-First, Context Anchoring）の元となった記事
+- [Azure Chaos Studio ドキュメント](https://learn.microsoft.com/azure/chaos-studio/)
+- [AKS ベストプラクティス](https://learn.microsoft.com/azure/aks/best-practices)
+- [Azure CAF リソース命名規則](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/azure-best-practices/resource-naming)
+- README.md — プロジェクトの全体像と `azd up` による構築手順
 
-# ワークフロー
+## コードパターンの参照先
 
-- 機能開発は Spec Kit ワークフローに従う（/speckit.specify, /speckit.plan, /speckit.tasks, /speckit.implement）
-- 以下のような変更は Spec Kit ワークフローを経由せず直接実施する：
-  - API バージョンの更新（Azure API、Kubernetes API など）
-  - 依存パッケージのバージョン更新（セキュリティパッチ、バグ修正）
-  - 軽微なドキュメント修正（誤字、リンク修正）
-- 詳細なルールは `.specify/memory/constitution.md` を参照
+- FastAPI エンドポイント → `src/app/main.py`
+- Bicep モジュール → `infra/modules/`
+- K8s マニフェスト → `k8s/base/deployment.yaml`
+
+## 品質ゲート（必須）
+
+- **Python**: ty エラー 0 件、ruff 警告 0 件、pytest 全テスト合格
+- **Bicep**: `az bicep build` エラー 0 件
+
+## やってはいけないこと
+
+- `python`/`pip` 直接実行 → `uv run`/`uv add` を使う
+- main ブランチへの直接コミット → フィーチャーブランチ (`feature/`, `fix/`, `chore/`) + PR 必須
+- 破壊的操作 (`git reset --hard`, `push --force`, `azd down`) → 実行前にユーザーの明示的な許可を得る
+
+## ワークフロー
+
+- セッション開始時、現在のブランチに関連するフィーチャーコンテキストドキュメントが `docs/features/` にあれば読み込む
+- セッションを閉じる際に「このまま閉じたらコンテキストが失われる」と感じたら、
+  フィーチャーコンテキストドキュメントに決定事項・理由・制約・進捗を記録する
+  (`docs/feature-context-guide.md` を参照)
+- 複雑な機能は実装前に段階的な設計会話を行う（要件確認 → コンポーネント設計 → データフロー → インターフェース定義 → 実装）。コードは設計合意後
+- ユーザーから見える振る舞いが変わる変更（機能追加、API 変更、デプロイ手順変更、アーキテクチャ変更）では README.md の更新要否を確認し、必要なら同一 PR 内で更新する
+- ドキュメントは `docs/` に配置。一時ファイルは `tmp/` に配置し、完了後に削除
+
+## 言語
+
+- 応答は日本語
+- コードコメント・コミットメッセージは日本語（プレフィックスは Conventional Commits: feat:, fix:, chore: 等）
