@@ -69,7 +69,7 @@ resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' 
 // Use extension resource with explicit scope to avoid analyzer warnings
 @description('Existing AKS cluster for extension resource scope')
 #disable-next-line BCP081
-resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' existing = {
+resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2025-08-02-preview' existing = {
   name: aksClusterName
 }
 

@@ -53,7 +53,7 @@ param enableDNSChaos bool = true
 param redisHosts array = []
 
 #disable-next-line BCP081
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-06-02-preview' existing = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-08-02-preview' existing = {
   name: last(split(aksId, '/'))
   scope: resourceGroup()
 }
