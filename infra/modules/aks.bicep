@@ -337,26 +337,6 @@ resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2
   }
 }
 
-// Assign Reader role to the alert rule's managed identity so it can query ARG
-// Resource group scope
-resource aksNodeOSAutoUpgradeAlertRuleRgRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(
-    subscription().id,
-    resourceGroup().id,
-    aksNodeOSAutoUpgradeAlertRule.name,
-    'acdd72a7-3385-48ef-bd42-f606fba81ae7' // Reader
-  )
-  scope: resourceGroup()
-  properties: {
-    principalId: aksNodeOSAutoUpgradeAlertRule.identity.principalId
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      'acdd72a7-3385-48ef-bd42-f606fba81ae7'
-    )
-  }
-}
-
 output aksId string = aksCluster.id
 output aksNameOut string = aksCluster.name
 output kubeletObjectId string = aksCluster.properties.identityProfile.kubeletidentity.objectId
