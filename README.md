@@ -5,7 +5,7 @@
 `azd up` コマンド一つで、以下がすべて自動セットアップされます：
 - 🏗️ **本格的なAKS環境** - 高可用性構成、自動スケーリング、ネットワークポリシー完備
 - 🚀 **サンプルアプリケーション** - 外部依存要素(Redis)、ヘルスチェック、リトライ機能を実装済み
-- 💥 **Azure Chaos Studio** - 7種類の障害シナリオをワンクリックで注入
+- 💥 **Azure Chaos Studio** - 8種類の障害シナリオをワンクリックで注入
 - 📊 **Locust負荷生成ツール** - 実際の負荷下での挙動を観察
 - 🔍 **可観測性ツール群** - Application Insights、Prometheus、Grafanaで障害時の詳細を可視化
 
@@ -24,7 +24,7 @@
 - **Workload Identity**: OIDC ベースの最新Azure認証方式
 - **Azure AD統合とローカルアカウント無効化**: Entra IDのみの認証を強制し、アイデンティティガバナンスと監査性を向上
 - **Container Insights**: AMA + DCR による統合監視（Log Analytics 連携）
-- **Azure Chaos Studio**: AKS向けChaos Mesh実験（Kernel を除く主要7種類）対応による包括的障害注入
+- **Azure Chaos Studio**: AKS向けChaos Mesh実験（Kernel を除く主要8種類）対応による包括的障害注入
 - **自動スケーリング**: ノード自動スケーリング (Base: Cluster Autoscaler、Automatic: Node Auto Provisioning) + HPA
 - **自動アップグレード**: スケジュール指定可能な自動更新とアラート通知
 
@@ -244,10 +244,10 @@ Azure Portal → Chaos Studio または Azure CLI で実行
 ```bash
 # 例: Pod障害実験（開始/停止）
 az rest --method post \
-  --url "/subscriptions/{subscription-id}/resourceGroups/{rg}/providers/Microsoft.Chaos/experiments/exp-aks-pod-failure/start?api-version=2024-01-01"
+  --url "/subscriptions/{subscription-id}/resourceGroups/{rg}/providers/Microsoft.Chaos/experiments/exp-aks-pod-failure/start?api-version=2025-01-01"
 
 az rest --method post \
-  --url "/subscriptions/{subscription-id}/resourceGroups/{rg}/providers/Microsoft.Chaos/experiments/exp-aks-pod-failure/stop?api-version=2024-01-01"
+  --url "/subscriptions/{subscription-id}/resourceGroups/{rg}/providers/Microsoft.Chaos/experiments/exp-aks-pod-failure/stop?api-version=2025-01-01"
 ```
 
 ## ライセンス
