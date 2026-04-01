@@ -50,7 +50,7 @@ data:
     nodeexporter = ""
     windowsexporter = ""
     windowskubeproxy = ""
-    podannotations = "nginx_ingress_controller_.*"
+    podannotations = "app_http_requests_total|app_http_request_duration_seconds.*"
     kappiebasic = ""
     networkobservabilityRetina = ""
     networkobservabilityHubble = "hubble.*"

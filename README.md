@@ -140,7 +140,7 @@ azd down
 ## 📈 負荷テスト
 
 - `src/` ディレクトリで `make` ターゲットを使って、Locust ベースの負荷を生成できます（`uv` と `kubectl` が必要）。
-- `BASE_URL` 未指定時は `AZURE_INGRESS_FQDN` を優先し自動検出、未設定の場合は Ingress から自動検出します。
+- `BASE_URL` 未指定時は `AZURE_INGRESS_FQDN` を優先し自動検出、未設定の場合は Gateway から自動検出します。
 
 ```bash
 cd src
@@ -178,7 +178,7 @@ graph TD
     subgraph AKS_Workloads [Workloads]
       Deploy[Deployment: chaos-app]
       Svc[Service: ClusterIP]
-      Ingress[Ingress: Web Application Routing]
+      GW[Gateway: App Routing Istio]
       SA[ServiceAccount: chaos-app-sa]
     end
     CI[Container Insights]
@@ -188,7 +188,7 @@ graph TD
 
   ACR -->|AcrPull| Deploy
   Svc --> Deploy
-  Ingress --> Svc
+  GW --> Svc
   Deploy -->|OpenTelemetry| AppInsights
   Deploy -->|Container Logs/Metrics| LA
   Deploy -->|Entra ID Auth| Redis

@@ -17,17 +17,19 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    # Allow traffic only from the Web Application Routing nginx ingress controller
+    # Allow traffic from the Gateway API (App Routing Istio) Envoy proxy
     - from:
-        # Controller pods in the app-routing-system namespace
+        - podSelector:
+            matchLabels:
+              gateway.networking.k8s.io/gateway-name: chaos-app
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow Prometheus scraping from kube-system (ama-metrics)
+    - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: app-routing-system
-          podSelector:
-            matchExpressions:
-              - key: app.kubernetes.io/component
-                operator: In
-                values: ["ingress-controller"]
+              kubernetes.io/metadata.name: kube-system
       ports:
         - protocol: TCP
           port: 8000

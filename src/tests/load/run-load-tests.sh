@@ -4,9 +4,9 @@ set -euo pipefail
 # Usage:
 #   ./run-load-tests.sh [baseline|stress|spike]
 # Env:
-#   BASE_URL       e.g. https://myapp.example.com (optional, auto-detected from Ingress if not set)
-#   INGRESS_NAME   default: chaos-app
-#   INGRESS_NS     default: chaos-lab
+#   BASE_URL       e.g. http://myapp.example.com (optional, auto-detected from Gateway if not set)
+#   GATEWAY_NAME   default: chaos-app
+#   GATEWAY_NS     default: chaos-lab
 #   USERS          default 50
 #   SPAWN_RATE     default 5
 #   DURATION       default 120s
@@ -34,12 +34,12 @@ if [ -z "${BASE_URL:-}" ]; then
         BASE_URL="http://${_fqdn}"
         echo "BASE_URL auto-set from AZURE_INGRESS_FQDN: ${BASE_URL}" >&2
     else
-        # 2) Fallback to Kubernetes Ingress auto-detection
-        INGRESS_NAME=${INGRESS_NAME:-chaos-app}
-        INGRESS_NS=${INGRESS_NS:-chaos-lab}
+        # 2) Fallback to Gateway API auto-detection
+        GATEWAY_NAME=${GATEWAY_NAME:-chaos-app}
+        GATEWAY_NS=${GATEWAY_NS:-chaos-lab}
 
-        echo "BASE_URL not set, attempting to auto-detect from Ingress..." >&2
-        echo "  Ingress: ${INGRESS_NAME} in namespace ${INGRESS_NS}" >&2
+        echo "BASE_URL not set, attempting to auto-detect from Gateway..." >&2
+        echo "  Gateway: ${GATEWAY_NAME} in namespace ${GATEWAY_NS}" >&2
 
         # Check if kubectl is available
         if ! command -v kubectl >/dev/null 2>&1; then
@@ -47,30 +47,24 @@ if [ -z "${BASE_URL:-}" ]; then
             exit 1
         fi
 
-        # Check if the ingress exists
-        if ! kubectl get ingress -n "${INGRESS_NS}" "${INGRESS_NAME}" >/dev/null 2>&1; then
-            echo "Error: Ingress '${INGRESS_NAME}' not found in namespace '${INGRESS_NS}'." >&2
-            echo "Please check your ingress configuration or set BASE_URL manually." >&2
+        # Gateway の自動生成 Service ({gateway-name}-approuting-istio) から LB IP を取得
+        GW_SVC="${GATEWAY_NAME}-approuting-istio"
+        if ! kubectl get svc -n "${GATEWAY_NS}" "${GW_SVC}" >/dev/null 2>&1; then
+            echo "Error: Gateway Service '${GW_SVC}' not found in namespace '${GATEWAY_NS}'." >&2
+            echo "Please check your Gateway configuration or set BASE_URL manually." >&2
             exit 1
         fi
 
-        # Get the ingress IP
-        INGRESS_IP=$(kubectl get ingress -n "${INGRESS_NS}" "${INGRESS_NAME}" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+        GW_IP=$(kubectl get svc -n "${GATEWAY_NS}" "${GW_SVC}" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
 
-        if [ -z "${INGRESS_IP}" ]; then
-            echo "Error: Could not get LoadBalancer IP from Ingress '${INGRESS_NAME}'." >&2
-            echo "The ingress might not be ready or may not have a LoadBalancer IP assigned." >&2
+        if [ -z "${GW_IP}" ]; then
+            echo "Error: Could not get LoadBalancer IP from Gateway Service '${GW_SVC}'." >&2
+            echo "The Gateway might not be ready or may not have a LoadBalancer IP assigned." >&2
             exit 1
         fi
 
-        # Check if TLS is configured (basic check for tls section in spec)
-        HAS_TLS=$(kubectl get ingress -n "${INGRESS_NS}" "${INGRESS_NAME}" -o jsonpath='{.spec.tls}' 2>/dev/null || echo "")
-
-        if [ -n "${HAS_TLS}" ] && [ "${HAS_TLS}" != "null" ]; then
-            BASE_URL="https://${INGRESS_IP}"
-        else
-            BASE_URL="http://${INGRESS_IP}"
-        fi
+        # Gateway API (App Routing Istio) は HTTP のみ
+        BASE_URL="http://${GW_IP}"
 
         echo "Auto-detected BASE_URL: ${BASE_URL}" >&2
     fi
