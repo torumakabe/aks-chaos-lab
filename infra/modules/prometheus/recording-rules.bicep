@@ -180,6 +180,9 @@ resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRule
   }
 }
 
+// App SLO recording rules (アプリ層 Prometheus メトリクス)
+// FastAPI アプリが /metrics エンドポイントで公開する app_http_requests_total, app_http_request_duration_seconds を使用
+
 resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: appSloRecordingRuleGroupName
   location: location
@@ -191,20 +194,20 @@ resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGrou
     interval: 'PT1M'
     rules: [
       {
-        record: 'app:nginx_ingress_request:p95'
-        expression: 'histogram_quantile(0.95, sum by (le) (rate(nginx_ingress_controller_request_duration_seconds_bucket[5m])))'
+        record: 'app:http_request_duration:p95'
+        expression: 'histogram_quantile(0.95, sum by (le) (rate(app_http_request_duration_seconds_bucket[5m])))'
       }
       {
-        record: 'app:nginx_ingress_error_rate:ratio'
-        expression: 'sum(rate(nginx_ingress_controller_request_duration_seconds_count{status=~"(4(0[0138]|29)|5..)"}[5m])) / sum(rate(nginx_ingress_controller_request_duration_seconds_count[5m]))'
+        record: 'app:http_error_rate:ratio'
+        expression: 'sum(rate(app_http_requests_total{status=~"5.."}[5m])) / sum(rate(app_http_requests_total[5m]))'
       }
       {
-        record: 'app:nginx_ingress_request_rate'
-        expression: 'sum(rate(nginx_ingress_controller_request_duration_seconds_count[5m]))'
+        record: 'app:http_request_rate'
+        expression: 'sum(rate(app_http_requests_total[5m]))'
       }
       {
-        record: 'app:nginx_ingress_request_total'
-        expression: 'sum(nginx_ingress_controller_request_duration_seconds_count)'
+        record: 'app:http_request_total'
+        expression: 'sum(app_http_requests_total)'
       }
     ]
   }

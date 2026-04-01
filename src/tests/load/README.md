@@ -1,10 +1,10 @@
-# Load Testing with Auto Ingress Detection
+# Load Testing with Auto Endpoint Detection
 
 ## 概要
 このディレクトリには、AKS Chaos LabアプリケーションのためのLocustベース負荷テストスクリプトが含まれています。
 
 ## 主な機能
-- **自動エンドポイント検出**: azdの`AZURE_INGRESS_FQDN`優先（http）、未設定時はIngressから検出
+- **自動エンドポイント検出**: azdの`AZURE_INGRESS_FQDN`優先（http）、未設定時はGateway/Ingressから検出
 - **複数負荷プロファイル**: smoke/baseline/stress/spike プロファイル対応
 - **環境変数による柔軟な設定**
 - **uv統合**: Python依存関係をuvで自動管理
@@ -34,8 +34,8 @@ BASE_URL=https://myapp.example.com ./run-load-tests.sh baseline
 
 ### カスタム設定
 ```bash
-# 異なるIngressを対象にする場合
-INGRESS_NAME=my-app INGRESS_NS=my-namespace ./run-load-tests.sh baseline
+# 異なるGatewayを対象にする場合
+GATEWAY_NAME=my-gateway GATEWAY_NS=my-namespace ./run-load-tests.sh baseline
 
 # 負荷パラメータをカスタマイズ
 USERS=100 SPAWN_RATE=10 DURATION=300 ./run-load-tests.sh baseline
@@ -98,15 +98,31 @@ eval "$(azd env get-values)"
 ./run-load-tests.sh baseline
 ```
 
-2) Kubernetes Ingress からの検出
-- `kubectl` で Ingress の LoadBalancer IP を取得し、TLS の有無に応じて `http://` or `https://` を組み立てます。
+2) Kubernetes Gateway からの検出
+- `kubectl` で Gateway の LoadBalancer IP を取得し、`http://` を組み立てます。
 
-## SLOメトリクス生成
-負荷テスト実行により、Web Application Routing nginx から以下のメトリクスが生成されPrometheus/Grafanaで観測可能になります：
+## SLOメトリクス
 
-- `nginx_ingress_controller_requests` - リクエスト総数・レスポンスコード別（ホスト名ラベル付き）
-- `nginx_ingress_controller_request_duration_seconds` - レスポンス時間分布（ホスト名ラベル付き）
+FastAPI アプリが `/metrics` エンドポイントで Prometheus メトリクスを公開しています。
 
-これらのメトリクスは設定済みのRecording RulesによりSLO計測用メトリクスに集約されます：
-- `app:nginx_ingress_request:p95` - p95レイテンシ
-- `app:nginx_ingress_error_rate:ratio` - 5xxエラー率
+**メトリクス**:
+- `app_http_requests_total{method, status}` — HTTPリクエスト数
+- `app_http_request_duration_seconds_bucket{method}` — レイテンシヒストグラム
+
+`/health` と `/metrics` へのリクエストは SLO 計測対象から除外されます。
+
+### Recording Rules
+
+| ルール名 | 説明 |
+|---|---|
+| `app:http_request_duration:p95` | P95 レイテンシ (秒) |
+| `app:http_error_rate:ratio` | 5xx エラー率 |
+| `app:http_request_rate` | リクエストレート (req/s) |
+| `app:http_request_total` | リクエスト累計 |
+
+### SLO Alerts
+
+| アラート | しきい値 |
+|---|---|
+| `AppSLOLatencyP95High` | P95 > 1s が 5分持続 |
+| `AppSLOErrorRateHigh` | エラー率 > 1% が 5分持続 |

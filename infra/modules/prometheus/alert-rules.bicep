@@ -787,7 +787,8 @@ resource recommendedMetricAlertsPodLevel 'Microsoft.AlertsManagement/prometheusR
   }
 }
 
-// Application SLO alerts (Web Application Routing nginx based)
+// Application SLO alerts (アプリ層 Prometheus メトリクス)
+// FastAPI アプリが公開する app_http_* メトリクスベースの Recording Rules を参照
 resource appSloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: 'app-slo-alerts-${split(aksId, '/')[8]}'
   location: location
@@ -795,7 +796,7 @@ resource appSloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
     alertRuleCreatedWithAlertsRecommendations: 'true'
   })
   properties: {
-    description: 'Application SLO alerts from Web Application Routing nginx metrics'
+    description: 'アプリ層メトリクスベースの SLO アラート'
     scopes: [prometheusWorkspaceId, aksId]
     clusterName: split(aksId, '/')[8]
     enabled: true
@@ -803,10 +804,10 @@ resource appSloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
     rules: [
       {
         alert: 'AppSLOLatencyP95High'
-        expression: 'app:nginx_ingress_request:p95 > 1'
+        expression: 'app:http_request_duration:p95 > 1'
         for: 'PT5M'
         annotations: {
-          description: 'p95 latency exceeds 1s for Web Application Routing nginx controller.'
+          description: 'アプリの p95 レイテンシが 1s を超過。'
         }
         enabled: true
         severity: 2
@@ -828,10 +829,10 @@ resource appSloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
       }
       {
         alert: 'AppSLOErrorRateHigh'
-        expression: 'app:nginx_ingress_error_rate:ratio > 0.01'
+        expression: 'app:http_error_rate:ratio > 0.01'
         for: 'PT5M'
         annotations: {
-          description: 'Error rate exceeds 1% for Web Application Routing nginx controller.'
+          description: 'アプリのエラー率が 1% を超過。'
         }
         enabled: true
         severity: 2

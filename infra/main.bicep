@@ -334,10 +334,10 @@ output AZURE_CHAOS_APP_IDENTITY_CLIENT_ID string = chaosAppIdentity.outputs.clie
 @description('AKS cluster identity principal ID')
 output AZURE_AKS_IDENTITY_PRINCIPAL_ID string = aksCluster.outputs.aksIdentityPrincipalId
 
-@description('Static Public IP address for Web Application Routing')
+@description('Static Public IP address for App Routing (Gateway API)')
 output AZURE_INGRESS_PUBLIC_IP string = network.outputs.publicIPAddress
 
-@description('Public IP resource ID for Web Application Routing')
+@description('Public IP resource ID for App Routing (Gateway API)')
 output AZURE_INGRESS_PUBLIC_IP_ID string = network.outputs.publicIPId
 
 @description('FQDN for ingress public IP')
@@ -345,7 +345,7 @@ output AZURE_INGRESS_FQDN string = network.outputs.fqdn
 
 output AZURE_LOCATION string = location
 output AZURE_RESOURCE_GROUP string = resourceGroup.name
-@description('Public IP resource name for Web Application Routing')
+@description('Public IP resource name for App Routing (Gateway API)')
 output AZURE_INGRESS_PUBLIC_IP_NAME string = network.outputs.publicIPName
 
 @description('Azure tenant ID')

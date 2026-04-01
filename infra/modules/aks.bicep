@@ -124,8 +124,19 @@ var aksBaseSpecificProperties = {
     }
   }
   ingressProfile: {
+    gatewayAPI: {
+      installation: 'Standard'
+    }
     webAppRouting: {
       enabled: true
+      nginx: {
+        defaultIngressControllerType: 'None'
+      }
+      gatewayAPIImplementations: {
+        appRoutingIstio: {
+          mode: 'Enabled'
+        }
+      }
     }
   }
   agentPoolProfiles: [
@@ -201,10 +212,11 @@ resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-3
 }
 
 // TODO: Migrate to GA API version when available
-// Reason: addonAutoscaling (VPA) requires preview API
+// Reason: addonAutoscaling (VPA), Blue-Green node pool upgrades, and
+//         Gateway API (App Routing Istio) require preview API
 // Check: az provider show -n Microsoft.ContainerService --query "resourceTypes[?resourceType=='managedClusters'].apiVersions" -o tsv
 #disable-next-line BCP081
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-08-02-preview' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-01-02-preview' = {
   name: aksName
   location: location
   tags: tags
