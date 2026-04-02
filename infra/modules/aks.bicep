@@ -75,6 +75,24 @@ var aksCommonProperties = {
       }
     }
   }
+  // Gateway API (App Routing Istio) ingress configuration
+  // Shared by both Base and Automatic modes as the successor to managed NGINX (sunset 2026/11)
+  ingressProfile: {
+    gatewayAPI: {
+      installation: 'Standard'
+    }
+    webAppRouting: {
+      enabled: true
+      nginx: {
+        defaultIngressControllerType: 'None'
+      }
+      gatewayAPIImplementations: {
+        appRoutingIstio: {
+          mode: 'Enabled'
+        }
+      }
+    }
+  }
 }
 
 // Base mode specific properties
@@ -120,22 +138,6 @@ var aksBaseSpecificProperties = {
       security: {
         enabled: true
         advancedNetworkPolicies: 'FQDN'
-      }
-    }
-  }
-  ingressProfile: {
-    gatewayAPI: {
-      installation: 'Standard'
-    }
-    webAppRouting: {
-      enabled: true
-      nginx: {
-        defaultIngressControllerType: 'None'
-      }
-      gatewayAPIImplementations: {
-        appRoutingIstio: {
-          mode: 'Enabled'
-        }
       }
     }
   }
