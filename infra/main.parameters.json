@@ -47,6 +47,9 @@
     "enableContainerInsights": {
       "value": true
     },
+    "containerInsightsPreset": {
+      "value": "Custom"
+    },
     "actionGroupId": {
       "value": ""
     },
