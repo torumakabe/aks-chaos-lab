@@ -17,6 +17,9 @@ param aksApiSubnetId string = ''
 @description('Log Analytics workspace resource ID for Container Insights')
 param logAnalyticsWorkspaceId string
 
+@description('Enable container network logs collection (ACNS + Cilium required)')
+param enableContainerNetworkLogs bool = true
+
 @description('Action Group resource ID for alerts (optional, leave empty for lab use)')
 param actionGroupId string = ''
 
@@ -52,6 +55,8 @@ var aksCommonProperties = {
     containerInsights: {
       enabled: true
       logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceId
+      #disable-next-line BCP081
+      containerNetworkLogs: enableContainerNetworkLogs ? 'Enabled' : null
     }
     metrics: {
       enabled: true

@@ -217,6 +217,7 @@ graph TD
   - **注記**: ノード関連メトリクスは環境作成直後に収集されないことがあります。これはnode exporterのインストールが他のタスクより優先度が低いためです。最大24時間待つと導入されます。詳細: [Azure/prometheus-collector#483](https://github.com/Azure/prometheus-collector/issues/483)
 - Grafana ダッシュボード: Azure Portal の 対象AKS > Monitoring > Dashboards with Grafana から参照できます。
 - Container Insights: AMA + DCR（`azureMonitorProfile.containerInsights` と DCR/DCRA）によりコンテナログ/メトリクスを収集。
+- コンテナーネットワークログ: ACNS + Cilium の eBPF によるネットワークフローログ。`ContainerNetworkLog` CRD（`k8s/observability/container-network-log.yaml`）で対象 Pod・プロトコル・判定を指定し、DCR 経由で Log Analytics の `ContainerNetworkLogs` テーブルに収集。NetworkChaos / DNSChaos 実験時のフロー可視化に有用。
 
 
 ## 🔥 Chaos実験（Azure Chaos Studio）

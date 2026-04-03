@@ -38,6 +38,9 @@ param namespaceFilteringMode string = 'Off'
 @description('Namespaces to include/exclude in data collection')
 param namespacesForDataCollection array = []
 
+@description('Enable container network logs collection (ACNS + Cilium required)')
+param enableContainerNetworkLogs bool = false
+
 @description('Data streams to collect')
 param streams array = [
   'Microsoft-ContainerLog'
@@ -56,6 +59,13 @@ var aksClusterName = split(aksClusterResourceId, '/')[8]
 var dataCollectionRuleNameBase = 'dcr-ci-${nameSuffix}'
 var dataCollectionRuleName = substring(dataCollectionRuleNameBase, 0, min(64, length(dataCollectionRuleNameBase)))
 var dataCollectionRuleAssociationName = 'ContainerInsightsExtension'
+
+// Data Collection Endpoint for high-log-scale-mode (required for container network logs)
+var dataCollectionEndpointNameBase = 'dce-ci-${nameSuffix}'
+var dataCollectionEndpointName = substring(dataCollectionEndpointNameBase, 0, min(44, length(dataCollectionEndpointNameBase)))
+
+// Extract workspace location from workspace resource ID for DCE placement
+var workspaceLocation = location
 
 // Define stream collections based on preset
 var logsAndEventsStreams = [
@@ -81,10 +91,26 @@ var selectedStreams = dataCollectionPreset == 'LogsAndEvents'
   ? logsAndEventsStreams
   : dataCollectionPreset == 'All' ? allStreams : streams
 
+// Add container network logs stream when enabled
+// Stream "Microsoft-ContainerNetworkLogs" maps to the ContainerNetworkLogs LA table.
+var streamsWithNetworkLogs = enableContainerNetworkLogs
+  ? union(selectedStreams, ['Microsoft-ContainerNetworkLogs'])
+  : selectedStreams
+
 // Combine streams with KubeMonAgentEvents
-var streamWithKubeMonAgentEvents = union(selectedStreams, [
+var streamWithKubeMonAgentEvents = union(streamsWithNetworkLogs, [
   'Microsoft-KubeMonAgentEvents'
 ])
+
+// Data Collection Endpoint for high-log-scale-mode ingestion
+// Required when container network logs are enabled due to high log volume
+resource dataCollectionEndpoint 'Microsoft.Insights/dataCollectionEndpoints@2024-03-11' = if (enableContainerNetworkLogs) {
+  name: dataCollectionEndpointName
+  location: workspaceLocation
+  tags: tags
+  kind: 'Linux'
+  properties: {}
+}
 
 resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' = {
   name: dataCollectionRuleName
@@ -92,11 +118,12 @@ resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' 
   tags: tags
   kind: 'Linux'
   properties: {
+    dataCollectionEndpointId: enableContainerNetworkLogs ? dataCollectionEndpoint.id : null
     dataSources: {
       extensions: [
         {
           name: 'ContainerInsightsExtension'
-          streams: selectedStreams
+          streams: streamsWithNetworkLogs
           extensionSettings: {
             dataCollectionSettings: {
               interval: dataCollectionInterval

@@ -49,6 +49,9 @@ param enableChaosExperiments bool = true
 @description('Deploy Container Insights Data Collection Rule and Association')
 param enableContainerInsights bool = true
 
+@description('Enable container network logs collection in Container Insights (ACNS + Cilium required)')
+param enableContainerNetworkLogs bool = true
+
 @description('Action Group resource ID for alerts (optional, leave empty for lab use)')
 param actionGroupId string = ''
 
@@ -190,6 +193,7 @@ module aksCluster './modules/aks.bicep' = {
     skuName: aksSkuName
     nodeResourceGroupName: nodeResourceGroupName
     logAnalyticsWorkspaceId: azmonitorCore.outputs.logAnalyticsId
+    enableContainerNetworkLogs: enableContainerNetworkLogs
     actionGroupId: actionGroupId
   }
 }
@@ -242,6 +246,7 @@ module containerInsights './modules/azmonitor/container-insights.bicep' = if (en
     aksClusterResourceId: aksCluster.outputs.aksId
     logAnalyticsWorkspaceId: azmonitorCore.outputs.logAnalyticsId
     nameSuffix: '${appName}-${environment}'
+    enableContainerNetworkLogs: enableContainerNetworkLogs
   }
 }
 

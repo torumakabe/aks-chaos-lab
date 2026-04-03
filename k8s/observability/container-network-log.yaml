@@ -1,0 +1,36 @@
+apiVersion: acn.azure.com/v1alpha1
+kind: ContainerNetworkLog
+metadata:
+  name: chaos-lab-network-log
+  labels:
+    app.kubernetes.io/part-of: aks-chaos-lab
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  includefilters:
+    # Egress: chaos-app から外部への全フロー
+    - name: chaos-app-egress
+      from:
+        labelSelector:
+          matchLabels:
+            app: chaos-app
+      protocol:
+        - tcp
+        - udp
+        - dns
+      verdict:
+        - forwarded
+        - dropped
+    # Ingress: 外部から chaos-app への全フロー
+    - name: chaos-app-ingress
+      to:
+        labelSelector:
+          matchLabels:
+            app: chaos-app
+      protocol:
+        - tcp
+        - udp
+        - dns
+      verdict:
+        - forwarded
+        - dropped
