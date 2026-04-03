@@ -41,18 +41,8 @@ param namespacesForDataCollection array = []
 @description('Enable container network logs collection (ACNS + Cilium required)')
 param enableContainerNetworkLogs bool = false
 
-@description('Data streams to collect')
-param streams array = [
-  'Microsoft-ContainerLog'
-  'Microsoft-ContainerLogV2'
-  'Microsoft-KubeEvents'
-  'Microsoft-KubePodInventory'
-  'Microsoft-ContainerInventory'
-  'Microsoft-ContainerNodeInventory'
-  'Microsoft-KubeNodeInventory'
-  'Microsoft-InsightsMetrics'
-  'Microsoft-Perf'
-]
+@description('Data streams to collect (used when dataCollectionPreset is Custom)')
+param streams array
 
 // Extract cluster name from resource ID for naming
 var aksClusterName = split(aksClusterResourceId, '/')[8]

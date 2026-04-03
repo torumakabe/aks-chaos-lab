@@ -52,6 +52,25 @@ param enableContainerInsights bool = true
 @description('Enable container network logs collection in Container Insights (ACNS + Cilium required)')
 param enableContainerNetworkLogs bool = true
 
+@description('Container Insights data collection preset (All, LogsAndEvents, Custom)')
+@allowed([
+  'All'
+  'LogsAndEvents'
+  'Custom'
+])
+param containerInsightsPreset string = 'Custom'
+
+@description('Custom streams for Container Insights (used when containerInsightsPreset is Custom). ADR-003: Perf and InsightsMetrics excluded (covered by Managed Prometheus).')
+param containerInsightsStreams array = [
+  'Microsoft-ContainerLog'
+  'Microsoft-ContainerLogV2'
+  'Microsoft-KubeEvents'
+  'Microsoft-KubePodInventory'
+  'Microsoft-ContainerInventory'
+  'Microsoft-ContainerNodeInventory'
+  'Microsoft-KubeNodeInventory'
+]
+
 @description('Action Group resource ID for alerts (optional, leave empty for lab use)')
 param actionGroupId string = ''
 
@@ -247,6 +266,8 @@ module containerInsights './modules/azmonitor/container-insights.bicep' = if (en
     logAnalyticsWorkspaceId: azmonitorCore.outputs.logAnalyticsId
     nameSuffix: '${appName}-${environment}'
     enableContainerNetworkLogs: enableContainerNetworkLogs
+    dataCollectionPreset: containerInsightsPreset
+    streams: containerInsightsStreams
   }
 }
 
