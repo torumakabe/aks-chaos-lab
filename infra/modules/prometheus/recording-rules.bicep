@@ -180,8 +180,9 @@ resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRule
   }
 }
 
-// App SLO recording rules (アプリ層 Prometheus メトリクス)
-// FastAPI アプリが /metrics エンドポイントで公開する app_http_requests_total, app_http_request_duration_seconds を使用
+// App SLO recording rules (Gateway 層 Envoy メトリクス)
+// approuting-istio Gateway の Envoy が公開する envoy_cluster_* メトリクスを使用
+// proxyStatsMatcher を infrastructure.parametersRef の ConfigMap で設定し、リコンサイルに耐える構成
 
 resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
   name: appSloRecordingRuleGroupName
@@ -194,20 +195,20 @@ resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGrou
     interval: 'PT1M'
     rules: [
       {
-        record: 'app:http_request_duration:p95'
-        expression: 'histogram_quantile(0.95, sum by (le) (rate(app_http_request_duration_seconds_bucket[5m])))'
+        record: 'gateway:chaos_app:http_request_duration:p95'
+        expression: 'histogram_quantile(0.95, sum by (le) (rate(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))) / 1000'
       }
       {
-        record: 'app:http_error_rate:ratio'
-        expression: 'sum(rate(app_http_requests_total{status=~"5.."}[5m])) / sum(rate(app_http_requests_total[5m]))'
+        record: 'gateway:chaos_app:http_error_rate:ratio'
+        expression: 'sum(rate(envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}[5m])) / sum(rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))'
       }
       {
-        record: 'app:http_request_rate'
-        expression: 'sum(rate(app_http_requests_total[5m]))'
+        record: 'gateway:chaos_app:http_request_rate'
+        expression: 'sum(rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))'
       }
       {
-        record: 'app:http_request_total'
-        expression: 'sum(app_http_requests_total)'
+        record: 'gateway:chaos_app:http_request_total'
+        expression: 'sum(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"})'
       }
     ]
   }

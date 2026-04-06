@@ -796,18 +796,18 @@ resource appSloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
     alertRuleCreatedWithAlertsRecommendations: 'true'
   })
   properties: {
-    description: 'アプリ層メトリクスベースの SLO アラート'
+    description: 'Gateway 層 Envoy メトリクスベースの SLO アラート'
     scopes: [prometheusWorkspaceId, aksId]
     clusterName: split(aksId, '/')[8]
     enabled: true
     interval: 'PT1M'
     rules: [
       {
-        alert: 'AppSLOLatencyP95High'
-        expression: 'app:http_request_duration:p95 > 1'
+        alert: 'ChaosAppSLOLatencyP95High'
+        expression: 'gateway:chaos_app:http_request_duration:p95 > 1'
         for: 'PT5M'
         annotations: {
-          description: 'アプリの p95 レイテンシが 1s を超過。'
+          description: 'chaos-app の p95 レイテンシが 1s を超過。'
         }
         enabled: true
         severity: 2
@@ -828,11 +828,11 @@ resource appSloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
           : []
       }
       {
-        alert: 'AppSLOErrorRateHigh'
-        expression: 'app:http_error_rate:ratio > 0.01'
+        alert: 'ChaosAppSLOErrorRateHigh'
+        expression: 'gateway:chaos_app:http_error_rate:ratio > 0.01'
         for: 'PT5M'
         annotations: {
-          description: 'アプリのエラー率が 1% を超過。'
+          description: 'chaos-app のエラー率が 1% を超過。'
         }
         enabled: true
         severity: 2

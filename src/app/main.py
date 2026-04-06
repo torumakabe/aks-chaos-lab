@@ -14,7 +14,6 @@ from fastapi.responses import JSONResponse
 from opentelemetry import trace
 
 from app.config import Settings
-from app.metrics import setup_metrics
 from app.models import ErrorResponse, HealthResponse, MainResponse
 from app.redis_client import RedisClient
 from app.telemetry import record_span_error, setup_telemetry
@@ -162,10 +161,6 @@ async def request_id_middleware(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Request-ID"] = req_id
     return response
-
-
-# Prometheus メトリクス: request_id_middleware の外側で計測
-setup_metrics(app)
 
 
 @app.exception_handler(Exception)

@@ -27,10 +27,6 @@ spec:
         app.kubernetes.io/component: api
         app.kubernetes.io/managed-by: kustomize
         app.kubernetes.io/version: "0.1.0"
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8000"
-        prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: chaos-app-sa
       terminationGracePeriodSeconds: 60
