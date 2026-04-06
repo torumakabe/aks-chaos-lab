@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted — メトリクス取得方式は ADR-004 で修正（Amends）
 
 ## Context
 

@@ -6,6 +6,7 @@ resources:
 - deployment.yaml
 - service.yaml
 - gateway.yaml
+- gateway-options-configmap.yaml
 - httproute.yaml
 - hpa.yaml
 - pdb.yaml
@@ -85,4 +86,4 @@ replacements:
 images:
 - name: placeholder
   newName: acr5dua5pkulsr3e.azurecr.io/aks-chaos-lab/api-eval
-  newTag: azd-deploy-1775021405
+  newTag: azd-deploy-1775467439
