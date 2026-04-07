@@ -52,6 +52,9 @@ param enableContainerInsights bool = true
 @description('Enable container network logs collection in Container Insights (ACNS + Cilium required)')
 param enableContainerNetworkLogs bool = true
 
+@description('Deploy AKS control plane diagnostic logs (AKSAuditAdmin, AKSControlPlane) with Basic table plan (ADR-005)')
+param enableAksDiagnostics bool = true
+
 @description('Container Insights data collection preset (All, LogsAndEvents, Custom)')
 @allowed([
   'All'
@@ -268,6 +271,16 @@ module containerInsights './modules/azmonitor/container-insights.bicep' = if (en
     enableContainerNetworkLogs: enableContainerNetworkLogs
     dataCollectionPreset: containerInsightsPreset
     streams: containerInsightsStreams
+  }
+}
+
+module aksDiagnostics './modules/azmonitor/aks-diagnostics.bicep' = if (enableAksDiagnostics) {
+  name: 'aksDiagnostics'
+  scope: resourceGroup
+  params: {
+    aksClusterName: aksCluster.outputs.aksNameOut
+    logAnalyticsWorkspaceId: azmonitorCore.outputs.logAnalyticsId
+    logAnalyticsWorkspaceName: azmonitorCore.outputs.logAnalyticsNameOut
   }
 }
 
