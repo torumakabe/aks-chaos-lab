@@ -13,8 +13,6 @@ def _test_settings() -> Settings:
     s.redis_enabled = False
     s.redis_host = None
     s.telemetry_enabled = False
-    s.applicationinsights_connection_string = None
-    s.appinsights_connection_string = None
     return s
 
 

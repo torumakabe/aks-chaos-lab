@@ -66,9 +66,9 @@ var aksCommonProperties = {
       }
     }
     appMonitoring: {
-      // Disabled by default to avoid double-instrumentation.
-      // Note: The chaos-app in this repository uses manual instrumentation (OpenTelemetry SDK).
-      // Flip to true only if you want AKS-managed auto-instrumentation instead.
+      // Auto-instrumentation is disabled. The chaos-app uses manual OTel SDK instrumentation
+      // with OTLP exporter. AKS Auto-Configuration (Instrumentation CRD) injects
+      // OTEL_EXPORTER_OTLP_ENDPOINT into pods via webhook.
       autoInstrumentation: {
         enabled: false
       }

@@ -27,6 +27,8 @@ spec:
         app.kubernetes.io/component: api
         app.kubernetes.io/managed-by: kustomize
         app.kubernetes.io/version: "0.1.0"
+      annotations:
+        instrumentation.opentelemetry.io/inject-configuration: "chaos-app-otel"
     spec:
       serviceAccountName: chaos-app-sa
       terminationGracePeriodSeconds: 60

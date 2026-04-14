@@ -13,6 +13,7 @@ resources:
 - networkpolicy.yaml
 - ciliumnetworkpolicy-egress-allowlist.yaml
 - addon-vpa.yaml
+- instrumentation.yaml
 
 configMapGenerator:
 - envs:
@@ -82,6 +83,18 @@ replacements:
       group: gateway.networking.k8s.io
       kind: Gateway
       name: chaos-app
+      namespace: chaos-lab
+- source:
+    fieldPath: data.APPLICATIONINSIGHTS_CONNECTION_STRING
+    kind: ConfigMap
+    name: app-config
+  targets:
+  - fieldPaths:
+    - spec.destination.applicationInsightsConnectionString
+    select:
+      group: monitor.azure.com
+      kind: Instrumentation
+      name: chaos-app-otel
       namespace: chaos-lab
 images:
 - name: placeholder

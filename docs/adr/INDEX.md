@@ -7,3 +7,4 @@
 | 003 | [Container Insights データ収集プリセットの Custom 化](003-container-insights-custom-preset.md) | Accepted | 2026-04-03 |
 | 004 | [Envoy Gateway メトリクスによる SLO 監視](004-envoy-gateway-metrics-for-slo.md) | Accepted | 2026-04-04 |
 | 005 | [AKS 診断ログの Basic テーブル収集](005-aks-diagnostics-basic-logs.md) | Accepted | 2026-04-07 |
+| 006 | [Application Insights OTLP 統合とベンダー非依存 OTel 計装への移行](006-otlp-vendor-neutral-otel.md) | Accepted | 2026-07-22 |

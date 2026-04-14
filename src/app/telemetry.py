@@ -4,12 +4,29 @@ from contextlib import suppress
 from threading import Lock
 from typing import Any
 
-from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry import metrics, trace
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics._internal.instrument import (
+    Counter,
+    Histogram,
+    ObservableCounter,
+    ObservableGauge,
+    ObservableUpDownCounter,
+    UpDownCounter,
+)
+from opentelemetry.sdk.metrics.export import (
+    AggregationTemporality,
+    PeriodicExportingMetricReader,
+)
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
 from opentelemetry.trace import Status, StatusCode
 
 logger = logging.getLogger(__name__)
@@ -45,18 +62,24 @@ _setup_once = _Once()
 _instrumentation_once = _Once()
 
 
-def setup_telemetry(app: Any, connection_string: str | None = None) -> None:
-    """Configure Azure Monitor OpenTelemetry and instrumentation.
+def setup_telemetry(app: Any) -> None:
+    """Configure vendor-neutral OpenTelemetry with OTLP exporter.
 
-    - Respects TELEMETRY_* settings and APPLICATIONINSIGHTS_CONNECTION_STRING
-    - Configures sampling via OTEL_* env vars when sampling_rate < 1.0
+    - Respects TELEMETRY_ENABLED setting
+    - OTLP endpoint is configured via OTEL_EXPORTER_OTLP_ENDPOINT env var
+      (auto-injected by AKS Instrumentation CRD, or set manually)
+    - Sampling is configured via OTEL_TRACES_SAMPLER / OTEL_TRACES_SAMPLER_ARG
+      env vars, with fallback to TELEMETRY_SAMPLING_RATE setting
     - Instruments FastAPI (excludes health), Redis, and logging
     - Uses Once pattern to prevent duplicate initialization (thread-safe)
     """
 
+    # Execute core setup once; track whether telemetry was actually enabled
+    _telemetry_active = False
+
     def _setup_core():
         """Core setup function executed only once."""
-        # Lazy import to avoid circular dependency
+        nonlocal _telemetry_active
         from app.config import Settings
 
         settings = Settings()
@@ -64,42 +87,58 @@ def setup_telemetry(app: Any, connection_string: str | None = None) -> None:
             logger.info("Telemetry disabled via TELEMETRY_ENABLED")
             return
 
-        conn = (
-            connection_string
-            or settings.applicationinsights_connection_string
-            or settings.appinsights_connection_string
-            or os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING")
-        )
-        if not conn:
-            logger.info("No APPLICATIONINSIGHTS_CONNECTION_STRING; telemetry disabled")
+        # Skip if no OTLP endpoint is configured (local dev without collector)
+        endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+        if not endpoint:
+            logger.info("No OTEL_EXPORTER_OTLP_ENDPOINT; telemetry disabled")
             return
 
         try:
-            # Standard resource attributes
             resource = Resource.create(
-                {"service.name": "app", "service.version": "0.1.0"}
+                {"service.name": "chaos-app", "service.version": "0.1.0"}
             )
 
-            # Configure trace sampling via standard OTEL env vars
-            sampling_rate = float(settings.telemetry_sampling_rate or 1.0)
-            if sampling_rate < 1.0:
-                os.environ["OTEL_TRACES_SAMPLER"] = "traceidratio"
-                os.environ["OTEL_TRACES_SAMPLER_ARG"] = str(sampling_rate)
+            # Sampling: prefer OTEL_TRACES_SAMPLER env var (set by AKS auto-config),
+            # fall back to TELEMETRY_SAMPLING_RATE setting
+            sampler = None
+            if not os.getenv("OTEL_TRACES_SAMPLER"):
+                sampling_rate = float(settings.telemetry_sampling_rate or 1.0)
+                if sampling_rate < 1.0:
+                    sampler = TraceIdRatioBased(sampling_rate)
 
-            # Configure Azure Monitor exporter
-            # Disable psycopg2 instrumentation as we don't use PostgreSQL
-            configure_azure_monitor(
-                connection_string=conn,
-                resource=resource,
-                instrumentation_options={"psycopg2": {"enabled": False}},
+            # TracerProvider with OTLP/HTTP exporter (binary Protobuf)
+            provider_kwargs: dict[str, Any] = {"resource": resource}
+            if sampler is not None:
+                provider_kwargs["sampler"] = sampler
+            tracer_provider = TracerProvider(**provider_kwargs)
+            tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+            trace.set_tracer_provider(tracer_provider)
+
+            # MeterProvider with OTLP/HTTP exporter
+            # Delta temporality required for Application Insights OTLP
+            metric_reader = PeriodicExportingMetricReader(
+                OTLPMetricExporter(
+                    preferred_temporality={
+                        Counter: AggregationTemporality.DELTA,
+                        UpDownCounter: AggregationTemporality.DELTA,
+                        Histogram: AggregationTemporality.DELTA,
+                        ObservableCounter: AggregationTemporality.DELTA,
+                        ObservableUpDownCounter: AggregationTemporality.DELTA,
+                        ObservableGauge: AggregationTemporality.DELTA,
+                    }
+                )
             )
+            meter_provider = MeterProvider(
+                resource=resource, metric_readers=[metric_reader]
+            )
+            metrics.set_meter_provider(meter_provider)
 
-            # Initialize globals
             global _meter, _tracer
             _meter = metrics.get_meter("aks-chaos-lab", "0.1.0")
             _tracer = trace.get_tracer("aks-chaos-lab", "0.1.0")
 
-            logger.info("Telemetry configured (Azure Monitor + OTel)")
+            logger.info("Telemetry configured (OTel SDK + OTLP exporter)")
+            _telemetry_active = True
         except Exception as e:  # noqa: BLE001
             logger.error("Failed to configure telemetry: %s", e)
 
@@ -123,12 +162,13 @@ def setup_telemetry(app: Any, connection_string: str | None = None) -> None:
     else:
         logger.debug("Telemetry already configured, skipping duplicate initialization")
 
-    # Execute instrumentation once
-    was_executed = _instrumentation_once.do_once(_setup_instrumentation)
-    if was_executed:
-        logger.debug("Instrumentation setup executed")
-    else:
-        logger.debug("Instrumentation already configured, skipping duplicate setup")
+    # Execute instrumentation only if telemetry was actually enabled
+    if _telemetry_active:
+        was_executed = _instrumentation_once.do_once(_setup_instrumentation)
+        if was_executed:
+            logger.debug("Instrumentation setup executed")
+        else:
+            logger.debug("Instrumentation already configured, skipping duplicate setup")
 
 
 def record_span_error(exc: Exception) -> None:
