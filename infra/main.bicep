@@ -106,6 +106,7 @@ var containerRegistryName = '${abbrs.containerRegistryRegistries}${resourceToken
 var logAnalyticsWorkspaceName = '${abbrs.operationalInsightsWorkspaces}${appName}-${environment}'
 var applicationInsightsName = '${abbrs.insightsComponents}${appName}-${environment}'
 var azureMonitorWorkspaceName = 'amw-${appName}-${environment}'
+var appAzureMonitorWorkspaceName = 'amw-app-${appName}-${environment}'
 var redisEnterpriseName = '${abbrs.cacheRedis}${resourceToken}'
 var chaosAppIdentityName = '${abbrs.managedIdentityUserAssignedIdentities}${appName}-chaos-app-${environment}'
 var nodeResourceGroupName = '${resourceGroupName}-node'
@@ -137,6 +138,7 @@ module azmonitorCore './modules/azmonitor/core.bicep' = {
     tags: tags
     logAnalyticsName: logAnalyticsWorkspaceName
     applicationInsightsName: applicationInsightsName
+    appAzureMonitorWorkspaceName: appAzureMonitorWorkspaceName
   }
 }
 
@@ -281,6 +283,15 @@ module aksDiagnostics './modules/azmonitor/aks-diagnostics.bicep' = if (enableAk
     aksClusterName: aksCluster.outputs.aksNameOut
     logAnalyticsWorkspaceId: azmonitorCore.outputs.logAnalyticsId
     logAnalyticsWorkspaceName: azmonitorCore.outputs.logAnalyticsNameOut
+  }
+}
+
+module otlpDcra './modules/azmonitor/otlp-dcra.bicep' = {
+  name: 'otlpDcra'
+  scope: resourceGroup
+  params: {
+    aksClusterResourceId: aksCluster.outputs.aksId
+    dataCollectionRuleId: azmonitorCore.outputs.applicationInsightsDataCollectionRuleId
   }
 }
 

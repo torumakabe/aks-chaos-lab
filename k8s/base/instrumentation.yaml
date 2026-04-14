@@ -1,0 +1,13 @@
+# AKS Auto-Configuration: injects OTEL_EXPORTER_OTLP_ENDPOINT into annotated pods.
+# App uses standard OTel SDK to read the env var — no vendor-specific SDK needed.
+# autoInstrumentationPlatforms is empty: we use manual instrumentation, not auto-instrumentation.
+apiVersion: monitor.azure.com/v1
+kind: Instrumentation
+metadata:
+  name: chaos-app-otel
+  namespace: chaos-lab
+spec:
+  settings:
+    autoInstrumentationPlatforms: []
+  destination:
+    applicationInsightsConnectionString: "PLACEHOLDER"

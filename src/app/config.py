@@ -43,13 +43,8 @@ class Settings(BaseSettings):
     azure_client_id: str | None = get_azd_env_value("AZURE_CLIENT_ID", None)
 
     # Telemetry
-    # Keep both names for compatibility
-    appinsights_connection_string: str | None = Field(
-        default=None, alias="APPLICATIONINSIGHTS_CONNECTION_STRING"
-    )
-    applicationinsights_connection_string: str | None = get_azd_env_value(
-        "APPLICATIONINSIGHTS_CONNECTION_STRING", None
-    )
+    # OTLP endpoint is configured via OTEL_EXPORTER_OTLP_ENDPOINT env var
+    # (auto-injected by AKS Instrumentation CRD or set manually)
     telemetry_enabled: bool = Field(True, alias="TELEMETRY_ENABLED")
     custom_metrics_enabled: bool = Field(True, alias="CUSTOM_METRICS_ENABLED")
     telemetry_sampling_rate: float = Field(0.1, alias="TELEMETRY_SAMPLING_RATE")

@@ -27,7 +27,16 @@ spec:
         app.kubernetes.io/component: api
         app.kubernetes.io/managed-by: kustomize
         app.kubernetes.io/version: "0.1.0"
+      annotations:
+        instrumentation.opentelemetry.io/inject-configuration: "chaos-app-otel"
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: chaos-app
       serviceAccountName: chaos-app-sa
       terminationGracePeriodSeconds: 60
       securityContext:

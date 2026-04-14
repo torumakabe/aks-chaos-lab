@@ -14,8 +14,6 @@ def _redis_enabled_settings() -> Settings:
     s.redis_enabled = True
     s.redis_host = "test-host"
     s.telemetry_enabled = False
-    s.applicationinsights_connection_string = None
-    s.appinsights_connection_string = None
     return s
 
 

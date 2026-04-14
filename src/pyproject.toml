@@ -10,7 +10,8 @@ dependencies = [
   "azure-identity>=1.24.0",
   "redis-entraid>=1.1.0",
   "aiohttp>=3.13.3",
-  "azure-monitor-opentelemetry>=1.8.6",
+  "opentelemetry-sdk>=1.35.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.35.0",
   "opentelemetry-instrumentation-redis>=0.60b0",
   "opentelemetry-instrumentation-logging>=0.60b0",
   "opentelemetry-instrumentation-fastapi>=0.60b0",
@@ -81,7 +82,6 @@ asyncio_mode = "auto"
 markers = ["e2e: marks tests as end-to-end tests"]
 env = [
   "TELEMETRY_ENABLED=false",
-  "APPLICATIONINSIGHTS_CONNECTION_STRING=",
   "REDIS_ENABLED=false",
 ]
 

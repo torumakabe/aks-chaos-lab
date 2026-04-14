@@ -30,10 +30,6 @@ spec:
             dns:
               # Limit DNS lookups to necessary targets
               - matchPattern: "*.*.redis.azure.net"
-              - matchPattern: "*.in.applicationinsights.azure.com"
-              - matchPattern: "*.livediagnostics.monitor.azure.com"
-              - matchName: "dc.services.visualstudio.com"
-              - matchName: "live.applicationinsights.azure.com"
               - matchName: "login.microsoftonline.com"
     # Allow DNS queries to Chaos Mesh DNS (chaos-mesh-dns-server)
     # Note: L7 DNS filters are intentionally omitted to ensure queries reach Chaos DNS.
@@ -102,12 +98,21 @@ spec:
         - ports:
             - port: "10000"
               protocol: TCP
-    # Allow egress to Application Insights ingestion and live diagnostics endpoints
+    # Allow egress to AKS OTLP Collector Pods for telemetry export
+    # hostPort DNAT causes Cilium to see Pod-to-Pod traffic (not host entity),
+    # so we target the actual collector Pods by label instead of toEntities: host.
+    # Port is not specified because containerPort varies across AKS SKU modes
+    # (e.g., Base vs Automatic) and may change with AKS updates.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:component: ama-logs-agent
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:dsName: ama-metrics-node
+    # Allow egress to Azure Entra ID for Workload Identity token acquisition
     - toFQDNs:
-        - matchPattern: "*.in.applicationinsights.azure.com"
-        - matchPattern: "*.livediagnostics.monitor.azure.com"
-        - matchName: "dc.services.visualstudio.com"
-        - matchName: "live.applicationinsights.azure.com"
         - matchName: "login.microsoftonline.com"
       toPorts:
         - ports:
