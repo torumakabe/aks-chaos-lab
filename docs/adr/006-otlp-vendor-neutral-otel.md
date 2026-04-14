@@ -60,9 +60,10 @@ OTLP インジェストを有効にするには、以下の 3 リソースを Bi
 OTLP 移行により、テレメトリ経路がアプリ → App Insights（直接）からアプリ → AKS OTel Collector（クラスタ内）に変わった:
 
 - **削除**: App Insights 直接 egress ルール（`toFQDNs` の `*.in.applicationinsights.azure.com` 等）と関連 DNS allowlist
-- **追加**: AKS OTel Collector Pod への egress（Pod ラベルで特定）
-  - `ama-logs`（traces/logs）: `k8s:component: ama-logs-agent` → containerPort 4319
-  - `ama-metrics-node`（metrics）: `k8s:dsName: ama-metrics-node` → containerPort 56681
+- **追加**: AKS OTel Collector Pod への egress（Pod ラベルで特定、ポート指定なし）
+  - `ama-logs`（traces/logs）: `k8s:component: ama-logs-agent`
+  - `ama-metrics-node`（metrics）: `k8s:dsName: ama-metrics-node`
+  - ポートは AKS SKU モード（Base/Automatic）やバージョンで変わりうるため指定しない
 - **維持**: `login.microsoftonline.com`（Azure Identity SDK が直接通信）
 - **学び**: `toEntities: host` は hostPort DNAT トラフィックに効かない。Cilium BPF は DNAT 後の Pod-to-Pod トラフィックを見るため、実際のコレクター Pod をラベルで指定する必要がある
 

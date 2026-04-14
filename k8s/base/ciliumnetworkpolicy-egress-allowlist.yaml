@@ -101,24 +101,16 @@ spec:
     # Allow egress to AKS OTLP Collector Pods for telemetry export
     # hostPort DNAT causes Cilium to see Pod-to-Pod traffic (not host entity),
     # so we target the actual collector Pods by label instead of toEntities: host.
-    # ama-logs (traces/logs): hostPort 28331 → containerPort 4319
+    # Port is not specified because containerPort varies across AKS SKU modes
+    # (e.g., Base vs Automatic) and may change with AKS updates.
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
             k8s:component: ama-logs-agent
-      toPorts:
-        - ports:
-            - port: "4319"
-              protocol: TCP
-    # ama-metrics-node (metrics): hostPort 28333 → containerPort 56681
     - toEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: kube-system
             k8s:dsName: ama-metrics-node
-      toPorts:
-        - ports:
-            - port: "56681"
-              protocol: TCP
     # Allow egress to Azure Entra ID for Workload Identity token acquisition
     - toFQDNs:
         - matchName: "login.microsoftonline.com"
