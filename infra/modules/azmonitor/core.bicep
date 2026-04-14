@@ -6,6 +6,8 @@ param tags object
 param logAnalyticsName string
 @description('App Insights name')
 param applicationInsightsName string
+@description('Azure Monitor Workspace name for app OTLP telemetry (separate from Prometheus AMW)')
+param appAzureMonitorWorkspaceName string
 
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-07-01' = {
   name: logAnalyticsName
@@ -24,7 +26,18 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-07
   }
 }
 
-resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
+// Azure Monitor Workspace for app OTLP telemetry
+// Must be separate from Prometheus AMW per OTLP App Insights requirements
+resource appAzureMonitorWorkspace 'Microsoft.Monitor/accounts@2023-04-03' = {
+  name: appAzureMonitorWorkspaceName
+  location: location
+  tags: tags
+}
+
+// App Insights with OTLP ingestion enabled via AKS Auto-Configuration (ADR-006)
+// Preview API required for AzureMonitorWorkspaceIngestionMode property
+#disable-next-line BCP081
+resource applicationInsights 'Microsoft.Insights/components@2025-01-23-preview' = {
   name: applicationInsightsName
   location: location
   kind: 'web'
@@ -33,6 +46,8 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
     Application_Type: 'web'
     WorkspaceResourceId: logAnalyticsWorkspace.id
     IngestionMode: 'LogAnalytics'
+    AzureMonitorWorkspaceIngestionMode: 'OptedIn'
+    AzureMonitorWorkspaceResourceId: appAzureMonitorWorkspace.id
   }
 }
 
@@ -41,3 +56,5 @@ output logAnalyticsNameOut string = logAnalyticsWorkspace.name
 output applicationInsightsId string = applicationInsights.id
 output applicationInsightsNameOut string = applicationInsights.name
 output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
+#disable-next-line BCP081
+output applicationInsightsDataCollectionRuleId string = applicationInsights.properties.DataCollectionRuleResourceId

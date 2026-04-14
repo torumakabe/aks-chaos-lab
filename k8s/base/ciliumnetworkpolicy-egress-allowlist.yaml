@@ -30,10 +30,6 @@ spec:
             dns:
               # Limit DNS lookups to necessary targets
               - matchPattern: "*.*.redis.azure.net"
-              - matchPattern: "*.in.applicationinsights.azure.com"
-              - matchPattern: "*.livediagnostics.monitor.azure.com"
-              - matchName: "dc.services.visualstudio.com"
-              - matchName: "live.applicationinsights.azure.com"
               - matchName: "login.microsoftonline.com"
     # Allow DNS queries to Chaos Mesh DNS (chaos-mesh-dns-server)
     # Note: L7 DNS filters are intentionally omitted to ensure queries reach Chaos DNS.
@@ -102,23 +98,29 @@ spec:
         - ports:
             - port: "10000"
               protocol: TCP
-    # Allow egress to AKS OTLP Collector on node (host) for telemetry export
-    # The app-monitoring-webhook injects OTEL_ENDPOINT_NODE_IP (= status.hostIP)
-    # Traces/Logs: port 28331, Metrics: port 28333
-    - toEntities:
-        - host
+    # Allow egress to AKS OTLP Collector Pods for telemetry export
+    # hostPort DNAT causes Cilium to see Pod-to-Pod traffic (not host entity),
+    # so we target the actual collector Pods by label instead of toEntities: host.
+    # ama-logs (traces/logs): hostPort 28331 → containerPort 4319
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:component: ama-logs-agent
       toPorts:
         - ports:
-            - port: "28331"
+            - port: "4319"
               protocol: TCP
-            - port: "28333"
+    # ama-metrics-node (metrics): hostPort 28333 → containerPort 56681
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:dsName: ama-metrics-node
+      toPorts:
+        - ports:
+            - port: "56681"
               protocol: TCP
-    # Allow egress to Application Insights ingestion and live diagnostics endpoints
+    # Allow egress to Azure Entra ID for Workload Identity token acquisition
     - toFQDNs:
-        - matchPattern: "*.in.applicationinsights.azure.com"
-        - matchPattern: "*.livediagnostics.monitor.azure.com"
-        - matchName: "dc.services.visualstudio.com"
-        - matchName: "live.applicationinsights.azure.com"
         - matchName: "login.microsoftonline.com"
       toPorts:
         - ports:
