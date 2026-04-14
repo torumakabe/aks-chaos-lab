@@ -66,11 +66,13 @@ var aksCommonProperties = {
       }
     }
     appMonitoring: {
-      // Auto-instrumentation is disabled. The chaos-app uses manual OTel SDK instrumentation
-      // with OTLP exporter. AKS Auto-Configuration (Instrumentation CRD) injects
-      // OTEL_EXPORTER_OTLP_ENDPOINT into pods via webhook.
+      // autoInstrumentation.enabled installs the Instrumentation CRD operator and webhook.
+      // This does NOT auto-inject SDKs — that is controlled by autoInstrumentationPlatforms
+      // in the Instrumentation CR (set to [] for auto-configuration mode).
+      // The chaos-app uses manual OTel SDK instrumentation with OTLP exporter.
+      // AKS Auto-Configuration injects OTEL_EXPORTER_OTLP_ENDPOINT into annotated pods.
       autoInstrumentation: {
-        enabled: false
+        enabled: true
       }
       openTelemetryLogs: {
         enabled: true
