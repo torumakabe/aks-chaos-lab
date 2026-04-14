@@ -114,5 +114,5 @@ jobs:
         run: |
           kubeconform -strict -summary \
             -kubernetes-version 1.33.0 \
-            -skip VerticalPodAutoscaler,CiliumNetworkPolicy,Kustomization,Gateway,HTTPRoute \
+            -skip VerticalPodAutoscaler,CiliumNetworkPolicy,Kustomization,Gateway,HTTPRoute,Instrumentation \
             k8s/base/*.yaml
