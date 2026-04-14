@@ -88,8 +88,12 @@ def setup_telemetry(app: Any) -> None:
             return
 
         # Skip if no OTLP endpoint is configured (local dev without collector)
-        endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-        if not endpoint:
+        # AKS auto-config injects per-signal endpoints (OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+        # OTEL_EXPORTER_OTLP_METRICS_ENDPOINT) rather than a single OTEL_EXPORTER_OTLP_ENDPOINT.
+        has_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") or os.getenv(
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+        )
+        if not has_endpoint:
             logger.info("No OTEL_EXPORTER_OTLP_ENDPOINT; telemetry disabled")
             return
 

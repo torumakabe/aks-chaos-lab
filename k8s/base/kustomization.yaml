@@ -99,4 +99,4 @@ replacements:
 images:
 - name: placeholder
   newName: acr5dua5pkulsr3e.azurecr.io/aks-chaos-lab/api-eval
-  newTag: azd-deploy-1776147558
+  newTag: azd-deploy-1776148619
