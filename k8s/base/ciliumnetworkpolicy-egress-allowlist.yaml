@@ -102,6 +102,17 @@ spec:
         - ports:
             - port: "10000"
               protocol: TCP
+    # Allow egress to AKS OTLP Collector on node (host) for telemetry export
+    # The app-monitoring-webhook injects OTEL_ENDPOINT_NODE_IP (= status.hostIP)
+    # Traces/Logs: port 28331, Metrics: port 28333
+    - toEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "28331"
+              protocol: TCP
+            - port: "28333"
+              protocol: TCP
     # Allow egress to Application Insights ingestion and live diagnostics endpoints
     - toFQDNs:
         - matchPattern: "*.in.applicationinsights.azure.com"
