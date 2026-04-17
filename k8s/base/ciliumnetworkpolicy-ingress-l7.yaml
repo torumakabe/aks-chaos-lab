@@ -1,0 +1,61 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: chaos-app-ingress-l7
+  namespace: chaos-lab
+  labels:
+    app.kubernetes.io/name: chaos-app
+    app.kubernetes.io/instance: chaos-app
+    app.kubernetes.io/part-of: aks-chaos-lab
+    app.kubernetes.io/component: networkpolicy
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: chaos-app
+  ingress:
+    # L7 HTTP visibility for traffic from Gateway API (App Routing Istio) Envoy proxy.
+    # Cilium proxies matching traffic through its Envoy, producing
+    # hubble_http_requests_total / hubble_http_request_duration_seconds series
+    # that populate the "Kubernetes / Networking / L7 Flows" Grafana dashboards.
+    - fromEndpoints:
+        - matchLabels:
+            gateway.networking.k8s.io/gateway-name: chaos-app
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/"
+              - method: "GET"
+                path: "/health"
+    # L7 visibility for Prometheus scrape from kube-system (ama-metrics).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/metrics"
+              - method: "GET"
+                path: "/health"
+    # Kubelet HTTP probes come from the node (host entity). Keep them explicit
+    # so L7 enforcement does not accidentally interfere with readiness/startup probes.
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/health"
