@@ -218,6 +218,7 @@ graph TD
 - Grafana ダッシュボード: Azure Portal の 対象AKS > Monitoring > Dashboards with Grafana から参照できます。
 - Container Insights: AMA + DCR（`azureMonitorProfile.containerInsights` と DCR/DCRA）によりコンテナログ/メトリクスを収集。
 - コンテナーネットワークログ: ACNS + Cilium の eBPF によるネットワークフローログ。`ContainerNetworkLog` CRD（`k8s/observability/container-network-log.yaml`）で対象 Pod・プロトコル・判定を指定し、DCR 経由で Log Analytics の `ContainerNetworkLogs` テーブルに収集。NetworkChaos / DNSChaos 実験時のフロー可視化に有用。
+- Cilium L7 HTTP メトリクス: ACNS の Advanced Network Policies を `L7` 化（`infra/modules/aks.bicep`）し、chaos-app 宛 ingress に `CiliumNetworkPolicy`（`k8s/base/ciliumnetworkpolicy-ingress-l7.yaml`）で HTTP rule を付与。Hubble が Envoy 経由で `hubble_http_requests_total` / `hubble_http_request_duration_seconds_*` を生成し、Azure Monitor の「Dashboards with Grafana」の **Kubernetes / Networking / L7 Flows (Namespace / Workload)** に描画される。詳細は [ADR-007](docs/adr/007-acns-l7-observability.md) を参照。
 
 
 ## 🔥 Chaos実験（Azure Chaos Studio）

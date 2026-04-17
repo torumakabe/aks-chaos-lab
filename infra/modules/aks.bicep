@@ -144,7 +144,7 @@ var aksBaseSpecificProperties = {
       }
       security: {
         enabled: true
-        advancedNetworkPolicies: 'FQDN'
+        advancedNetworkPolicies: 'L7'
       }
     }
   }
@@ -192,7 +192,7 @@ var aksAutomaticSpecificProperties = {
       }
       security: {
         enabled: true
-        advancedNetworkPolicies: 'FQDN'
+        advancedNetworkPolicies: 'L7'
       }
     }
   }
