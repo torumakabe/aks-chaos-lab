@@ -153,6 +153,8 @@ var aksBaseSpecificProperties = {
       name: 'default'
       vmSize: nodeVmSize
       mode: 'System'
+      // Pin node OS to Ubuntu 24.04 ahead of Ubuntu 22.04 retirement (ADR-008)
+      osSKU: 'Ubuntu2404'
       // Distribute nodes across availability zones (1/2/3 if region supports)
       availabilityZones: [
         '1'
