@@ -1024,7 +1024,11 @@ def get_azd_env_values() -> dict[str, str]:
 
 
 def detect_azd_project() -> tuple[bool, dict[str, str]]:
-    """azd プロジェクトかどうかを検出し、環境変数を返す。"""
+    """azd プロジェクトかどうかを検出し、環境変数を返す。
+
+    azure.yaml が存在し、かつ azd env get-values から値が取得できる場合のみ True。
+    azure.yaml だけ存在する状態 (azd 未インストール / env 未選択など) は False。
+    """
     if not os.path.exists("azure.yaml"):
         return False, {}
 
@@ -1035,13 +1039,234 @@ def detect_azd_project() -> tuple[bool, dict[str, str]]:
     return True, env_values
 
 
+def parse_azure_yaml_layers(yaml_path: str = "azure.yaml") -> list[dict[str, str]]:
+    """azure.yaml の infra.layers セクションを解析し [{name, path}] を返す。
+
+    PyYAML 等の追加依存を避け、行ベースの簡易パーサで実装する。
+    azd の典型構造 (indent 2 / 4 / 6) に対応。
+
+    対応する形式の例:
+        infra:
+          layers:
+            - name: base
+              path: ./infra
+            - name: sli
+              path: ./infra/sli
+
+    Returns:
+        name と path を持つ layer の辞書のリスト。layers セクションが
+        存在しない、または項目が不完全な場合は空リスト。
+        重複した name があった場合は最初に出現したものを採用しログに警告。
+    """
+
+    if not os.path.exists(yaml_path):
+        return []
+
+    def _strip_value(raw: str) -> str:
+        # inline comment 除去 (# が含まれる場合、quote 内でなければ削除)
+        s = raw.strip()
+        # quote されていない範囲の最初の # 以降を comment とみなす
+        in_single = False
+        in_double = False
+        cut = -1
+        for i, c in enumerate(s):
+            if c == "'" and not in_double:
+                in_single = not in_single
+            elif c == '"' and not in_single:
+                in_double = not in_double
+            elif c == "#" and not in_single and not in_double:
+                cut = i
+                break
+        if cut >= 0:
+            s = s[:cut].rstrip()
+        # 前後 quote 剥がし
+        if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
+            s = s[1:-1]
+        return s
+
+    layers: list[dict[str, str]] = []
+    in_infra = False
+    in_layers = False
+    current: dict[str, str] = {}
+
+    with open(yaml_path, encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.rstrip("\n")
+            stripped = line.strip()
+
+            # 空行 / コメント行はスキップ
+            if not stripped or stripped.startswith("#"):
+                continue
+
+            # トップレベルキー (indent 0)
+            if not line[0].isspace():
+                # 直前の項目を flush
+                if current:
+                    layers.append(current)
+                    current = {}
+                in_infra = stripped.startswith("infra:")
+                in_layers = False
+                continue
+
+            if not in_infra:
+                continue
+
+            # indent 2 のキー (infra 配下)
+            if line.startswith("  ") and not line.startswith("    "):
+                # infra 配下の別キーに移ったら layers セクションを抜ける
+                if current:
+                    layers.append(current)
+                    current = {}
+                in_layers = stripped.startswith("layers:")
+                continue
+
+            if not in_layers:
+                continue
+
+            # indent 4 のリスト項目開始 ("- key: value")
+            if line.startswith("    -") and not line.startswith("      "):
+                # 直前の項目を flush
+                if current:
+                    layers.append(current)
+                    current = {}
+                # "- key: value" を抽出
+                m = re.match(r"-\s+([A-Za-z_][\w-]*)\s*:\s*(.*)$", stripped)
+                if m:
+                    current[m.group(1)] = _strip_value(m.group(2))
+                continue
+
+            # indent 6 のフィールド ("key: value")
+            if line.startswith("      ") and not line.startswith("        "):
+                m = re.match(r"([A-Za-z_][\w-]*)\s*:\s*(.*)$", stripped)
+                if m:
+                    current[m.group(1)] = _strip_value(m.group(2))
+
+    # 最後の項目を flush
+    if current:
+        layers.append(current)
+
+    # name / path 両方を持つもののみ採用、重複は最初を採用
+    seen: set[str] = set()
+    result: list[dict[str, str]] = []
+    for layer in layers:
+        if "name" not in layer or "path" not in layer:
+            continue
+        if layer["name"] in seen:
+            logger.warning(
+                "Duplicate layer name %r in %s; keeping first occurrence",
+                layer["name"],
+                yaml_path,
+            )
+            continue
+        seen.add(layer["name"])
+        result.append({"name": layer["name"], "path": layer["path"]})
+
+    return result
+
+
+def get_bicep_param_names(template_path: str) -> set[str]:
+    """Bicep ファイルから param 宣言を抽出し、パラメータ名の集合を返す。
+
+    template が存在しない、または読めない場合は空集合。コメント内の
+    "param" は拾わないよう、行頭からの宣言のみ対象とする。
+    """
+
+    if not os.path.exists(template_path):
+        return set()
+
+    pattern = re.compile(r"^\s*param\s+([A-Za-z_][\w]*)\b")
+    names: set[str] = set()
+    try:
+        with open(template_path, encoding="utf-8") as f:
+            for line in f:
+                # コメント開始行はスキップ
+                if line.lstrip().startswith("//"):
+                    continue
+                m = pattern.match(line)
+                if m:
+                    names.add(m.group(1))
+    except OSError:
+        return set()
+    return names
+
+
+def resolve_parameters_file_placeholders(
+    parameters_file: str, env_values: dict[str, str]
+) -> dict[str, str]:
+    """parameters file (ARM JSON) の `${VAR}` / `${VAR:default}` を解決する。
+
+    azd は deployment 時に同形式のプレースホルダーを env 値で展開する。
+    az CLI 単独では展開しないため、本ヘルパーで明示的に解決し、
+    `--parameters key=value` の inline override として渡す想定。
+
+    対象:
+        - 文字列値かつ ${VAR} または ${VAR:default} 全体に一致するもの
+    対象外:
+        - bool / int / array / object などの非文字列値 (parameters file の値をそのまま使う)
+        - 文字列でも `${VAR}` を含まない literal (parameters file の値をそのまま使う)
+        - `${VAR}` が部分一致のみ (例: "prefix-${VAR}-suffix") は対象外。
+          (このリポでは未使用、必要になれば後日対応)
+
+    Returns:
+        {param_name: resolved_string_value}。env / default が無いプレースホルダーは
+        含めない (= file 側の literal がそのまま az CLI に渡される)。
+    """
+
+    if not os.path.exists(parameters_file):
+        return {}
+
+    try:
+        with open(parameters_file, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Failed to read parameters file %s: %s", parameters_file, exc)
+        return {}
+
+    parameters = data.get("parameters") or {}
+    if not isinstance(parameters, dict):
+        return {}
+
+    placeholder_re = re.compile(r"^\$\{([A-Za-z_][\w]*)(?::([^}]*))?\}$")
+    resolved: dict[str, str] = {}
+
+    for key, entry in parameters.items():
+        if not isinstance(entry, dict):
+            continue
+        value = entry.get("value")
+        if not isinstance(value, str):
+            continue
+        m = placeholder_re.match(value)
+        if not m:
+            continue
+        var_name = m.group(1)
+        default = m.group(2)
+        if var_name in env_values:
+            resolved[key] = env_values[var_name]
+        elif default is not None:
+            resolved[key] = default
+        # env / default いずれもなければ skip (file の literal がそのまま渡る)
+
+    return resolved
+
+
 def run_what_if(
     template: str,
     location: str,
     subscription: str | None = None,
     parameters: dict[str, Any] | None = None,
+    parameters_file: str | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """az deployment sub what-if を実行し、結果を返す。"""
+    """az deployment sub what-if を実行し、結果を返す。
+
+    parameters_file が指定された場合、`--parameters @<file>` を最初に追加し、
+    その後に `parameters` dict を `--parameters key=value` で追加する。
+    az CLI のパラメータ評価は順序通り後勝ちのため、inline override が file の値を上書きする。
+
+    extra_env が指定された場合、subprocess の環境にだけマージする
+    (グローバルな os.environ は変更しない)。
+    """
+
     cmd = [
         "az",
         "deployment",
@@ -1059,12 +1284,20 @@ def run_what_if(
     if subscription:
         cmd.extend(["--subscription", subscription])
 
+    if parameters_file:
+        cmd.extend(["--parameters", f"@{parameters_file}"])
+
     if parameters:
-        # パラメータを key=value 形式で渡す
+        # パラメータを key=value 形式で渡す (parameters_file の後 = 後勝ちで上書き)
         for key, value in parameters.items():
             cmd.extend(["--parameters", f"{key}={value}"])
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    env: dict[str, str] | None = None
+    if extra_env:
+        env = os.environ.copy()
+        env.update(extra_env)
+
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
     if result.returncode != 0:
         # エラーでも JSON が返る場合がある
@@ -1785,6 +2018,19 @@ def main() -> int:
         help="出力フォーマット (デフォルト: text は azd 風, json)",
     )
     parser.add_argument(
+        "--layer",
+        help=(
+            "azure.yaml の infra.layers から layer 名を指定し、template と "
+            "main.parameters.json を自動解決する (例: --layer sli)。"
+            "azure.yaml がない場合はエラー。"
+        ),
+    )
+    parser.add_argument(
+        "--list-layers",
+        action="store_true",
+        help="azure.yaml の infra.layers を一覧表示して終了する。",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -1796,7 +2042,22 @@ def main() -> int:
     # ロギング設定
     setup_logging(verbose=args.verbose)
 
-    # azd プロジェクト検出
+    # azure.yaml の有無と layer 一覧 (azd env がなくても読める)
+    has_azure_yaml = os.path.exists("azure.yaml")
+    layers = parse_azure_yaml_layers("azure.yaml") if has_azure_yaml else []
+
+    # --list-layers は azd env に依存せず処理
+    if args.list_layers:
+        if not layers:
+            logger.error(
+                "No infra.layers found in azure.yaml (or azure.yaml is missing)"
+            )
+            return 1
+        for layer in layers:
+            print(f"{layer['name']}\t{layer['path']}")
+        return 0
+
+    # azd プロジェクト検出 (env 値が必要なら別途 azd env get-values を試行)
     is_azd = False
     azd_values: dict[str, str] = {}
     if not args.no_azd:
@@ -1807,35 +2068,77 @@ def main() -> int:
     location = args.location
     subscription = args.subscription
     parameters: dict[str, Any] = {}
+    parameters_file: str | None = None
+
+    # --layer 指定時: azure.yaml から template / parameters file を解決
+    if args.layer:
+        if not has_azure_yaml:
+            logger.error("--layer requires azure.yaml in the current directory")
+            return 1
+        match = next((layer for layer in layers if layer["name"] == args.layer), None)
+        if match is None:
+            available = ", ".join(layer["name"] for layer in layers) or "(none)"
+            logger.error(
+                "Layer %r not found in azure.yaml. Available layers: %s",
+                args.layer,
+                available,
+            )
+            return 1
+        layer_root = (Path("azure.yaml").parent / match["path"]).resolve()
+        if not args.template:
+            template = str(layer_root / "main.bicep")
+        candidate = layer_root / "main.parameters.json"
+        if candidate.exists():
+            parameters_file = str(candidate)
 
     if is_azd:
-        template = template or "./infra/main.bicep"
+        # 明示的な --template / --layer がなければ base layer (= ./infra/main.bicep)
+        if not template:
+            template = "./infra/main.bicep"
+            # multi-layer リポでの混乱を避けるため stderr に hint
+            if len(layers) > 1 and not args.template:
+                logger.warning(
+                    "Multiple infra.layers found in azure.yaml (%s). "
+                    "Defaulting to %s. Use --layer <name> for other layers "
+                    "(--list-layers to see all).",
+                    ", ".join(layer["name"] for layer in layers),
+                    template,
+                )
         location = location or azd_values.get("AZURE_LOCATION", "")
         subscription = subscription or azd_values.get("AZURE_SUBSCRIPTION_ID", "")
-
-        # azd 環境変数をパラメータに変換
-        # environment パラメータ（AZURE_ENV_NAME から）
-        if "AZURE_ENV_NAME" in azd_values:
-            parameters["environment"] = azd_values["AZURE_ENV_NAME"]
-        if "AZURE_LOCATION" in azd_values:
-            parameters["location"] = azd_values["AZURE_LOCATION"]
     else:
         template = template or "./main.bicep"
 
-    # コマンドライン引数のパラメータを追加
+    # 必須チェック (template) を auto-inject の前に行う
+    if not template:
+        logger.error("--template is required")
+        return 1
+    if not os.path.exists(template):
+        logger.error("Template file not found: %s", template)
+        return 1
+
+    # parameters file 内の placeholder を解決して inline override に追加
+    # (file 自体は --parameters @file で先に渡すが、placeholder 文字列を az CLI が解決しないため)
+    if parameters_file and azd_values:
+        resolved = resolve_parameters_file_placeholders(parameters_file, azd_values)
+        for key, value in resolved.items():
+            parameters.setdefault(key, value)
+
+    # azd 由来の自動 inject は template が当該 param を宣言している場合のみ
+    if is_azd:
+        param_names = get_bicep_param_names(template)
+        if "environment" in param_names and "AZURE_ENV_NAME" in azd_values:
+            parameters.setdefault("environment", azd_values["AZURE_ENV_NAME"])
+        if "location" in param_names and "AZURE_LOCATION" in azd_values:
+            parameters.setdefault("location", azd_values["AZURE_LOCATION"])
+
+    # コマンドライン引数のパラメータを追加 (CLI 明示指定が最優先で上書き)
     if args.parameter:
         for key, value in args.parameter:
             parameters[key] = value
 
-    # 必須チェック
-    if not template:
-        logger.error("--template is required")
-        return 1
     if not location:
         logger.error("--location is required")
-        return 1
-    if not os.path.exists(template):
-        logger.error("Template file not found: %s", template)
         return 1
 
     # what-if 実行
@@ -1845,6 +2148,7 @@ def main() -> int:
             location=location,
             subscription=subscription,
             parameters=parameters if parameters else None,
+            parameters_file=parameters_file,
         )
     except RuntimeError as e:
         logger.error("what-if failed: %s", e)

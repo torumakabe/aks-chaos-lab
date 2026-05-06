@@ -19,15 +19,19 @@ from what_if_analyzer import (
     DisplayConfigLoader,
     NoisePatternLoader,
     _extract_actual_provider_type,
+    contains_arm_reference,
     evaluate_property_change,
     extract_resource_changes,
     flatten_property_changes,
     format_azd_style_output,
+    get_bicep_param_names,
     get_reference_info,
     is_create_false_positive,
     is_main_resource,
     is_readonly_property,
-    contains_arm_reference,
+    parse_azure_yaml_layers,
+    resolve_parameters_file_placeholders,
+    run_what_if,
 )
 
 
@@ -718,6 +722,327 @@ class TestFormatAzdStyleOutputFalsePositive(unittest.TestCase):
         result = format_azd_style_output(output_data)
         self.assertIn("exp-aks-new", result)
         self.assertNotIn("非表示", result)
+
+
+class TestParseAzureYamlLayers(unittest.TestCase):
+    """parse_azure_yaml_layers のテスト"""
+
+    def _write_yaml(self, content: str) -> str:
+        f = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+        )
+        f.write(content)
+        f.close()
+        return f.name
+
+    def test_repo_format(self) -> None:
+        """本リポと同じ multi-layer 形式を解析できる"""
+        path = self._write_yaml(
+            "name: aks-chaos-lab\n"
+            "infra:\n"
+            "  layers:\n"
+            "    - name: base\n"
+            "      path: ./infra\n"
+            "    - name: sli\n"
+            "      path: ./infra/sli\n"
+            "\n"
+            "services:\n"
+            "  api:\n"
+            "    project: src\n"
+        )
+        layers = parse_azure_yaml_layers(path)
+        self.assertEqual(
+            layers,
+            [
+                {"name": "base", "path": "./infra"},
+                {"name": "sli", "path": "./infra/sli"},
+            ],
+        )
+
+    def test_no_layers_section(self) -> None:
+        """layers セクションがなければ空リスト"""
+        path = self._write_yaml("name: app\nservices:\n  api:\n    host: aks\n")
+        self.assertEqual(parse_azure_yaml_layers(path), [])
+
+    def test_missing_yaml(self) -> None:
+        """yaml が無ければ空リスト"""
+        self.assertEqual(parse_azure_yaml_layers("/no/such/file.yaml"), [])
+
+    def test_quoted_values_stripped(self) -> None:
+        """quote を剥がす"""
+        path = self._write_yaml(
+            "infra:\n"
+            "  layers:\n"
+            '    - name: "base"\n'
+            "      path: './infra'\n"
+        )
+        self.assertEqual(
+            parse_azure_yaml_layers(path), [{"name": "base", "path": "./infra"}]
+        )
+
+    def test_inline_comments_stripped(self) -> None:
+        """値の後ろの inline comment を除去する"""
+        path = self._write_yaml(
+            "infra:\n"
+            "  layers:\n"
+            "    - name: base  # primary layer\n"
+            "      path: ./infra\n"
+        )
+        self.assertEqual(
+            parse_azure_yaml_layers(path), [{"name": "base", "path": "./infra"}]
+        )
+
+    def test_path_first_then_name(self) -> None:
+        """- path: で項目が始まり次に name: の形式も解析できる"""
+        path = self._write_yaml(
+            "infra:\n"
+            "  layers:\n"
+            "    - path: ./infra/sli\n"
+            "      name: sli\n"
+        )
+        self.assertEqual(
+            parse_azure_yaml_layers(path), [{"name": "sli", "path": "./infra/sli"}]
+        )
+
+    def test_duplicate_name_keeps_first(self) -> None:
+        """重複した name は最初のものを採用する"""
+        path = self._write_yaml(
+            "infra:\n"
+            "  layers:\n"
+            "    - name: base\n"
+            "      path: ./infra\n"
+            "    - name: base\n"
+            "      path: ./infra/dup\n"
+        )
+        self.assertEqual(
+            parse_azure_yaml_layers(path), [{"name": "base", "path": "./infra"}]
+        )
+
+    def test_layer_without_path_excluded(self) -> None:
+        """name のみで path がない項目は除外される"""
+        path = self._write_yaml(
+            "infra:\n"
+            "  layers:\n"
+            "    - name: base\n"
+            "      path: ./infra\n"
+            "    - name: incomplete\n"
+        )
+        self.assertEqual(
+            parse_azure_yaml_layers(path), [{"name": "base", "path": "./infra"}]
+        )
+
+    def test_top_level_keys_after_layers(self) -> None:
+        """layers の後に来る他のトップレベルキーを誤って取り込まない"""
+        path = self._write_yaml(
+            "infra:\n"
+            "  layers:\n"
+            "    - name: base\n"
+            "      path: ./infra\n"
+            "workflows:\n"
+            "  up:\n"
+            "    steps:\n"
+            "      - azd: provision base\n"
+        )
+        self.assertEqual(
+            parse_azure_yaml_layers(path), [{"name": "base", "path": "./infra"}]
+        )
+
+    def test_other_infra_keys_after_layers(self) -> None:
+        """infra 配下の layers と同じ indent の別キーを誤って取り込まない"""
+        path = self._write_yaml(
+            "infra:\n"
+            "  provider: bicep\n"
+            "  layers:\n"
+            "    - name: base\n"
+            "      path: ./infra\n"
+            "  someOther: value\n"
+        )
+        self.assertEqual(
+            parse_azure_yaml_layers(path), [{"name": "base", "path": "./infra"}]
+        )
+
+
+class TestGetBicepParamNames(unittest.TestCase):
+    """get_bicep_param_names のテスト"""
+
+    def _write_bicep(self, content: str) -> str:
+        f = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".bicep", delete=False, encoding="utf-8"
+        )
+        f.write(content)
+        f.close()
+        return f.name
+
+    def test_extracts_params(self) -> None:
+        """param 宣言を抽出する"""
+        path = self._write_bicep(
+            "targetScope = 'subscription'\n"
+            "\n"
+            "param environment string\n"
+            "param location string = 'japaneast'\n"
+            "param appName string = 'aks-chaos-lab'\n"
+            "var foo = 'bar'\n"
+        )
+        self.assertEqual(
+            get_bicep_param_names(path), {"environment", "location", "appName"}
+        )
+
+    def test_skips_commented_param(self) -> None:
+        """コメント行内の 'param' は拾わない"""
+        path = self._write_bicep(
+            "// param disabled string\n"
+            "param environment string\n"
+        )
+        self.assertEqual(get_bicep_param_names(path), {"environment"})
+
+    def test_missing_template(self) -> None:
+        """template が無い場合は空集合"""
+        self.assertEqual(get_bicep_param_names("/no/such/file.bicep"), set())
+
+
+class TestResolveParametersFilePlaceholders(unittest.TestCase):
+    """resolve_parameters_file_placeholders のテスト"""
+
+    def _write_params(self, data: dict) -> str:
+        f = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        )
+        json.dump(data, f)
+        f.close()
+        return f.name
+
+    def test_resolves_env_var(self) -> None:
+        """${VAR} を env から解決する"""
+        path = self._write_params(
+            {
+                "parameters": {
+                    "environment": {"value": "${AZURE_ENV_NAME}"},
+                    "appName": {"value": "aks-chaos-lab"},
+                }
+            }
+        )
+        result = resolve_parameters_file_placeholders(
+            path, {"AZURE_ENV_NAME": "eval"}
+        )
+        self.assertEqual(result, {"environment": "eval"})
+
+    def test_uses_default_when_env_missing(self) -> None:
+        """env が無ければ ${VAR:default} の default を使う"""
+        path = self._write_params(
+            {"parameters": {"resourceGroupName": {"value": "${AZURE_RG:none}"}}}
+        )
+        result = resolve_parameters_file_placeholders(path, {})
+        self.assertEqual(result, {"resourceGroupName": "none"})
+
+    def test_skips_when_no_env_no_default(self) -> None:
+        """env も default もなければ含めない (file の literal がそのまま渡る)"""
+        path = self._write_params(
+            {"parameters": {"x": {"value": "${MISSING_VAR}"}}}
+        )
+        self.assertEqual(resolve_parameters_file_placeholders(path, {}), {})
+
+    def test_ignores_non_string_values(self) -> None:
+        """bool / int / array / object はそのまま file 側に任せる"""
+        path = self._write_params(
+            {
+                "parameters": {
+                    "enabled": {"value": True},
+                    "count": {"value": 42},
+                    "items": {"value": ["a", "b"]},
+                    "nested": {"value": {"k": "v"}},
+                    "name": {"value": "${AZURE_ENV_NAME}"},
+                }
+            }
+        )
+        result = resolve_parameters_file_placeholders(
+            path, {"AZURE_ENV_NAME": "eval"}
+        )
+        self.assertEqual(result, {"name": "eval"})
+
+    def test_ignores_partial_placeholder(self) -> None:
+        """部分一致 (prefix-${VAR}) は対象外で literal のまま"""
+        path = self._write_params(
+            {"parameters": {"x": {"value": "prefix-${AZURE_ENV_NAME}-suffix"}}}
+        )
+        self.assertEqual(
+            resolve_parameters_file_placeholders(
+                path, {"AZURE_ENV_NAME": "eval"}
+            ),
+            {},
+        )
+
+    def test_missing_file(self) -> None:
+        """存在しないファイルは空 dict"""
+        self.assertEqual(
+            resolve_parameters_file_placeholders("/no/such/file.json", {}), {}
+        )
+
+    def test_default_with_empty_string(self) -> None:
+        """${VAR:} (空 default) は空文字列を返す"""
+        path = self._write_params({"parameters": {"x": {"value": "${VAR:}"}}})
+        self.assertEqual(
+            resolve_parameters_file_placeholders(path, {}), {"x": ""}
+        )
+
+
+class TestRunWhatIfCommandConstruction(unittest.TestCase):
+    """run_what_if のコマンド構築テスト (subprocess.run をモック)"""
+
+    def test_parameters_file_before_inline(self) -> None:
+        """--parameters @file が --parameters key=value より先に来る (= 後勝ち)"""
+        import subprocess
+        from unittest.mock import patch
+
+        captured: dict[str, list[str]] = {}
+
+        class _Result:
+            returncode = 0
+            stdout = "{}"
+            stderr = ""
+
+        def _fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            return _Result()
+
+        with patch.object(subprocess, "run", _fake_run):
+            run_what_if(
+                template="t.bicep",
+                location="japaneast",
+                parameters={"environment": "eval"},
+                parameters_file="/tmp/params.json",
+            )
+
+        cmd = captured["cmd"]
+        # @file の位置 < key=value の位置 を確認
+        file_idx = cmd.index("@/tmp/params.json")
+        kv_idx = cmd.index("environment=eval")
+        self.assertLess(file_idx, kv_idx)
+
+    def test_no_parameters_file_when_unset(self) -> None:
+        """parameters_file 未指定時は --parameters @ は付かない"""
+        import subprocess
+        from unittest.mock import patch
+
+        captured: dict[str, list[str]] = {}
+
+        class _Result:
+            returncode = 0
+            stdout = "{}"
+            stderr = ""
+
+        def _fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            return _Result()
+
+        with patch.object(subprocess, "run", _fake_run):
+            run_what_if(template="t.bicep", location="japaneast")
+
+        cmd = captured["cmd"]
+        for arg in cmd:
+            self.assertFalse(
+                isinstance(arg, str) and arg.startswith("@"),
+                f"unexpected file arg: {arg}",
+            )
 
 
 if __name__ == "__main__":
