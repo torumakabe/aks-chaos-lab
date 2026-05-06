@@ -1,0 +1,165 @@
+# ワークアラウンド棚卸し
+
+このリポジトリで継続中のワークアラウンドと、それぞれの **解消条件** をまとめる。`review-repo` エージェントの定期チェック対象。GA や仕様改善で不要になったものは剥がす。
+
+各エントリは以下の構造を持つ:
+
+- **概要**: 何をしているか
+- **理由**: なぜこのワークアラウンドが必要か
+- **場所**: コード / ドキュメント上の参照
+- **解消条件**: どうなったら剥がせるか
+- **確認方法**: 解消されたかを確認する手順
+
+---
+
+## A. Azure Monitor SLI 関連
+
+### A-1. `infra.layers` で base/sli を分離し、warm-up を挟む
+
+- **概要**: `azd up` の workflow を `provision base` → `deploy api` → `deploy observability` → `deploy chaos-mesh` → `provision sli` に分割し、`observability.postdeploy` で warm-up traffic を流してから SLI を作成する。
+- **理由**: Azure Monitor SLI は作成時点で Managed Prometheus recording rule 出力（`cluster_name` dimension 付き）を要求する。メトリクス materialize 前に SLI を作ると validation で失敗する。
+- **場所**: `azure.yaml`、`infra/sli/main.bicep`、`docs/adr/009-azure-monitor-sli-and-prometheus-slo.md`
+- **解消条件**: SLI が「将来生成されるメトリクス」を前提にした作成を許容する API になる。
+- **確認方法**: 一時的に `infra.layers` を統合し、warm-up なしで `infra/sli/main.bicep` を `azd provision base` の中で同時に作成 → SLI が作成エラーにならないか試す。
+
+### A-2. `scripts/warm-up-sli-signals.sh` で 180 秒のトラフィック生成と recording rule 出力待機
+
+- **概要**: `observability` service の `postdeploy` hook で、Envoy 経由のトラフィックを生成し、Managed Prometheus 上で `gateway:chaos_app:http_*` recording rule の出力に `cluster_name` dimension が出るまで待つ。
+- **理由**: A-1 と同じ。SLI 作成前に recording rule の出力が materialize されている必要があるため。
+- **場所**: `scripts/warm-up-sli-signals.sh`、`azure.yaml:46-54`
+- **解消条件**: A-1 と同じ。
+- **確認方法**: A-1 と同じ。
+
+### A-3. AMW managed resource group 内 DCR への `Monitoring Metrics Publisher` 付与
+
+- **概要**: `MA_<amw-name>_<region>_managed` リソースグループ内の AMW と同名 DCR に対して、SLI 用 UAMI に `Monitoring Metrics Publisher` を付与する。
+- **理由**: AMW 本体への RBAC だけでは SLI の storage location validation を通らない（Microsoft Learn 未記載の挙動）。
+- **場所**: `infra/modules/azmonitor/sli-managed-dcr-rbac.bicep`、ADR-009 §RBAC
+- **解消条件**: Microsoft 側で AMW 本体への RBAC だけで SLI が作れるよう挙動が修正される、または公式に managed RG への RBAC が必要だと文書化され、別の方法（policy / built-in role）が用意される。
+- **確認方法**: managed DCR への role assignment を一時的に外し、SLI 作成が通るか試す。Microsoft Learn の AMW SLI 関連ページに記載が追加されたか確認する。
+
+### A-4. `predown` hook で Service Group scope SLI と環境別 Service Group を削除
+
+- **概要**: `azd down` 前に `scripts/cleanup-azure-monitor-sli-resources.sh pre` を実行し、Service Group scope の SLI と環境別 Service Group を削除する。
+- **理由**: `azd down` は subscription scope までしか到達せず、tenant scope（Service Group / SLI）が残留する。
+- **場所**: `scripts/cleanup-azure-monitor-sli-resources.sh:37-66`、`azure.yaml:21-25`、ADR-009 line 32
+- **解消条件**: `azd` が tenant scope のリソースを `down` で cascade delete できるようになる、または Service Group が subscription scope のリソースとして提供される。
+- **確認方法**: hook を一時的に無効化して `azd down` 後、Service Group / SLI が残らないか確認する。
+
+### A-5. 環境別 Service Group への `Service Group Administrator` 直付与が必要
+
+- **概要**: 親 Service Group の Contributor では子 Service Group の `Microsoft.Monitor/slis/write` が継承されないため、環境別 Service Group に対して直接 `Service Group Administrator` を付与する。
+- **理由**: Service Group の親子関係は Azure RBAC のリソース ID パス継承と独立している。
+- **場所**: README §必要なロール §2、ADR-009 §RBAC
+- **解消条件**: Service Group RBAC が Azure RBAC の path 継承に揃う、または親 Service Group からの継承で SLI 作成が許可される。
+- **確認方法**: テスト用テナントで親 Service Group の Contributor のみを付与し、子 Service Group での SLI 作成が通るか確認する。
+
+### A-6. 初回 `azd up` で `AZD_DEPLOY_TIMEOUT=3600` を推奨
+
+- **概要**: 初回 `azd up`（特に `azd provision sli` 段階）で環境変数 `AZD_DEPLOY_TIMEOUT=3600`（60 分）を設定する。
+- **理由**: 新規 AMW では Managed Prometheus recording rule の cold-start に最大 ~32 分かかる実測値があり、デフォルト `AZD_DEPLOY_TIMEOUT=1200s`（20 分）では `provision sli` 段階で recording rule 出力待機がタイムアウトする。`scripts/warm-up-sli-signals.sh` の内部待機もこの timeout の影響を受ける。
+- **場所**: README §環境構築、`scripts/warm-up-sli-signals.sh`
+- **解消条件**: AMW の recording rule cold-start が短縮される（数分以内）、または SLI が「将来生成されるメトリクス」を許容する API になる（A-1 と同じ条件）。
+- **確認方法**: `AZD_DEPLOY_TIMEOUT` 未設定で初回 `azd up` を実行し、20 分以内に `provision sli` が成功するか確認する。
+
+---
+
+## B. OTLP / Application Insights 関連 (ADR-006)
+
+### B-1. App Insights を `AzureMonitorWorkspaceIngestionMode=OptedIn` で新規作成
+
+- **概要**: Application Insights を AMW 紐付けの OTLP モードで作る。preview API `Microsoft.Insights/components@2025-01-23-preview` を使用。
+- **理由**: GA API ではこのプロパティを設定できず、既存リソースの PATCH でも変更できない（新規作成のみ）。
+- **場所**: `infra/modules/azmonitor/core.bicep:36-51`、ADR-006
+- **解消条件**: OTLP App Insights / `AzureMonitorWorkspaceIngestionMode` が GA API に降りる。
+- **確認方法**: GA API での `Microsoft.Insights/components` schema を確認し、`AzureMonitorWorkspaceIngestionMode` が含まれるか確認する。Bicep schema CLI で `az bicep build` に warning が出ないかチェック。
+
+### B-2. `predown` hook で AKS 上の `OtlpAppInsightsExtension` DCRA を先に削除
+
+- **概要**: `azd down` 前に AKS の OTLP DCR association を削除する。
+- **理由**: AKS が削除されると DCRA も自動消滅するが、その後 App Insights を削除しても managed DCR/DCE は deny assignment で残る。pre 段階で DCRA を明示的に消しておくことで、後段の `postdown` force-delete (B-3) が AKS 残骸の影響を受けない defense-in-depth を提供する。
+- **場所**: `scripts/cleanup-azure-monitor-sli-resources.sh:102-160`、ADR-009 line 78
+- **解消条件**: B-3 と同じ。
+- **確認方法**: hook を一時的に無効化して `azd down` を実行し、`postdown` の force-delete のみで `ai_*` managed RG が削除されるか確認する。
+
+### B-3. `postdown` hook で App Insights managed resource group (`ai_*`) を `forceDeletionResourceTypes` で削除
+
+- **概要**: `azd down` 後に `scripts/cleanup-azure-monitor-sli-resources.sh post` を実行し、ARM の `forceDeletionResourceTypes` クエリパラメータ (`Microsoft.Insights/dataCollectionEndpoints,Microsoft.Insights/dataCollectionRules`) を指定して `ai_<appi-name>_<guid>_managed` RG を直接削除する。
+- **理由**: OTLP 有効化された App Insights は managed RG 内に DCR/DCE と system-protected deny assignment を作る。parent App Insights 削除時の cascade は DCE 削除時点で deny assignment に阻まれて失敗し、managed RG が orphan として残留する。`forceDeletionResourceTypes` を指定した RG-scope DELETE は、内部リソースの個別 DELETE 権限を要求せず、deny assignment を回避できる（[Microsoft Learn: Managed workspaces in Application Insights — Deny assignments don't prevent deletion of the resource group](https://learn.microsoft.com/azure/azure-monitor/app/managed-workspaces) の挙動が初めて発動する）。`azd-env-name` タグで環境別に絞り込み、他環境の managed RG を巻き込まない。
+- **場所**: `scripts/cleanup-azure-monitor-sli-resources.sh:162-221`、`azure.yaml:26-30`、ADR-009
+- **解消条件**: OTLP App Insights の deprovision flow が改善され、parent App Insights 削除で managed RG が確実に cascade 削除されるようになる。
+- **確認方法**: postdown hook を一時的に無効化して `azd down` を実行し、`ai_<appi-name>_*_managed` RG が自動的に消えるか確認する。`Microsoft Learn` の OTLP App Insights 関連ページで cascade 改善の記載が追加されたか確認する。
+
+### B-4. 記事記載の `AKSAzureMonitorAISupportPreview` は使わず別の 3 flag を登録
+
+- **概要**: 公式記事（[OTLP App Insights enrollment](https://learn.microsoft.com/azure/azure-monitor/app/opentelemetry-otlp)）が記載する `AKSAzureMonitorAISupportPreview` は実在しない。代わりに `AzureMonitorAppMonitoringPreview` + `AKS-OMSAppMonitoring` + `OtlpApplicationInsights` の 3 つを登録する。
+- **理由**: `AKSAzureMonitorAISupportPreview` の登録はサイレントに成功するが効果がない。
+- **場所**: README §プレビュー機能とリソースプロバイダー登録、ADR-006 line 92
+- **解消条件**: Microsoft が記事を訂正する、または該当機能 GA で全 flag 不要になる。
+- **確認方法**: Microsoft Learn の OTLP App Insights enrollment ページで feature flag 名が正されたか確認する。
+
+---
+
+## C. プレビュー機能 / Preview API バージョン
+
+### C-1. 4 つの feature flag を `az feature register` 必須
+
+- **概要**: `AKS-AddonAutoscalingPreview`, `AzureMonitorAppMonitoringPreview`, `AKS-OMSAppMonitoring`, `OtlpApplicationInsights` をサブスクリプション単位で事前登録する。
+- **理由**: プレビュー機能のため明示登録が必要。
+- **場所**: README §プレビュー機能とリソースプロバイダー登録
+- **解消条件**: 各機能が GA し、feature flag 登録が不要になる。
+- **確認方法**: `review-repo` エージェントの §7（プレビュー機能 / リソースプロバイダー登録の鮮度）参照。
+
+### C-2. AKS / Fleet の preview API バージョンを継続使用
+
+- **概要**: `Microsoft.ContainerService/managedClusters@2026-01-02-preview`、`Microsoft.ContainerService/fleets@2025-04-01-preview` などを使用。
+- **理由**: Gateway API (App Routing Istio) や Blue-green node OS upgrade が GA API にない。
+- **場所**: `infra/modules/aks.bicep:225,298,320` (`TODO: Migrate to GA API version when available`)、`infra/modules/fleet.bicep`
+- **解消条件**: 必要機能を含む GA API バージョンが提供される。
+- **確認方法**: [Bicep / ARM 仕様 (`Microsoft.ContainerService/managedClusters`)](https://learn.microsoft.com/azure/templates/microsoft.containerservice/managedclusters?pivots=deployment-language-bicep) の latest GA バージョンに、`gatewayApi` / `nodeOSUpgradeChannel` / Blue-green 関連プロパティが揃ったか確認する。`bicep-api-version-updater` スキルでも検出可。
+
+### C-3. Azure Monitor 系 managed resource group 命名は制御不可
+
+- **概要**: AMW (`MA_<amw>_<region>_managed`)、App Insights (`ai_*`) の managed RG 名は固定パターンで命名できない。AKS の `MC_*` のみ `nodeResourceGroup` で制御可能。
+- **理由**: Azure 側の仕様。
+- **場所**: ADR-006:76-80
+- **解消条件**: Azure 側で命名 API が提供される。
+- **確認方法**: Microsoft Learn の AMW / App Insights ドキュメントで命名カスタマイズの記述が追加されたか確認する。
+
+---
+
+## D. 既知の遅延 / 制約
+
+### D-1. node exporter メトリクスが最大 24 時間遅延する
+
+- **概要**: AKS / Container Insights 環境作成直後、node 関連メトリクス（CPU、memory、network 等）が即座に採取されない。最大 24 時間で揃う。
+- **理由**: node exporter のインストール優先度が他のタスクより低い（[Azure/prometheus-collector#483](https://github.com/Azure/prometheus-collector/issues/483)）。
+- **場所**: README:281
+- **解消条件**: upstream issue が解決される。
+- **確認方法**: issue #483 のステータスを確認。`review-repo` 実行時にコメントを覗く。
+
+### D-2. azd の subscription scope deployment polling が散発的に `DeploymentNotFound` を返す
+
+- **概要**: `azd up` / `azd down` の subscription scope deployment 操作 (`BeginCreateOrUpdateAtSubscriptionScope`) で `Deployment '<env>-<layer>?-<unix>' could not be found.` が返って失敗することがある。同名 deployment record は ARM 上で `Succeeded` 状態で残っているケースが直接観測されている (詳細は **観測ログ** 参照)。
+- **理由**: 未確定。ARM の deployment record が一時的に GET で見えないウィンドウ (read-after-write inconsistency) があるように見えるが、根本原因は未特定。観測事実の報告として upstream issue [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) を起票済み。
+- **発生 phase**:
+  1. **`azd down` の void POST**: PR #6267 以降、`bicep_provider.go:Destroy()` は `groupedResources == 0` でも `voidSubscriptionDeploymentState` を呼ぶようになった。layer ごとに 1 回ずつ POST → poll が走るため、`infra.layers` 機能を使うプロジェクトでは発生機会が倍になる。
+  2. **`azd up` の通常 deployment**: void POST 限定ではない。本リポジトリでは `azd up` の SLI provision (`provision sli` step) でも再現しており、ARM 上 28 秒で `Succeeded` のところ azd 側が `DeploymentNotFound` を報告した。
+- **観測ログ** (識別情報マスク済の証跡は upstream issue 添付 zip を参照):
+  - down 時 void POST の `Succeeded` 証跡: `azd down` が `DeploymentNotFound` を返した直後に `az deployment sub show --name <name>` で `provisioningState: Succeeded` を確認。
+  - up 時 SLI provision の `Succeeded` 証跡: 同様に `provisioningState: Succeeded`, `duration: PT28.4735574S` を確認。
+  - 両方とも ARM 上の `correlationId` が azd 側の `TraceID` と一致。
+- **構造的対処 (down 側のみ・実装済み)**: `predown` hook が呼ぶ `scripts/cleanup-azure-monitor-sli-resources.sh pre` で、`azd down` の Destroy 経路を **両 layer で graceful skip path に短絡**することで `voidSubscriptionDeploymentState` を呼ばないようにする。これにより **down 側の polling 404 リスクは構造的に除去**される。具体的な順序:
+  1. **SLI layer**: Service Group scope SLI / Service Group / OTLP DCRA を個別に削除した後、SLI layer の sub-scope deployment record (`tags.azd-env-name=<env>` AND `tags.azd-layer-name=sli`) を削除。
+  2. **base layer**: base RG (`AZURE_RESOURCE_GROUP` 出力。fallback で `rg-aks-chaos-lab-<env>`) を `az group delete --no-wait` で削除し、`az group exists` で `False` になるまで polling 同期。AMW / App Insights の managed RG はこの RG-scope DELETE の cascade で削除される。
+  3. **base layer record**: 上記完了後に base layer の sub-scope deployment record (`tags.azd-env-name=<env>` AND `tags.azd-layer-name=base`) を **strict** (失敗で exit 1) に削除。
+- **`azd down` の挙動**: 両 layer の `CompletedDeployments` が `ErrDeploymentsNotFound` を返すため、`down.go` が graceful path ("No Azure resources were found." 表示) に分岐し、`voidSubscriptionDeploymentState` 自体が呼ばれない。
+- **`postdown` の責務**: 上記 cascade で managed RG が削除されない (deny assignment) ケース向けに、`postdown` で `forceDeletionResourceTypes` を指定した RG-scope DELETE を維持する。
+- **対処できない範囲 (up 側)**: `azd up` の通常 deployment polling は azd 側で起こるため、リポジトリ側からは予防できない。再現した場合は `azd up` を再実行する (deployment は ARM 上は `Succeeded` で残るため、再実行時は incremental で問題なく続行できる)。
+- **観測パターン (環境クリーンアップ後の検証)**:
+  ```bash
+  az deployment sub list --query "[?tags.\"azd-env-name\"=='<env>'] | reverse(sort_by(@, &properties.timestamp)) | [].{name:name,layer:tags.\"azd-layer-name\",reason:tags.\"azd-deploy-reason\",state:properties.provisioningState,ts:properties.timestamp}" -o table
+  ```
+- **アップストリーム**: 観測報告として [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) を起票済 (識別情報マスク済の azd output / ARM record を添付)。関連する近接 issue: [Azure/azure-dev#6207](https://github.com/Azure/azure-dev/issues/6207) (PR #6267 で「resources が手動削除済みでも void state する」修正、down 側のみ対応) と [Azure/azure-dev#7603](https://github.com/Azure/azure-dev/pull/7603) (Destroy 経路の大改修、closed without merge)。
+- **解消条件**: down 側は構造的対処で予防済み。upstream で対応が入った場合は本対処を簡素化または撤去できる。
+

@@ -24,13 +24,12 @@ param peSubnetPrefix string = '10.10.2.0/24'
 @description('AKS API Server subnet address prefix')
 param aksApiSubnetPrefix string = '10.10.3.0/28'
 
-@description('Kubernetes version for AKS (x.y or x.y.z). Only used in Base mode; Automatic mode automatically selects and manages stable versions.')
+@description('Kubernetes version for AKS (x.y or x.y.z).')
 param kubernetesVersion string = '1.33'
 
-@description('AKS SKU mode - "Base" for traditional AKS with Cluster Autoscaler; "Automatic" for automated operations with Node Auto Provisioning.')
+@description('AKS SKU mode. Only "Base" is supported in this repository (see ADR-010: AKS Automatic is incompatible with chaos-mesh due to AKS Automatic Deployment Safeguards).')
 @allowed([
   'Base'
-  'Automatic'
 ])
 param aksSkuName string = 'Base'
 
@@ -39,6 +38,18 @@ param enablePrometheusWorkspace bool = true
 
 @description('Deploy Prometheus recording rules (Linux/UX) into AMW')
 param enablePrometheusRecordingRules bool = true
+
+@description('Deploy short-window app operational Prometheus alert rules for incident detection.')
+param enablePrometheusAppOperationalAlerts bool = true
+
+@description('Deploy Azure Monitor SLI resources for the chaos app. Requires Service Group permissions at the tenant root or specified parent service group.')
+param enableAzureMonitorSli bool = false
+
+@description('Parent Service Group resource ID for Azure Monitor SLI. Leave empty to use the tenant root service group.')
+param azureMonitorSliParentServiceGroupId string = ''
+
+@description('Existing Service Group resource ID for Azure Monitor SLI. When set, Bicep uses this Service Group directly instead of creating a per-environment child Service Group.')
+param azureMonitorSliServiceGroupResourceId string = ''
 
 @description('Deploy Data Collection pipeline (DCR/DCE/DCRA) for Managed Prometheus')
 param enablePrometheusPipeline bool = true
@@ -154,6 +165,29 @@ module azureMonitorWorkspace './modules/prometheus/workspace.bicep' = if (enable
 
 #disable-next-line BCP318
 var prometheusWorkspaceResourceId = enablePrometheusWorkspace ? azureMonitorWorkspace.outputs.workspaceId : ''
+var enableAzureMonitorSliEffective = enableAzureMonitorSli && enablePrometheusWorkspace && enablePrometheusPipeline && enablePrometheusRecordingRules
+var normalizedAzureMonitorSliParentServiceGroupId = azureMonitorSliParentServiceGroupId == 'none' ? '' : azureMonitorSliParentServiceGroupId
+var normalizedAzureMonitorSliServiceGroupResourceId = azureMonitorSliServiceGroupResourceId == 'none' ? '' : azureMonitorSliServiceGroupResourceId
+var useExistingAzureMonitorSliServiceGroup = !empty(normalizedAzureMonitorSliServiceGroupResourceId)
+var azureMonitorSliServiceGroupNameBase = 'sg-${appName}-${environment}-${resourceToken}'
+var azureMonitorSliServiceGroupName = substring(
+  azureMonitorSliServiceGroupNameBase,
+  0,
+  min(90, length(azureMonitorSliServiceGroupNameBase))
+)
+var azureMonitorSliEffectiveParentServiceGroupId = empty(normalizedAzureMonitorSliParentServiceGroupId)
+  ? '/providers/Microsoft.Management/serviceGroups/${tenant().tenantId}'
+  : normalizedAzureMonitorSliParentServiceGroupId
+var azureMonitorSliEffectiveServiceGroupName = useExistingAzureMonitorSliServiceGroup
+  ? last(split(normalizedAzureMonitorSliServiceGroupResourceId, '/'))
+  : azureMonitorSliServiceGroupName
+var azureMonitorSliEffectiveServiceGroupId = useExistingAzureMonitorSliServiceGroup
+  ? normalizedAzureMonitorSliServiceGroupResourceId
+  : tenantResourceId('Microsoft.Management/serviceGroups', azureMonitorSliServiceGroupName)
+var azureMonitorWorkspaceManagedResourceGroupName = 'MA_${azureMonitorWorkspaceName}_${location}_managed'
+var azureMonitorSliIdentityName = '${abbrs.managedIdentityUserAssignedIdentities}${appName}-sli-${environment}'
+var azureMonitorAvailabilitySliName = 'availability-${resourceToken}'
+var azureMonitorLatencySliName = 'latency-${resourceToken}'
 
 module prometheusPipeline './modules/prometheus/pipeline.bicep' = if (enablePrometheusWorkspace && enablePrometheusPipeline) {
   name: 'prometheusPipeline'
@@ -187,6 +221,53 @@ module prometheusAlertRules './modules/prometheus/alert-rules.bicep' = if (enabl
     prometheusWorkspaceId: prometheusWorkspaceResourceId
     aksId: aksCluster.outputs.aksId
     actionGroupId: actionGroupId
+    enableAppOperationalAlerts: enablePrometheusAppOperationalAlerts
+  }
+}
+
+module azureMonitorSliIdentity './modules/azmonitor/sli-identity.bicep' = if (enableAzureMonitorSliEffective) {
+  name: 'azureMonitorSliIdentity'
+  scope: resourceGroup
+  params: {
+    location: location
+    tags: tags
+    identityName: azureMonitorSliIdentityName
+  }
+}
+
+module azureMonitorSliRbac './modules/azmonitor/sli-rbac.bicep' = if (enableAzureMonitorSliEffective) {
+  name: 'azureMonitorSliRbac'
+  scope: resourceGroup
+  params: {
+    #disable-next-line BCP318
+    sliIdentityPrincipalId: azureMonitorSliIdentity.outputs.principalId
+    prometheusWorkspaceName: azureMonitorWorkspaceName
+    #disable-next-line BCP318
+    prometheusDataCollectionRuleId: prometheusPipeline.outputs.dataCollectionRuleId
+  }
+}
+
+module azureMonitorSliManagedDcrRbac './modules/azmonitor/sli-managed-dcr-rbac.bicep' = if (enableAzureMonitorSliEffective) {
+  name: 'azureMonitorSliManagedDcrRbac'
+  scope: az.resourceGroup(azureMonitorWorkspaceManagedResourceGroupName)
+  dependsOn: [
+    azureMonitorWorkspace
+  ]
+  params: {
+    #disable-next-line BCP318
+    sliIdentityPrincipalId: azureMonitorSliIdentity.outputs.principalId
+    prometheusWorkspaceName: azureMonitorWorkspaceName
+  }
+}
+
+resource azureMonitorSliServiceGroup 'Microsoft.Management/serviceGroups@2024-02-01-preview' = if (enableAzureMonitorSliEffective && !useExistingAzureMonitorSliServiceGroup) {
+  scope: tenant()
+  name: azureMonitorSliServiceGroupName
+  properties: {
+    displayName: '${appName} ${environment} SLO'
+    parent: {
+      resourceId: azureMonitorSliEffectiveParentServiceGroupId
+    }
   }
 }
 
@@ -229,12 +310,12 @@ module alertSubRoleAssignments './modules/alert-sub-role-assignments.bicep' = {
   name: 'alertSubRoleAssignments'
   params: {
     aksAlertPrincipalId: aksCluster.outputs.nodeOsAutoUpgradeAlertPrincipalId
-    fleetAlertPrincipalId: aksSkuName == 'Base' ? fleetManager.outputs.pendingApprovalAlertPrincipalId : ''
-    enableFleet: aksSkuName == 'Base'
+    fleetAlertPrincipalId: fleetManager.outputs.pendingApprovalAlertPrincipalId
+    enableFleet: true
   }
 }
 
-module fleetManager './modules/fleet.bicep' = if (aksSkuName == 'Base') {
+module fleetManager './modules/fleet.bicep' = {
   name: 'fleet'
   scope: resourceGroup
   params: {
@@ -256,8 +337,8 @@ module alertRgRoleAssignments './modules/alert-rg-role-assignments.bicep' = {
   scope: resourceGroup
   params: {
     aksAlertPrincipalId: aksCluster.outputs.nodeOsAutoUpgradeAlertPrincipalId
-    fleetAlertPrincipalId: aksSkuName == 'Base' ? fleetManager.outputs.pendingApprovalAlertPrincipalId : ''
-    enableFleet: aksSkuName == 'Base'
+    fleetAlertPrincipalId: fleetManager.outputs.pendingApprovalAlertPrincipalId
+    enableFleet: true
   }
 }
 
@@ -305,6 +386,28 @@ module redisEnterprise './modules/redis.bicep' = {
     vnetId: network.outputs.vnetId
     privateEndpointSubnetId: network.outputs.peSubnetId
     principalObjectId: chaosAppIdentity.outputs.principalId
+  }
+}
+
+module azureMonitorSliMembers './modules/azmonitor/service-group-members.bicep' = if (enableAzureMonitorSliEffective) {
+  name: 'azureMonitorSliMembers'
+  scope: resourceGroup
+  dependsOn: [
+    aksCluster
+    azmonitorCore
+    containerRegistry
+    redisEnterprise
+    azureMonitorSliServiceGroup
+  ]
+  params: {
+    serviceGroupId: azureMonitorSliEffectiveServiceGroupId
+    aksName: aksClusterName
+    prometheusWorkspaceName: azureMonitorWorkspaceName
+    appAzureMonitorWorkspaceName: appAzureMonitorWorkspaceName
+    logAnalyticsWorkspaceName: logAnalyticsWorkspaceName
+    applicationInsightsName: applicationInsightsName
+    redisName: redisEnterpriseName
+    containerRegistryName: containerRegistryName
   }
 }
 
@@ -365,10 +468,16 @@ output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.outputs.logi
 @description('App Insights connection string')
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = azmonitorCore.outputs.applicationInsightsConnectionString
 
+@description('Application Insights resource name')
+output AZURE_APPLICATIONINSIGHTS_NAME string = applicationInsightsName
+
 @description('Log Analytics workspace id')
 output AZURE_LOG_ANALYTICS_ID string = azmonitorCore.outputs.logAnalyticsId
 @description('Log Analytics workspace name')
 output AZURE_LOG_ANALYTICS_WORKSPACE_NAME string = azmonitorCore.outputs.logAnalyticsNameOut
+
+@description('Azure Monitor Workspace resource ID for Managed Prometheus')
+output AZURE_MONITOR_PROMETHEUS_WORKSPACE_ID string = prometheusWorkspaceResourceId
 
 @description('Azure Managed Redis resource id')
 output AZURE_REDIS_ID string = redisEnterprise.outputs.redisId
@@ -400,3 +509,23 @@ output AZURE_INGRESS_PUBLIC_IP_NAME string = network.outputs.publicIPName
 
 @description('Azure tenant ID')
 output AZURE_TENANT_ID string = tenant().tenantId
+
+@description('Azure Service Group resource ID used by Azure Monitor SLI')
+output AZURE_MONITOR_SLI_SERVICE_GROUP_ID string = enableAzureMonitorSliEffective ? azureMonitorSliEffectiveServiceGroupId : ''
+
+@description('Azure Service Group name used by Azure Monitor SLI')
+output AZURE_MONITOR_SLI_SERVICE_GROUP_NAME string = enableAzureMonitorSliEffective ? azureMonitorSliEffectiveServiceGroupName : ''
+
+@description('Azure Monitor Availability SLI resource name')
+output AZURE_MONITOR_AVAILABILITY_SLI_NAME string = enableAzureMonitorSliEffective ? azureMonitorAvailabilitySliName : ''
+
+@description('Azure Monitor Latency SLI resource name')
+output AZURE_MONITOR_LATENCY_SLI_NAME string = enableAzureMonitorSliEffective ? azureMonitorLatencySliName : ''
+
+@description('Azure Monitor SLI managed identity resource ID')
+#disable-next-line BCP318
+output AZURE_MONITOR_SLI_IDENTITY_ID string = enableAzureMonitorSliEffective ? azureMonitorSliIdentity.outputs.identityId : ''
+
+@description('Azure Monitor SLI managed identity client ID')
+#disable-next-line BCP318
+output AZURE_MONITOR_SLI_IDENTITY_CLIENT_ID string = enableAzureMonitorSliEffective ? azureMonitorSliIdentity.outputs.clientId : ''

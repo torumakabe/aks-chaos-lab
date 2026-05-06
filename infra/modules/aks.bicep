@@ -4,7 +4,7 @@ param location string
 param aksName string
 @description('Tags object')
 param tags object = {}
-@description('Kubernetes version (x.y or x.y.z). Only used in Base mode; Automatic mode automatically selects and manages stable versions.')
+@description('Kubernetes version (x.y or x.y.z).')
 param kubernetesVersion string = '1.33'
 @description('Node resource group name for AKS managed resources')
 param nodeResourceGroupName string
@@ -23,10 +23,9 @@ param enableContainerNetworkLogs bool = true
 @description('Action Group resource ID for alerts (optional, leave empty for lab use)')
 param actionGroupId string = ''
 
-@description('AKS SKU mode - "Base" for traditional AKS with Cluster Autoscaler; "Automatic" for automated operations with Node Auto Provisioning. Default is "Base"')
+@description('AKS SKU mode. Only "Base" is supported (see ADR-010).')
 @allowed([
   'Base'
-  'Automatic'
 ])
 param skuName string = 'Base'
 
@@ -36,8 +35,7 @@ var resourceGroupSuffix = uniqueString(resourceGroup().id)
 var aksNodeOsAutoUpgradeKqlTemplate = sys.loadTextContent('templates/aks-nodeos-autoupgrade.kql')
 var aksNodeOsAutoUpgradeKql = replace(aksNodeOsAutoUpgradeKqlTemplate, '{{AKS_ID}}', aksCluster.id)
 
-// Common properties shared between Base and Automatic modes
-// Both modes use the same identity, monitoring, and basic configurations
+// AKS cluster properties common to identity, monitoring, and ingress configuration.
 var aksCommonProperties = {
   nodeResourceGroup: nodeResourceGroupName
   dnsPrefix: 'dns${substring(resourceGroupSuffix, 0, 8)}'
@@ -82,8 +80,7 @@ var aksCommonProperties = {
       }
     }
   }
-  // Gateway API (App Routing Istio) ingress configuration
-  // Shared by both Base and Automatic modes as the successor to managed NGINX (sunset 2026/11)
+  // Gateway API (App Routing Istio) ingress configuration as the successor to managed NGINX (sunset 2026/11)
   ingressProfile: {
     gatewayAPI: {
       installation: 'Standard'
@@ -105,17 +102,16 @@ var aksCommonProperties = {
 // Base mode specific properties
 // Provides full control over Kubernetes version, node pools, and networking
 var aksBaseSpecificProperties = {
-  // In Base mode, allow explicit Kubernetes version control
+  // Allow explicit Kubernetes version control
   kubernetesVersion: kubernetesVersion
   oidcIssuerProfile: { enabled: true }
   securityProfile: { workloadIdentity: { enabled: true } }
-  // Enable Azure RBAC for Kubernetes authorization to match Automatic mode security
+  // Enable Azure RBAC for Kubernetes authorization
   aadProfile: {
     managed: true
     enableAzureRbac: true
   }
   // Disable local accounts to enforce Azure AD/Entra ID-only authentication
-  // Note: In Automatic mode, local accounts are disabled by default
   disableLocalAccounts: true
   // Enable API Server VNet Integration for Base mode
   apiServerAccessProfile: {
@@ -179,41 +175,8 @@ var aksBaseSpecificProperties = {
   ]
 }
 
-// Automatic mode specific properties
-// Simplifies operations with automated version management and optimized node configuration
-var aksAutomaticSpecificProperties = {
-  apiServerAccessProfile: {
-    enableVnetIntegration: true
-    subnetId: aksApiSubnetId
-  }
-  networkProfile: {
-    advancedNetworking: {
-      enabled: true
-      observability: {
-        enabled: true
-      }
-      security: {
-        enabled: true
-        advancedNetworkPolicies: 'L7'
-      }
-    }
-  }
-  // Agent pools are automatically managed in Automatic mode
-  // System pool is fixed at 3 nodes for high availability
-  agentPoolProfiles: [
-    {
-      name: 'system'
-      vnetSubnetID: aksSubnetId
-      mode: 'System'
-      count: 3
-    }
-  ]
-}
-
-// Compose final properties based on selected SKU mode
-// Union merges common properties with mode-specific configurations
+// Compose final properties from common + Base-specific configurations
 var aksBaseProperties = union(aksCommonProperties, aksBaseSpecificProperties)
-var aksAutomaticProperties = union(aksCommonProperties, aksAutomaticSpecificProperties)
 
 // User Assigned Managed Identity for AKS cluster
 resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
@@ -242,7 +205,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-01-02-previ
       '${aksIdentity.id}': {}
     }
   }
-  properties: skuName == 'Base' ? aksBaseProperties : aksAutomaticProperties
+  properties: aksBaseProperties
   dependsOn: [
     aksSubnetNetworkContributorRole
   ]

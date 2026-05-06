@@ -1,6 +1,34 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 name: aks-chaos-lab
 
+infra:
+  layers:
+    - name: base
+      path: ./infra
+    - name: sli
+      path: ./infra/sli
+
+workflows:
+  up:
+    steps:
+      - azd: provision base
+      - azd: deploy api
+      - azd: deploy observability
+      - azd: deploy chaos-mesh
+      - azd: provision sli
+
+hooks:
+  predown:
+    posix:
+      shell: sh
+      run: CONFIRM_DELETE_AZURE_MONITOR_SLI_RESOURCES=true ./scripts/cleanup-azure-monitor-sli-resources.sh pre
+      interactive: false
+  postdown:
+    posix:
+      shell: sh
+      run: CONFIRM_DELETE_AZURE_MONITOR_SLI_RESOURCES=true ./scripts/cleanup-azure-monitor-sli-resources.sh post
+      interactive: false
+
 services:
   api:
     project: src
@@ -23,6 +51,12 @@ services:
   observability:
     project: .
     host: aks
+    hooks:
+      postdeploy:
+        posix:
+          shell: sh
+          run: ./scripts/warm-up-sli-signals.sh
+          interactive: false
     k8s:
       namespace: kube-system
       kustomize:
