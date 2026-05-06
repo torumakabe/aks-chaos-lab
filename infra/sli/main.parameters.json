@@ -1,0 +1,80 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "value": "aks-chaos-lab"
+    },
+    "environment": {
+      "value": "${AZURE_ENV_NAME}"
+    },
+    "enabled": {
+      "value": true
+    },
+    "resourceGroupName": {
+      "value": "${AZURE_RESOURCE_GROUP:none}"
+    },
+    "serviceGroupId": {
+      "value": "${AZURE_MONITOR_SLI_SERVICE_GROUP_ID:none}"
+    },
+    "serviceGroupName": {
+      "value": "${AZURE_MONITOR_SLI_SERVICE_GROUP_NAME:none}"
+    },
+    "sliIdentityResourceId": {
+      "value": "${AZURE_MONITOR_SLI_IDENTITY_ID:none}"
+    },
+    "prometheusWorkspaceResourceId": {
+      "value": "${AZURE_MONITOR_PROMETHEUS_WORKSPACE_ID:none}"
+    },
+    "metricNamespace": {
+      "value": "customdefault"
+    },
+    "enableSliAlerts": {
+      "value": true
+    },
+    "metricAlertLocation": {
+      "value": "eastus"
+    },
+    "availabilitySliName": {
+      "value": "${AZURE_MONITOR_AVAILABILITY_SLI_NAME:none}"
+    },
+    "latencySliName": {
+      "value": "${AZURE_MONITOR_LATENCY_SLI_NAME:none}"
+    },
+    "availabilityBaselineTargetPercent": {
+      "value": 99
+    },
+    "latencyBaselineTargetPercent": {
+      "value": 95
+    },
+    "evaluationPeriodDays": {
+      "value": 7
+    },
+    "windowSizeMinutes": {
+      "value": 5
+    },
+    "latencyThresholdSeconds": {
+      "value": 1
+    },
+    "signalDimensions": {
+      "value": [
+        "cluster_name"
+      ]
+    },
+    "fastBurnRateThreshold": {
+      "value": 14
+    },
+    "fastBurnRateLookbackHours": {
+      "value": 1
+    },
+    "slowBurnRateThreshold": {
+      "value": 6
+    },
+    "slowBurnRateLookbackHours": {
+      "value": 6
+    },
+    "actionGroupId": {
+      "value": ""
+    }
+  }
+}

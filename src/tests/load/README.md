@@ -101,28 +101,33 @@ eval "$(azd env get-values)"
 2) Kubernetes Gateway からの検出
 - `kubectl` で Gateway の LoadBalancer IP を取得し、`http://` を組み立てます。
 
-## SLOメトリクス
+## SLIメトリクスとOperational Alerts
 
-FastAPI アプリが `/metrics` エンドポイントで Prometheus メトリクスを公開しています。
+SLI 計測と短期 operational alerts は ADR-004 / ADR-009 に基づき、FastAPI アプリ内ではなく Gateway 層 Envoy メトリクスで行います。`ama-metrics` の pod annotation scraping が Envoy の `envoy_cluster_*` メトリクスを AMW に収集し、Prometheus recording rules が `gateway:chaos_app:*` に整形します。
 
 **メトリクス**:
-- `app_http_requests_total{method, status}` — HTTPリクエスト数
-- `app_http_request_duration_seconds_bucket{method}` — レイテンシヒストグラム
+- `envoy_cluster_upstream_rq{response_code, cluster_name}` — ステータスコード別 HTTP リクエスト数
+- `envoy_cluster_upstream_rq_completed{cluster_name}` — 完了 HTTP リクエスト数
+- `envoy_cluster_external_upstream_rq_time_bucket{cluster_name}` — Gateway からバックエンド Service へのレイテンシヒストグラム
 
-`/health` と `/metrics` へのリクエストは SLO 計測対象から除外されます。
+`cluster_name` が `outbound|80||chaos-app.*` に一致する Gateway → chaos-app のトラフィックが SLI 計測対象です。
 
 ### Recording Rules
 
 | ルール名 | 説明 |
 |---|---|
-| `app:http_request_duration:p95` | P95 レイテンシ (秒) |
-| `app:http_error_rate:ratio` | 5xx エラー率 |
-| `app:http_request_rate` | リクエストレート (req/s) |
-| `app:http_request_total` | リクエスト累計 |
+| `gateway:chaos_app:http_request_duration:p95` | P95 レイテンシ (秒) |
+| `gateway:chaos_app:http_error_rate:ratio` | 5xx エラー率 |
+| `gateway:chaos_app:http_success_rate:ratio` | 成功率 |
+| `gateway:chaos_app:http_request_rate` | リクエストレート (req/s) |
+| `gateway:chaos_app:http_success_total` | 成功リクエスト累計 |
+| `gateway:chaos_app:http_request_total` | リクエスト累計 |
 
-### SLO Alerts
+### Operational Alerts
 
 | アラート | しきい値 |
 |---|---|
-| `AppSLOLatencyP95High` | P95 > 1s が 5分持続 |
-| `AppSLOErrorRateHigh` | エラー率 > 1% が 5分持続 |
+| `ChaosAppRequestLatencyP95High` | P95 > 1s が 5分持続 |
+| `ChaosAppRequestFailureRateHigh` | エラー率 > 1% が 5分持続 |
+
+これらは SLO/error budget アラートではなく、Chaos 実験や即時トラブルシュート向けの短期 operational alerts です。Azure Monitor SLI を有効化する場合も、上記 recording rules は SLI 入力候補として維持します。Prometheus operational alerts を無効化する場合は `enablePrometheusAppOperationalAlerts=false` を指定します。

@@ -232,4 +232,4 @@ CLAUDE.md
 # Bicep compiled JSON files
 infra/**/*.json
 !infra/abbreviations.json
-!infra/main.parameters.json
+!infra/**/main.parameters.json

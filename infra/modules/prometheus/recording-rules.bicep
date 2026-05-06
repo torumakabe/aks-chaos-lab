@@ -180,7 +180,7 @@ resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRule
   }
 }
 
-// App SLO recording rules (Gateway 層 Envoy メトリクス)
+// App reliability signal recording rules (Gateway 層 Envoy メトリクス)
 // approuting-istio Gateway の Envoy が公開する envoy_cluster_* メトリクスを使用
 // proxyStatsMatcher を infrastructure.parametersRef の ConfigMap で設定し、リコンサイルに耐える構成
 
@@ -196,19 +196,33 @@ resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGrou
     rules: [
       {
         record: 'gateway:chaos_app:http_request_duration:p95'
-        expression: 'histogram_quantile(0.95, sum by (le) (rate(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))) / 1000'
+        expression: 'histogram_quantile(0.95, sum by (cluster_name, le) (rate(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))) / 1000'
+        enabled: true
       }
       {
         record: 'gateway:chaos_app:http_error_rate:ratio'
-        expression: 'sum(rate(envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}[5m])) / sum(rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))'
+        expression: '(sum by (cluster_name) (rate(envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}[5m])) or (sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0)) / sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))'
+        enabled: true
+      }
+      {
+        record: 'gateway:chaos_app:http_success_rate:ratio'
+        expression: '1 - ((sum by (cluster_name) (rate(envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}[5m])) or (sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0)) / sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])))'
+        enabled: true
       }
       {
         record: 'gateway:chaos_app:http_request_rate'
-        expression: 'sum(rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))'
+        expression: 'sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))'
+        enabled: true
+      }
+      {
+        record: 'gateway:chaos_app:http_success_total'
+        expression: 'sum by (cluster_name) (envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}) - (sum by (cluster_name) (envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}) or (sum by (cluster_name) (envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}) * 0))'
+        enabled: true
       }
       {
         record: 'gateway:chaos_app:http_request_total'
-        expression: 'sum(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"})'
+        expression: 'sum by (cluster_name) (envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"})'
+        enabled: true
       }
     ]
   }

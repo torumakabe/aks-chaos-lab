@@ -14,10 +14,13 @@ param aksId string
 @description('Resource ID of the Action Group for alerts')
 param actionGroupId string = ''
 
- 
+@description('Deploy Gateway Envoy based short-window application operational Prometheus alerts')
+param enableAppOperationalAlerts bool = true
+
+var aksName = split(aksId, '/')[8]
 
 resource recommendedMetricAlertsClusterLevel 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'recommended-metric-alerts-cluster-level-${split(aksId, '/')[8]}'
+  name: 'recommended-metric-alerts-cluster-level-${aksName}'
   location: location
   tags: union(tags, {
     alertRuleCreatedWithAlertsRecommendations: 'true'
@@ -25,7 +28,7 @@ resource recommendedMetricAlertsClusterLevel 'Microsoft.AlertsManagement/prometh
   properties: {
     description: 'Kubernetes cluster-level recommended metric alert rules'
     scopes: [prometheusWorkspaceId, aksId]
-    clusterName: split(aksId, '/')[8]
+    clusterName: aksName
     enabled: true
     interval: 'PT1M'
     rules: [
@@ -787,27 +790,27 @@ resource recommendedMetricAlertsPodLevel 'Microsoft.AlertsManagement/prometheusR
   }
 }
 
-// Application SLO alerts (アプリ層 Prometheus メトリクス)
-// FastAPI アプリが公開する app_http_* メトリクスベースの Recording Rules を参照
-resource appSloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
-  name: 'app-slo-alerts-${split(aksId, '/')[8]}'
+// Application operational alerts (Gateway 層 Envoy メトリクス)
+// ADR-009: Azure Monitor SLI は SLO/error-budget レイヤー、ここでは短期の症状検知を扱う。
+resource appOperationalAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = if (enableAppOperationalAlerts) {
+  name: 'app-operational-alerts-${split(aksId, '/')[8]}'
   location: location
   tags: union(tags, {
     alertRuleCreatedWithAlertsRecommendations: 'true'
   })
   properties: {
-    description: 'Gateway 層 Envoy メトリクスベースの SLO アラート'
+    description: 'Gateway 層 Envoy メトリクスベースの短期 operational アラート'
     scopes: [prometheusWorkspaceId, aksId]
     clusterName: split(aksId, '/')[8]
     enabled: true
     interval: 'PT1M'
     rules: [
       {
-        alert: 'ChaosAppSLOLatencyP95High'
+        alert: 'ChaosAppRequestLatencyP95High'
         expression: 'gateway:chaos_app:http_request_duration:p95 > 1'
         for: 'PT5M'
         annotations: {
-          description: 'chaos-app の p95 レイテンシが 1s を超過。'
+          description: 'chaos-app の p95 レイテンシが 1s を超過。短期 operational アラートであり、SLO/error budget アラートではありません。'
         }
         enabled: true
         severity: 2
@@ -817,7 +820,9 @@ resource appSloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         }
         labels: {
           severity: 'warning'
-          slo: 'latency-p95'
+          alert_type: 'operational'
+          signal: 'latency-p95'
+          source: 'gateway-envoy'
         }
         actions: actionGroupId != ''
           ? [
@@ -828,11 +833,11 @@ resource appSloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
           : []
       }
       {
-        alert: 'ChaosAppSLOErrorRateHigh'
+        alert: 'ChaosAppRequestFailureRateHigh'
         expression: 'gateway:chaos_app:http_error_rate:ratio > 0.01'
         for: 'PT5M'
         annotations: {
-          description: 'chaos-app のエラー率が 1% を超過。'
+          description: 'chaos-app のエラー率が 1% を超過。短期 operational アラートであり、SLO/error budget アラートではありません。'
         }
         enabled: true
         severity: 2
@@ -842,7 +847,9 @@ resource appSloAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-0
         }
         labels: {
           severity: 'warning'
-          slo: 'error-rate'
+          alert_type: 'operational'
+          signal: 'failure-rate'
+          source: 'gateway-envoy'
         }
         actions: actionGroupId != ''
           ? [

@@ -41,6 +41,18 @@
     "enablePrometheusRecordingRules": {
       "value": true
     },
+    "enablePrometheusAppOperationalAlerts": {
+      "value": true
+    },
+    "enableAzureMonitorSli": {
+      "value": true
+    },
+    "azureMonitorSliParentServiceGroupId": {
+      "value": "${AZURE_MONITOR_SLI_PARENT_SERVICE_GROUP_ID:none}"
+    },
+    "azureMonitorSliServiceGroupResourceId": {
+      "value": "${AZURE_MONITOR_SLI_SERVICE_GROUP_RESOURCE_ID:none}"
+    },
     "enableChaosExperiments": {
       "value": true
     },

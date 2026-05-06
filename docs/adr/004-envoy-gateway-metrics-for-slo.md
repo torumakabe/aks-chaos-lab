@@ -1,4 +1,4 @@
-# ADR-004: Envoy Gateway メトリクスによる SLO 監視
+# ADR-004: Envoy Gateway メトリクスによる SLO/SLI signal 監視
 
 ## Status
 
@@ -26,6 +26,6 @@ HTTPChaos 実験の影響が Envoy メトリクスで直接観測できること
 
 ## Consequences
 
-- **利点**: アプリコードからメトリクス計装の責務を除去（prometheus-client 依存除去）。Gateway 層で HTTPChaos 注入を直接観測できる（検証済み）。SLO 監視のデータソースが Gateway 層に統一される。`cluster_name` ラベルにより Service 単位の SLO 監視が可能で、将来のマルチサービス構成にも対応できる。
+- **利点**: アプリコードからメトリクス計装の責務を除去（prometheus-client 依存除去）。Gateway 層で HTTPChaos 注入を直接観測できる（検証済み）。SLO/SLI の signal source が Gateway 層に統一される。`cluster_name` ラベルにより Service 単位の SLO/SLI 計測と短期 operational alert の両方に対応でき、将来のマルチサービス構成にも対応できる。
 - **注意点**: Envoy メトリクス名が冗長（`envoy_cluster_external_upstream_rq_time_bucket` 等）。`cluster_name` ラベルにサービス FQDN が含まれる（`outbound|80||service.namespace.svc.cluster.local`）ため、PromQL が環境依存になる。`external_upstream_rq_time` はミリ秒単位のため、Recording rules で秒に変換が必要。AKS addon バージョンアップで Gateway 関連の仕様変更リスクがある。Gateway を `parametersRef` なしで再適用すると proxyStatsMatcher が失われるリスクがある。メトリクスの粒度は HTTPRoute 単位ではなくバックエンド Service（`cluster_name`）単位であるため、同一 Service を指す複数の HTTPRoute がある場合はメトリクスが合算される。
 - **参照**: [AKS Istio Gateway API](https://learn.microsoft.com/azure/aks/istio-gateway-api)、`k8s/base/gateway-options-configmap.yaml`、`infra/modules/prometheus/recording-rules.bicep`、`infra/modules/prometheus/alert-rules.bicep`
