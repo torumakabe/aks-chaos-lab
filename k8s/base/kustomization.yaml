@@ -15,6 +15,7 @@ resources:
 - ciliumnetworkpolicy-ingress-l7.yaml
 - addon-vpa.yaml
 - instrumentation.yaml
+- cronjob-synthetic-traffic.yaml
 
 configMapGenerator:
 - envs:

@@ -161,5 +161,44 @@
   az deployment sub list --query "[?tags.\"azd-env-name\"=='<env>'] | reverse(sort_by(@, &properties.timestamp)) | [].{name:name,layer:tags.\"azd-layer-name\",reason:tags.\"azd-deploy-reason\",state:properties.provisioningState,ts:properties.timestamp}" -o table
   ```
 - **アップストリーム**: 観測報告として [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) を起票済 (識別情報マスク済の azd output / ARM record を添付)。関連する近接 issue: [Azure/azure-dev#6207](https://github.com/Azure/azure-dev/issues/6207) (PR #6267 で「resources が手動削除済みでも void state する」修正、down 側のみ対応) と [Azure/azure-dev#7603](https://github.com/Azure/azure-dev/pull/7603) (Destroy 経路の大改修、closed without merge)。
-- **解消条件**: down 側は構造的対処で予防済み。upstream で対応が入った場合は本対処を簡素化または撤去できる。
+### D-3. Application Insights `requests/duration` の P95 / P99 が trace sampling の影響を受ける
+
+- **概要**: App Insights Portal で表示される `requests/duration` の P95 / P99 は trace sampling 後のサブセットから集計されるため、本リポジトリの既定 sampling rate (`OTEL_TRACES_SAMPLER_ARG=0.1`) のように低いとサンプル数不足で値がぶれる。レアな遅延が取りこぼされる。
+- **理由**: Azure Monitor exporter は traces から requests metric を再構築する経路があり、Microsoft Learn にも明記されていない。
+- **場所**: `src/app/telemetry.py` (`ErrorAwareSampler` で chaos / error 経路は常時 sample)、README `## 🔭 可観測性`。
+- **解消条件**: SLI / SLO の latency 一次信号は **Managed Prometheus の Envoy histogram** 由来 recording rule (`gateway:chaos_app:http_request_duration:p95`) を使う方針なので、本リポジトリでは構造的に解消される。App Insights P95 はあくまで参考値。
+- **確認方法**: AMW recording rule の P95 と App Insights P95 を同一時間軸で比較し、系統的な差分があるかを確認。
+
+### D-4. Azure Monitor SLI Metric Alert (Portal 型) の動作仕様が未公開
+
+- **概要**: `Microsoft.Insights/metricAlerts@2024-03-01-preview` の `PromQLCriteria` で SLI を criteria にする Portal 型 alert は preview 段階で、`query` フィールドのプレースホルダー動作 (例: `'up'`) や alert instance のトリガー条件が公式 docs に記載されていない。本リポジトリでは [`infra/modules/azmonitor/sli-metric-alerts.bicep`](../infra/modules/azmonitor/sli-metric-alerts.bicep) で baseline / fast burn / slow burn alert を作成しているが、preview 期間中は alert instance 観測が不安定。
+- **理由**: Azure Monitor SLI 自体が preview API (`Microsoft.Monitor/slis@2025-03-01-preview`) で動作中。Portal / Bicep / API の差分が docs に残っていない。
+- **場所**: `infra/modules/azmonitor/sli-metric-alerts.bicep`、ADR-009 §Consequences。
+- **解消条件**: Microsoft が SLI Metric Alert を GA し、Portal / Bicep / API の動作が docs にまとまる。
+- **確認方法**: SLI burn rate alert の test fire (`chaos-app` Pod を 0 replicas にして 5 分以上維持) で alert instance が記録されるかを確認。短期 operational alert (`ChaosAppRequestFailureRateHigh` / `ChaosAppNoTraffic`) を SLI alert の代替として併用する。
+
+### D-5. OpenTelemetry UpDownCounter `http.server.active_requests` の Pod 再起動時ドリフト
+
+- **概要**: FastAPI / OTel auto-instrumentation が emit する `http.server.active_requests` は UpDownCounter (DELTA aggregation) で per-process state を持つ。Chaos 実験で Pod 再起動が頻発する環境では、`rate()` / `delta()` で集計した時に負値や jitter が出る。
+- **理由**: UpDownCounter は process-local な state を保持し、Pod restart で reset されるが、Azure Monitor / Prometheus 側の集計クエリは Cumulative 前提で、reset を補正する仕組みがない (OTel SDK 仕様)。
+- **場所**: README `## 🔭 可観測性` 注記、`src/app/telemetry.py` の auto-instrumentation 部分。
+- **解消条件**: 本リポジトリでは構造的には解消できない (SDK 仕様)。負荷状態の一次信号は Envoy 経由の `gateway:chaos_app:http_request_rate` recording rule を使う運用で迂回する。
+- **確認方法**: README に「`active_requests` を alert の基準にしない」旨を明記し、`gateway:chaos_app:http_request_rate` を使う運用を維持。
+- **補足 (2026-05-07 eval 実機検証)**: 上記 D-5 はドリフトを前提に書いているが、実機検証では **`active_requests` 自体が AMW Prometheus に届いていない** ことが判明 (`active_requests` / `http_server_active_requests` 全て no data)。原因はアプリ側で UpDownCounter を `_meter.create_up_down_counter()` で明示作成しておらず、FastAPI auto-instrumentation の active_requests counter 経路が現状の構成では起動していないため。詳細と対応は [#128](https://github.com/torumakabe/aks-chaos-lab/issues/128) で追跡。
+
+### D-6. OTLP logs (`AppTraces`) がアプリから export されていない
+
+- **概要**: アプリ側で OTel logs の export pipeline を setup しておらず、App Insights `traces` / LAW `AppTraces` テーブルに 1 件も届かない (eval 環境 2026-05-07 検証時点で 0 件)。
+- **理由**: `src/app/telemetry.py` で `LoggerProvider` / `BatchLogRecordProcessor` / `OTLPLogExporter` を setup していない。`LoggingInstrumentor()` は span context を log message に注入する instrumentation で、logs を OTLP export する機能ではない (これは `OTLPLogExporter` + `LoggerProvider` の役割)。OTLP logs endpoint 環境変数 (`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://NODE_IP:28331/v1/logs`) は AKS App Monitoring webhook が pod に注入しているが、アプリ側で利用していない。
+- **場所**: `src/app/telemetry.py`、ADR-006 §5。
+- **解消条件**: アプリ側で logs export pipeline を追加する。詳細と対応は [#129](https://github.com/torumakabe/aks-chaos-lab/issues/129) で追跡。
+- **確認方法**: 修正後、App Insights `traces` テーブルにアプリ起動時 / Chaos 実験時の log がアプリ側 logger 経由で届くことを確認する。
+
+### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発
+
+- **概要**: `kubectl -n kube-system logs <ama-metrics-pod> -c prometheus-collector` で `mdsd.err` ファイルへの `[CreateSocket] Failed to connect port 12564 socketId: ConfigID to AMACoreAgent: Connection refused` および `[OtlpTokenFetcher] AMACoreAgent tenant not started, trying to start it` が継続的に出力される。
+- **理由**: ama-metrics pod 内の `prometheus-collector` container と `mdsd` core process 間の Unix socket 通信が起動順序または image 不整合で失敗している可能性。AKS App Monitoring は preview 段階で image (`ciprod`, `prometheus-collector`) が頻繁に更新される。
+- **場所**: AKS の `kube-system/ama-metrics-*` daemon set / deployment。リポジトリ側のコードでは制御不能。
+- **解消条件**: Microsoft 側で image 更新により解消される可能性が高い。アプリ側 OTLP traces (`OTelSpans` 19,713 件) や App Insights `dependencies` (15 分間で 78 件) は届いており、実害は限定的。詳細と追跡は [#130](https://github.com/torumakabe/aks-chaos-lab/issues/130) で記録。
+- **確認方法**: ama-metrics pod の image tag を定期的に確認し、新 version で `mdsd.err` のエラー件数が減少するかを監視。
 

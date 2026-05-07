@@ -620,7 +620,8 @@ resource recommendedMetricAlertsPodLevel 'Microsoft.AlertsManagement/prometheusR
       }
       {
         alert: 'KubeContainerAverageMemoryHigh'
-        expression: 'avg by (namespace, controller, container, cluster)(((container_memory_working_set_bytes{container!="", image!="", container!="POD"} / on(namespace,cluster,pod,container) group_left kube_pod_container_resource_limits{resource="memory", node!=""})*on(namespace, pod, cluster) group_left(controller) label_replace(kube_pod_owner, "controller", "$1", "owner_name", "(.*)")) > .95)'
+        // alrtB-mem-high-zero-guard: limits=0 で分母 0 → +Inf となる false positive を防ぐ。`> 0` ガードで limit 未設定 container を除外
+        expression: 'avg by (namespace, controller, container, cluster)(((container_memory_working_set_bytes{container!="", image!="", container!="POD"} / on(namespace,cluster,pod,container) group_left() (kube_pod_container_resource_limits{resource="memory", node!=""} > 0))*on(namespace, pod, cluster) group_left(controller) label_replace(kube_pod_owner, "controller", "$1", "owner_name", "(.*)")) > .95)'
         for: 'PT10M'
         annotations: {
           description: 'Average Memory usage per container is greater than 95%. For more information on this alert, please refer to this [link](https://aka.ms/aks-alerts/pod-level-recommended-alerts).'
@@ -764,7 +765,8 @@ resource recommendedMetricAlertsPodLevel 'Microsoft.AlertsManagement/prometheusR
       }
       {
         alert: 'KubeHpaMaxedOut'
-        expression: 'kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"}  ==kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"}'
+        // alrtB-hpa-maxed-out-min-check: min=max 構成 (固定 replica) で常時発火する誤検知を防ぐため、max>min を追加条件に
+        expression: 'kube_horizontalpodautoscaler_status_current_replicas{job="kube-state-metrics"} == kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"} and on(horizontalpodautoscaler, namespace, cluster) (kube_horizontalpodautoscaler_spec_max_replicas{job="kube-state-metrics"} > kube_horizontalpodautoscaler_spec_min_replicas{job="kube-state-metrics"})'
         for: 'PT15M'
         annotations: {
           description: 'Horizontal Pod Autoscaler in {{ $labels.cluster}} has been running at max replicas for longer than 15 minutes. For more information on this alert, please refer to this [link](https://aka.ms/aks-alerts/pod-level-recommended-alerts).'
@@ -849,6 +851,37 @@ resource appOperationalAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2
           severity: 'warning'
           alert_type: 'operational'
           signal: 'failure-rate'
+          source: 'gateway-envoy'
+        }
+        actions: actionGroupId != ''
+          ? [
+              {
+                actionGroupId: actionGroupId
+              }
+            ]
+          : []
+      }
+      {
+        // alrtB-chaos-no-traffic: synthetic-traffic CronJob が 5 分以上途絶した場合に発火。
+        // recording rule が clamp_min により no-traffic 時に 0 を返すため、SLI failure-rate alert では検知できない盲点
+        // (CronJob 障害 / Pod 完全停止 / Service/Gateway 障害 / HTTPRoute hostname 不一致) を補完する。
+        // 前提: cronjob/synthetic-traffic CronJob (k8s/base/cronjob-synthetic-traffic.yaml) が 1 req/min で稼働している。
+        alert: 'ChaosAppNoTraffic'
+        expression: '(absent(gateway:chaos_app:http_request_rate) == 1) or (gateway:chaos_app:http_request_rate <= 0)'
+        for: 'PT5M'
+        annotations: {
+          description: 'chaos-app への合成トラフィック (synthetic-traffic CronJob) が 5〜10 分にわたり途絶 (rate[5m] + for 5m の合計遅延を含む実検知時間)。CronJob 失敗、Pod 完全停止、Service/Gateway 障害、または HTTPRoute hostname 不一致のいずれかが疑われます。kubectl -n chaos-lab get cronjob synthetic-traffic と get pods -l app=synthetic-traffic を確認してください。'
+        }
+        enabled: true
+        severity: 1
+        resolveConfiguration: {
+          autoResolved: true
+          timeToResolve: 'PT10M'
+        }
+        labels: {
+          severity: 'critical'
+          alert_type: 'operational'
+          signal: 'no-traffic'
           source: 'gateway-envoy'
         }
         actions: actionGroupId != ''

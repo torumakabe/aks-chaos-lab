@@ -1,0 +1,114 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: synthetic-traffic-sa
+  namespace: chaos-lab
+  labels:
+    app.kubernetes.io/name: synthetic-traffic
+    app.kubernetes.io/instance: synthetic-traffic
+    app.kubernetes.io/part-of: aks-chaos-lab
+    app.kubernetes.io/component: synthetic-traffic
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/version: "0.1.0"
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: synthetic-traffic
+  namespace: chaos-lab
+  labels:
+    app.kubernetes.io/name: synthetic-traffic
+    app.kubernetes.io/instance: synthetic-traffic
+    app.kubernetes.io/part-of: aks-chaos-lab
+    app.kubernetes.io/component: synthetic-traffic
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  # 1 req/min so the SLI signal stream is never silent (~1,440 req/day).
+  # Suspend the CronJob to intentionally induce no-traffic conditions.
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 60
+  jobTemplate:
+    metadata:
+      labels:
+        app: synthetic-traffic
+        app.kubernetes.io/name: synthetic-traffic
+        app.kubernetes.io/instance: synthetic-traffic
+        app.kubernetes.io/part-of: aks-chaos-lab
+        app.kubernetes.io/component: synthetic-traffic
+    spec:
+      activeDeadlineSeconds: 30
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 300
+      template:
+        metadata:
+          labels:
+            app: synthetic-traffic
+            app.kubernetes.io/name: synthetic-traffic
+            app.kubernetes.io/instance: synthetic-traffic
+            app.kubernetes.io/part-of: aks-chaos-lab
+            app.kubernetes.io/component: synthetic-traffic
+        spec:
+          serviceAccountName: synthetic-traffic-sa
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: curl
+              image: mcr.microsoft.com/azurelinux/base/core:3.0
+              imagePullPolicy: IfNotPresent
+              # Target the in-cluster ClusterIP of the AKS Istio addon Gateway-managed Service.
+              # AKS App Routing Istio's Gateway controller creates a per-Gateway LoadBalancer
+              # Service named `<gateway-name>-approuting-istio` in the same namespace as the
+              # Gateway resource. Hitting the ClusterIP keeps Pod-to-Service traffic in-cluster
+              # while still landing on the same Envoy Pods, so the same
+              # `envoy_cluster_*{cluster_name="outbound|80||chaos-app.*"}` series is populated.
+              # The Host header MUST match the HTTPRoute hostname (= Gateway listener.hostname
+              # = AZURE_INGRESS_FQDN) or the request hits no_route and is excluded from
+              # envoy_cluster_*.
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  curl --silent --show-error --fail --max-time 10 \
+                    --header "Host: ${INGRESS_FQDN}" \
+                    --output /dev/null \
+                    --write-out "HTTP %{http_code} time_total=%{time_total}s\n" \
+                    "http://chaos-app-approuting-istio.chaos-lab.svc.cluster.local/"
+              env:
+                - name: INGRESS_FQDN
+                  valueFrom:
+                    configMapKeyRef:
+                      name: app-config
+                      key: AZURE_INGRESS_FQDN
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 50m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 8Mi
