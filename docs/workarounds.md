@@ -194,11 +194,19 @@
 - **成熟度の前提**: Python OTel Logs SDK は公式 status で **Development** tier (Java/.NET/PHP/JS は Stable)、`opentelemetry.sdk._logs` は internal API として breaking change が継続中 (2025-11 `LogData` 削除、2026-03 SDK `LoggingHandler` deprecate)。`src/pyproject.toml` で OTel 依存を `>=1.41.0,<2.0.0` / `>=0.62b0,<1.0.0` に pin し、major bump および pre-1.0 minor/beta bump の自動 merge を禁止する運用とする。
 - **確認方法**: deploy 後、LAW `OTelLogs` テーブルに app logger 経由 (`app.main` / `app.telemetry` / `app.redis_client`) の log が `ServiceName=chaos-app`, `ScopeName=app.*` で届くことを確認する。重複排除の検証は ADR-006 の marker-based KQL を使用する。
 
-### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発
+### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発（**実害なし・ログノイズのみ**）
 
-- **概要**: `kubectl -n kube-system logs <ama-metrics-pod> -c prometheus-collector` で `mdsd.err` ファイルへの `[CreateSocket] Failed to connect port 12564 socketId: ConfigID to AMACoreAgent: Connection refused` および `[OtlpTokenFetcher] AMACoreAgent tenant not started, trying to start it` が継続的に出力される。
-- **理由**: ama-metrics pod 内の `prometheus-collector` container と `mdsd` core process 間の Unix socket 通信が起動順序または image 不整合で失敗している可能性。AKS App Monitoring は preview 段階で image (`ciprod`, `prometheus-collector`) が頻繁に更新される。
-- **場所**: AKS の `kube-system/ama-metrics-*` daemon set / deployment。リポジトリ側のコードでは制御不能。
-- **解消条件**: Microsoft 側で image 更新により解消される可能性が高い。アプリ側 OTLP traces (`OTelSpans` 19,713 件) や App Insights `dependencies` (15 分間で 78 件) は届いており、実害は限定的。詳細と追跡は [#130](https://github.com/torumakabe/aks-chaos-lab/issues/130) で記録。
-- **確認方法**: ama-metrics pod の image tag を定期的に確認し、新 version で `mdsd.err` のエラー件数が減少するかを監視。
+- **概要**: `ama-metrics` Deployment の replica pod (`prometheus-collector` container) で `mdsd.err` に `[CreateSocket] Failed to connect port 12564 ... to AMACoreAgent: Connection refused` と `[OtlpTokenFetcher] AMACoreAgent tenant not started, trying to start it. DCR Contents: ...dcr-<otlp>...` が約 60 秒周期で継続出力される（eval 環境観測: 8.4 MB / 33h、毎分発生）。
+- **理由 (検証済 2026-05-07)**: replica pod の image (`prometheus-collector:6.26.0-main-03-05-2026-701eb75f`) には `/opt/microsoft/azure-mdsd/bin/amacoreagent` バイナリが同梱されているが、**replica pod 内では `AMACoreAgent` プロセスが supervisor から起動されていない**（`ps -ef` で不在）。同じ image を使う `ama-logs` DaemonSet 側では `AMACoreAgent --configport 12563 --giglaport 13000` が正常起動しており、エラーも発生していない。AKS App Monitoring add-on の OTLP DCR (`dcr-<otlp>`、`OPENTELEMETRY_LOGS_AGENT` / `OPENTELEMETRY_TRACES_AGENT` stream) が cluster-scoped で全 ama-* pod に配信されるが、replica pod は OTLP traces/logs を扱わないため、token fetcher が機能しなくても影響しない。
+- **実害評価 (実測 2026-05-07)**: **データパスは全て正常**。
+  - **Managed Prometheus**: `otelcollector → MetricsExtension (otlp_grpc localhost:55680) → AMW`。mdsd の OTLP token に依存しない（`collector-config-replicaset.yml` の exporter は `prometheus` + `otlp_grpc` のみ）。
+  - **Container Insights / ContainerNetworkLogs**: replica pod の mdsd は `dcr-<containerinsights>` を正常処理（`mdsd.qos` で `CONTAINER_NETWORK_LOGS` / `KUBE_NODE_INVENTORY_BLOB` が 15/15 成功記録、`mdsd.info` で 60 秒ごとに `ODSUploader Heartbeating`）。
+  - **OTLP traces / logs (App Insights)**: `ama-logs` DaemonSet 側で `AMACoreAgent` が正常動作 → `OTelSpans` / `dependencies` / `OTelLogs` 全テーブルに到達。
+  - 残る影響は `mdsd.err` のディスク消費 (mdsd 側で自動 rotate あり) とログノイズのみ。
+- **場所**: AKS managed addon の `kube-system/ama-metrics-*` Deployment。リポジトリ側のコードでは制御不能。
+- **解消条件**: Microsoft 側で `prometheus-collector` image の supervisor が replica pod でも `AMACoreAgent` を起動する、あるいは OTLP DCR 配信を replica pod 対象から除外する修正が入る。AKS App Monitoring が GA する際にも改善される可能性。
+- **確認方法**: image tag の更新後に以下を確認:
+  - `kubectl -n kube-system exec <ama-metrics-pod> -c prometheus-collector -- ps -ef | grep amacoreagent` で `AMACoreAgent` プロセスが存在するか
+  - `kubectl -n kube-system exec <ama-metrics-pod> -c prometheus-collector -- tail /opt/microsoft/linuxmonagent/mdsd.err | grep -c "AMACoreAgent"` が 0 になるか
+- **追跡**: [#130](https://github.com/torumakabe/aks-chaos-lab/issues/130)（実害なしと判定済み・closed）。
 
