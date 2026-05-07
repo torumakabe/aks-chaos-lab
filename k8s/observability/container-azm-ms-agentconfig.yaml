@@ -1,0 +1,48 @@
+# Container Insights agent settings — limits ContainerLogV2 collection scope.
+#
+# Purpose: stop double-collecting `chaos-lab` namespace stdout in both
+# ContainerLogV2 (ama-logs DaemonSet) and OTLP (LAW `OTelLogs` table via the
+# AKS App Monitoring add-on / Path B `kubernetes-open-protocol`).
+# After ADR-006 enabled OTLP logs export, the FastAPI `app` logger flows
+# directly into the OTel-native `OTelLogs` table and the ContainerLogV2 copy
+# is redundant (and double-billed).
+#
+# Scope rules:
+# - stdout: chaos-lab is excluded — OTLP is the canonical pipeline
+# - stderr: chaos-lab is NOT excluded — uvicorn errors, unhandled exceptions,
+#   pre-init / post-shutdown crashes, and any non-`app` logger output are
+#   only visible in ContainerLogV2 stderr. OTLP only covers the `app`
+#   logger scope (see src/app/telemetry.py); it is NOT a complete substitute
+#   for container stdout/stderr collection.
+#
+# Defaults preserved:
+# - kube-system, gatekeeper-system: official defaults documented by AKS
+#   Container Insights (https://learn.microsoft.com/azure/azure-monitor/containers/container-insights-data-collection-configmap)
+# - azure-arc: explicitly added for this lab — Arc agent logs are not
+#   relevant to chaos-engineering experiments. This is NOT an official default.
+#
+# Out-of-scope: this ConfigMap does NOT touch OTLP receiver (port 4319),
+# DCRA `OtlpAppInsightsExtension`, KubePodInventory, or KubeEvents.
+# Those continue to collect data from `chaos-lab` for chaos-experiment
+# post-mortem analysis.
+#
+# Rollback: remove `chaos-lab` from the stdout `exclude_namespaces` list and
+# re-apply. Container Insights restarts the ama-logs DaemonSet automatically.
+#
+# Verification: see ADR-006 §"成熟度の前提とリスク" for the marker-based KQL.
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: container-azm-ms-agentconfig
+  namespace: kube-system
+data:
+  schema-version: v1
+  config-version: ver1
+  log-data-collection-settings: |-
+    [log_collection_settings]
+       [log_collection_settings.stdout]
+          enabled = true
+          exclude_namespaces = ["kube-system","gatekeeper-system","azure-arc","chaos-lab"]
+       [log_collection_settings.stderr]
+          enabled = true
+          exclude_namespaces = ["kube-system","gatekeeper-system","azure-arc"]

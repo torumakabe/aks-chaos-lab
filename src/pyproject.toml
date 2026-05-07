@@ -10,11 +10,20 @@ dependencies = [
   "azure-identity>=1.24.0",
   "redis-entraid>=1.1.0",
   "aiohttp>=3.13.3",
-  "opentelemetry-sdk>=1.35.0",
-  "opentelemetry-exporter-otlp-proto-http>=1.35.0",
-  "opentelemetry-instrumentation-redis>=0.60b0",
-  "opentelemetry-instrumentation-logging>=0.60b0",
-  "opentelemetry-instrumentation-fastapi>=0.60b0",
+  # OTel SDK / exporter / instrumentation are version-pinned to mitigate the silent-failure
+  # risk documented in ADR-006 ("成熟度の前提とリスク"): the Python OTel Logs SDK is in the
+  # "Development" maturity tier and the `opentelemetry.sdk._logs` namespace remains internal,
+  # so upstream breaking changes (e.g. the 2025-11 LogData removal, the 2026-03 SDK
+  # LoggingHandler deprecation) have caused production silent failures in
+  # azure-monitor-opentelemetry-exporter (Azure issue #44237). Floors are raised to the
+  # currently-locked versions known to work with the contrib LoggingHandler import path
+  # used in src/app/telemetry.py; upper bounds prevent automated major bumps. OTel-related
+  # dependency upgrades (including pre-1.0 minor/beta bumps) require manual review.
+  "opentelemetry-sdk>=1.41.0,<2.0.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.41.0,<2.0.0",
+  "opentelemetry-instrumentation-redis>=0.62b0,<1.0.0",
+  "opentelemetry-instrumentation-logging>=0.62b0,<1.0.0",
+  "opentelemetry-instrumentation-fastapi>=0.62b0,<1.0.0",
   "pydantic>=2.12.5",
   "pydantic-settings>=2.13.1",
   "starlette>=0.52.1",

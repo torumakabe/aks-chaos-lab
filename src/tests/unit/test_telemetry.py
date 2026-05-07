@@ -15,6 +15,7 @@ from app.telemetry import (
     record_span_error,
     reset_telemetry,
     setup_telemetry,
+    shutdown_telemetry,
 )
 
 
@@ -74,6 +75,10 @@ def test_setup_telemetry_with_unified_endpoint() -> None:
         patch("app.telemetry.OTLPSpanExporter"),
         patch("app.telemetry.OTLPMetricExporter"),
         patch("app.telemetry.PeriodicExportingMetricReader"),
+        patch("app.telemetry.OTLPLogExporter"),
+        patch("app.telemetry.BatchLogRecordProcessor"),
+        patch("app.telemetry.LoggerProvider"),
+        patch("app.telemetry.LoggingHandler"),
         patch("app.telemetry.FastAPIInstrumentor") as mock_fai,
         patch("app.telemetry.RedisInstrumentor") as mock_ri,
         patch("app.telemetry.LoggingInstrumentor") as mock_li,
@@ -422,3 +427,341 @@ def test_setup_telemetry_creates_active_requests_gauge() -> None:
 
         assert tm._active_requests_gauge is not None
     reset_telemetry()
+
+
+# --- OTLP logs pipeline ----------------------------------------------------
+
+
+def _patches_for_logs_pipeline_enabled():
+    """Common patches for tests that exercise the logs pipeline.
+
+    実 LoggingHandler はテスト用途で安全に instantiate できる (logger_provider
+    のみ参照、emit は呼ばれない) ため敢えて patch しない。これにより
+    LoggingHandler.level / `app` logger への attach 状態などを実物属性で検証できる。
+    """
+    return (
+        patch("app.telemetry.BatchSpanProcessor"),
+        patch("app.telemetry.OTLPSpanExporter"),
+        patch("app.telemetry.OTLPMetricExporter"),
+        patch("app.telemetry.PeriodicExportingMetricReader"),
+        patch("app.telemetry.OTLPLogExporter"),
+        patch("app.telemetry.BatchLogRecordProcessor"),
+        patch("app.telemetry.LoggerProvider"),
+        patch("app.telemetry.set_logger_provider"),
+    )
+
+
+def test_setup_telemetry_creates_logger_provider_with_logs_endpoint() -> None:
+    """OTEL_EXPORTER_OTLP_LOGS_ENDPOINT が設定されると logs pipeline が作成される。
+
+    `app` logger にだけ LoggingHandler が attach され、root には attach されない。
+    handler level が settings.log_level (デフォルト INFO) で設定される。
+    """
+    reset_telemetry()
+    env = {
+        "TELEMETRY_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:4318/v1/traces",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://localhost:4318/v1/logs",
+        "LOG_LEVEL": "INFO",
+    }
+    bsp, sp_exp, m_exp, m_reader, log_exp, blp, lp, slp = (
+        _patches_for_logs_pipeline_enabled()
+    )
+    with (
+        patch.dict("os.environ", env, clear=False),
+        bsp,
+        sp_exp,
+        m_exp,
+        m_reader,
+        log_exp as mock_log_exp,
+        blp as mock_blp,
+        lp as mock_lp,
+        slp as mock_slp,
+        patch("app.telemetry.FastAPIInstrumentor") as mock_fai,
+        patch("app.telemetry.RedisInstrumentor") as mock_ri,
+        patch("app.telemetry.LoggingInstrumentor") as mock_li,
+    ):
+        mock_fai.instrument_app = MagicMock()
+        mock_ri.return_value.instrument = MagicMock()
+        mock_li.return_value.instrument = MagicMock()
+        setup_telemetry(DummyApp())
+
+        import app.telemetry as tm
+
+        # LoggerProvider was constructed and registered as global.
+        assert mock_lp.called
+        assert mock_blp.called
+        assert mock_log_exp.called
+        assert mock_slp.called
+        assert tm._logger_provider is not None
+        # LoggingHandler was attached to "app" logger but not root.
+        app_logger = logging.getLogger("app")
+        root_logger = logging.getLogger()
+        assert tm._log_handler is not None
+        assert any(h is tm._log_handler for h in app_logger.handlers)
+        assert not any(h is tm._log_handler for h in root_logger.handlers)
+        # Handler level reflects LOG_LEVEL=INFO.
+        assert tm._log_handler.level == logging.INFO
+    reset_telemetry()
+
+
+def test_setup_telemetry_creates_logger_provider_with_unified_endpoint() -> None:
+    """unified OTEL_EXPORTER_OTLP_ENDPOINT でも logs pipeline が作成される。"""
+    reset_telemetry()
+    env = {
+        "TELEMETRY_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+    }
+    bsp, sp_exp, m_exp, m_reader, log_exp, blp, lp, slp = (
+        _patches_for_logs_pipeline_enabled()
+    )
+    with (
+        patch.dict("os.environ", env, clear=False),
+        bsp,
+        sp_exp,
+        m_exp,
+        m_reader,
+        log_exp,
+        blp,
+        lp,
+        slp,
+        patch("app.telemetry.FastAPIInstrumentor") as mock_fai,
+        patch("app.telemetry.RedisInstrumentor") as mock_ri,
+        patch("app.telemetry.LoggingInstrumentor") as mock_li,
+    ):
+        mock_fai.instrument_app = MagicMock()
+        mock_ri.return_value.instrument = MagicMock()
+        mock_li.return_value.instrument = MagicMock()
+        setup_telemetry(DummyApp())
+
+        import app.telemetry as tm
+
+        assert tm._logger_provider is not None
+        assert tm._log_handler is not None
+    reset_telemetry()
+
+
+def test_setup_telemetry_skips_logs_when_only_traces_endpoint() -> None:
+    """OTEL_EXPORTER_OTLP_TRACES_ENDPOINT のみだと logs pipeline は作成されない。
+
+    OTLPLogExporter が localhost:4318/v1/logs に fallback して export error を
+    出すのを防ぐため、専用 guard で skip することを保証する。
+    """
+    reset_telemetry()
+    env = {
+        "TELEMETRY_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:4318/v1/traces",
+    }
+    with (
+        patch.dict("os.environ", env, clear=False),
+        patch("app.telemetry.BatchSpanProcessor"),
+        patch("app.telemetry.OTLPSpanExporter"),
+        patch("app.telemetry.OTLPMetricExporter"),
+        patch("app.telemetry.PeriodicExportingMetricReader"),
+        patch("app.telemetry.OTLPLogExporter") as mock_log_exp,
+        patch("app.telemetry.BatchLogRecordProcessor") as mock_blp,
+        patch("app.telemetry.LoggerProvider") as mock_lp,
+        patch("app.telemetry.set_logger_provider") as mock_slp,
+        patch("app.telemetry.FastAPIInstrumentor") as mock_fai,
+        patch("app.telemetry.RedisInstrumentor") as mock_ri,
+        patch("app.telemetry.LoggingInstrumentor") as mock_li,
+    ):
+        mock_fai.instrument_app = MagicMock()
+        mock_ri.return_value.instrument = MagicMock()
+        mock_li.return_value.instrument = MagicMock()
+        setup_telemetry(DummyApp())
+
+        import app.telemetry as tm
+
+        assert not mock_lp.called
+        assert not mock_blp.called
+        assert not mock_log_exp.called
+        assert not mock_slp.called
+        assert tm._logger_provider is None
+        assert tm._log_handler is None
+    reset_telemetry()
+
+
+def test_setup_telemetry_log_handler_level_respects_log_level() -> None:
+    """LOG_LEVEL=WARNING で handler level が WARNING になる (DEBUG record を抑制)。"""
+    reset_telemetry()
+    env = {
+        "TELEMETRY_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://localhost:4318/v1/logs",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:4318/v1/traces",
+        "LOG_LEVEL": "WARNING",
+    }
+    bsp, sp_exp, m_exp, m_reader, log_exp, blp, lp, slp = (
+        _patches_for_logs_pipeline_enabled()
+    )
+    with (
+        patch.dict("os.environ", env, clear=False),
+        bsp,
+        sp_exp,
+        m_exp,
+        m_reader,
+        log_exp,
+        blp,
+        lp,
+        slp,
+        patch("app.telemetry.FastAPIInstrumentor") as mock_fai,
+        patch("app.telemetry.RedisInstrumentor") as mock_ri,
+        patch("app.telemetry.LoggingInstrumentor") as mock_li,
+    ):
+        mock_fai.instrument_app = MagicMock()
+        mock_ri.return_value.instrument = MagicMock()
+        mock_li.return_value.instrument = MagicMock()
+        setup_telemetry(DummyApp())
+
+        import app.telemetry as tm
+
+        assert tm._log_handler is not None
+        assert tm._log_handler.level == logging.WARNING
+    reset_telemetry()
+
+
+def test_setup_telemetry_disables_logging_instrumentor_auto_handler() -> None:
+    """LoggingInstrumentor は enable_log_auto_instrumentation=False で呼ばれる。
+
+    auto handler が root logger に LoggingHandler を勝手に attach すると、
+    手動 handler と二重送信になるため必ず無効化する。
+    """
+    reset_telemetry()
+    env = {
+        "TELEMETRY_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://localhost:4318/v1/logs",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:4318/v1/traces",
+    }
+    bsp, sp_exp, m_exp, m_reader, log_exp, blp, lp, slp = (
+        _patches_for_logs_pipeline_enabled()
+    )
+    with (
+        patch.dict("os.environ", env, clear=False),
+        bsp,
+        sp_exp,
+        m_exp,
+        m_reader,
+        log_exp,
+        blp,
+        lp,
+        slp,
+        patch("app.telemetry.FastAPIInstrumentor") as mock_fai,
+        patch("app.telemetry.RedisInstrumentor") as mock_ri,
+        patch("app.telemetry.LoggingInstrumentor") as mock_li,
+    ):
+        mock_fai.instrument_app = MagicMock()
+        mock_ri.return_value.instrument = MagicMock()
+        instrument_mock = MagicMock()
+        mock_li.return_value.instrument = instrument_mock
+        setup_telemetry(DummyApp())
+
+        instrument_mock.assert_called_once()
+        kwargs = instrument_mock.call_args.kwargs
+        assert kwargs.get("enable_log_auto_instrumentation") is False
+        assert kwargs.get("set_logging_format") is True
+    reset_telemetry()
+
+
+def test_reset_telemetry_removes_log_handler() -> None:
+    """reset_telemetry が `app` logger から LoggingHandler を取り外す。"""
+    reset_telemetry()
+    env = {
+        "TELEMETRY_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://localhost:4318/v1/logs",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:4318/v1/traces",
+    }
+    bsp, sp_exp, m_exp, m_reader, log_exp, blp, lp, slp = (
+        _patches_for_logs_pipeline_enabled()
+    )
+    with (
+        patch.dict("os.environ", env, clear=False),
+        bsp,
+        sp_exp,
+        m_exp,
+        m_reader,
+        log_exp,
+        blp,
+        lp,
+        slp,
+        patch("app.telemetry.FastAPIInstrumentor") as mock_fai,
+        patch("app.telemetry.RedisInstrumentor") as mock_ri,
+        patch("app.telemetry.LoggingInstrumentor") as mock_li,
+    ):
+        mock_fai.instrument_app = MagicMock()
+        mock_ri.return_value.instrument = MagicMock()
+        mock_li.return_value.instrument = MagicMock()
+        setup_telemetry(DummyApp())
+
+        import app.telemetry as tm
+
+        attached_handler = tm._log_handler
+        assert attached_handler is not None
+        assert any(h is attached_handler for h in logging.getLogger("app").handlers)
+
+    reset_telemetry()
+    import app.telemetry as tm
+
+    assert tm._log_handler is None
+    assert tm._logger_provider is None
+    assert not any(
+        h is attached_handler for h in logging.getLogger("app").handlers
+    )
+
+
+def test_setup_telemetry_no_duplicate_log_handlers() -> None:
+    """setup_telemetry の重複呼び出しでも `app` logger の handler は 1 個のまま。"""
+    reset_telemetry()
+    env = {
+        "TELEMETRY_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://localhost:4318/v1/logs",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:4318/v1/traces",
+    }
+    bsp, sp_exp, m_exp, m_reader, log_exp, blp, lp, slp = (
+        _patches_for_logs_pipeline_enabled()
+    )
+    with (
+        patch.dict("os.environ", env, clear=False),
+        bsp,
+        sp_exp,
+        m_exp,
+        m_reader,
+        log_exp,
+        blp,
+        lp,
+        slp,
+        patch("app.telemetry.FastAPIInstrumentor") as mock_fai,
+        patch("app.telemetry.RedisInstrumentor") as mock_ri,
+        patch("app.telemetry.LoggingInstrumentor") as mock_li,
+    ):
+        mock_fai.instrument_app = MagicMock()
+        mock_ri.return_value.instrument = MagicMock()
+        mock_li.return_value.instrument = MagicMock()
+        setup_telemetry(DummyApp())
+        setup_telemetry(DummyApp())  # second call is a no-op (Once guard)
+
+        import app.telemetry as tm
+
+        app_logger = logging.getLogger("app")
+        attached = [h for h in app_logger.handlers if h is tm._log_handler]
+        assert len(attached) == 1
+    reset_telemetry()
+
+
+def test_shutdown_telemetry_flushes_and_shuts_down_provider() -> None:
+    """shutdown_telemetry は force_flush と shutdown を呼ぶ (best-effort)。"""
+    reset_telemetry()
+    import app.telemetry as tm
+
+    mock_provider = MagicMock()
+    tm._logger_provider = mock_provider
+    shutdown_telemetry()
+    mock_provider.force_flush.assert_called_once()
+    mock_provider.shutdown.assert_called_once()
+    reset_telemetry()
+
+
+def test_shutdown_telemetry_noop_when_not_initialized() -> None:
+    """shutdown_telemetry は LoggerProvider 未初期化なら何もしない。"""
+    reset_telemetry()
+    # Should not raise and should not require any provider
+    shutdown_telemetry()

@@ -21,6 +21,7 @@ from app.telemetry import (
     increment_active_requests,
     record_span_error,
     setup_telemetry,
+    shutdown_telemetry,
 )
 
 
@@ -138,6 +139,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.redis_client = None
 
     logger.info("Application shutdown complete")
+    # Flush OTLP logs pipeline so the final shutdown logs are exported before
+    # the process exits (BatchLogRecordProcessor would otherwise queue them).
+    with suppress(Exception):
+        shutdown_telemetry()
 
 
 app = FastAPI(title="AKS Chaos Lab", lifespan=lifespan)
