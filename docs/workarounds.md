@@ -184,4 +184,21 @@
 - **場所**: README `## 🔭 可観測性` 注記、`src/app/telemetry.py` の auto-instrumentation 部分。
 - **解消条件**: 本リポジトリでは構造的には解消できない (SDK 仕様)。負荷状態の一次信号は Envoy 経由の `gateway:chaos_app:http_request_rate` recording rule を使う運用で迂回する。
 - **確認方法**: README に「`active_requests` を alert の基準にしない」旨を明記し、`gateway:chaos_app:http_request_rate` を使う運用を維持。
+- **補足 (2026-05-07 eval 実機検証)**: 上記 D-5 はドリフトを前提に書いているが、実機検証では **`active_requests` 自体が AMW Prometheus に届いていない** ことが判明 (`active_requests` / `http_server_active_requests` 全て no data)。原因はアプリ側で UpDownCounter を `_meter.create_up_down_counter()` で明示作成しておらず、FastAPI auto-instrumentation の active_requests counter 経路が現状の構成では起動していないため。詳細と対応は [#128](https://github.com/torumakabe/aks-chaos-lab/issues/128) で追跡。
+
+### D-6. OTLP logs (`AppTraces`) がアプリから export されていない
+
+- **概要**: アプリ側で OTel logs の export pipeline を setup しておらず、App Insights `traces` / LAW `AppTraces` テーブルに 1 件も届かない (eval 環境 2026-05-07 検証時点で 0 件)。
+- **理由**: `src/app/telemetry.py` で `LoggerProvider` / `BatchLogRecordProcessor` / `OTLPLogExporter` を setup していない。`LoggingInstrumentor()` は span context を log message に注入する instrumentation で、logs を OTLP export する機能ではない (これは `OTLPLogExporter` + `LoggerProvider` の役割)。OTLP logs endpoint 環境変数 (`OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://NODE_IP:28331/v1/logs`) は AKS App Monitoring webhook が pod に注入しているが、アプリ側で利用していない。
+- **場所**: `src/app/telemetry.py`、ADR-006 §5。
+- **解消条件**: アプリ側で logs export pipeline を追加する。詳細と対応は [#129](https://github.com/torumakabe/aks-chaos-lab/issues/129) で追跡。
+- **確認方法**: 修正後、App Insights `traces` テーブルにアプリ起動時 / Chaos 実験時の log がアプリ側 logger 経由で届くことを確認する。
+
+### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発
+
+- **概要**: `kubectl -n kube-system logs <ama-metrics-pod> -c prometheus-collector` で `mdsd.err` ファイルへの `[CreateSocket] Failed to connect port 12564 socketId: ConfigID to AMACoreAgent: Connection refused` および `[OtlpTokenFetcher] AMACoreAgent tenant not started, trying to start it` が継続的に出力される。
+- **理由**: ama-metrics pod 内の `prometheus-collector` container と `mdsd` core process 間の Unix socket 通信が起動順序または image 不整合で失敗している可能性。AKS App Monitoring は preview 段階で image (`ciprod`, `prometheus-collector`) が頻繁に更新される。
+- **場所**: AKS の `kube-system/ama-metrics-*` daemon set / deployment。リポジトリ側のコードでは制御不能。
+- **解消条件**: Microsoft 側で image 更新により解消される可能性が高い。アプリ側 OTLP traces (`OTelSpans` 19,713 件) や App Insights `dependencies` (15 分間で 78 件) は届いており、実害は限定的。詳細と追跡は [#130](https://github.com/torumakabe/aks-chaos-lab/issues/130) で記録。
+- **確認方法**: ama-metrics pod の image tag を定期的に確認し、新 version で `mdsd.err` のエラー件数が減少するかを監視。
 

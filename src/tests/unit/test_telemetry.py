@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.telemetry import (
-    _Once,
     ErrorAwareSampler,
+    _Once,
     _redis_status_callback,
     record_redis_metrics,
     record_redis_status_only,
