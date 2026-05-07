@@ -621,7 +621,7 @@ resource recommendedMetricAlertsPodLevel 'Microsoft.AlertsManagement/prometheusR
       {
         alert: 'KubeContainerAverageMemoryHigh'
         // alrtB-mem-high-zero-guard: limits=0 で分母 0 → +Inf となる false positive を防ぐ。`> 0` ガードで limit 未設定 container を除外
-        expression: 'avg by (namespace, controller, container, cluster)(((container_memory_working_set_bytes{container!="", image!="", container!="POD"} / on(namespace,cluster,pod,container) group_left (kube_pod_container_resource_limits{resource="memory", node!=""} > 0))*on(namespace, pod, cluster) group_left(controller) label_replace(kube_pod_owner, "controller", "$1", "owner_name", "(.*)")) > .95)'
+        expression: 'avg by (namespace, controller, container, cluster)(((container_memory_working_set_bytes{container!="", image!="", container!="POD"} / on(namespace,cluster,pod,container) group_left() (kube_pod_container_resource_limits{resource="memory", node!=""} > 0))*on(namespace, pod, cluster) group_left(controller) label_replace(kube_pod_owner, "controller", "$1", "owner_name", "(.*)")) > .95)'
         for: 'PT10M'
         annotations: {
           description: 'Average Memory usage per container is greater than 95%. For more information on this alert, please refer to this [link](https://aka.ms/aks-alerts/pod-level-recommended-alerts).'
