@@ -9,6 +9,7 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
+from opentelemetry.metrics import CallbackOptions
 
 from app.config import Settings
 from app.main import app, get_redis_client, get_settings
@@ -36,7 +37,7 @@ def client_with_probe() -> Generator[TestClient]:
 
     @app.get("/__probe_active_requests")
     def _probe() -> dict[str, int]:
-        obs = _active_requests_callback(object())
+        obs = _active_requests_callback(CallbackOptions())
         return {"value": int(obs[0].value) if obs else -1}
 
     try:
@@ -68,7 +69,7 @@ def test_active_requests_count_returns_to_zero_after_request(
     """request 終了後 (response 受信時点) には count が 0 に戻っている。"""
     reset_telemetry()
     client_with_probe.get("/__probe_active_requests")
-    obs = _active_requests_callback(object())
+    obs = _active_requests_callback(CallbackOptions())
     assert obs[0].value == 0
 
 
@@ -79,7 +80,7 @@ def test_active_requests_health_is_excluded(
     reset_telemetry()
     r = client_with_probe.get("/health")
     assert r.status_code in (200, 503)
-    obs = _active_requests_callback(object())
+    obs = _active_requests_callback(CallbackOptions())
     assert obs[0].value == 0
 
 
@@ -99,7 +100,7 @@ def test_active_requests_handles_handler_exception() -> None:
         with TestClient(app, raise_server_exceptions=False) as c:
             r = c.get("/__probe_raise")
             assert r.status_code == 500
-        obs = _active_requests_callback(object())
+        obs = _active_requests_callback(CallbackOptions())
         assert obs[0].value == 0
     finally:
         app.router.routes = [
