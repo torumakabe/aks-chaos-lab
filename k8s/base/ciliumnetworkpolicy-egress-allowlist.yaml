@@ -118,3 +118,45 @@ spec:
         - ports:
             - port: "443"
               protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: synthetic-traffic-egress-allowlist
+  namespace: chaos-lab
+  labels:
+    app.kubernetes.io/name: synthetic-traffic
+    app.kubernetes.io/instance: synthetic-traffic
+    app.kubernetes.io/part-of: aks-chaos-lab
+    app.kubernetes.io/component: networkpolicy
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  # Independent endpointSelector from chaos-app: only matches synthetic-traffic
+  # CronJob Pods so the policy lifecycle is decoupled.
+  endpointSelector:
+    matchLabels:
+      app: synthetic-traffic
+  egress:
+    # Allow DNS resolution of the Istio ingress gateway Service FQDN via CoreDNS.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*.aks-istio-ingress.svc.cluster.local"
+    # Allow HTTP to the Istio ingress gateway Pods (Envoy) on port 80.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: aks-istio-ingress
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
