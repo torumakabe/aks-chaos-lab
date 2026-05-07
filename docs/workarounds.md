@@ -161,5 +161,27 @@
   az deployment sub list --query "[?tags.\"azd-env-name\"=='<env>'] | reverse(sort_by(@, &properties.timestamp)) | [].{name:name,layer:tags.\"azd-layer-name\",reason:tags.\"azd-deploy-reason\",state:properties.provisioningState,ts:properties.timestamp}" -o table
   ```
 - **アップストリーム**: 観測報告として [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) を起票済 (識別情報マスク済の azd output / ARM record を添付)。関連する近接 issue: [Azure/azure-dev#6207](https://github.com/Azure/azure-dev/issues/6207) (PR #6267 で「resources が手動削除済みでも void state する」修正、down 側のみ対応) と [Azure/azure-dev#7603](https://github.com/Azure/azure-dev/pull/7603) (Destroy 経路の大改修、closed without merge)。
-- **解消条件**: down 側は構造的対処で予防済み。upstream で対応が入った場合は本対処を簡素化または撤去できる。
+### D-3. Application Insights `requests/duration` の P95 / P99 が trace sampling の影響を受ける
+
+- **概要**: App Insights Portal で表示される `requests/duration` の P95 / P99 は trace sampling 後のサブセットから集計されるため、本リポジトリの既定 sampling rate (`OTEL_TRACES_SAMPLER_ARG=0.1`) のように低いとサンプル数不足で値がぶれる。レアな遅延が取りこぼされる。
+- **理由**: Azure Monitor exporter は traces から requests metric を再構築する経路があり、Microsoft Learn にも明記されていない。
+- **場所**: `src/app/telemetry.py` (`ErrorAwareSampler` で chaos / error 経路は常時 sample)、README `## 🔭 可観測性`。
+- **解消条件**: SLI / SLO の latency 一次信号は **Managed Prometheus の Envoy histogram** 由来 recording rule (`gateway:chaos_app:http_request_duration:p95`) を使う方針なので、本リポジトリでは構造的に解消される。App Insights P95 はあくまで参考値。
+- **確認方法**: AMW recording rule の P95 と App Insights P95 を同一時間軸で比較し、系統的な差分があるかを確認。
+
+### D-4. Azure Monitor SLI Metric Alert (Portal 型) の動作仕様が未公開
+
+- **概要**: `Microsoft.Insights/metricAlerts@2024-03-01-preview` の `PromQLCriteria` で SLI を criteria にする Portal 型 alert は preview 段階で、`query` フィールドのプレースホルダー動作 (例: `'up'`) や alert instance のトリガー条件が公式 docs に記載されていない。本リポジトリでは [`infra/modules/azmonitor/sli-metric-alerts.bicep`](../infra/modules/azmonitor/sli-metric-alerts.bicep) で baseline / fast burn / slow burn alert を作成しているが、preview 期間中は alert instance 観測が不安定。
+- **理由**: Azure Monitor SLI 自体が preview API (`Microsoft.Monitor/slis@2025-03-01-preview`) で動作中。Portal / Bicep / API の差分が docs に残っていない。
+- **場所**: `infra/modules/azmonitor/sli-metric-alerts.bicep`、ADR-009 §Consequences。
+- **解消条件**: Microsoft が SLI Metric Alert を GA し、Portal / Bicep / API の動作が docs にまとまる。
+- **確認方法**: SLI burn rate alert の test fire (`chaos-app` Pod を 0 replicas にして 5 分以上維持) で alert instance が記録されるかを確認。短期 operational alert (`ChaosAppRequestFailureRateHigh` / `ChaosAppNoTraffic`) を SLI alert の代替として併用する。
+
+### D-5. OpenTelemetry UpDownCounter `http.server.active_requests` の Pod 再起動時ドリフト
+
+- **概要**: FastAPI / OTel auto-instrumentation が emit する `http.server.active_requests` は UpDownCounter (DELTA aggregation) で per-process state を持つ。Chaos 実験で Pod 再起動が頻発する環境では、`rate()` / `delta()` で集計した時に負値や jitter が出る。
+- **理由**: UpDownCounter は process-local な state を保持し、Pod restart で reset されるが、Azure Monitor / Prometheus 側の集計クエリは Cumulative 前提で、reset を補正する仕組みがない (OTel SDK 仕様)。
+- **場所**: README `## 🔭 可観測性` 注記、`src/app/telemetry.py` の auto-instrumentation 部分。
+- **解消条件**: 本リポジトリでは構造的には解消できない (SDK 仕様)。負荷状態の一次信号は Envoy 経由の `gateway:chaos_app:http_request_rate` recording rule を使う運用で迂回する。
+- **確認方法**: README に「`active_requests` を alert の基準にしない」旨を明記し、`gateway:chaos_app:http_request_rate` を使う運用を維持。
 
