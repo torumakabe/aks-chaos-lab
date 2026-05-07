@@ -184,7 +184,7 @@
 - **場所**: README `## 🔭 可観測性` 注記、`src/app/telemetry.py` の auto-instrumentation 部分。
 - **解消条件**: 本リポジトリでは構造的には解消できない (SDK 仕様)。負荷状態の一次信号は Envoy 経由の `gateway:chaos_app:http_request_rate` recording rule を使う運用で迂回する。
 - **確認方法**: README に「`active_requests` を alert の基準にしない」旨を明記し、`gateway:chaos_app:http_request_rate` を使う運用を維持。
-- **補足 (2026-05-07 eval 実機検証)**: 上記 D-5 はドリフトを前提に書いているが、実機検証では **`active_requests` 自体が AMW Prometheus に届いていない** ことが判明 (`active_requests` / `http_server_active_requests` 全て no data)。原因はアプリ側で UpDownCounter を `_meter.create_up_down_counter()` で明示作成しておらず、FastAPI auto-instrumentation の active_requests counter 経路が現状の構成では起動していないため。詳細と対応は [#128](https://github.com/torumakabe/aks-chaos-lab/issues/128) で追跡。
+- **補足 (2026-05-07 issue #128 対応)**: 上記 D-5 はドリフトを前提に書いているが、実機検証では **ノートラフィック時に `active_requests` 自体が AMW Prometheus に届かない** 事象が発覚した (eval 環境)。原因は **synchronous UpDownCounter が `add()` の呼ばれない export interval ではデータポイントを emit しない仕様** (FastAPIInstrumentor は ASGI middleware 経由で正しく counter を作成しているが、kubelet probe による `/health` だけが流れるノートラフィック環境では `excluded_urls="health"` で除外され、結果として `add()` が一度も呼ばれない)。対応として、ノートラフィック耐性のあるアプリ独自 metric `chaos_app.active_requests` (ObservableGauge、`/health` 除外) を [`src/app/telemetry.py`](../src/app/telemetry.py) と [`src/app/main.py`](../src/app/main.py) の HTTP middleware で実装し、callback 経由で毎 export interval 現在値 (通常 0) を emit するよう変更した。標準 `http.server.active_requests` (FastAPIInstrumentor) は Pod 再起動時のドリフトと "no-traffic で series 不出現" の両方を抱えるため、SLO/alert/dashboard では `chaos_app.active_requests` を使うこと。
 
 ### D-6. OTLP logs (`AppTraces`) がアプリから export されていない
 

@@ -16,7 +16,12 @@ from opentelemetry import trace
 from app.config import Settings
 from app.models import ErrorResponse, HealthResponse, MainResponse
 from app.redis_client import RedisClient
-from app.telemetry import record_span_error, setup_telemetry
+from app.telemetry import (
+    decrement_active_requests,
+    increment_active_requests,
+    record_span_error,
+    setup_telemetry,
+)
 
 
 # Global instances
@@ -137,6 +142,35 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="AKS Chaos Lab", lifespan=lifespan)
 setup_telemetry(app)
+
+
+def _is_active_requests_excluded(path: str) -> bool:
+    """Return True if the path should be excluded from active_requests counting.
+
+    /health は kubelet probe 由来でアプリの inflight 概念から外したいため除外
+    する。FastAPIInstrumentor の ``excluded_urls="health"`` と意味的に揃える。
+    将来 /readyz, /livez を追加する場合はここを変更する (Settings 化は過剰)。
+    """
+    return path == "/health"
+
+
+@app.middleware("http")
+async def active_requests_middleware(request: Request, call_next):
+    """Track in-flight HTTP requests for the chaos_app.active_requests gauge.
+
+    increment は /health 以外で行い、レスポンス完了 (例外含む) で decrement
+    する。``incremented`` フラグで increment/decrement のペアリングを保証し、
+    例外時の double decrement や excluded path での誤 decrement を防ぐ。
+    """
+    incremented = False
+    if not _is_active_requests_excluded(request.url.path):
+        increment_active_requests()
+        incremented = True
+    try:
+        return await call_next(request)
+    finally:
+        if incremented:
+            decrement_active_requests()
 
 
 @app.middleware("http")

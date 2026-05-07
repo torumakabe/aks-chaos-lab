@@ -135,6 +135,23 @@ _redis_latency_hist: Any = None
 # アイドル時でも値が継続的に export される (no-data 解消)。
 _redis_connected_state: int = -1
 
+# Active requests backing state for chaos_app.active_requests ObservableGauge.
+# - HTTP middleware が increment_active_requests / decrement_active_requests
+#   経由で更新。
+# - ObservableGauge を採用する理由: synchronous UpDownCounter は add() が
+#   呼ばれない export interval でデータポイントを出さないため、ノートラフィック
+#   時に AMW Prometheus に series が出ない。callback 経由なら毎 interval
+#   現在値を export でき、no-data を構造的に解消できる。
+# - DELTA temporality 設定を回避するため Gauge を採用 (ObservableUpDownCounter
+#   + DELTA は "前回観測値との差分" になり "現在値" にならない)。
+# - 標準 semconv `http.server.active_requests` ではなく custom metric
+#   `chaos_app.active_requests` を使う。FastAPIInstrumentor が出力しうる
+#   標準 metric との衝突 (instrumentation scope の異なる同名 series)
+#   による運用上の混乱を避ける。
+_active_requests_count: int = 0
+_active_requests_lock: Lock = Lock()
+_active_requests_gauge: Any = None
+
 # Standard OpenTelemetry Once pattern for preventing duplicate initialization
 _setup_once = _Once()
 _instrumentation_once = _Once()
@@ -149,6 +166,17 @@ def _redis_status_callback(_options: CallbackOptions) -> list[Observation]:
     if _redis_connected_state < 0:
         return []
     return [Observation(_redis_connected_state)]
+
+
+def _active_requests_callback(_options: CallbackOptions) -> list[Observation]:
+    """ObservableGauge callback returning the current in-flight request count.
+
+    Lock 内で値をコピーし、lock 外で Observation を作成する (callback は
+    SDK の metric collection thread から呼ばれるため threading.Lock が適切)。
+    """
+    with _active_requests_lock:
+        value = _active_requests_count
+    return [Observation(value)]
 
 
 def setup_telemetry(app: Any) -> None:
@@ -254,6 +282,20 @@ def setup_telemetry(app: Any) -> None:
                     unit="ms",
                 )
 
+            # Active requests gauge: ノートラフィック時も現在値 (通常 0) を
+            # 毎 interval export して AMW Prometheus に series を維持する。
+            global _active_requests_gauge
+            with suppress(Exception):
+                _active_requests_gauge = _meter.create_observable_gauge(
+                    name="chaos_app.active_requests",
+                    description=(
+                        "Number of in-flight HTTP server requests "
+                        "(custom metric, excludes /health)"
+                    ),
+                    unit="{request}",
+                    callbacks=[_active_requests_callback],
+                )
+
             logger.info("Telemetry configured (OTel SDK + OTLP exporter)")
             _telemetry_active = True
         except Exception as e:  # noqa: BLE001
@@ -307,12 +349,47 @@ def reset_telemetry() -> None:
     """
     global _setup_once, _instrumentation_once
     global _redis_status_gauge, _redis_latency_hist, _redis_connected_state
+    global _active_requests_gauge, _active_requests_count
     _setup_once = _Once()
     _instrumentation_once = _Once()
     _redis_status_gauge = None
     _redis_latency_hist = None
     _redis_connected_state = -1
+    _active_requests_gauge = None
+    with _active_requests_lock:
+        _active_requests_count = 0
     logger.debug("Telemetry state reset for testing")
+
+
+def increment_active_requests() -> None:
+    """Atomically increment the in-flight request count.
+
+    HTTP middleware から request 受信時に呼び出す。GIL 上でも複合更新の
+    アトミック性を保証するため threading.Lock で保護する。
+    """
+    global _active_requests_count
+    with _active_requests_lock:
+        _active_requests_count += 1
+
+
+def decrement_active_requests() -> None:
+    """Atomically decrement the in-flight request count.
+
+    HTTP middleware の finally ブロックから呼び出す。誤用 (increment 過去無し
+    での decrement) や middleware 順序変更時の不整合に備え、count が負値に
+    ならないよう underflow 保護を行う。
+    """
+    global _active_requests_count
+    with _active_requests_lock:
+        if _active_requests_count <= 0:
+            logger.warning(
+                "decrement_active_requests called with non-positive count "
+                "(=%d); clamping to 0 to avoid underflow",
+                _active_requests_count,
+            )
+            _active_requests_count = 0
+        else:
+            _active_requests_count -= 1
 
 
 def record_redis_metrics(connected: bool, latency_ms: int) -> None:
