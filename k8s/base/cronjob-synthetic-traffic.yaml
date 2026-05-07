@@ -67,13 +67,15 @@ spec:
             - name: curl
               image: mcr.microsoft.com/azurelinux/base/core:3.0
               imagePullPolicy: IfNotPresent
-              # Target the in-cluster ClusterIP of the Istio ingress gateway Service.
-              # Even though the Service type is LoadBalancer (external), the ClusterIP
-              # routes Pod-to-Service traffic to the same Envoy Pod, so the same
-              # `envoy_cluster_*{cluster_name="outbound|80||chaos-app.*"}` series is
-              # populated. The Host header MUST match the HTTPRoute hostname (=Gateway
-              # listener.hostname = AZURE_INGRESS_FQDN) or the request hits no_route
-              # and is excluded from envoy_cluster_*.
+              # Target the in-cluster ClusterIP of the AKS Istio addon Gateway-managed Service.
+              # AKS App Routing Istio's Gateway controller creates a per-Gateway LoadBalancer
+              # Service named `<gateway-name>-approuting-istio` in the same namespace as the
+              # Gateway resource. Hitting the ClusterIP keeps Pod-to-Service traffic in-cluster
+              # while still landing on the same Envoy Pods, so the same
+              # `envoy_cluster_*{cluster_name="outbound|80||chaos-app.*"}` series is populated.
+              # The Host header MUST match the HTTPRoute hostname (= Gateway listener.hostname
+              # = AZURE_INGRESS_FQDN) or the request hits no_route and is excluded from
+              # envoy_cluster_*.
               command:
                 - /bin/sh
                 - -c
@@ -83,7 +85,7 @@ spec:
                     --header "Host: ${INGRESS_FQDN}" \
                     --output /dev/null \
                     --write-out "HTTP %{http_code} time_total=%{time_total}s\n" \
-                    "http://aks-istio-ingressgateway-external.aks-istio-ingress.svc.cluster.local/"
+                    "http://chaos-app-approuting-istio.chaos-lab.svc.cluster.local/"
               env:
                 - name: INGRESS_FQDN
                   valueFrom:
