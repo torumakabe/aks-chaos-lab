@@ -5,12 +5,17 @@ from threading import Lock
 from typing import Any
 
 from opentelemetry import metrics, trace
+from opentelemetry._logs import set_logger_provider
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry.instrumentation.logging.handler import LoggingHandler
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.metrics import CallbackOptions, Observation
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics._internal.instrument import (
     Counter,
@@ -151,6 +156,17 @@ _redis_connected_state: int = -1
 _active_requests_count: int = 0
 _active_requests_lock: Lock = Lock()
 _active_requests_gauge: Any = None
+
+# OTLP logs pipeline state.
+# - _logger_provider: SDK LoggerProvider, set up only when logs endpoint is configured.
+# - _log_handler: LoggingHandler manually attached to the "app" logger so that
+#   `logging.getLogger("app.*")` records flow to OTLP. Stored by identity for safe
+#   removal in reset_telemetry (works regardless of test mocking).
+# - root logger には敢えて attach しない: third-party (urllib3, redis-py, azure SDK 等)
+#   の log を巻き込むことによる PII / volume / uvicorn logging config 干渉を避けるため。
+#   将来 uvicorn.error 等が必要になったら明示 allowlist 方式で拡張する。
+_logger_provider: Any = None
+_log_handler: Any = None
 
 # Standard OpenTelemetry Once pattern for preventing duplicate initialization
 _setup_once = _Once()
@@ -296,6 +312,35 @@ def setup_telemetry(app: Any) -> None:
                     callbacks=[_active_requests_callback],
                 )
 
+            # LoggerProvider with OTLP/HTTP exporter — only when a logs endpoint
+            # is configured (separate guard from traces/metrics).
+            # OTLPLogExporter は OTEL_EXPORTER_OTLP_LOGS_ENDPOINT > unified
+            # OTEL_EXPORTER_OTLP_ENDPOINT > localhost:4318/v1/logs の優先順位で
+            # 動くため、いずれも未設定の環境 (一部 dev / test) では localhost
+            # への export error を出さないよう pipeline 自体を作らない。
+            has_logs_endpoint = os.getenv(
+                "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"
+            ) or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+            if has_logs_endpoint:
+                global _logger_provider, _log_handler
+                _logger_provider = LoggerProvider(resource=resource)
+                _logger_provider.add_log_record_processor(
+                    BatchLogRecordProcessor(OTLPLogExporter())
+                )
+                set_logger_provider(_logger_provider)
+
+                # `app` logger 配下 (app.main / app.telemetry / app.redis_client
+                # 等) の records だけを OTLP に流す。root には attach しない。
+                # handler level を settings.log_level で明示し、子 logger が
+                # DEBUG に上げられた場合でも本番で流入しないようにする。
+                handler_level = getattr(
+                    logging, settings.log_level.upper(), logging.INFO
+                )
+                _log_handler = LoggingHandler(
+                    level=handler_level, logger_provider=_logger_provider
+                )
+                logging.getLogger("app").addHandler(_log_handler)
+
             logger.info("Telemetry configured (OTel SDK + OTLP exporter)")
             _telemetry_active = True
         except Exception as e:  # noqa: BLE001
@@ -308,8 +353,17 @@ def setup_telemetry(app: Any) -> None:
                 FastAPIInstrumentor.instrument_app(app, excluded_urls="health")
             with suppress(Exception):
                 RedisInstrumentor().instrument()
+            # `enable_log_auto_instrumentation=False` で LoggingInstrumentor が
+            # root logger に LoggingHandler を勝手に attach するのを止める。
+            # logs export は _setup_core 側で `app` logger に attach した
+            # 手動 handler が担当する (二重送信防止 / scope 限定)。
+            # `set_logging_format=True` は LogRecord に otelTraceID / otelSpanID
+            # を付与するため維持する。
             with suppress(Exception):
-                LoggingInstrumentor().instrument(set_logging_format=True)
+                LoggingInstrumentor().instrument(
+                    set_logging_format=True,
+                    enable_log_auto_instrumentation=False,
+                )
             logger.debug("Instrumentation completed")
         except Exception as e:  # noqa: BLE001
             logger.error("Failed to configure instrumentation: %s", e)
@@ -350,6 +404,7 @@ def reset_telemetry() -> None:
     global _setup_once, _instrumentation_once
     global _redis_status_gauge, _redis_latency_hist, _redis_connected_state
     global _active_requests_gauge, _active_requests_count
+    global _logger_provider, _log_handler
     _setup_once = _Once()
     _instrumentation_once = _Once()
     _redis_status_gauge = None
@@ -358,7 +413,32 @@ def reset_telemetry() -> None:
     _active_requests_gauge = None
     with _active_requests_lock:
         _active_requests_count = 0
+    # Detach OTLP log handler we attached to the "app" logger (identity remove
+    # works regardless of whether LoggingHandler is mocked in tests).
+    if _log_handler is not None:
+        with suppress(Exception):
+            logging.getLogger("app").removeHandler(_log_handler)
+    _log_handler = None
+    _logger_provider = None
     logger.debug("Telemetry state reset for testing")
+
+
+def shutdown_telemetry() -> None:
+    """Flush and shut down the OTLP logs pipeline (best-effort).
+
+    Kubernetes SIGTERM → uvicorn graceful shutdown のパスで、最後に emit した
+    application log (例: "Application shutdown complete") を BatchLogRecordProcessor
+    の export 前に process が終わるとロストする。lifespan shutdown の最後に
+    本関数を呼ぶことで force_flush + shutdown を明示的に走らせる。
+    Traces / metrics の SDK 側 atexit フックは別経路で動くため対象外。
+    """
+    global _logger_provider
+    if _logger_provider is None:
+        return
+    with suppress(Exception):
+        _logger_provider.force_flush()
+    with suppress(Exception):
+        _logger_provider.shutdown()
 
 
 def increment_active_requests() -> None:

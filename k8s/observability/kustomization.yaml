@@ -9,3 +9,4 @@ resources:
   - ama-metrics-settings-configmap.yaml
   - ama-metrics-prometheus-config.yaml
   - container-network-log.yaml
+  - container-azm-ms-agentconfig.yaml
