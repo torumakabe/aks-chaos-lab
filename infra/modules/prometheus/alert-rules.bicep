@@ -870,7 +870,7 @@ resource appOperationalAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         expression: '(absent(gateway:chaos_app:http_request_rate) == 1) or (gateway:chaos_app:http_request_rate <= 0)'
         for: 'PT5M'
         annotations: {
-          description: 'chaos-app への合成トラフィック (synthetic-traffic CronJob) が 5 分以上途絶。CronJob 失敗、Pod 完全停止、Service/Gateway 障害、または HTTPRoute hostname 不一致のいずれかが疑われます。kubectl -n chaos-lab get cronjob synthetic-traffic と get pods -l app=synthetic-traffic を確認してください。'
+          description: 'chaos-app への合成トラフィック (synthetic-traffic CronJob) が 5〜10 分にわたり途絶 (rate[5m] + for 5m の合計遅延を含む実検知時間)。CronJob 失敗、Pod 完全停止、Service/Gateway 障害、または HTTPRoute hostname 不一致のいずれかが疑われます。kubectl -n chaos-lab get cronjob synthetic-traffic と get pods -l app=synthetic-traffic を確認してください。'
         }
         enabled: true
         severity: 1

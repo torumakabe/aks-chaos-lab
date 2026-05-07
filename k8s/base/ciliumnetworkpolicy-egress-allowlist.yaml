@@ -151,6 +151,9 @@ spec:
               protocol: TCP
           rules:
             dns:
+              # matchName: ndots:5 search domain 試行で発生する非 absolute query を確実に許可する。
+              - matchName: "aks-istio-ingressgateway-external.aks-istio-ingress.svc.cluster.local"
+              # matchPattern: 同 namespace 内の他 Service への将来的な解決余地を残す。
               - matchPattern: "*.aks-istio-ingress.svc.cluster.local"
     # Allow HTTP to the Istio ingress gateway Pods (Envoy) on port 80.
     - toEndpoints:

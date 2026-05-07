@@ -195,9 +195,11 @@ resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGrou
     interval: 'PT1M'
     rules: [
       {
-        // R1: p95 latency. no-traffic 時は histogram_quantile が空ベクタになるため or vector(0) でフォールバック
+        // R1: p95 latency. no-traffic 時 (左辺が NaN/empty) は cluster_name 付きの 0 ベクトルを返し、
+        // SLI 側 partitioning dimension (cluster_name) と整合させる。
+        // `or on(cluster_name) (... * 0)` の右辺は completed series が存在する限り cluster_name 付き 0 を生成する。
         record: 'gateway:chaos_app:http_request_duration:p95'
-        expression: '(histogram_quantile(0.95, sum by (cluster_name, le) (rate(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))) / 1000) or vector(0)'
+        expression: '(histogram_quantile(0.95, sum by (cluster_name, le) (rate(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))) / 1000) or on(cluster_name) (sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0)'
         enabled: true
       }
       {
