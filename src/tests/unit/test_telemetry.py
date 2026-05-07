@@ -6,7 +6,10 @@ import pytest
 from app.telemetry import (
     ErrorAwareSampler,
     _Once,
+    _active_requests_callback,
     _redis_status_callback,
+    decrement_active_requests,
+    increment_active_requests,
     record_redis_metrics,
     record_redis_status_only,
     record_span_error,
@@ -326,4 +329,96 @@ def test_setup_telemetry_exception_handling(caplog: pytest.LogCaptureFixture) ->
     ):
         setup_telemetry(DummyApp())
     assert "Failed to configure telemetry" in caplog.text
+    reset_telemetry()
+
+
+# --- chaos_app.active_requests gauge --------------------------------------
+
+
+def test_increment_decrement_active_requests_pair() -> None:
+    """increment/decrement のペアで count が +1/-1 し、初期 0 に戻る。"""
+    reset_telemetry()
+    import app.telemetry as tm
+
+    assert tm._active_requests_count == 0
+    increment_active_requests()
+    assert tm._active_requests_count == 1
+    increment_active_requests()
+    assert tm._active_requests_count == 2
+    decrement_active_requests()
+    decrement_active_requests()
+    assert tm._active_requests_count == 0
+    reset_telemetry()
+
+
+def test_decrement_active_requests_underflow_protection(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """count が 0 のとき decrement しても 0 のままで負値にならない。"""
+    reset_telemetry()
+    import app.telemetry as tm
+
+    assert tm._active_requests_count == 0
+    with caplog.at_level(logging.WARNING):
+        decrement_active_requests()
+    assert tm._active_requests_count == 0
+    assert "underflow" in caplog.text.lower() or "non-positive" in caplog.text.lower()
+    reset_telemetry()
+
+
+def test_active_requests_callback_returns_current_count() -> None:
+    """callback は現在の count を Observation で返す。"""
+    reset_telemetry()
+    obs = _active_requests_callback(MagicMock())
+    assert len(obs) == 1
+    assert obs[0].value == 0
+
+    increment_active_requests()
+    increment_active_requests()
+    obs = _active_requests_callback(MagicMock())
+    assert len(obs) == 1
+    assert obs[0].value == 2
+
+    decrement_active_requests()
+    obs = _active_requests_callback(MagicMock())
+    assert obs[0].value == 1
+    reset_telemetry()
+
+
+def test_reset_telemetry_resets_active_requests_count() -> None:
+    """reset_telemetry は active_requests_count を 0 に戻す。"""
+    increment_active_requests()
+    increment_active_requests()
+    import app.telemetry as tm
+
+    assert tm._active_requests_count == 2
+    reset_telemetry()
+    assert tm._active_requests_count == 0
+
+
+def test_setup_telemetry_creates_active_requests_gauge() -> None:
+    """setup_telemetry が ObservableGauge `chaos_app.active_requests` を作成。"""
+    reset_telemetry()
+    env = {
+        "TELEMETRY_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:4318/v1/traces",
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://localhost:4318/v1/metrics",
+    }
+    with (
+        patch.dict("os.environ", env, clear=False),
+        patch("app.telemetry.BatchSpanProcessor"),
+        patch("app.telemetry.OTLPSpanExporter"),
+        patch("app.telemetry.OTLPMetricExporter"),
+        patch("app.telemetry.PeriodicExportingMetricReader"),
+        patch("app.telemetry.FastAPIInstrumentor") as mock_fai,
+        patch("app.telemetry.RedisInstrumentor") as mock_ri,
+        patch("app.telemetry.LoggingInstrumentor") as mock_li,
+    ):
+        mock_fai.instrument_app = MagicMock()
+        mock_ri.return_value.instrument = MagicMock()
+        mock_li.return_value.instrument = MagicMock()
+        setup_telemetry(DummyApp())
+        import app.telemetry as tm
+
+        assert tm._active_requests_gauge is not None
     reset_telemetry()
