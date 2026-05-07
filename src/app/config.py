@@ -48,3 +48,6 @@ class Settings(BaseSettings):
     telemetry_enabled: bool = Field(True, alias="TELEMETRY_ENABLED")
     custom_metrics_enabled: bool = Field(True, alias="CUSTOM_METRICS_ENABLED")
     telemetry_sampling_rate: float = Field(0.1, alias="TELEMETRY_SAMPLING_RATE")
+    telemetry_export_interval_ms: int = Field(
+        30000, alias="TELEMETRY_EXPORT_INTERVAL_MS"
+    )

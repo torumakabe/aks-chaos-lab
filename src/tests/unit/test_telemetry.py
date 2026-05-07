@@ -5,7 +5,10 @@ import pytest
 
 from app.telemetry import (
     _Once,
+    ErrorAwareSampler,
+    _redis_status_callback,
     record_redis_metrics,
+    record_redis_status_only,
     record_span_error,
     reset_telemetry,
     setup_telemetry,
@@ -145,12 +148,14 @@ def test_record_span_error_with_non_recording_span() -> None:
 
 def test_record_redis_metrics_no_meter() -> None:
     """record_redis_metrics returns early when meter is None."""
+    reset_telemetry()
     with patch("app.telemetry._meter", None):
         record_redis_metrics(connected=True, latency_ms=5)
 
 
 def test_record_redis_metrics_disabled() -> None:
     """record_redis_metrics returns early when custom_metrics_enabled is False."""
+    reset_telemetry()
     with patch("app.telemetry._meter", MagicMock()):
         with patch("app.config.Settings") as mock_settings:
             mock_settings.return_value.custom_metrics_enabled = False
@@ -158,30 +163,148 @@ def test_record_redis_metrics_disabled() -> None:
 
 
 def test_record_redis_metrics_success() -> None:
-    """record_redis_metrics records gauge and histogram."""
-    mock_meter = MagicMock()
-    mock_gauge = MagicMock()
+    """record_redis_metrics records latency on cached histogram and updates state."""
+    reset_telemetry()
     mock_hist = MagicMock()
-    mock_meter.create_gauge.return_value = mock_gauge
-    mock_meter.create_histogram.return_value = mock_hist
-    with patch("app.telemetry._meter", mock_meter):
-        with patch("app.config.Settings") as mock_settings:
-            mock_settings.return_value.custom_metrics_enabled = True
-            record_redis_metrics(connected=True, latency_ms=5)
-    mock_gauge.set.assert_called_once_with(1)
+    with (
+        patch("app.telemetry._meter", MagicMock()),
+        patch("app.telemetry._redis_latency_hist", mock_hist),
+        patch("app.config.Settings") as mock_settings,
+    ):
+        mock_settings.return_value.custom_metrics_enabled = True
+        record_redis_metrics(connected=True, latency_ms=5)
     mock_hist.record.assert_called_once_with(5)
+    # backing state は ObservableGauge callback 用
+    import app.telemetry as tm
+
+    assert tm._redis_connected_state == 1
+    reset_telemetry()
 
 
 def test_record_redis_metrics_disconnected() -> None:
-    """record_redis_metrics records 0 for disconnected state."""
-    mock_meter = MagicMock()
-    mock_gauge = MagicMock()
-    mock_meter.create_gauge.return_value = mock_gauge
-    with patch("app.telemetry._meter", mock_meter):
-        with patch("app.config.Settings") as mock_settings:
-            mock_settings.return_value.custom_metrics_enabled = True
-            record_redis_metrics(connected=False, latency_ms=-1)
-    mock_gauge.set.assert_called_once_with(0)
+    """record_redis_metrics records 0 to backing state and skips histogram."""
+    reset_telemetry()
+    mock_hist = MagicMock()
+    with (
+        patch("app.telemetry._meter", MagicMock()),
+        patch("app.telemetry._redis_latency_hist", mock_hist),
+        patch("app.config.Settings") as mock_settings,
+    ):
+        mock_settings.return_value.custom_metrics_enabled = True
+        record_redis_metrics(connected=False, latency_ms=-1)
+    mock_hist.record.assert_not_called()
+    import app.telemetry as tm
+
+    assert tm._redis_connected_state == 0
+    reset_telemetry()
+
+
+def test_record_redis_status_only_does_not_write_histogram() -> None:
+    """record_redis_status_only updates backing state without touching histogram."""
+    reset_telemetry()
+    mock_hist = MagicMock()
+    with (
+        patch("app.telemetry._meter", MagicMock()),
+        patch("app.telemetry._redis_latency_hist", mock_hist),
+        patch("app.config.Settings") as mock_settings,
+    ):
+        mock_settings.return_value.custom_metrics_enabled = True
+        record_redis_status_only(connected=True)
+        record_redis_status_only(connected=False)
+    mock_hist.record.assert_not_called()
+    import app.telemetry as tm
+
+    assert tm._redis_connected_state == 0
+    reset_telemetry()
+
+
+def test_record_redis_status_only_disabled() -> None:
+    """record_redis_status_only returns early when custom_metrics_enabled is False."""
+    reset_telemetry()
+    with (
+        patch("app.telemetry._meter", MagicMock()),
+        patch("app.config.Settings") as mock_settings,
+    ):
+        mock_settings.return_value.custom_metrics_enabled = False
+        record_redis_status_only(connected=True)
+    import app.telemetry as tm
+
+    # state is unchanged (default -1)
+    assert tm._redis_connected_state == -1
+    reset_telemetry()
+
+
+def test_redis_status_callback_returns_empty_when_unknown() -> None:
+    """ObservableGauge callback yields nothing while state is -1 (unknown)."""
+    reset_telemetry()
+    obs = _redis_status_callback(MagicMock())
+    assert obs == []
+
+
+def test_redis_status_callback_returns_state_when_known() -> None:
+    """ObservableGauge callback yields current state once recorded."""
+    reset_telemetry()
+    with (
+        patch("app.telemetry._meter", MagicMock()),
+        patch("app.config.Settings") as mock_settings,
+    ):
+        mock_settings.return_value.custom_metrics_enabled = True
+        record_redis_status_only(connected=True)
+    obs = _redis_status_callback(MagicMock())
+    assert len(obs) == 1
+    assert obs[0].value == 1
+    reset_telemetry()
+
+
+def test_error_aware_sampler_always_samples_chaos_path() -> None:
+    """ErrorAwareSampler returns RECORD_AND_SAMPLE for chaos/error spans."""
+    from opentelemetry.sdk.trace.sampling import Decision
+
+    sampler = ErrorAwareSampler(rate=0.0)
+    # rate=0.0 でも chaos path は sampled
+    result = sampler.should_sample(
+        parent_context=None,
+        trace_id=0x1234,
+        name="GET /chaos/redis-failure",
+        attributes={"http.target": "/chaos/redis-failure"},
+    )
+    assert result.decision == Decision.RECORD_AND_SAMPLE
+
+
+def test_error_aware_sampler_always_samples_error_attribute() -> None:
+    """ErrorAwareSampler matches error pattern via attribute keys."""
+    from opentelemetry.sdk.trace.sampling import Decision
+
+    sampler = ErrorAwareSampler(rate=0.0)
+    result = sampler.should_sample(
+        parent_context=None,
+        trace_id=0x5678,
+        name="POST /api/throw",
+        attributes={"url.path": "/api/throw"},
+    )
+    assert result.decision == Decision.RECORD_AND_SAMPLE
+
+
+def test_error_aware_sampler_delegates_to_ratio_for_normal_path() -> None:
+    """ErrorAwareSampler delegates non-error spans to TraceIdRatioBased."""
+    from opentelemetry.sdk.trace.sampling import Decision
+
+    sampler = ErrorAwareSampler(rate=0.0)
+    # rate=0.0 → 通常 path は DROP
+    result = sampler.should_sample(
+        parent_context=None,
+        trace_id=0xABCD,
+        name="GET /api/users",
+        attributes={"http.target": "/api/users"},
+    )
+    assert result.decision == Decision.DROP
+
+
+def test_error_aware_sampler_description() -> None:
+    """ErrorAwareSampler reports its sampling rate in description."""
+    sampler = ErrorAwareSampler(rate=0.25)
+    assert "0.25" in sampler.get_description()
+    assert "ErrorAwareSampler" in sampler.get_description()
 
 
 def test_reset_telemetry() -> None:

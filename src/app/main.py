@@ -210,15 +210,17 @@ async def root(
 
     # Emit custom metrics (best-effort)
     with suppress(Exception):
-        from app.telemetry import record_redis_metrics  # local import to avoid cycles
+        from app.telemetry import (
+            record_redis_status_only,
+        )  # local import to avoid cycles
 
         connected = (
             client is not None
             and redis_error is None
             and runtime_settings.redis_enabled
         )
-        # Latency unknown here; capture as 0 when not measured on this path
-        record_redis_metrics(connected=connected, latency_ms=0)
+        # latency 未測定パスのため status のみ更新 (histogram に 0ms 偽値を入れない)
+        record_redis_status_only(connected=connected)
 
     if runtime_settings.redis_enabled and redis_error:
         error_response = ErrorResponse(
@@ -270,9 +272,9 @@ async def health(
             timestamp=datetime.now(UTC).isoformat(),
         )
         with suppress(Exception):
-            from app.telemetry import record_redis_metrics
+            from app.telemetry import record_redis_status_only
 
-            record_redis_metrics(connected=False, latency_ms=0)
+            record_redis_status_only(connected=False)
         _update_health_cache(resp, 200)
         return resp
 
