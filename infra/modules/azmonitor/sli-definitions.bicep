@@ -40,15 +40,14 @@ param evaluationPeriodDays int = 30
 @minValue(1)
 param windowSizeMinutes int = 5
 
-@description('Latency threshold in seconds for a good window')
-@minValue(1)
-param latencyThresholdSeconds int = 1
+@description('Minimum ratio of requests completed within the latency threshold for a good latency window')
+param latencyGoodRateTarget string = '0.95'
 
 @description('Metric name for the window-based Availability SLI success-rate signal')
 param availabilityMetricName string = 'gateway:chaos_app:http_success_rate:ratio'
 
-@description('Metric name for the window-based Latency SLI')
-param latencyMetricName string = 'gateway:chaos_app:http_request_duration:p95'
+@description('Metric name for the window-based Latency SLI threshold satisfaction ratio')
+param latencyMetricName string = 'gateway:chaos_app:http_request_duration:le_1s_ratio'
 
 @description('Prometheus label dimensions used for Azure Monitor SLI partitioning')
 param signalDimensions string[] = [
@@ -130,7 +129,7 @@ resource latencySli 'Microsoft.Monitor/slis@2025-03-01-preview' = {
   scope: serviceGroup
   identity: sliIdentity
   properties: {
-    description: 'Window-based Latency SLI for chaos app Gateway Envoy P95 latency.'
+    description: 'Window-based Latency SLI for chaos app Gateway Envoy requests completed within 1 second.'
     baselineProperties: {
       baseline: {
         evaluationCalculationType: 'RollingDays'
@@ -163,8 +162,8 @@ resource latencySli 'Microsoft.Monitor/slis@2025-03-01-preview' = {
         ]
       }
       windowUptimeCriteria: {
-        comparator: 'lte'
-        target: latencyThresholdSeconds
+        comparator: 'gte'
+        target: json(latencyGoodRateTarget)
       }
     }
   }

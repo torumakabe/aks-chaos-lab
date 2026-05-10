@@ -58,9 +58,8 @@ param evaluationPeriodDays int = 30
 @minValue(1)
 param windowSizeMinutes int = 5
 
-@description('Latency SLI threshold in seconds for a good window')
-@minValue(1)
-param latencyThresholdSeconds int = 1
+@description('Minimum ratio of requests completed within 1 second for a good latency window')
+param latencyGoodRateTarget string = '0.95'
 
 @description('Prometheus label dimensions used for Azure Monitor SLI partitioning')
 param signalDimensions string[] = [
@@ -120,7 +119,7 @@ module azureMonitorSliDefinitions '../modules/azmonitor/sli-definitions.bicep' =
     latencyBaselineTargetPercent: latencyBaselineTargetPercent
     evaluationPeriodDays: evaluationPeriodDays
     windowSizeMinutes: windowSizeMinutes
-    latencyThresholdSeconds: latencyThresholdSeconds
+    latencyGoodRateTarget: latencyGoodRateTarget
     signalDimensions: signalDimensions
   }
 }

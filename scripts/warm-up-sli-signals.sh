@@ -130,7 +130,7 @@ check_recording_metric() {
 recording_attempt=1
 while [ "$recording_attempt" -le "$recording_attempts" ]; do
   availability_count=$(check_recording_metric 'gateway:chaos_app:http_request_total')
-  latency_count=$(check_recording_metric 'gateway:chaos_app:http_request_duration:p95')
+  latency_count=$(check_recording_metric 'gateway:chaos_app:http_request_duration:le_1s_ratio')
 
   availability_count=${availability_count:-0}
   latency_count=${latency_count:-0}
