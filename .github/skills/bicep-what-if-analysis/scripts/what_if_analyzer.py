@@ -1886,6 +1886,30 @@ def _extract_actual_provider_type(resource_id: str) -> str | None:
     return None
 
 
+EFFECTIVE_OPERATIONS = {"Create", "Modify", "Delete"}
+
+
+def is_effective_change(change: dict[str, Any]) -> bool:
+    """text 出力で必ず見せるべき実変更かどうかを判定する。"""
+    return change.get("operation") in EFFECTIVE_OPERATIONS
+
+
+def should_show_resource_in_text_output(change: dict[str, Any]) -> bool:
+    """
+    text 出力にリソースを表示するかどうかを判定する。
+
+    filtered_resource_types は NoChange / Ignore / Unsupported などのノイズ削減に使い、
+    Create / Modify / Delete は重要差分を隠さないよう常に表示する。
+    """
+    if is_known_acr_acrpull_unsupported(change):
+        return False
+
+    if is_effective_change(change):
+        return True
+
+    return is_main_resource(change)
+
+
 def format_azd_style_output(output_data: dict[str, Any]) -> str:
     """
     azd provision --preview 風のテキスト出力を生成する。
@@ -1910,20 +1934,27 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
         "Delete": "Delete",
     }
 
-    # 主要リソースのみフィルタリング
-    main_resources = [
+    # text 出力対象をフィルタリング
+    display_candidates = [
         c
         for c in output_data["changes"]
-        if is_main_resource(c)
+        if should_show_resource_in_text_output(c)
     ]
 
     # Create false positive をフィルタ（件数は記録）
     false_positive_count = sum(
-        1 for c in main_resources if c.get("likelyFalsePositive", False)
+        1 for c in display_candidates if c.get("likelyFalsePositive", False)
     )
     visible_resources = [
-        c for c in main_resources if not c.get("likelyFalsePositive", False)
+        c for c in display_candidates if not c.get("likelyFalsePositive", False)
     ]
+    hidden_effective_count = sum(
+        1
+        for c in output_data["changes"]
+        if is_effective_change(c)
+        and not should_show_resource_in_text_output(c)
+        and not c.get("likelyFalsePositive", False)
+    )
 
     # 最大幅を計算（整列用）
     max_op_len = 8  # "Modify" など
@@ -1974,6 +2005,12 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
         lines.append(
             f"  ({false_positive_count} 件の Create を非表示: "
             "ARM what-if の既知制限による false positive)"
+        )
+
+    if hidden_effective_count > 0:
+        lines.append(
+            f"  ⚠️ {hidden_effective_count} 件の Create/Modify/Delete が "
+            "text 出力で非表示です。--format json で確認してください。"
         )
 
     return "\n".join(lines)
