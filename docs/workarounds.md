@@ -166,8 +166,8 @@
 - **概要**: App Insights Portal で表示される `requests/duration` の P95 / P99 は trace sampling 後のサブセットから集計されるため、本リポジトリの既定 sampling rate (`OTEL_TRACES_SAMPLER_ARG=0.1`) のように低いとサンプル数不足で値がぶれる。レアな遅延が取りこぼされる。
 - **理由**: Azure Monitor exporter は traces から requests metric を再構築する経路があり、Microsoft Learn にも明記されていない。
 - **場所**: `src/app/telemetry.py` (`ErrorAwareSampler` で chaos / error 経路は常時 sample)、README `## 🔭 可観測性`。
-- **解消条件**: SLI / SLO の latency 一次信号は **Managed Prometheus の Envoy histogram** 由来 recording rule (`gateway:chaos_app:http_request_duration:p95`) を使う方針なので、本リポジトリでは構造的に解消される。App Insights P95 はあくまで参考値。
-- **確認方法**: AMW recording rule の P95 と App Insights P95 を同一時間軸で比較し、系統的な差分があるかを確認。
+- **解消条件**: SLI / SLO の latency 一次信号は **Managed Prometheus の Envoy histogram bucket** 由来の 1秒以内完了率 (`gateway:chaos_app:http_request_duration:le_1s_ratio`) を使う方針なので、本リポジトリでは構造的に解消される。App Insights P95 はあくまで参考値。
+- **確認方法**: AMW の latency good-rate recording rule と App Insights P95 を同一時間軸で比較し、SLI 判定と参考値の差分を確認。
 
 ### D-4. Azure Monitor SLI Metric Alert (Portal 型) の動作仕様が未公開
 
@@ -209,4 +209,3 @@
   - `kubectl -n kube-system exec <ama-metrics-pod> -c prometheus-collector -- ps -ef | grep amacoreagent` で `AMACoreAgent` プロセスが存在するか
   - `kubectl -n kube-system exec <ama-metrics-pod> -c prometheus-collector -- tail /opt/microsoft/linuxmonagent/mdsd.err | grep -c "AMACoreAgent"` が 0 になるか
 - **追跡**: [#130](https://github.com/torumakabe/aks-chaos-lab/issues/130)（実害なしと判定済み・closed）。
-

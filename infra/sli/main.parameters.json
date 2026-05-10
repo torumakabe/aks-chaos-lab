@@ -53,8 +53,8 @@
     "windowSizeMinutes": {
       "value": 5
     },
-    "latencyThresholdSeconds": {
-      "value": 1
+    "latencyGoodRateTarget": {
+      "value": "0.95"
     },
     "signalDimensions": {
       "value": [

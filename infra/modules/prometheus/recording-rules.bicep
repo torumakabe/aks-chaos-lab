@@ -203,13 +203,21 @@ resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGrou
         enabled: true
       }
       {
-        // R2: error rate. 分母 0 で NaN 化するのを防ぐため clamp_min(..., 1e-9) で 0% に確定させる
+        // R2: latency threshold satisfaction ratio. SLI の主信号として、p95 の保存済み値ではなく
+        // 5 分窓内で 1s 以内に完了したリクエスト割合を使う。
+        // no-traffic 時は 1 (100%) を返し、無通信検知は ChaosAppNoTraffic に委ねる。
+        record: 'gateway:chaos_app:http_request_duration:le_1s_ratio'
+        expression: '((sum by (cluster_name) (increase(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",le="1000"}[5m])) / clamp_min(sum by (cluster_name) (increase(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",le="+inf"}[5m])), 1e-9)) and on(cluster_name) (sum by (cluster_name) (increase(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",le="+inf"}[5m])) > 0)) or on(cluster_name) (sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0 + 1)'
+        enabled: true
+      }
+      {
+        // R3: error rate. 分母 0 で NaN 化するのを防ぐため clamp_min(..., 1e-9) で 0% に確定させる
         record: 'gateway:chaos_app:http_error_rate:ratio'
         expression: '(sum by (cluster_name) (rate(envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}[5m])) or (sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0)) / clamp_min(sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])), 1e-9)'
         enabled: true
       }
       {
-        // R3: success rate. clamp_min により no-traffic 時は 1 (100%) を返し SLI エラーバジェットを保護
+        // R4: success rate. clamp_min により no-traffic 時は 1 (100%) を返し SLI エラーバジェットを保護
         record: 'gateway:chaos_app:http_success_rate:ratio'
         expression: '1 - ((sum by (cluster_name) (rate(envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}[5m])) or (sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0)) / clamp_min(sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])), 1e-9))'
         enabled: true
@@ -220,13 +228,13 @@ resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGrou
         enabled: true
       }
       {
-        // R4: success total. increase([5m]) で counter reset 耐性を獲得 (Envoy Pod 再起動時の値ドロップ防止)
+        // R5: success total. increase([5m]) で counter reset 耐性を獲得 (Envoy Pod 再起動時の値ドロップ防止)
         record: 'gateway:chaos_app:http_success_total'
         expression: 'sum by (cluster_name) (increase(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) - (sum by (cluster_name) (increase(envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}[5m])) or (sum by (cluster_name) (increase(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0))'
         enabled: true
       }
       {
-        // R5: request total. increase([5m]) で counter reset 耐性を獲得
+        // R6: request total. increase([5m]) で counter reset 耐性を獲得
         record: 'gateway:chaos_app:http_request_total'
         expression: 'sum by (cluster_name) (increase(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))'
         enabled: true

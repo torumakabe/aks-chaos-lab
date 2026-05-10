@@ -808,11 +808,11 @@ resource appOperationalAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2
     interval: 'PT1M'
     rules: [
       {
-        alert: 'ChaosAppRequestLatencyP95High'
-        expression: 'gateway:chaos_app:http_request_duration:p95 > 1'
+        alert: 'ChaosAppRequestLatencyGoodRateLow'
+        expression: 'gateway:chaos_app:http_request_duration:le_1s_ratio < 0.95'
         for: 'PT5M'
         annotations: {
-          description: 'chaos-app の p95 レイテンシが 1s を超過。短期 operational アラートであり、SLO/error budget アラートではありません。'
+          description: 'chaos-app の 1s 以内完了率が 95% を下回っています。短期 operational アラートであり、SLO/error budget アラートではありません。'
         }
         enabled: true
         severity: 2
@@ -823,7 +823,7 @@ resource appOperationalAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         labels: {
           severity: 'warning'
           alert_type: 'operational'
-          signal: 'latency-p95'
+          signal: 'latency-good-rate'
           source: 'gateway-envoy'
         }
         actions: actionGroupId != ''
