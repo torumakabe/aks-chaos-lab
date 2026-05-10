@@ -10,7 +10,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Any
 
 # テスト対象モジュールのパスを追加
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -372,6 +371,60 @@ class TestGetReferenceInfo(unittest.TestCase):
 
 class TestFormatAzdStyleOutput(unittest.TestCase):
     """format_azd_style_output のテスト"""
+
+    def test_filtered_prometheus_rule_group_modify_is_visible(self) -> None:
+        """filtered_resource_types 対象でも Modify は text 出力に表示する"""
+        output_data = {
+            "changes": [
+                {
+                    "operation": "Modify",
+                    "resourceId": (
+                        "/subscriptions/test-sub/resourceGroups/test-rg/providers/"
+                        "Microsoft.AlertsManagement/prometheusRuleGroups/"
+                        "app-operational-alerts"
+                    ),
+                    "resourceType": "Microsoft.AlertsManagement/prometheusRuleGroups",
+                    "resourceName": "app-operational-alerts",
+                    "propertyChanges": [
+                        {
+                            "changeType": "Modify",
+                            "path": "properties.rules.0.expression",
+                            "referenceInfo": "❓ 未分類。確認推奨",
+                        }
+                    ],
+                    "likelyFalsePositive": False,
+                }
+            ]
+        }
+
+        result = format_azd_style_output(output_data)
+
+        self.assertIn("Modify", result)
+        self.assertIn("Prometheus Rule Group", result)
+        self.assertIn("app-operational-alerts", result)
+        self.assertIn("properties.rules.0.expression", result)
+
+    def test_filtered_prometheus_rule_group_nochange_is_hidden(self) -> None:
+        """filtered_resource_types 対象の NoChange は引き続き非表示にする"""
+        output_data = {
+            "changes": [
+                {
+                    "operation": "NoChange",
+                    "resourceId": (
+                        "/subscriptions/test-sub/resourceGroups/test-rg/providers/"
+                        "Microsoft.AlertsManagement/prometheusRuleGroups/"
+                        "app-operational-alerts"
+                    ),
+                    "resourceType": "Microsoft.AlertsManagement/prometheusRuleGroups",
+                    "resourceName": "app-operational-alerts",
+                    "propertyChanges": [],
+                }
+            ]
+        }
+
+        result = format_azd_style_output(output_data)
+
+        self.assertEqual(result.strip(), "Resources:")
 
     def test_filters_known_acr_acrpull_unsupported(self) -> None:
         """既知の ACR AcrPull Unsupported だけを非表示にする"""

@@ -1,39 +1,39 @@
 {
   "patterns": {
     "Microsoft.Network/virtualNetworks:custom_patterns:^subnets\\..*\\.properties\\.networkSecurityGroup$": {
-      "matchCount": 33,
+      "matchCount": 34,
       "firstMatched": "2026-01-28T07:25:06.991920+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^identityProfile$": {
-      "matchCount": 36,
+      "matchCount": 37,
       "firstMatched": "2026-01-28T07:25:06.991920+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^agentPoolProfiles\\.\\d+\\.powerState$": {
-      "matchCount": 36,
+      "matchCount": 37,
       "firstMatched": "2026-01-28T07:25:06.991920+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^aadProfile\\.tenantID$": {
-      "matchCount": 36,
+      "matchCount": 37,
       "firstMatched": "2026-01-28T07:25:06.991920+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.Network/publicIPAddresses:auto_managed_patterns:^ddosSettings$": {
-      "matchCount": 36,
+      "matchCount": 37,
       "firstMatched": "2026-01-28T07:25:06.991920+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^servicePrincipalProfile$": {
-      "matchCount": 36,
+      "matchCount": 37,
       "firstMatched": "2026-01-28T07:25:06.991920+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^controlPlanePluginProfiles$": {
-      "matchCount": 36,
+      "matchCount": 37,
       "firstMatched": "2026-01-28T07:25:06.991920+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^ingressProfile\\.webAppRouting\\.nginx$": {
       "matchCount": 35,
@@ -41,39 +41,39 @@
       "lastMatched": "2026-03-18T04:33:16.070546+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^nodeProvisioningProfile$": {
-      "matchCount": 36,
+      "matchCount": 37,
       "firstMatched": "2026-01-28T07:25:06.991920+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^networkProfile\\.advancedNetworking\\.security\\.transitEncryption$": {
-      "matchCount": 35,
+      "matchCount": 36,
       "firstMatched": "2026-01-28T07:27:16.893220+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:custom_patterns:^agentPoolProfiles\\[\\d+\\]\\.orchestratorVersion$": {
-      "matchCount": 34,
+      "matchCount": 35,
       "firstMatched": "2026-01-28T07:27:16.893220+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^networkProfile\\.podCidrs$": {
-      "matchCount": 35,
+      "matchCount": 36,
       "firstMatched": "2026-01-28T07:27:16.893220+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^networkProfile\\.serviceCidrs$": {
-      "matchCount": 35,
+      "matchCount": 36,
       "firstMatched": "2026-01-28T07:27:16.893220+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^agentPoolProfiles\\.\\d+\\.osDiskSizeGB$": {
-      "matchCount": 31,
+      "matchCount": 32,
       "firstMatched": "2026-01-28T07:36:35.396763+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^agentPoolProfiles\\.\\d+\\.upgradeSettings$": {
-      "matchCount": 31,
+      "matchCount": 32,
       "firstMatched": "2026-01-28T07:36:35.396763+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^agentPoolProfiles\\.\\d+\\.osSKU$": {
       "matchCount": 30,
@@ -81,44 +81,44 @@
       "lastMatched": "2026-03-18T04:33:16.070546+00:00"
     },
     "Microsoft.ContainerRegistry/registries:auto_managed_patterns:^roleAssignmentMode$": {
-      "matchCount": 31,
+      "matchCount": 32,
       "firstMatched": "2026-01-28T07:36:35.396763+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^agentPoolProfiles\\.\\d+\\.securityProfile$": {
-      "matchCount": 31,
+      "matchCount": 32,
       "firstMatched": "2026-01-28T07:36:35.396763+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^agentPoolProfiles\\.\\d+\\.osDiskType$": {
-      "matchCount": 31,
+      "matchCount": 32,
       "firstMatched": "2026-01-28T07:36:35.396763+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^autoScalerProfile\\.skip-nodes-with-local-storage$": {
-      "matchCount": 31,
+      "matchCount": 32,
       "firstMatched": "2026-01-28T07:36:35.396763+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^securityProfile\\.defender$": {
-      "matchCount": 30,
+      "matchCount": 31,
       "firstMatched": "2026-01-28T07:40:32.040732+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^agentPoolProfiles\\.\\d+\\.count$": {
-      "matchCount": 30,
+      "matchCount": 31,
       "firstMatched": "2026-01-28T07:40:32.040732+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^storageProfile$": {
-      "matchCount": 30,
+      "matchCount": 31,
       "firstMatched": "2026-01-28T07:40:32.040732+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^addonProfiles$": {
-      "matchCount": 30,
+      "matchCount": 31,
       "firstMatched": "2026-01-28T07:40:32.040732+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^securityProfile\\.imageCleaner$": {
       "matchCount": 29,
@@ -126,24 +126,24 @@
       "lastMatched": "2026-03-18T04:33:16.070546+00:00"
     },
     "Microsoft.Network/virtualNetworks:auto_managed_patterns:^privateEndpointVNetPolicies$": {
-      "matchCount": 30,
+      "matchCount": 31,
       "firstMatched": "2026-01-28T07:40:32.040732+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^windowsProfile$": {
-      "matchCount": 30,
+      "matchCount": 31,
       "firstMatched": "2026-01-28T07:40:32.040732+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^serviceMeshProfile$": {
-      "matchCount": 21,
+      "matchCount": 22,
       "firstMatched": "2026-02-02T09:46:15.864264+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerRegistry/registries:auto_managed_patterns:^networkRuleBypassAllowedForTasks$": {
-      "matchCount": 18,
+      "matchCount": 19,
       "firstMatched": "2026-03-04T00:59:09.421623+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.Network/publicIPAddresses:auto_managed_patterns:^ipTags$": {
       "matchCount": 15,
@@ -151,14 +151,14 @@
       "lastMatched": "2026-05-06T06:42:04.265653+00:00"
     },
     "Microsoft.Network/virtualNetworks/subnets/providers/roleAssignments:auto_managed_patterns:^principalId$": {
-      "matchCount": 17,
+      "matchCount": 18,
       "firstMatched": "2026-03-04T01:01:54.287895+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.Network/virtualNetworks/subnets/providers/roleAssignments:auto_managed_patterns:^principalType$": {
-      "matchCount": 17,
+      "matchCount": 18,
       "firstMatched": "2026-03-04T01:01:54.287895+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:custom_patterns:^kubernetesVersion$": {
       "matchCount": 3,
@@ -166,9 +166,9 @@
       "lastMatched": "2026-03-16T05:54:32.682583+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^networkProfile\\.advancedNetworking\\.performance$": {
-      "matchCount": 2,
+      "matchCount": 3,
       "firstMatched": "2026-03-18T04:33:16.070546+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^agentPoolProfiles\\.\\d+\\.upgradeSettingsBlueGreen$": {
       "matchCount": 1,
@@ -176,14 +176,14 @@
       "lastMatched": "2026-03-18T04:33:16.070546+00:00"
     },
     "Microsoft.Chaos/experiments:auto_managed_patterns:^tags$": {
-      "matchCount": 2,
+      "matchCount": 3,
       "firstMatched": "2026-03-18T04:33:16.070546+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.Chaos/experiments:auto_managed_patterns:^steps\\.\\d+\\.branches\\.\\d+\\.actions\\.\\d+\\.parameters\\.\\d+\\.value$": {
-      "matchCount": 2,
+      "matchCount": 3,
       "firstMatched": "2026-03-18T04:33:16.070546+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^agentPoolProfiles\\.\\d+\\.upgradeStrategy$": {
       "matchCount": 1,
@@ -191,10 +191,10 @@
       "lastMatched": "2026-03-18T04:33:16.070546+00:00"
     },
     "Microsoft.ContainerService/managedClusters:auto_managed_patterns:^ingressProfile\\.webAppRouting\\.defaultDomain$": {
-      "matchCount": 2,
+      "matchCount": 3,
       "firstMatched": "2026-03-18T04:33:16.070546+00:00",
-      "lastMatched": "2026-05-06T06:42:04.265653+00:00"
+      "lastMatched": "2026-05-10T11:33:58.929649+00:00"
     }
   },
-  "lastRun": "2026-05-06T06:42:34.814203+00:00"
+  "lastRun": "2026-05-10T11:33:58.929649+00:00"
 }

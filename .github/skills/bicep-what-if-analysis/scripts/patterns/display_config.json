@@ -27,7 +27,7 @@
         "Microsoft.Chaos/experiments": "Chaos experiment",
         "Microsoft.Authorization/roleAssignments": "Role assignment"
     },
-    "_filtered_resource_types_doc": "azd style テキスト出力で非表示にするリソースタイプ。変更が少ない補助リソースやプラットフォーム自動管理リソースが対象。主要ワークロードリソース（AKS, Chaos experiments 等）はフィルタしないこと。",
+    "_filtered_resource_types_doc": "azd style テキスト出力で NoChange / Ignore / Unsupported などのノイズ表示を抑制するリソースタイプ。Create / Modify / Delete は重要差分を隠さないため、このリストに含まれていても表示する。主要ワークロードリソース（AKS, Chaos experiments 等）はフィルタしないこと。",
     "filtered_resource_types": [
         "microsoft.authorization/roleassignments",
         "microsoft.network/networkinterfaces",
