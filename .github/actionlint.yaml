@@ -1,0 +1,11 @@
+# actionlint configuration
+# Docs: https://github.com/rhysd/actionlint/blob/main/docs/config.md
+paths:
+  # gh-aw が生成する lock ワークフロー。
+  # コンパイル結果に含まれる `printf '%s\n' '{"$schema":..."}'` は JSON キーの $schema を
+  # リテラルとして書き出すため意図的にシングルクォートを使っているが、shellcheck の
+  # SC2016 (Expressions don't expand in single quotes) が誤検出として発火する。
+  # 自動生成物への手編集は不可なので、当該 lock ファイルに限り SC2016 を抑制する。
+  .github/workflows/*.lock.yml:
+    ignore:
+      - 'shellcheck reported issue in this script: SC2016:.+'
