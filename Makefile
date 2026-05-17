@@ -57,12 +57,12 @@ lint-bicep: check-az ## Build Bicep templates (infra/main.bicep)
 	@echo -e "$(GREEN)✓ Bicep build passed$(NC)"
 
 lint-k8s: check-docker ## Validate Kubernetes manifests with kubeconform (Docker)
-	@echo -e "$(YELLOW)→ kubeconform on k8s/base/...$(NC)"
+	@echo -e "$(YELLOW)→ kubeconform on k8s/apps/chaos-app/...$(NC)"
 	@docker run --rm -v "$(CURDIR):/repo" -w /repo --entrypoint /kubeconform $(KUBECONFORM_IMAGE) \
 		-strict -summary \
 		-kubernetes-version $(K8S_VERSION) \
 		-skip $(KUBECONFORM_SKIP) \
-		k8s/base/*.yaml
+		k8s/apps/chaos-app/*.yaml
 	@echo -e "$(GREEN)✓ kubeconform passed$(NC)"
 
 install-tools: ## Check required tools and print install hints

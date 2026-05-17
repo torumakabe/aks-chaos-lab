@@ -865,7 +865,7 @@ resource appOperationalAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2
         // alrtB-chaos-no-traffic: synthetic-traffic CronJob が 5 分以上途絶した場合に発火。
         // recording rule が clamp_min により no-traffic 時に 0 を返すため、SLI failure-rate alert では検知できない盲点
         // (CronJob 障害 / Pod 完全停止 / Service/Gateway 障害 / HTTPRoute hostname 不一致) を補完する。
-        // 前提: cronjob/synthetic-traffic CronJob (k8s/base/cronjob-synthetic-traffic.yaml) が 1 req/min で稼働している。
+        // 前提: cronjob/synthetic-traffic CronJob (k8s/apps/chaos-app/cronjob-synthetic-traffic.yaml) が 1 req/min で稼働している。
         alert: 'ChaosAppNoTraffic'
         expression: '(absent(gateway:chaos_app:http_request_rate) == 1) or (gateway:chaos_app:http_request_rate <= 0)'
         for: 'PT5M'

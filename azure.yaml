@@ -37,7 +37,7 @@ services:
     k8s:
       namespace: chaos-lab
       kustomize:
-        dir: ../k8s/base
+        dir: ../k8s/apps/chaos-app
         env:
           AZURE_CHAOS_APP_IDENTITY_CLIENT_ID: ${AZURE_CHAOS_APP_IDENTITY_CLIENT_ID}
           AZURE_INGRESS_FQDN: ${AZURE_INGRESS_FQDN}
