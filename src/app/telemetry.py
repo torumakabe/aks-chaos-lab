@@ -306,7 +306,7 @@ def setup_telemetry(app: Any) -> None:
                     name="chaos_app.active_requests",
                     description=(
                         "Number of in-flight HTTP server requests "
-                        "(custom metric, excludes /health)"
+                        "(custom metric, excludes probe endpoints)"
                     ),
                     unit="{request}",
                     callbacks=[_active_requests_callback],
@@ -350,7 +350,9 @@ def setup_telemetry(app: Any) -> None:
         """Instrumentation setup executed only once."""
         try:
             with suppress(Exception):
-                FastAPIInstrumentor.instrument_app(app, excluded_urls="health")
+                FastAPIInstrumentor.instrument_app(
+                    app, excluded_urls="health,livez,readyz"
+                )
             with suppress(Exception):
                 RedisInstrumentor().instrument()
             # `enable_log_auto_instrumentation=False` で LoggingInstrumentor が

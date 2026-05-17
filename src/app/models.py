@@ -14,6 +14,11 @@ class HealthResponse(BaseModel):
     timestamp: str
 
 
+class LivenessResponse(BaseModel):
+    status: str
+    timestamp: str
+
+
 class MainResponse(BaseModel):
     message: str
     redis_data: str | None = None

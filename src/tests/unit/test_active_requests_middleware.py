@@ -73,12 +73,14 @@ def test_active_requests_count_returns_to_zero_after_request(
     assert obs[0].value == 0
 
 
-def test_active_requests_health_is_excluded(
+@pytest.mark.parametrize("path", ["/health", "/livez", "/readyz"])
+def test_active_requests_probe_paths_are_excluded(
     client_with_probe: TestClient,
+    path: str,
 ) -> None:
-    """/health は increment しない (kubelet probe 由来のため除外)。"""
+    """Probe endpoints are excluded from active request accounting."""
     reset_telemetry()
-    r = client_with_probe.get("/health")
+    r = client_with_probe.get(path)
     assert r.status_code in (200, 503)
     obs = _active_requests_callback(CallbackOptions())
     assert obs[0].value == 0

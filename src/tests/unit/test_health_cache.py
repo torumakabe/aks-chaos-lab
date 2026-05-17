@@ -1,12 +1,14 @@
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import _health_cache, app
 from app.models import HealthResponse
 
 
-def test_health_uses_cached_unhealthy_response() -> None:
+@pytest.mark.parametrize("path", ["/health", "/readyz"])
+def test_readiness_uses_cached_unhealthy_response(path: str) -> None:
     # Prepare cached unhealthy response with fresh timestamp
     payload = HealthResponse(
         status="unhealthy",
@@ -19,7 +21,6 @@ def test_health_uses_cached_unhealthy_response() -> None:
     _health_cache["_ts"] = time.monotonic()
 
     with TestClient(app) as client:
-        r = client.get("/health")
+        r = client.get(path)
         assert r.status_code == 503
         assert r.json() == payload.model_dump()
-
