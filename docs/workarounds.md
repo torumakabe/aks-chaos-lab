@@ -50,7 +50,7 @@
 
 - **概要**: 親 Service Group の Contributor では子 Service Group の `Microsoft.Monitor/slis/write` が継承されないため、環境別 Service Group に対して直接 `Service Group Administrator` を付与する。
 - **理由**: Service Group の親子関係は Azure RBAC のリソース ID パス継承と独立している。
-- **場所**: README §必要なロール §2、ADR-009 §RBAC
+- **場所**: `docs/deployment.md` §必要なロール §2、ADR-009 §RBAC
 - **解消条件**: Service Group RBAC が Azure RBAC の path 継承に揃う、または親 Service Group からの継承で SLI 作成が許可される。
 - **確認方法**: テスト用テナントで親 Service Group の Contributor のみを付与し、子 Service Group での SLI 作成が通るか確認する。
 
@@ -58,7 +58,7 @@
 
 - **概要**: 初回 `azd up`（特に `azd provision sli` 段階）で環境変数 `AZD_DEPLOY_TIMEOUT=3600`（60 分）を設定する。
 - **理由**: 新規 AMW では Managed Prometheus recording rule の cold-start に最大 ~32 分かかる実測値があり、デフォルト `AZD_DEPLOY_TIMEOUT=1200s`（20 分）では `provision sli` 段階で recording rule 出力待機がタイムアウトする。`scripts/warm-up-sli-signals.sh` の内部待機もこの timeout の影響を受ける。
-- **場所**: README §環境構築、`scripts/warm-up-sli-signals.sh`
+- **場所**: `docs/deployment.md` §環境構築、`scripts/warm-up-sli-signals.sh`
 - **解消条件**: AMW の recording rule cold-start が短縮される（数分以内）、または SLI が「将来生成されるメトリクス」を許容する API になる（A-1 と同じ条件）。
 - **確認方法**: `AZD_DEPLOY_TIMEOUT` 未設定で初回 `azd up` を実行し、20 分以内に `provision sli` が成功するか確認する。
 
@@ -94,7 +94,7 @@
 
 - **概要**: 公式記事（[OTLP App Insights enrollment](https://learn.microsoft.com/azure/azure-monitor/app/opentelemetry-otlp)）が記載する `AKSAzureMonitorAISupportPreview` は実在しない。代わりに `AzureMonitorAppMonitoringPreview` + `AKS-OMSAppMonitoring` + `OtlpApplicationInsights` の 3 つを登録する。
 - **理由**: `AKSAzureMonitorAISupportPreview` の登録はサイレントに成功するが効果がない。
-- **場所**: README §プレビュー機能とリソースプロバイダー登録、ADR-006 line 92
+- **場所**: `docs/deployment.md` §プレビュー機能とリソースプロバイダー登録、ADR-006 line 92
 - **解消条件**: Microsoft が記事を訂正する、または該当機能 GA で全 flag 不要になる。
 - **確認方法**: Microsoft Learn の OTLP App Insights enrollment ページで feature flag 名が正されたか確認する。
 
@@ -106,7 +106,7 @@
 
 - **概要**: `AKS-AddonAutoscalingPreview`, `AzureMonitorAppMonitoringPreview`, `AKS-OMSAppMonitoring`, `OtlpApplicationInsights` をサブスクリプション単位で事前登録する。
 - **理由**: プレビュー機能のため明示登録が必要。
-- **場所**: README §プレビュー機能とリソースプロバイダー登録
+- **場所**: `docs/deployment.md` §プレビュー機能とリソースプロバイダー登録
 - **解消条件**: 各機能が GA し、feature flag 登録が不要になる。
 - **確認方法**: `review-repo` エージェントの §7（プレビュー機能 / リソースプロバイダー登録の鮮度）参照。
 
@@ -134,7 +134,7 @@
 
 - **概要**: AKS / Container Insights 環境作成直後、node 関連メトリクス（CPU、memory、network 等）が即座に採取されない。最大 24 時間で揃う。
 - **理由**: node exporter のインストール優先度が他のタスクより低い（[Azure/prometheus-collector#483](https://github.com/Azure/prometheus-collector/issues/483)）。
-- **場所**: README:281
+- **場所**: `docs/observability.md` §運用上の注意
 - **解消条件**: upstream issue が解決される。
 - **確認方法**: issue #483 のステータスを確認。`review-repo` 実行時にコメントを覗く。
 
@@ -165,8 +165,8 @@
 
 - **概要**: App Insights Portal で表示される `requests/duration` の P95 / P99 は trace sampling 後のサブセットから集計されるため、本リポジトリの既定 sampling rate (`OTEL_TRACES_SAMPLER_ARG=0.1`) のように低いとサンプル数不足で値がぶれる。レアな遅延が取りこぼされる。
 - **理由**: Azure Monitor exporter は traces から requests metric を再構築する経路があり、Microsoft Learn にも明記されていない。
-- **場所**: `src/app/telemetry.py` (`ErrorAwareSampler` で chaos / error 経路は常時 sample)、README `## 🔭 可観測性`。
-- **解消条件**: SLI / SLO の latency 一次信号は **Managed Prometheus の Envoy histogram bucket** 由来の 1秒以内完了率 (`gateway:chaos_app:http_request_duration:le_1s_ratio`) を使う方針なので、本リポジトリでは構造的に解消される。App Insights P95 はあくまで参考値。
+- **場所**: `src/app/telemetry.py` (`ErrorAwareSampler` で chaos / error 経路は常時 sample)、`docs/observability.md` §運用上の注意。
+- **解消条件**: SLI / SLO の latency 一次シグナルは **Managed Prometheus の Envoy histogram bucket** 由来の 1秒以内完了率 (`gateway:chaos_app:http_request_duration:le_1s_ratio`) を使う方針なので、本リポジトリでは構造的に解消される。App Insights P95 はあくまで参考値。
 - **確認方法**: AMW の latency good-rate recording rule と App Insights P95 を同一時間軸で比較し、SLI 判定と参考値の差分を確認。
 
 ### D-4. Azure Monitor SLI Metric Alert (Portal 型) の動作仕様が未公開
@@ -181,9 +181,9 @@
 
 - **概要**: FastAPI / OTel auto-instrumentation が emit する `http.server.active_requests` は UpDownCounter (DELTA aggregation) で per-process state を持つ。Chaos 実験で Pod 再起動が頻発する環境では、`rate()` / `delta()` で集計した時に負値や jitter が出る。
 - **理由**: UpDownCounter は process-local な state を保持し、Pod restart で reset されるが、Azure Monitor / Prometheus 側の集計クエリは Cumulative 前提で、reset を補正する仕組みがない (OTel SDK 仕様)。
-- **場所**: README `## 🔭 可観測性` 注記、`src/app/telemetry.py` の auto-instrumentation 部分。
-- **解消条件**: 本リポジトリでは構造的には解消できない (SDK 仕様)。負荷状態の一次信号は Envoy 経由の `gateway:chaos_app:http_request_rate` recording rule を使う運用で迂回する。
-- **確認方法**: README に「`active_requests` を alert の基準にしない」旨を明記し、`gateway:chaos_app:http_request_rate` を使う運用を維持。
+- **場所**: `docs/observability.md` §運用上の注意、`src/app/telemetry.py` の auto-instrumentation 部分。
+- **解消条件**: 本リポジトリでは構造的には解消できない (SDK 仕様)。負荷状態の一次シグナルは Envoy 経由の `gateway:chaos_app:http_request_rate` recording rule を使う運用で迂回する。
+- **確認方法**: `docs/observability.md` に「`active_requests` を alert の基準にしない」旨を明記し、`gateway:chaos_app:http_request_rate` を使う運用を維持。
 - **補足 (2026-05-07 issue #128 対応)**: 上記 D-5 はドリフトを前提に書いているが、実機検証では **ノートラフィック時に `active_requests` 自体が AMW Prometheus に届かない** 事象が発覚した (eval 環境)。原因は **synchronous UpDownCounter が `add()` の呼ばれない export interval ではデータポイントを emit しない仕様** (FastAPIInstrumentor は ASGI middleware 経由で正しく counter を作成しているが、kubelet probe による `/health` だけが流れるノートラフィック環境では `excluded_urls="health"` で除外され、結果として `add()` が一度も呼ばれない)。対応として、ノートラフィック耐性のあるアプリ独自 metric `chaos_app.active_requests` (ObservableGauge、probe endpoint `/health` / `/livez` / `/readyz` 除外) を [`src/app/telemetry.py`](../src/app/telemetry.py) と [`src/app/main.py`](../src/app/main.py) の HTTP middleware で実装し、callback 経由で毎 export interval 現在値 (通常 0) を emit するよう変更した。標準 `http.server.active_requests` (FastAPIInstrumentor) は Pod 再起動時のドリフトと "no-traffic で series 不出現" の両方を抱えるため、SLO/alert/dashboard では `chaos_app.active_requests` を使うこと。
 
 ### D-6. OTLP logs (`OTelLogs`) がアプリから export されていない（**解消済み 2026-05-07 / #129**）
