@@ -86,9 +86,7 @@ git ls-files --cached | grep -E '\.(whl|pyc|pyo)$|__pycache__|\.ruff_cache|\.DS_
 # docs/deployment.md に記載された feature をすべて確認する
 for ns_name in \
   "Microsoft.ContainerService/AKS-AddonAutoscalingPreview" \
-  "Microsoft.ContainerService/AzureMonitorAppMonitoringPreview" \
-  "Microsoft.ContainerService/AKS-OMSAppMonitoring" \
-  "Microsoft.Insights/OtlpApplicationInsights"; do
+  "Microsoft.ContainerService/AzureMonitorAppMonitoringPreview"; do
   ns="${ns_name%/*}"
   name="${ns_name#*/}"
   echo "=== ${ns_name} ==="
@@ -113,9 +111,9 @@ done
 走査手順:
 
 1. `docs/workarounds.md` を読み、各エントリの **解消条件** と **確認方法** を確認する。
-2. プレビュー機能 GA / API バージョン GA 系（C-1, C-2, B-1, B-4）は §7 のチェックと連動して状況を確認する。
-3. upstream issue 系（D-1: prometheus-collector#483 等）は GitHub issue のステータスを確認する。
-4. 自前で運用ワークアラウンドにしているもの（A-1〜A-5, B-2, B-3）は、Microsoft Learn / Azure Updates で当該機能の改善 announcement が出ていないか確認する。
+2. プレビュー機能 GA / API バージョン GA 系（C-1, C-2）は §7 のチェックと連動して状況を確認する。
+3. upstream issue 系（D-7 など）は GitHub issue や Microsoft 側の修正状況を確認する。
+4. 自前で運用ワークアラウンドにしているもの（A-1〜A-5, B-2）は、Microsoft Learn / Azure Updates で当該機能の改善 announcement が出ていないか確認する。
 5. リポジトリ側の状況とドキュメントが食い違っていないか確認する:
    - `docs/workarounds.md` に書いてある **場所** のファイル / 行が実在するか
    - すでに剥がされたワークアラウンドが残っていないか

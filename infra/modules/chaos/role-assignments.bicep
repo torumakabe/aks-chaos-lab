@@ -41,7 +41,7 @@ var aksClusterUserRoleDefinitionId = subscriptionResourceId(
 )
 
 #disable-next-line BCP081
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2025-08-02-preview' existing = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-03-01' existing = {
   name: last(split(aksId, '/'))
   scope: resourceGroup()
 }

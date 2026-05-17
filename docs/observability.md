@@ -71,7 +71,7 @@ Python OpenTelemetry Logs SDK の成熟度リスクと依存 pin の理由は [A
 
 ## 運用上の注意
 
-- ノード関連メトリクスは環境作成直後に収集されないことがあります。最大 24 時間で揃います。棚卸しは [docs/workarounds.md §D-1](workarounds.md#d-1-node-exporter-メトリクスが最大-24-時間遅延する) を参照してください。
-- Application Insights Portal の `requests/duration` P95 / P99 は trace sampling の影響を受けます。SLI 判定の一次シグナルには Managed Prometheus の Envoy histogram bucket 由来の latency good-rate を使います。
+- Application Insights Portal の `requests/duration` P95 / P99 は参考値です。SLI 判定の一次シグナルには Managed Prometheus の Envoy histogram bucket 由来の latency good-rate を使います。
+- 初回 `azd up` 直後に AKS App Monitoring webhook の反映が間に合わず、`chaos-app` Pod に `OTEL_*` env が注入されないことがあります。`OTelLogs` / `OTelSpans` が届かない場合は `kubectl rollout restart deployment/chaos-app -n chaos-lab` で Pod を再作成してください。
 - 標準 semconv の `http.server.active_requests` は Pod 再起動時ドリフトと no-traffic 時の series 欠落があるため、アラート基準にしません。in-flight request 数の観測にはアプリ独自の `chaos_app.active_requests` を使い、負荷状態の一次シグナルには `gateway:chaos_app:http_request_rate` を使います。
 - no-traffic 時の NaN 回避は `infra/modules/prometheus/recording-rules.bicep` の recording rules で扱います。詳細は [docs/workarounds.md §D-5](workarounds.md#d-5-opentelemetry-updowncounter-httpserveractive_requests-の-pod-再起動時ドリフト) を参照してください。

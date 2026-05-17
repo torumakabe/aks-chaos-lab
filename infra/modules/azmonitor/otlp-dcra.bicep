@@ -9,7 +9,7 @@ var aksClusterName = split(aksClusterResourceId, '/')[8]
 var dataCollectionRuleAssociationName = 'OtlpAppInsightsExtension'
 
 #disable-next-line BCP081
-resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2025-08-02-preview' existing = {
+resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2026-03-01' existing = {
   name: aksClusterName
 }
 
