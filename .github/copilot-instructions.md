@@ -23,6 +23,9 @@ k8s/apps/chaos-app/ # chaos-app Kustomize マニフェスト
 k8s/chaos/        # Chaos Mesh 実験
 tests/unit/       # ユニットテスト
 tests/load/       # Locust 負荷テスト (smoke, baseline, stress, spike)
+docs/deployment.md # 構築・削除・検証手順
+docs/observability.md # 可観測性の運用詳細
+docs/chaos-experiments.md # Chaos 実験の実行ガイド
 docs/adr/         # Architecture Decision Records
 docs/features/    # Feature Document（作業途中の状態保存）
 ```
@@ -33,7 +36,9 @@ docs/features/    # Feature Document（作業途中の状態保存）
 - [Azure Chaos Studio ドキュメント](https://learn.microsoft.com/azure/chaos-studio/)
 - [AKS ベストプラクティス](https://learn.microsoft.com/azure/aks/best-practices)
 - [Azure CAF リソース命名規則](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/azure-best-practices/resource-naming)
-- README.md — プロジェクトの全体像と `azd up` による構築手順
+- README.md — プロジェクトの全体像とドキュメント入口
+- docs/deployment.md — `azd up/down`、権限、feature flag、ローカル開発、負荷テスト
+- docs/observability.md — 観測シグナル、SLI、アラート、OTLP logs
 
 ## コードパターンの参照先
 
@@ -52,6 +57,8 @@ docs/features/    # Feature Document（作業途中の状態保存）
 
 - `docs/adr/` — 確定済みの設計判断。新規の判断が矛盾しないよう確認する
 - `docs/features/` — 作業中の Feature Document。決定事項・制約を尊重する
+- `docs/deployment.md` — 構築・削除・検証手順
+- `docs/observability.md` — 可観測性の運用詳細
 - `infra/` — 現在のインフラ構成（Bicep）
 - `src/` — 現在のアプリケーションコード
 - `k8s/` — 現在の Kubernetes マニフェスト
@@ -61,7 +68,7 @@ docs/features/    # Feature Document（作業途中の状態保存）
 - セッション開始時、`docs/features/` に関連する Feature Document があれば `resume` エージェントで作業を再開する
 - セッションの区切りでは `wrap-up` エージェントで ADR 候補の洗い出し・Feature Document の要否判断・リトマステストを行う
 - 複雑な機能は実装前に段階的な設計会話を行う（要件確認 → コンポーネント設計 → データフロー → インターフェース定義 → 実装）。コードは設計合意後
-- ユーザーから見える振る舞いが変わる変更（機能追加、API 変更、デプロイ手順変更、アーキテクチャ変更）では README.md の更新要否を確認し、必要なら同一 PR 内で更新する
+- ユーザーから見える振る舞いが変わる変更（機能追加、API 変更、デプロイ手順変更、アーキテクチャ変更）では README.md または該当する `docs/*.md` の更新要否を確認し、必要なら同一 PR 内で更新する
 - ドキュメントは `docs/` に配置。一時ファイルは `tmp/` に配置し、完了後に削除
 
 ## 事実検証

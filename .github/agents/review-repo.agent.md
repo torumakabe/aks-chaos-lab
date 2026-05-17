@@ -78,12 +78,12 @@ git ls-files --cached | grep -E '\.(whl|pyc|pyo)$|__pycache__|\.ruff_cache|\.DS_
 
 ### 7. プレビュー機能 / リソースプロバイダー登録の鮮度
 
-README.md の「プレビュー機能とリソースプロバイダー登録」セクションに記載されている `az feature register` 対象が、まだプレビュー扱いで明示登録が必要か確認する。GA すると `az feature register` は不要（または no-op）になり、手順が陳腐化する。
+`docs/deployment.md` の「プレビュー機能とリソースプロバイダー登録」セクションに記載されている `az feature register` 対象が、まだプレビュー扱いで明示登録が必要か確認する。GA すると `az feature register` は不要（または no-op）になり、手順が陳腐化する。
 
 対象 feature の現状を確認する:
 
 ```bash
-# README に記載された feature をすべて確認する
+# docs/deployment.md に記載された feature をすべて確認する
 for ns_name in \
   "Microsoft.ContainerService/AKS-AddonAutoscalingPreview" \
   "Microsoft.ContainerService/AzureMonitorAppMonitoringPreview" \
@@ -101,7 +101,7 @@ done
 
 - `Registered` のまま → プレビューが続いている、記載を維持
 - `NotRegistered` でも feature 自体は存在 → プレビュー継続中、記載を維持
-- feature が見つからない（`az feature show` がエラー） → GA して feature flag が削除された可能性が高い。Microsoft Learn / Azure Updates で GA 状況を確認し、確認できたら README から該当行を削除する提案を出す
+- feature が見つからない（`az feature show` がエラー） → GA して feature flag が削除された可能性が高い。Microsoft Learn / Azure Updates で GA 状況を確認し、確認できたら `docs/deployment.md` から該当行を削除する提案を出す
 - ADR に対応する記述（例: ADR-006 の OTLP プレビュー機能）がある場合は、ADR 側にも GA 反映の更新を提案する
 
 迷ったら Microsoft Learn の該当ページ（例: AKS の "What's new" / OTLP for Application Insights ドキュメント）で GA 表記を一次確認する。
@@ -124,7 +124,7 @@ done
 剥がせる候補が見つかったら、ユーザーに以下を提案する:
 
 - `docs/workarounds.md` から該当エントリを削除
-- 関連コード / ADR / README の該当箇所を更新
+- 関連コード / ADR / README / `docs/deployment.md` / `docs/observability.md` の該当箇所を更新
 - 必要なら ADR を Superseded / 新規 ADR で置き換え（`manage-adr` 経由）
 
 新しいワークアラウンドを追加する場合は、棚卸しの構造（概要 / 理由 / 場所 / 解消条件 / 確認方法）に揃えて記載する。
