@@ -115,7 +115,7 @@ jobs:
           kubeconform -strict -summary \
             -kubernetes-version 1.33.0 \
             -skip VerticalPodAutoscaler,CiliumNetworkPolicy,Kustomization,Gateway,HTTPRoute,Instrumentation \
-            k8s/base/*.yaml
+            k8s/apps/chaos-app/*.yaml
   workflows-lint:
     name: Workflows Lint (actionlint)
     runs-on: ubuntu-latest
