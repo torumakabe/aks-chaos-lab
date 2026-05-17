@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from opentelemetry import trace
 
 from app.config import Settings
-from app.models import ErrorResponse, HealthResponse, MainResponse
+from app.models import ErrorResponse, HealthResponse, LivenessResponse, MainResponse
 from app.redis_client import RedisClient
 from app.telemetry import (
     decrement_active_requests,
@@ -41,6 +41,7 @@ redis_client: RedisClient | None = None
 # Cache both payload and HTTP status code to preserve semantics for unhealthy
 _health_cache: dict[str, Any] = {}
 _HEALTH_CACHE_TTL = 5.0  # seconds
+_PROBE_EXCLUDED_PATHS = frozenset(("/health", "/livez", "/readyz"))
 
 # Lightweight request counter for sampling (avoid non-deterministic hash sampling)
 _request_counter: int = 0
@@ -152,11 +153,11 @@ setup_telemetry(app)
 def _is_active_requests_excluded(path: str) -> bool:
     """Return True if the path should be excluded from active_requests counting.
 
-    /health は kubelet probe 由来でアプリの inflight 概念から外したいため除外
-    する。FastAPIInstrumentor の ``excluded_urls="health"`` と意味的に揃える。
-    将来 /readyz, /livez を追加する場合はここを変更する (Settings 化は過剰)。
+    Probe endpoint は kubelet / 外形監視由来でアプリの inflight 概念から
+    外したいため除外する。FastAPIInstrumentor の excluded_urls と意味的に
+    揃える (Settings 化は過剰)。
     """
-    return path == "/health"
+    return path in _PROBE_EXCLUDED_PATHS
 
 
 @app.middleware("http")
@@ -280,13 +281,20 @@ async def root(
     )
 
 
+@app.get("/livez", response_model=LivenessResponse)
+async def livez() -> LivenessResponse:
+    """Return shallow liveness status without checking external dependencies."""
+    return LivenessResponse(status="alive", timestamp=datetime.now(UTC).isoformat())
+
+
+@app.get("/readyz", response_model=HealthResponse)
 @app.get("/health", response_model=HealthResponse)
 async def health(
     request: Request,
     runtime_settings: Settings = Depends(get_settings),
     client: RedisClient | None = Depends(get_redis_client),
 ) -> HealthResponse | JSONResponse:
-    """Return health status including Redis connectivity."""
+    """Return readiness status including Redis connectivity."""
     if _is_health_cache_valid() and isinstance(
         _health_cache.get("payload"), HealthResponse
     ):
