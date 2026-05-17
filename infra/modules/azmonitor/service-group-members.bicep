@@ -23,7 +23,7 @@ param redisName string
 param containerRegistryName string
 
 #disable-next-line BCP081
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-01-02-preview' existing = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-03-01' existing = {
   name: aksName
 }
 
@@ -39,8 +39,7 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-07
   name: logAnalyticsWorkspaceName
 }
 
-#disable-next-line BCP081
-resource applicationInsights 'Microsoft.Insights/components@2025-01-23-preview' existing = {
+resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: applicationInsightsName
 }
 

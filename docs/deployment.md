@@ -55,12 +55,9 @@ az feature register --namespace Microsoft.ContainerService --name AKS-AddonAutos
 
 # OTLP 経由の Application Insights / Azure Monitor managed Prometheus 連携 (ADR-006)
 az feature register --namespace Microsoft.ContainerService --name AzureMonitorAppMonitoringPreview
-az feature register --namespace Microsoft.ContainerService --name AKS-OMSAppMonitoring
-az feature register --namespace Microsoft.Insights --name OtlpApplicationInsights
 
 # 反映後に provider を再登録
 az provider register --namespace Microsoft.ContainerService
-az provider register --namespace Microsoft.Insights
 ```
 
 `az feature show --namespace <ns> --name <name>` で `state: Registered` になってから `azd up` を実行してください。これらの feature flag は [review-repo エージェント](../.github/agents/review-repo.agent.md) の棚卸し対象です。
@@ -98,10 +95,8 @@ az fleet gate approve \
 azd config set alpha.aks.kustomize on
 azd config set alpha.aks.helm on
 azd init
-AZD_DEPLOY_TIMEOUT=3600 azd up
+azd up
 ```
-
-初回 `azd up` では、新規 Azure Monitor Workspace の recording rule cold-start が最大約 32 分かかる実測があります。`AZD_DEPLOY_TIMEOUT=3600` を設定してください。詳細は [docs/workarounds.md §A-6](workarounds.md#a-6-初回-azd-up-で-azd_deploy_timeout3600-を推奨) を参照してください。
 
 `azd up` は `azure.yaml` の `workflows.up` に従い、以下の順で実行されます。
 
@@ -179,10 +174,10 @@ Azure Monitor SLI を有効化した環境では、Service Group scope の `Micr
 CONFIRM_DELETE_AZURE_MONITOR_SLI_RESOURCES=true azd down --force --purge
 ```
 
-`predown` hook は Service Group scope の SLI / Service Group / AKS の OTLP Application Insights DCR association / deployment record / base resource group を整理し、`postdown` hook は App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) を force-delete します。詳細な順序と理由は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md) と [docs/workarounds.md §D-2](workarounds.md#d-2-azd-の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す) を参照してください。
+`predown` hook は Service Group scope の SLI / Service Group / AKS の OTLP Application Insights DCR association / deployment record / base resource group を整理します。AKS 上の OTLP DCRA を先に削除することで、App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) は base RG の削除に連動して消えます。詳細な順序と理由は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md) と [docs/workarounds.md §D-2](workarounds.md#d-2-azd-の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す) を参照してください。
 
 注意点:
 
-- `predown` / `postdown` hook は system-protected deny assignment を解除しません
+- cleanup hook は system-protected deny assignment を解除しません
 - `azd down <layer>` のような layer 指定 down はサポート対象外です
 - `CONFIRM_DELETE_AZURE_MONITOR_SLI_RESOURCES=true` を付けない通常の `azd down` では cleanup hook は skip されます

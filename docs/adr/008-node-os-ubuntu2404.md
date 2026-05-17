@@ -88,7 +88,7 @@ osSKU: 'Ubuntu2404'
 - **VMSS は 1 つのまま**（`aks-default-15188033-vmss`）。新しい VMSS は作られない。
 - **agentPool 名も変わらない**（`default` のまま）。
 - 同一 VMSS 内で **capacity をサージ**（2→4）し、新 instance (`00000a`, `00000b`) を Green として Ready にしてから、旧 instance (`000008`, `000009`) を cordon / drain / soak / delete する。
-- Resource Graph はプレビュー API 固有の `upgradeStrategy` / `upgradeSettingsBlueGreen` / `blueGreenStatus` を返さない。`az rest --url ...?api-version=2025-08-02-preview` を使う必要がある。
+- Resource Graph は `upgradeStrategy` / `upgradeSettingsBlueGreen` / `blueGreenStatus` を返さない。`az rest --url ...?api-version=2026-03-01` を使う必要がある。
 
 ドキュメントは「parallel pool」という抽象的な表現で、VMSS レベルの具体実装は明示していない。ラボでの挙動確認・トラブルシュート時には「同一 VMSS 内サージ」であることを前提に監視クエリを書くのが実践的。
 

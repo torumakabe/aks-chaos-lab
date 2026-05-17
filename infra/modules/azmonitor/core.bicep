@@ -35,9 +35,7 @@ resource appAzureMonitorWorkspace 'Microsoft.Monitor/accounts@2023-04-03' = {
 }
 
 // App Insights with OTLP ingestion enabled via AKS Auto-Configuration (ADR-006)
-// Preview API required for AzureMonitorWorkspaceIngestionMode property
-#disable-next-line BCP081
-resource applicationInsights 'Microsoft.Insights/components@2025-01-23-preview' = {
+resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: applicationInsightsName
   location: location
   kind: 'web'
@@ -46,7 +44,9 @@ resource applicationInsights 'Microsoft.Insights/components@2025-01-23-preview' 
     Application_Type: 'web'
     WorkspaceResourceId: logAnalyticsWorkspace.id
     IngestionMode: 'LogAnalytics'
+    #disable-next-line BCP037
     AzureMonitorWorkspaceIngestionMode: 'OptedIn'
+    #disable-next-line BCP037
     AzureMonitorWorkspaceResourceId: appAzureMonitorWorkspace.id
   }
 }
@@ -56,5 +56,5 @@ output logAnalyticsNameOut string = logAnalyticsWorkspace.name
 output applicationInsightsId string = applicationInsights.id
 output applicationInsightsNameOut string = applicationInsights.name
 output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
-#disable-next-line BCP081
+#disable-next-line BCP053
 output applicationInsightsDataCollectionRuleId string = applicationInsights.properties.DataCollectionRuleResourceId

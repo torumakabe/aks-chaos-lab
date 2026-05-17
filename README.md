@@ -62,21 +62,21 @@ graph TD
 - Python 3.13+ + [`uv`](https://github.com/astral-sh/uv)
 - `azd up` 実行 identity に、サブスクリプション スコープの **Owner**、または **Contributor** + **User Access Administrator**
 - Azure Monitor SLI を有効化する場合は、Service Group スコープの追加権限
-- 事前登録が必要なプレビュー機能: `AKS-AddonAutoscalingPreview`, `AzureMonitorAppMonitoringPreview`, `AKS-OMSAppMonitoring`, `OtlpApplicationInsights`
+- 事前登録が必要なプレビュー機能: `AKS-AddonAutoscalingPreview`, `AzureMonitorAppMonitoringPreview`
 
-権限、feature flag 登録、初回 timeout、削除時の注意点は [docs/deployment.md](docs/deployment.md) に集約しています。
+権限、feature flag 登録、削除時の注意点は [docs/deployment.md](docs/deployment.md) に集約しています。
 
 > このラボは **AKS Base のみ**をサポートします。AKS Automatic をサポートしない理由は [ADR-010](docs/adr/010-aks-automatic-unsupported-due-to-deployment-safeguards.md) を参照してください。
 
 ## 最短セットアップ
 
-詳細な手順は [docs/deployment.md](docs/deployment.md) を参照してください。初回構築では Managed Prometheus / SLI の cold-start を考慮し、`AZD_DEPLOY_TIMEOUT=3600` を付けます。
+詳細な手順は [docs/deployment.md](docs/deployment.md) を参照してください。
 
 ```bash
 azd config set alpha.aks.kustomize on
 azd config set alpha.aks.helm on
 azd init
-AZD_DEPLOY_TIMEOUT=3600 azd up
+azd up
 ```
 
 ローカル開発と検証:

@@ -159,67 +159,6 @@ delete_otlp_app_insights_dcra() {
   exit 1
 }
 
-delete_orphan_otlp_managed_rgs() {
-  env_name=$1
-
-  if [ -z "$env_name" ]; then
-    log "AZURE_ENV_NAME is not set; skipping orphan OTLP managed RG cleanup"
-    return 0
-  fi
-
-  candidate_rgs=$(
-    az group list \
-      --query "[?starts_with(name, 'ai_appi-') && ends_with(name, '_managed') && tags.\"azd-env-name\"=='${env_name}'].name" \
-      -o tsv 2>/dev/null || true
-  )
-
-  if [ -z "$candidate_rgs" ]; then
-    log "no orphan OTLP App Insights managed RG found for env ${env_name}"
-    return 0
-  fi
-
-  subscription_id=$(az account show --query id -o tsv 2>/dev/null || true)
-  if [ -z "$subscription_id" ]; then
-    log "could not determine subscription id"
-    exit 1
-  fi
-
-  api_version="2024-03-01"
-  force_types="Microsoft.Insights%2FdataCollectionEndpoints,Microsoft.Insights%2FdataCollectionRules"
-
-  for rg in $candidate_rgs; do
-    log "force-deleting orphan OTLP App Insights managed RG ${rg}"
-
-    if ! az rest \
-      --method delete \
-      --url "https://management.azure.com/subscriptions/${subscription_id}/resourcegroups/${rg}?api-version=${api_version}&forceDeletionResourceTypes=${force_types}" \
-      --output none 2>/dev/null; then
-      log "force delete request failed for ${rg}; skipping"
-      continue
-    fi
-
-    attempt=1
-    last_exists="True"
-    while [ "$attempt" -le 60 ]; do
-      last_exists=$(az group exists --name "$rg" 2>/dev/null || echo "Unknown")
-      if [ "$last_exists" = "False" ]; then
-        log "${rg} deleted"
-        break
-      fi
-      if [ "$attempt" -eq 1 ] || [ $((attempt % 6)) -eq 0 ]; then
-        log "${rg} still deleting (attempt ${attempt}/60)"
-      fi
-      sleep 10
-      attempt=$((attempt + 1))
-    done
-
-    if [ "$last_exists" != "False" ]; then
-      log "${rg} still exists after force delete timeout; manual cleanup required"
-      exit 1
-    fi
-  done
-}
-
 delete_sli_layer_deployment_records() {
   env_name=$1
 
@@ -343,9 +282,9 @@ require_command az
 phase=${1:-pre}
 
 case "$phase" in
-  pre|post) ;;
+  pre) ;;
   *)
-    log "unknown cleanup phase: ${phase} (expected 'pre' or 'post')"
+    log "unknown cleanup phase: ${phase} (expected 'pre')"
     exit 1
     ;;
 esac
@@ -360,11 +299,6 @@ if [ "${CONFIRM_DELETE_AZURE_MONITOR_SLI_RESOURCES:-false}" != "true" ]; then
 fi
 
 env_name=$(get_env_value AZURE_ENV_NAME)
-
-if [ "$phase" = "post" ]; then
-  delete_orphan_otlp_managed_rgs "$env_name"
-  exit 0
-fi
 
 service_group_id=$(get_env_value AZURE_MONITOR_SLI_SERVICE_GROUP_ID)
 service_group_name=$(get_env_value AZURE_MONITOR_SLI_SERVICE_GROUP_NAME)
