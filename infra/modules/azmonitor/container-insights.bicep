@@ -146,7 +146,7 @@ resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' 
 }
 
 #disable-next-line BCP081
-resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2026-03-01' existing = {
+resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2026-03-02-preview' existing = {
   name: aksClusterName
 }
 

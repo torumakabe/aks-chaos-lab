@@ -42,9 +42,7 @@ description: リポジトリ全体の衛生チェック。instructions の鮮度
 
 git で追跡されているファイルに、追跡すべきでないものが含まれていないか確認する。
 
-```bash
-git ls-files --cached | grep -E '\.(whl|pyc|pyo)$|__pycache__|\.ruff_cache|\.DS_Store|\.env$'
-```
+`git ls-files --cached` の結果を確認し、`.whl` / `.pyc` / `.pyo` / `__pycache__` / `.ruff_cache` / `.DS_Store` / `.env` が追跡対象に入っていないか調べる。
 
 検出されたファイルがあれば `git rm --cached` を提案する。
 
@@ -52,7 +50,7 @@ git ls-files --cached | grep -E '\.(whl|pyc|pyo)$|__pycache__|\.ruff_cache|\.DS_
 
 品質ゲートが通るか確認する:
 
-- Python: `cd src && make qa`（ruff + ty + pytest）
+- Python: `uv run scripts/tasks.py qa-app`（ruff + ty + pytest）
 - Bicep: `az bicep build --file infra/main.bicep`
 
 ### 4. ADR 健全性
@@ -82,17 +80,9 @@ git ls-files --cached | grep -E '\.(whl|pyc|pyo)$|__pycache__|\.ruff_cache|\.DS_
 
 対象 feature の現状を確認する:
 
-```bash
-# docs/deployment.md に記載された feature をすべて確認する
-for ns_name in \
-  "Microsoft.ContainerService/AKS-AddonAutoscalingPreview" \
-  "Microsoft.ContainerService/AzureMonitorAppMonitoringPreview"; do
-  ns="${ns_name%/*}"
-  name="${ns_name#*/}"
-  echo "=== ${ns_name} ==="
-  az feature show --namespace "$ns" --name "$name" --query "{state:properties.state}" -o tsv 2>/dev/null \
-    || echo "  (not found — may have been GA'd and retired)"
-done
+```console
+az feature show --namespace Microsoft.ContainerService --name AKS-AddonAutoscalingPreview --query "{state:properties.state}" -o tsv
+az feature show --namespace Microsoft.ContainerService --name AzureMonitorAppMonitoringPreview --query "{state:properties.state}" -o tsv
 ```
 
 判定基準:
