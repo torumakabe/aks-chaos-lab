@@ -14,31 +14,43 @@
 ### 基本的な使用（自動検出）
 ```bash
 # BASE_URLを自動検出してbaseline負荷テスト実行
-./run-load-tests.sh baseline
+uv run scripts/tasks.py load-baseline
 
 # smoke（軽量・既定のクイック検証）
-./run-load-tests.sh smoke
+uv run scripts/tasks.py load-smoke
 
 # stress負荷テスト実行
-./run-load-tests.sh stress
+uv run scripts/tasks.py load-stress
 
-# spike負荷テスト実行  
-./run-load-tests.sh spike
+# spike負荷テスト実行
+uv run scripts/tasks.py load-spike
 ```
 
 ### 手動でBASE_URL指定
 ```bash
-# 手動でエンドポイント指定
-BASE_URL=https://myapp.example.com ./run-load-tests.sh baseline
+export BASE_URL=https://myapp.example.com
+uv run scripts/tasks.py load-baseline
+```
+
+PowerShell:
+
+```powershell
+$env:BASE_URL = "https://myapp.example.com"
+uv run scripts/tasks.py load-baseline
 ```
 
 ### カスタム設定
 ```bash
 # 異なるGatewayを対象にする場合
-GATEWAY_NAME=my-gateway GATEWAY_NS=my-namespace ./run-load-tests.sh baseline
+export GATEWAY_NAME=my-gateway
+export GATEWAY_NS=my-namespace
+uv run scripts/tasks.py load-baseline
 
 # 負荷パラメータをカスタマイズ
-USERS=100 SPAWN_RATE=10 DURATION=300 ./run-load-tests.sh baseline
+export USERS=100
+export SPAWN_RATE=10
+export DURATION=300
+uv run scripts/tasks.py load-baseline
 ```
 
 ## 負荷プロファイル
@@ -67,15 +79,13 @@ USERS=100 SPAWN_RATE=10 DURATION=300 ./run-load-tests.sh baseline
 
 ### 初回実行前の準備
 ```bash
-# src/ ディレクトリでdev dependenciesをインストール
-cd ../../
-uv sync --group dev
+uv run scripts/tasks.py sync-dev
 ```
 
 ### 依存関係について
 - locustはsrc/pyproject.tomlのdev dependenciesで定義
 - uvが自動的に仮想環境を管理  
-- run-load-tests.shは`uv run --group dev locust`で実行
+- `uv run scripts/tasks.py load-*` は `src/` の dev dependencies を使って Locust を実行
 
 ## 前提条件
 - kubectl がインストール済みでクラスタにアクセス可能
@@ -87,15 +97,12 @@ BASE_URL が未設定の場合、以下の優先順で自動検出します：
 
 1) azd 環境変数からの検出
 - `AZURE_INGRESS_FQDN` を参照して `http://$AZURE_INGRESS_FQDN` を組み立てます（スキームは http 固定）。
-- すでにシェルで `AZURE_INGRESS_FQDN` がエクスポートされていない場合は、`azd env get-values` の結果を読み込みます。
+- すでにシェルで `AZURE_INGRESS_FQDN` が設定されていない場合は、`azd env get-value AZURE_INGRESS_FQDN` の結果を読み込みます。
 
 例：
 ```bash
-# azd 環境変数をカレントシェルに読み込む
-eval "$(azd env get-values)"
-
 # BASE_URL 自動検出で baseline を実行
-./run-load-tests.sh baseline
+uv run scripts/tasks.py load-baseline
 ```
 
 2) Kubernetes Gateway からの検出

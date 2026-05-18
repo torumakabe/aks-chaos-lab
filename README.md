@@ -55,7 +55,7 @@ graph TD
 
 ## 前提条件
 
-- Linux (WSL) または macOS
+- Windows、macOS、または Linux
 - [Azure Developer CLI (`azd`)](https://learn.microsoft.com/azure/developer/azure-developer-cli/)
 - Azure CLI + Bicep extension
 - `kubectl`
@@ -82,15 +82,14 @@ azd up
 ローカル開発と検証:
 
 ```bash
-cd src
-uv sync --group dev
-make qa
+uv run scripts/tasks.py sync-dev
+uv run scripts/tasks.py qa
 ```
 
 環境削除:
 
 ```bash
-CONFIRM_DELETE_AZURE_MONITOR_SLI_RESOURCES=true azd down --force --purge
+azd down --force --purge
 ```
 
 ## ドキュメントの読み方

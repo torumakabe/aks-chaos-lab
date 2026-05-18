@@ -33,7 +33,7 @@ az rest --method post \
 
 ## 観察の進め方
 
-1. `cd src && make load-baseline` で負荷をかける。
+1. `uv run scripts/tasks.py load-baseline` で負荷をかける。
 2. 別ターミナルで Chaos 実験を開始する。
 3. [observability.md](observability.md) の `gateway:chaos_app:*`、Application Insights、Container Insights、Container network logs を確認する。
 4. 実験停止後、回復時間と SLI / operational alerts の反応を確認する。

@@ -4,7 +4,7 @@
 
 ## 前提ツール
 
-- Linux (WSL) または macOS
+- Windows、macOS、または Linux
 - [Azure Developer CLI (`azd`)](https://learn.microsoft.com/azure/developer/azure-developer-cli/)
 - Azure CLI + Bicep extension
 - `kubectl`
@@ -102,7 +102,7 @@ azd up
 
 1. `azd provision base` (`infra/main.bicep`) — VNet / AKS / Redis / Application Insights / Managed Prometheus / Service Group / SLI 用 Managed Identity / RBAC を作成
 2. `azd deploy api` — chaos-app をデプロイ
-3. `azd deploy observability` — Envoy Gateway などをデプロイし、`postdeploy` hook で `scripts/warm-up-sli-signals.sh` がトラフィック生成と Managed Prometheus recording rules の `cluster_name` 出現を待機
+3. `azd deploy observability` — Envoy Gateway などをデプロイし、`postdeploy` hook で `uv run scripts/warm-up-sli-signals.py` がトラフィック生成と Managed Prometheus recording rules の `cluster_name` 出現を待機
 4. `azd deploy chaos-mesh` — Chaos Mesh を Helm install
 5. `azd provision sli` (`infra/sli/main.bicep`) — Azure Monitor SLI definitions と SLI metric alerts を作成
 
@@ -122,9 +122,8 @@ azd provision sli --preview
 ## ローカル開発
 
 ```bash
-cd src
-uv sync --group dev
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv run scripts/tasks.py sync-dev
+uv run scripts/tasks.py run
 ```
 
 ## テストと品質確認
@@ -132,52 +131,78 @@ uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 アプリケーション:
 
 ```bash
-cd src
-make test
-make test-cov
-make lint
-make typecheck
-make qa
+uv run scripts/tasks.py test
+uv run scripts/tasks.py test-cov
+uv run scripts/tasks.py lint
+uv run scripts/tasks.py typecheck
+uv run scripts/tasks.py qa-app
 ```
 
 リポジトリ全体:
 
 ```bash
-make qa
+uv run scripts/tasks.py qa
 ```
 
-`make qa` は workflows、Bicep、Kubernetes manifests、アプリの QA をまとめて実行します。必要な外部ツールはルート `Makefile` の `install-tools` / `check-*` ターゲットを参照してください。
+`uv run scripts/tasks.py qa` は workflows、Bicep、Kubernetes manifests、アプリ、リポジトリ用 Python scripts の QA をまとめて実行します。必要な外部ツールの確認は `uv run scripts/tasks.py install-tools` / `check-*` ターゲットで実行できます。
 
 ## 負荷テスト
 
-`src/` ディレクトリで Locust ベースの負荷を生成できます。`BASE_URL` 未指定時は `AZURE_INGRESS_FQDN` を優先し、未設定の場合は Gateway から自動検出します。
+Locust ベースの負荷を生成できます。`BASE_URL` 未指定時は `AZURE_INGRESS_FQDN` を優先し、未設定の場合は Gateway から自動検出します。
 
 ```bash
-cd src
-
-make load-smoke
-make load-baseline
-make load-stress
-make load-spike
-
-BASE_URL=http://<host-or-ip> make load-baseline
-USERS=100 SPAWN_RATE=10 DURATION=300 make load-baseline
+uv run scripts/tasks.py load-smoke
+uv run scripts/tasks.py load-baseline
+uv run scripts/tasks.py load-stress
+uv run scripts/tasks.py load-spike
 ```
 
-Chaos 実験の観察時は、別ターミナルで `make load-baseline` を継続しながら [docs/chaos-experiments.md](chaos-experiments.md) の実験を開始すると挙動を追いやすくなります。
+手動で対象 URL や負荷パラメーターを指定する場合は、利用中のシェルで環境変数を設定してから同じタスクを実行します。
+
+```powershell
+$env:BASE_URL = "http://<host-or-ip>"
+$env:USERS = "100"
+$env:SPAWN_RATE = "10"
+$env:DURATION = "300"
+uv run scripts/tasks.py load-baseline
+```
+
+```bash
+export BASE_URL=http://<host-or-ip>
+export USERS=100
+export SPAWN_RATE=10
+export DURATION=300
+uv run scripts/tasks.py load-baseline
+```
+
+Chaos 実験の観察時は、別ターミナルで `uv run scripts/tasks.py load-baseline` を継続しながら [docs/chaos-experiments.md](chaos-experiments.md) の実験を開始すると挙動を追いやすくなります。
 
 ## 環境削除
 
 Azure Monitor SLI を有効化した環境では、Service Group scope の `Microsoft.Monitor/slis` と環境別 Service Group が resource group の外に存在します。削除時は cleanup hook を有効にして project-level `azd down` を実行してください。
 
 ```bash
-CONFIRM_DELETE_AZURE_MONITOR_SLI_RESOURCES=true azd down --force --purge
+azd down --force --purge
 ```
 
 `predown` hook は Service Group scope の SLI / Service Group / AKS の OTLP Application Insights DCR association / deployment record / base resource group を整理します。AKS 上の OTLP DCRA を先に削除することで、App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) は base RG の削除に連動して消えます。詳細な順序と理由は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md) と [docs/workarounds.md §D-2](workarounds.md#d-2-azd-の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す) を参照してください。
+
+cleanup hook の構文・実行経路だけを非破壊で確認する場合は、削除系処理を dry-run にして hook を単体実行できます。
+
+```powershell
+$env:AZURE_MONITOR_SLI_CLEANUP_DRY_RUN = "true"
+azd hooks run predown --platform windows
+Remove-Item Env:AZURE_MONITOR_SLI_CLEANUP_DRY_RUN
+```
+
+```bash
+export AZURE_MONITOR_SLI_CLEANUP_DRY_RUN=true
+azd hooks run predown --platform posix
+unset AZURE_MONITOR_SLI_CLEANUP_DRY_RUN
+```
 
 注意点:
 
 - cleanup hook は system-protected deny assignment を解除しません
 - `azd down <layer>` のような layer 指定 down はサポート対象外です
-- `CONFIRM_DELETE_AZURE_MONITOR_SLI_RESOURCES=true` を付けない通常の `azd down` では cleanup hook は skip されます
+- `AZURE_MONITOR_SLI_CLEANUP_DRY_RUN=true` を付けた hook 単体実行では削除せず、対象検出とログ出力だけを行います

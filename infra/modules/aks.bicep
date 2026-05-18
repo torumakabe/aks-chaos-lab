@@ -72,7 +72,7 @@ var aksCommonProperties = {
       autoInstrumentation: {
         enabled: true
       }
-      openTelemetryLogs: {
+      openTelemetryLogsAndTraces: {
         enabled: true
       }
       openTelemetryMetrics: {
@@ -185,7 +185,7 @@ resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-3
 }
 
 #disable-next-line BCP081
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-03-01' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-03-02-preview' = {
   name: aksName
   location: location
   tags: tags

@@ -33,11 +33,11 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **確認方法**: 一時環境で warm-up なしに `infra/sli/main.bicep` を作成し、SLI が作成エラーにならないか試す。
 - **最終確認**: 2026-05-17、warm-up なしの SLI 作成は `cluster_name` 不在で失敗。削除不可。
 
-### A-2. `scripts/warm-up-sli-signals.sh` でトラフィック生成と recording rule 出力待機
+### A-2. `scripts/warm-up-sli-signals.py` でトラフィック生成と recording rule 出力待機
 
 - **概要**: `observability` service の `postdeploy` hook で、Envoy 経由のトラフィックを生成し、Managed Prometheus 上で `gateway:chaos_app:http_*` recording rule の出力に `cluster_name` dimension が出るまで待つ。
 - **理由**: A-1 と同じ。SLI 作成前に recording rule の出力が materialize されている必要があるため。
-- **場所**: `scripts/warm-up-sli-signals.sh`、`azure.yaml`
+- **場所**: `scripts/warm-up-sli-signals.py`、`azure.yaml`
 - **解消条件**: A-1 と同じ。
 - **確認方法**: A-1 と同じ。
 
@@ -52,9 +52,9 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 ### A-4. `predown` hook で Service Group scope SLI と環境別 Service Group を削除
 
-- **概要**: `azd down` 前に `scripts/cleanup-azure-monitor-sli-resources.sh pre` を実行し、Service Group scope の SLI と環境別 Service Group を削除する。
+- **概要**: `azd down` 前に `uv run scripts/cleanup-azure-monitor-sli-resources.py` を実行し、Service Group scope の SLI と環境別 Service Group を削除する。
 - **理由**: `azd down` は subscription / resource group scope までしか到達せず、tenant scope（Service Group / SLI）が残留する。
-- **場所**: `scripts/cleanup-azure-monitor-sli-resources.sh`、`azure.yaml`、ADR-009
+- **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、`azure.yaml`、ADR-009
 - **解消条件**: `azd` が tenant scope のリソースを `down` で cascade delete できるようになる、または Service Group が subscription scope のリソースとして提供される。
 - **確認方法**: Service Group cleanup を一時的に無効化して `azd down` 後、Service Group / SLI が残らないか確認する。
 - **最終確認**: 2026-05-17、Service Group cleanup を外すと Service Group と availability / latency SLI が残留。削除不可。
@@ -76,7 +76,7 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 - **概要**: `azd down` 前に AKS の OTLP DCR association を削除する。
 - **理由**: B-3 の `postdown` force-delete を削除したため、App Insights managed RG (`ai_*_managed`) を残さないには AKS 上の DCRA を先に外す必要がある。DCRA を残したまま base RG を削除すると `ai_*_managed` が残留する。
-- **場所**: `scripts/cleanup-azure-monitor-sli-resources.sh`、ADR-009
+- **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、ADR-009
 - **解消条件**: AKS DCRA を残したまま `azd down` しても `ai_*_managed` が残留しない deprovision flow になる。
 - **確認方法**: B-2 の DCRA 削除を一時的に無効化して `azd down` を実行し、`ai_*_managed` が残らないか確認する。
 - **最終確認**: 2026-05-17、B-2 と B-3 を両方外すと `ai_*_managed` が残留。B-2 を残して B-3 を外した場合は残留なし。
@@ -120,7 +120,7 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 - **概要**: `azd up` / `azd down` の subscription scope deployment 操作で `Deployment '<env>-<layer>?-<unix>' could not be found.` が返って失敗することがある。同名 deployment record は ARM 上で `Succeeded` 状態で残っているケースが直接観測されている。
 - **理由**: 未確定。ARM の deployment record が一時的に GET で見えないウィンドウがあるように見えるが、根本原因は未特定。観測事実の報告として upstream issue [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) を起票済み。
-- **場所**: `scripts/cleanup-azure-monitor-sli-resources.sh`、ADR-009
+- **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、ADR-009
 - **構造的対処 (down 側のみ・実装済み)**: `predown` hook が Service Group scope SLI / Service Group / OTLP DCRA / SLI layer deployment record / base RG / base layer deployment record を順に削除し、`azd down` の Destroy 経路を両 layer で graceful skip path に短絡する。これにより down 側の `voidSubscriptionDeploymentState` を呼ばない。
 - **対処できない範囲 (up 側)**: `azd up` の通常 deployment polling は azd 側で起こるため、リポジトリ側からは予防できない。再現した場合は `azd up` を再実行する。
 - **確認方法**: 一時環境の削除後、`az deployment sub list` で該当 env の deployment record が残っていないことを確認する。
