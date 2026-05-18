@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "github-agentic-workflows": {
+      "type": "stdio",
+      "command": "gh",
+      "args": [
+        "aw",
+        "mcp-server"
+      ]
+    }
+  }
+}
