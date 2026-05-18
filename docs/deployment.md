@@ -117,7 +117,7 @@ azd provision base --preview
 azd provision sli --preview
 ```
 
-`azd up` 中に `DeploymentNotFound` が出ても、ARM 上の deployment が `Succeeded` で残るケースがあります。その場合は `azd up` を再実行してください。詳細は [docs/workarounds.md §D-2](workarounds.md#d-2-azd-の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す) を参照してください。
+`azd up` 中に `DeploymentNotFound` が出ても、ARM 上の deployment が `Succeeded` で残るケースがあります。その場合は `azd env refresh <env> --no-prompt` で env outputs を同期してから、`azd up --no-prompt` を再実行してください。詳細は [docs/workarounds.md §D-2](workarounds.md#d-2-azd-の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す) を参照してください。
 
 ## ローカル開発
 

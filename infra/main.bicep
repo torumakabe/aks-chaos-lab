@@ -447,15 +447,15 @@ module chaosRoleAssignments './modules/chaos/role-assignments.bicep' = if (enabl
   scope: resourceGroup
   params: {
     aksId: aksCluster.outputs.aksId
-    podChaosPrincipalId: chaosExperiments.outputs.podChaosPrincipalId
-    networkChaosPrincipalId: chaosExperiments.outputs.networkChaosPrincipalId
-    networkChaosLossPrincipalId: chaosExperiments.outputs.networkChaosLossPrincipalId
-    stressChaosPrincipalId: chaosExperiments.outputs.stressChaosPrincipalId
-    ioChaosPrincipalId: chaosExperiments.outputs.ioChaosPrincipalId
-    timeChaosPrincipalId: chaosExperiments.outputs.timeChaosPrincipalId
-    kernelChaosPrincipalId: chaosExperiments.outputs.kernelChaosPrincipalId
-    httpChaosPrincipalId: chaosExperiments.outputs.httpChaosPrincipalId
-    dnsChaosPrincipalId: chaosExperiments.outputs.dnsChaosPrincipalId
+    podChaosPrincipalId: chaosExperiments!.outputs.podChaosPrincipalId
+    networkChaosPrincipalId: chaosExperiments!.outputs.networkChaosPrincipalId
+    networkChaosLossPrincipalId: chaosExperiments!.outputs.networkChaosLossPrincipalId
+    stressChaosPrincipalId: chaosExperiments!.outputs.stressChaosPrincipalId
+    ioChaosPrincipalId: chaosExperiments!.outputs.ioChaosPrincipalId
+    timeChaosPrincipalId: chaosExperiments!.outputs.timeChaosPrincipalId
+    kernelChaosPrincipalId: chaosExperiments!.outputs.kernelChaosPrincipalId
+    httpChaosPrincipalId: chaosExperiments!.outputs.httpChaosPrincipalId
+    dnsChaosPrincipalId: chaosExperiments!.outputs.dnsChaosPrincipalId
   }
 }
 

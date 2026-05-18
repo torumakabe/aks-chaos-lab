@@ -122,9 +122,9 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **理由**: 未確定。ARM の deployment record が一時的に GET で見えないウィンドウがあるように見えるが、根本原因は未特定。観測事実の報告として upstream issue [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) を起票済み。
 - **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、ADR-009
 - **構造的対処 (down 側のみ・実装済み)**: `predown` hook が Service Group scope SLI / Service Group / OTLP DCRA / SLI layer deployment record / base RG / base layer deployment record を順に削除し、`azd down` の Destroy 経路を両 layer で graceful skip path に短絡する。これにより down 側の `voidSubscriptionDeploymentState` を呼ばない。
-- **対処できない範囲 (up 側)**: `azd up` の通常 deployment polling は azd 側で起こるため、リポジトリ側からは予防できない。再現した場合は `azd up` を再実行する。
+- **対処できない範囲 (up 側)**: `azd up` の通常 deployment polling は azd 側で起こるため、リポジトリ側からは予防できない。再現した場合は ARM 上の該当 subscription deployment が `Succeeded` か確認し、成功していれば `azd env refresh <env> --no-prompt` で env outputs を同期してから `azd up --no-prompt` を再実行する。
 - **確認方法**: 一時環境の削除後、`az deployment sub list` で該当 env の deployment record が残っていないことを確認する。
-- **最終確認**: 2026-05-17 の検証中にも `azd provision base` で `DeploymentNotFound` が再現し、ARM deployment は後から `Succeeded` / `Failed` に到達した。削除不可。
+- **最終確認**: 2026-05-18、`eval` 環境の `azd up` で `provision sli` が `DeploymentNotFound` を返したが、ARM 上の `eval-sli-1779095707` は `Succeeded`。`azd env refresh eval --no-prompt` 後の `azd up --no-prompt` 再実行で成功。削除不可。
 
 ### D-4. Azure Monitor SLI Metric Alert (Portal 型) の動作仕様が未公開
 

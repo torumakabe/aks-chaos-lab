@@ -58,6 +58,8 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-03-02-previ
   scope: resourceGroup()
 }
 
+// Azure Chaos Studio documents this AKS Chaos Mesh target type name. ARM validation
+// may warn about the reserved word, but changing the target name breaks capability binding.
 resource chaosTarget 'Microsoft.Chaos/targets@2025-01-01' = {
   name: 'microsoft-azurekubernetesservicechaosmesh'
   scope: aksCluster
