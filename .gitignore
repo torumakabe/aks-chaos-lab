@@ -219,6 +219,7 @@ __marimo__/
 
 # Local AI assistant settings (do not commit)
 .claude/
+.mcp.json
 
 .azure/
 
