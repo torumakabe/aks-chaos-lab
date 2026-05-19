@@ -153,6 +153,21 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **確認方法**: fresh `azd up` 直後に `kubectl -n chaos-lab exec <pod> -- printenv | grep '^OTEL_'` を確認し、`OTelLogs` / `OTelSpans` が到達するか確認する。未注入なら `kubectl rollout restart deployment/chaos-app -n chaos-lab` 後に再確認する。
 - **最終確認**: 2026-05-17、fresh `azd up` 直後の `chaos-app` Pod で `OTEL_*` env が空。削除不可。
 
+### D-8. azd preflight が `Microsoft.Chaos/targets` に reserved-word warning を誤検知
+
+- **概要**: `azd up` / `azd provision` 実行時に以下の warning が出る。`Microsoft.Chaos/targets` の名前 `microsoft-azurekubernetesservicechaosmesh` は Azure Chaos Studio 仕様で固定であり、変更不可。
+  ```
+  (!) Warning: Resource "microsoft-azurekubernetesservicechaosmesh" (Microsoft.Chaos/targets) contains the reserved word "MICROSOFT"
+    Azure does not allow reserved words in resource names. The deployment will fail.
+  ```
+- **理由**: azd の preflight (`cli/azd/pkg/infra/provisioning/bicep/bicep_provider.go` の `azureReservedResourceNameContainsMatches = ["MICROSOFT", "WINDOWS"]`) が、`azureReservedResourceNameExemptTypes` に未登録の `Microsoft.Chaos/targets` を弾く。target type 名は Chaos Studio capability binding (`urn:csci:microsoft:azureKubernetesServiceChaosMesh:*`) と一対一で固定されており、サービス仕様上の固有名。ARM 側で reserved-word ルールは適用されないため、warning に反してデプロイは成功する（false positive）。
+- **実害評価**: なし。`azd` 実行ログにノイズが出るのみ。
+- **場所**: `infra/modules/chaos/experiments.bicep` の `chaosTarget` リソース（コメントで根拠を明記済み）。
+- **解消条件**: upstream で `Microsoft.Chaos/targets` が exempt list に追加される。
+- **追跡**: [Azure/azure-dev#8239](https://github.com/Azure/azure-dev/issues/8239)
+- **確認方法**: 上記 upstream issue が close されたバージョンの `azd` で `azd up` を実行し、warning が出ないことを確認する。
+- **最終確認**: 2026-05-19、`azd up` で warning が出るがデプロイは成功。Chaos experiment も正常動作。
+
 ### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発（実害なし・ログノイズのみ）
 
 - **概要**: `ama-metrics` Deployment の replica pod (`prometheus-collector` container) で `mdsd.err` に `[CreateSocket] Failed to connect port 12564 ... to AMACoreAgent: Connection refused` と `[OtlpTokenFetcher] AMACoreAgent tenant not started, trying to start it. DCR Contents: ...dcr-<otlp>...` が約 60 秒周期で継続出力される。

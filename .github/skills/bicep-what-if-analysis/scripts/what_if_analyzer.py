@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -1007,7 +1008,7 @@ def get_azd_env_values() -> dict[str, str]:
     """azd env get-values から環境変数を取得する。"""
     try:
         result = subprocess.run(
-            ["azd", "env", "get-values"],
+            [shutil.which("azd") or "azd", "env", "get-values"],
             capture_output=True,
             text=True,
             check=True,
@@ -1280,6 +1281,10 @@ def run_what_if(
         "json",
         "--no-pretty-print",
     ]
+    # Windows: resolve az -> az.cmd so subprocess can find it without shell=True
+    resolved = shutil.which(cmd[0])
+    if resolved:
+        cmd[0] = resolved
 
     if subscription:
         cmd.extend(["--subscription", subscription])

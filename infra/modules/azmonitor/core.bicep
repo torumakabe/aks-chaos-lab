@@ -45,7 +45,7 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
     WorkspaceResourceId: logAnalyticsWorkspace.id
     IngestionMode: 'LogAnalytics'
     #disable-next-line BCP037
-    AzureMonitorWorkspaceIngestionMode: 'OptedIn'
+    AzureMonitorWorkspaceIngestionMode: 'Enabled'
     #disable-next-line BCP037
     AzureMonitorWorkspaceResourceId: appAzureMonitorWorkspace.id
   }

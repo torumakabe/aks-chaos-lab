@@ -113,7 +113,7 @@ jobs:
       - name: Validate K8s manifests
         run: |
           kubeconform -strict -summary \
-            -kubernetes-version 1.33.0 \
+            -kubernetes-version 1.34.0 \
             -skip VerticalPodAutoscaler,CiliumNetworkPolicy,Kustomization,Gateway,HTTPRoute,Instrumentation \
             k8s/apps/chaos-app/*.yaml
   workflows-lint:
