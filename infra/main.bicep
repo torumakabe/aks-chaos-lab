@@ -25,7 +25,7 @@ param peSubnetPrefix string = '10.10.2.0/24'
 param aksApiSubnetPrefix string = '10.10.3.0/28'
 
 @description('Kubernetes version for AKS (x.y or x.y.z).')
-param kubernetesVersion string = '1.33'
+param kubernetesVersion string = '1.34'
 
 @description('AKS SKU mode. Only "Base" is supported in this repository (see ADR-010: AKS Automatic is incompatible with chaos-mesh due to AKS Automatic Deployment Safeguards).')
 @allowed([

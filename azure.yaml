@@ -31,6 +31,7 @@ services:
     project: src
     language: python
     host: aks
+    resourceName: ${AZURE_AKS_CLUSTER_NAME}
     k8s:
       namespace: chaos-lab
       kustomize:
@@ -48,6 +49,7 @@ services:
   observability:
     project: .
     host: aks
+    resourceName: ${AZURE_AKS_CLUSTER_NAME}
     hooks:
       postdeploy:
         windows:
@@ -63,6 +65,7 @@ services:
   chaos-mesh:
     project: .
     host: aks
+    resourceName: ${AZURE_AKS_CLUSTER_NAME}
     k8s:
       namespace: chaos-testing
       helm:

@@ -64,7 +64,10 @@
                 {"pattern": "^securityProfile\\.imageCleaner$", "description": "イメージクリーナーは Azure のデフォルト設定"},
                 {"pattern": "^windowsProfile$", "description": "Windows プロファイルは Linux クラスターでも Azure がデフォルト設定"},
                 {"pattern": "^storageProfile$", "description": "ストレージプロファイル（CSI ドライバー）は Azure が自動設定"},
-                {"pattern": "^serviceMeshProfile$", "description": "サービスメッシュプロファイルは Bicep 未定義時に Azure が Disabled をデフォルト設定"}
+                {"pattern": "^serviceMeshProfile$", "description": "サービスメッシュプロファイルは Bicep 未定義時に Azure が Disabled をデフォルト設定"},
+                {"pattern": "^azureMonitorProfile\\.metrics\\.controlPlane$", "description": "Managed Prometheus 有効時に Azure がコントロールプレーン scrape 設定を自動付与"},
+                {"pattern": "^healthMonitorProfile$", "description": "Health monitor profile は preview 機能で Azure が自動有効化"},
+                {"pattern": "^nodeDisruptionProfile$", "description": "Node disruption profile は Azure が自動構成"}
             ],
             "custom_patterns": [
                 {"pattern": "^kubernetesVersion$", "description": "K8s バージョン要確認（マイナーまで一致ならOK、パッチは AKS 自動適用）"},
@@ -157,6 +160,156 @@
             ],
             "custom_patterns": [],
             "known_defaults": []
+        },
+        "Microsoft.Management/serviceGroups/providers/slis": {
+            "readonly_patterns": [
+                "^destinationMetrics$",
+                "^executionState$",
+                "^streamingRuleId$",
+                "^streamingRuleLastUpdatedTimestamp$"
+            ],
+            "auto_managed_patterns": [],
+            "custom_patterns": [],
+            "known_defaults": []
+        },
+        "Microsoft.Cache/redisEnterprise/providers/serviceGroupMember": {
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.ContainerRegistry/registries/providers/serviceGroupMember": {
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.ContainerService/managedClusters/providers/serviceGroupMember": {
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Insights/components/providers/serviceGroupMember": {
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Monitor/accounts/providers/serviceGroupMember": {
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.OperationalInsights/workspaces/providers/serviceGroupMember": {
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Cache/redisEnterprise/databases": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^redisVersion$", "description": "Redis エンジンバージョンは Azure が自動採用する最新マイナーで上書きされる"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.ContainerService/fleets": {
+            "readonly_patterns": ["^properties$"],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.ContainerService/fleets/autoUpgradeProfiles": {
+            "readonly_patterns": ["^autoUpgradeProfileStatus$"],
+            "auto_managed_patterns": [
+                {"pattern": "^longTermSupport$", "description": "longTermSupport は Bicep 未指定時に Azure が false をデフォルト設定"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.ContainerService/fleets/members": {
+            "readonly_patterns": ["^status$"],
+            "auto_managed_patterns": [
+                {"pattern": "^labels$", "description": "Fleet member labels は Bicep 未指定時に Azure が null を設定"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.ContainerService/fleets/updateStrategies": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^strategy\\.stages\\.\\d+\\.afterStageWaitInSeconds$", "description": "afterStageWaitInSeconds は Bicep 未指定時に Azure が 0 をデフォルト設定"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.ManagedIdentity/userAssignedIdentities": {
+            "readonly_patterns": ["^properties$"],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Monitor/accounts": {
+            "readonly_patterns": ["^properties$"],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Insights/dataCollectionEndpoints": {
+            "readonly_patterns": ["^properties$"],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Network/privateDnsZones/virtualNetworkLinks": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^resolutionPolicy$", "description": "resolutionPolicy は Bicep 未指定時に Azure が Default を自動設定"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Network/privateEndpoints/privateDnsZoneGroups": {
+            "readonly_patterns": [
+                "^privateDnsZoneConfigs\\.\\d+\\.etag$",
+                "^privateDnsZoneConfigs\\.\\d+\\.id$",
+                "^privateDnsZoneConfigs\\.\\d+\\.type$",
+                "^privateDnsZoneConfigs\\.\\d+\\.properties\\.provisioningState$"
+            ],
+            "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.OperationalInsights/workspaces/tables": {
+            "readonly_patterns": ["^schema$"],
+            "auto_managed_patterns": [
+                {"pattern": "^retentionInDays$", "description": "テーブル retention は workspace の既定値を Azure が自動継承"},
+                {"pattern": "^totalRetentionInDays$", "description": "総 retention は workspace の既定値を Azure が自動継承"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Authorization/roleAssignments": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^principalId$", "description": "マネージド ID の principalId は reference() 解決時に what-if がノイズ検出"},
+                {"pattern": "^principalType$", "description": "principalType は ARM what-if が null と指定値の差分をノイズ検出"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Insights/diagnosticSettings": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^logs\\.\\d+$", "description": "AKS 旧スキーマで Azure が自動付与した追加 category (kube-audit/fleet-member-*/karpenter-events 等) は enabled=false 状態でノイズ"},
+                {"pattern": "^logs\\.\\d+\\.retentionPolicy\\.days$", "description": "retentionPolicy.days は deprecated フィールドで Azure が 0 を自動付与"},
+                {"pattern": "^metrics$", "description": "Bicep 未指定の metrics ブロックは Azure が AllMetrics(enabled=false) を自動付与"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.ContainerService/managedClusters/providers/diagnosticSettings": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^logs\\.\\d+$", "description": "AKS 旧スキーマで Azure が自動付与した追加 category (kube-audit/fleet-member-*/karpenter-events 等) は enabled=false 状態でノイズ"},
+                {"pattern": "^logs\\.\\d+\\.retentionPolicy\\.days$", "description": "retentionPolicy.days は deprecated フィールドで Azure が 0 を自動付与"},
+                {"pattern": "^metrics$", "description": "Bicep 未指定の metrics ブロックは Azure が AllMetrics(enabled=false) を自動付与"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Insights/scheduledQueryRules": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^windowSize$", "description": "ISO8601 (PT60M) と TimeSpan (01:00:00) の表記差で what-if がノイズ検出（値は等価）"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Insights/dataCollectionRuleAssociations": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^dataCollectionRuleId$", "description": "App Insights managed DCR ID は reference() 解決時に what-if がノイズ検出（要 drift 照合）"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.ContainerService/managedClusters/providers/dataCollectionRuleAssociations": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^dataCollectionRuleId$", "description": "App Insights managed DCR ID は reference() 解決時に what-if がノイズ検出（要 drift 照合）"}
+            ],
+            "custom_patterns": [], "known_defaults": []
         }
     }
 }

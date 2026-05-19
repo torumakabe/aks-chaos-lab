@@ -138,4 +138,4 @@ patches:
 images:
 - name: placeholder
   newName: acr5dua5pkulsr3e.azurecr.io/aks-chaos-lab/api-eval
-  newTag: azd-deploy-1776165518
+  newTag: azd-deploy-1779149477
