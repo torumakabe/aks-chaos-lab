@@ -20,6 +20,8 @@ KUBECONFORM_IMAGE = "ghcr.io/yannh/kubeconform:v0.7.0"
 K8S_VERSION = "1.33.0"
 KUBECONFORM_SKIP = "VerticalPodAutoscaler,CiliumNetworkPolicy,Kustomization,Gateway,HTTPRoute,Instrumentation"
 SCRIPT_RUFF_IGNORES = "S104,S310,S603,T201"
+TRUE_ENV_VALUES = {"1", "true", "yes", "on"}
+FALSE_ENV_VALUES = {"0", "false", "no", "off"}
 
 
 def print_step(message: str) -> None:
@@ -58,6 +60,25 @@ def pythonpath_env() -> dict[str, str]:
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = f".{os.pathsep}{existing}" if existing else "."
     return env
+
+
+def env_flag(name: str) -> bool:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return False
+
+    normalized = value.strip().lower()
+    if normalized in TRUE_ENV_VALUES:
+        return True
+    if normalized in FALSE_ENV_VALUES:
+        return False
+
+    print(
+        f"error: {name} must be one of: "
+        f"{', '.join(sorted(TRUE_ENV_VALUES | FALSE_ENV_VALUES))}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
 
 
 def run(
@@ -537,30 +558,46 @@ def run_load_profile(profile: str) -> None:
     spawn_rate = os.environ.get("SPAWN_RATE", default_spawn_rate)
     duration = os.environ.get("DURATION", default_duration)
     base_url = resolve_base_url()
+    csv_prefix = os.environ.get("LOCUST_CSV_PREFIX")
+    if csv_prefix is not None and csv_prefix.strip() == "":
+        csv_prefix = None
+    csv_full_history = env_flag("LOCUST_CSV_FULL_HISTORY")
+    if csv_full_history and not csv_prefix:
+        print(
+            "error: LOCUST_CSV_FULL_HISTORY requires LOCUST_CSV_PREFIX",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
     env = child_env({"TEST_BASE_PATH": base_url})
+    locust_args = [
+        "locust",
+        "-f",
+        "tests/load/locustfile.py",
+        "--headless",
+        "-u",
+        users,
+        "-r",
+        spawn_rate,
+        "--run-time",
+        duration,
+        "--host",
+        base_url,
+    ]
+    if csv_prefix:
+        locust_args.extend(["--csv", csv_prefix])
+        if csv_full_history:
+            locust_args.append("--csv-full-history")
+
+    csv_detail = (
+        f" csv={csv_prefix} csv_full_history={csv_full_history}" if csv_prefix else ""
+    )
     print(
         f"[load] profile={profile} users={users} spawn_rate={spawn_rate}/s "
-        f"duration={duration}s host={base_url}",
+        f"duration={duration}s host={base_url}{csv_detail}",
         file=sys.stderr,
     )
-    run_uv_src_dev(
-        [
-            "locust",
-            "-f",
-            "tests/load/locustfile.py",
-            "--headless",
-            "-u",
-            users,
-            "-r",
-            spawn_rate,
-            "--run-time",
-            duration,
-            "--host",
-            base_url,
-        ],
-        env=env,
-    )
+    run_uv_src_dev(locust_args, env=env)
 
 
 def target_load_smoke() -> None:

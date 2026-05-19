@@ -51,6 +51,12 @@ docs/features/    # Feature Document（作業途中の状態保存）
 - **Python**: ty エラー 0 件、ruff 警告 0 件、pytest 全テスト合格
 - **Bicep**: `az bicep build` エラー 0 件
 
+## Windows / cross-shell 注意
+
+- Windows で Locust 負荷テストを実行する場合は、`uv run locust ...` を直接使わず `uv run scripts/tasks.py load-*` を使う。wrapper が child process に `PYTHONUTF8=1` を設定し、cp932 などの既定 encoding による TOML 読み取り失敗を避ける。
+- Locust CSV 出力は `LOCUST_CSV_PREFIX` と、必要な場合のみ `LOCUST_CSV_FULL_HISTORY=true` で指定する。任意引数を広く通す `LOCUST_EXTRA_ARGS` のような仕組みは追加しない。
+- WSL / bash helper に Windows path を渡す場合は、`C:\...` ではなく `/mnt/c/...` 形式へ変換する。PowerShell / Windows native shell では `C:\...` 形式を使う。
+
 ## 知識ソース
 
 コード生成・技術選定・構成変更の際は、以下を確認すること:

@@ -26,6 +26,11 @@ uv run scripts/tasks.py load-stress
 uv run scripts/tasks.py load-spike
 ```
 
+Windows では、`uv run locust ...` を直接実行すると端末の既定 encoding
+（cp932 など）で TOML 読み取りに失敗することがあります。`scripts/tasks.py`
+は child process に `PYTHONUTF8=1` を設定するため、Windows では
+`uv run scripts/tasks.py load-*` 経由で実行してください。
+
 ### 手動でBASE_URL指定
 ```bash
 export BASE_URL=https://myapp.example.com
@@ -52,6 +57,36 @@ export SPAWN_RATE=10
 export DURATION=300
 uv run scripts/tasks.py load-baseline
 ```
+
+### CSV 出力
+
+`LOCUST_CSV_PREFIX` を指定すると Locust の `--csv <prefix>` を有効化できます。
+`LOCUST_CSV_FULL_HISTORY=true` を併用すると `--csv-full-history` も付与されます。
+`LOCUST_CSV_FULL_HISTORY` は `1` / `true` / `yes` / `on` で有効化し、
+`0` / `false` / `no` / `off` で無効化できます。
+
+PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force tmp\load | Out-Null
+$env:LOCUST_CSV_PREFIX = "..\tmp\load\baseline"
+$env:LOCUST_CSV_FULL_HISTORY = "true"
+uv run scripts/tasks.py load-baseline
+Remove-Item Env:LOCUST_CSV_PREFIX
+Remove-Item Env:LOCUST_CSV_FULL_HISTORY
+```
+
+Bash:
+
+```bash
+mkdir -p tmp/load
+LOCUST_CSV_PREFIX=../tmp/load/baseline \
+LOCUST_CSV_FULL_HISTORY=true \
+uv run scripts/tasks.py load-baseline
+```
+
+`scripts/tasks.py` は Locust を `src/` を current directory として起動するため、
+相対パスの prefix は `src/` からの相対パスとして解釈されます。
 
 ## 負荷プロファイル
 
