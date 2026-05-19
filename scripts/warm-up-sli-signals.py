@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.14"
 # dependencies = []
 # ///
 from __future__ import annotations
@@ -76,7 +76,7 @@ def request(base_url: str, path: str, host_header: str) -> bool:
         with urllib.request.urlopen(http_request, timeout=10) as response:
             response.read()
             return 200 <= response.status < 400
-    except (TimeoutError, urllib.error.HTTPError, urllib.error.URLError):
+    except TimeoutError, urllib.error.HTTPError, urllib.error.URLError:
         return False
 
 
