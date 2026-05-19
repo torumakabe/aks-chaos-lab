@@ -29,7 +29,7 @@ def get_azd_env_value(key: str, default: Any = None) -> Any:
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
-    except (subprocess.SubprocessError, subprocess.TimeoutExpired, FileNotFoundError):
+    except subprocess.SubprocessError, subprocess.TimeoutExpired, FileNotFoundError:
         pass
 
     return os.getenv(key, default)
@@ -48,5 +48,5 @@ def is_azd_available() -> bool:
             timeout=5,
         )
         return result.returncode == 0
-    except (subprocess.SubprocessError, subprocess.TimeoutExpired, FileNotFoundError):
+    except subprocess.SubprocessError, subprocess.TimeoutExpired, FileNotFoundError:
         return False
