@@ -87,9 +87,7 @@ class TestIsAzdAvailable:
     """Tests for is_azd_available function."""
 
     @patch("app.azd_env.shutil.which", return_value=None)
-    def test_returns_false_when_not_installed(
-        self, mock_which: MagicMock
-    ) -> None:
+    def test_returns_false_when_not_installed(self, mock_which: MagicMock) -> None:
         """Return False when azd is not on PATH."""
         assert is_azd_available() is False
 
@@ -99,15 +97,11 @@ class TestIsAzdAvailable:
         self, mock_run: MagicMock, mock_which: MagicMock
     ) -> None:
         """Return True when azd --version succeeds."""
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=0
-        )
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=0)
         assert is_azd_available() is True
 
     @patch("app.azd_env.shutil.which", return_value="/usr/bin/azd")
-    @patch(
-        "app.azd_env.subprocess.run", side_effect=FileNotFoundError
-    )
+    @patch("app.azd_env.subprocess.run", side_effect=FileNotFoundError)
     def test_returns_false_on_error(
         self, mock_run: MagicMock, mock_which: MagicMock
     ) -> None:
@@ -120,7 +114,5 @@ class TestIsAzdAvailable:
         self, mock_run: MagicMock, mock_which: MagicMock
     ) -> None:
         """Return False when azd --version returns non-zero."""
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=[], returncode=1
-        )
+        mock_run.return_value = subprocess.CompletedProcess(args=[], returncode=1)
         assert is_azd_available() is False

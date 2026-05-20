@@ -10,11 +10,14 @@ import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
+API_DIR = SRC / "api"
+PUBLISHER_DIR = SRC / "external-sli-publisher"
 ACTIONLINT_IMAGE = "rhysd/actionlint:1.7.12"
 KUBECONFORM_IMAGE = "ghcr.io/yannh/kubeconform:v0.7.0"
 K8S_VERSION = "1.33.0"
@@ -101,12 +104,18 @@ def command_output(
     return completed.stdout.strip()
 
 
-def run_uv_src(args: Sequence[str], *, env: dict[str, str] | None = None) -> None:
-    run(["uv", "run", *args], cwd=SRC, env=env)
+def run_uv_api(args: Sequence[str], *, env: dict[str, str] | None = None) -> None:
+    run(["uv", "run", *args], cwd=API_DIR, env=env)
 
 
-def run_uv_src_dev(args: Sequence[str], *, env: dict[str, str] | None = None) -> None:
-    run(["uv", "run", "--group", "dev", *args], cwd=SRC, env=env)
+def run_uv_api_dev(args: Sequence[str], *, env: dict[str, str] | None = None) -> None:
+    run(["uv", "run", "--group", "dev", *args], cwd=API_DIR, env=env)
+
+
+def run_uv_publisher_dev(
+    args: Sequence[str], *, env: dict[str, str] | None = None
+) -> None:
+    run(["uv", "run", "--group", "dev", *args], cwd=PUBLISHER_DIR, env=env)
 
 
 def docker_mount(path: Path, target: str) -> str:
@@ -123,55 +132,146 @@ def target_help() -> None:
 
 def target_install() -> None:
     print_step("Installing application development dependencies")
-    run(["uv", "sync", "--all-groups"], cwd=SRC)
+    run(["uv", "sync", "--all-groups"], cwd=API_DIR)
+    run(["uv", "sync", "--all-groups"], cwd=PUBLISHER_DIR)
     print_success("Dependencies installed")
 
 
 def target_sync() -> None:
     print_step("Syncing application dependencies")
-    run(["uv", "sync"], cwd=SRC)
+    run(["uv", "sync"], cwd=API_DIR)
+    run(["uv", "sync"], cwd=PUBLISHER_DIR)
     print_success("Dependencies synced")
 
 
 def target_sync_dev() -> None:
     print_step("Syncing application development dependencies")
-    run(["uv", "sync", "--group", "dev"], cwd=SRC)
+    run(["uv", "sync", "--group", "dev"], cwd=API_DIR)
+    run(["uv", "sync", "--group", "dev"], cwd=PUBLISHER_DIR)
     print_success("Development dependencies synced")
 
 
+def target_format_api() -> None:
+    print_step("Formatting API code")
+    run_uv_api_dev(["ruff", "format", "app/", "tests/"])
+    print_success("API code formatted")
+
+
+def target_format_publisher() -> None:
+    print_step("Formatting external SLI publisher code")
+    run_uv_publisher_dev(["ruff", "format", "external_sli_publisher/", "tests/"])
+    print_success("External SLI publisher code formatted")
+
+
 def target_format() -> None:
-    print_step("Formatting application code")
-    run_uv_src_dev(["ruff", "format", "app/"])
+    target_format_api()
+    target_format_publisher()
     print_success("Application code formatted")
 
 
+def target_format_api_check() -> None:
+    print_step("Checking API code format")
+    run_uv_api_dev(["ruff", "format", "app/", "tests/", "--check"])
+    print_success("API format check passed")
+
+
+def target_format_publisher_check() -> None:
+    print_step("Checking external SLI publisher code format")
+    run_uv_publisher_dev(
+        ["ruff", "format", "external_sli_publisher/", "tests/", "--check"]
+    )
+    print_success("External SLI publisher format check passed")
+
+
 def target_format_check() -> None:
-    print_step("Checking application code format")
-    run_uv_src_dev(["ruff", "format", "app/", "--check"])
+    target_format_api_check()
+    target_format_publisher_check()
     print_success("Application format check passed")
 
 
+def target_lint_api() -> None:
+    print_step("Linting API code")
+    run_uv_api_dev(["ruff", "check", "app/", "--fix"], env=pythonpath_env())
+    print_success("API lint passed")
+
+
+def target_lint_publisher() -> None:
+    print_step("Linting external SLI publisher code")
+    run_uv_publisher_dev(
+        ["ruff", "check", "external_sli_publisher/", "tests/", "--fix"],
+        env=pythonpath_env(),
+    )
+    print_success("External SLI publisher lint passed")
+
+
 def target_lint() -> None:
-    print_step("Linting application code")
-    run_uv_src_dev(["ruff", "check", "app/", "--fix"], env=pythonpath_env())
+    target_lint_api()
+    target_lint_publisher()
     print_success("Application lint passed")
 
 
+def target_lint_api_check() -> None:
+    print_step("Checking API lint")
+    run_uv_api_dev(["ruff", "check", "app/"], env=pythonpath_env())
+    print_success("API lint check passed")
+
+
+def target_lint_publisher_check() -> None:
+    print_step("Checking external SLI publisher lint")
+    run_uv_publisher_dev(
+        ["ruff", "check", "external_sli_publisher/", "tests/"],
+        env=pythonpath_env(),
+    )
+    print_success("External SLI publisher lint check passed")
+
+
+def target_lint_check() -> None:
+    target_lint_api_check()
+    target_lint_publisher_check()
+    print_success("Application lint check passed")
+
+
+def target_typecheck_api() -> None:
+    print_step("Type checking API code")
+    run_uv_api_dev(["ty", "check", "app/", "tests/"], env=pythonpath_env())
+    print_success("API type check passed")
+
+
+def target_typecheck_publisher() -> None:
+    print_step("Type checking external SLI publisher code")
+    run_uv_publisher_dev(
+        ["ty", "check", "external_sli_publisher/", "tests/"], env=pythonpath_env()
+    )
+    print_success("External SLI publisher type check passed")
+
+
 def target_typecheck() -> None:
-    print_step("Type checking application code")
-    run_uv_src_dev(["ty", "check", "app/"], env=pythonpath_env())
+    target_typecheck_api()
+    target_typecheck_publisher()
     print_success("Application type check passed")
 
 
+def target_test_api() -> None:
+    print_step("Running API unit tests")
+    run_uv_api_dev(["pytest", "tests/unit/", "-q"], env=pythonpath_env())
+    print_success("API unit tests passed")
+
+
+def target_test_publisher() -> None:
+    print_step("Running external SLI publisher unit tests")
+    run_uv_publisher_dev(["pytest", "tests/unit/", "-q"], env=pythonpath_env())
+    print_success("External SLI publisher unit tests passed")
+
+
 def target_test() -> None:
-    print_step("Running unit tests")
-    run_uv_src_dev(["pytest", "tests/unit/", "-q"], env=pythonpath_env())
+    target_test_api()
+    target_test_publisher()
     print_success("Unit tests passed")
 
 
 def target_test_cov() -> None:
-    print_step("Running unit tests with coverage")
-    run_uv_src_dev(
+    print_step("Running API unit tests with coverage")
+    run_uv_api_dev(
         [
             "pytest",
             "tests/unit/",
@@ -185,8 +285,8 @@ def target_test_cov() -> None:
 
 
 def target_test_integration() -> None:
-    print_step("Running integration tests")
-    run_uv_src_dev(["pytest", "tests/integration/", "-q"], env=pythonpath_env())
+    print_step("Running API integration tests")
+    run_uv_api_dev(["pytest", "tests/integration/", "-q"], env=pythonpath_env())
     print_success("Integration tests passed")
 
 
@@ -197,25 +297,25 @@ def target_test_all() -> None:
 
 def target_format_scripts() -> None:
     print_step("Formatting repository scripts")
-    run_uv_src_dev(["ruff", "format", "../scripts", "--config", "pyproject.toml"])
+    run_uv_api_dev(["ruff", "format", "../../scripts", "--config", "pyproject.toml"])
     print_success("Script formatting complete")
 
 
 def target_format_scripts_check() -> None:
     print_step("Checking repository script format")
-    run_uv_src_dev(
-        ["ruff", "format", "../scripts", "--check", "--config", "pyproject.toml"]
+    run_uv_api_dev(
+        ["ruff", "format", "../../scripts", "--check", "--config", "pyproject.toml"]
     )
     print_success("Script format check passed")
 
 
 def target_lint_scripts() -> None:
     print_step("Linting repository scripts")
-    run_uv_src_dev(
+    run_uv_api_dev(
         [
             "ruff",
             "check",
-            "../scripts",
+            "../../scripts",
             "--config",
             "pyproject.toml",
             "--ignore",
@@ -228,7 +328,7 @@ def target_lint_scripts() -> None:
 
 def target_typecheck_scripts() -> None:
     print_step("Type checking repository scripts")
-    run_uv_src_dev(["ty", "check", "../scripts"], env=pythonpath_env())
+    run_uv_api_dev(["ty", "check", "../../scripts"], env=pythonpath_env())
     print_success("Script type check passed")
 
 
@@ -249,6 +349,7 @@ def target_qa_app() -> None:
     target_lint()
     target_test()
     target_typecheck()
+    target_check_publisher_requirements()
     print_success("Application QA passed")
 
 
@@ -375,9 +476,17 @@ def target_install_tools() -> None:
 
 
 def target_check_uv_version() -> None:
-    pyproject = (SRC / "pyproject.toml").read_text(encoding="utf-8")
-    expected_match = re.search(r'required-version\s*=\s*">=([^"]+)"', pyproject)
-    expected = expected_match.group(1) if expected_match else "not set"
+    api_pyproject = (API_DIR / "pyproject.toml").read_text(encoding="utf-8")
+    api_expected_match = re.search(r'required-version\s*=\s*">=([^"]+)"', api_pyproject)
+    api_expected = api_expected_match.group(1) if api_expected_match else "not set"
+
+    publisher_pyproject = (PUBLISHER_DIR / "pyproject.toml").read_text(encoding="utf-8")
+    publisher_expected_match = re.search(
+        r'required-version\s*=\s*">=([^"]+)"', publisher_pyproject
+    )
+    publisher_expected = (
+        publisher_expected_match.group(1) if publisher_expected_match else "not set"
+    )
 
     local_version_output = command_output(
         ["uv", "--version"], allow_failure=True, quiet_stderr=True
@@ -386,22 +495,31 @@ def target_check_uv_version() -> None:
         local_version_output.split()[1] if local_version_output else "not installed"
     )
 
-    dockerfile = (SRC / "Dockerfile").read_text(encoding="utf-8")
+    dockerfile = (API_DIR / "Dockerfile").read_text(encoding="utf-8")
     docker_match = re.search(
         r"ghcr\.io/astral-sh/uv:([0-9]+\.[0-9]+\.[0-9]+)", dockerfile
     )
     docker_version = docker_match.group(1) if docker_match else "not found"
 
-    print(f"  Expected (pyproject.toml required-version): {expected}")
-    print(f"  Local uv:                                   {local_version}")
-    print(f"  Docker uv:                                  {docker_version}")
+    print(f"  Expected API uv:        {api_expected}")
+    print(f"  Expected publisher uv:  {publisher_expected}")
+    print(f"  Local uv:               {local_version}")
+    print(f"  Docker uv:              {docker_version}")
 
-    if docker_version != expected:
-        print("error: Docker uv version mismatch with pyproject.toml", file=sys.stderr)
+    if publisher_expected != api_expected:
+        print("error: Publisher uv required-version differs from API", file=sys.stderr)
         raise SystemExit(1)
 
-    if local_version != expected:
-        print(f"warning: Local uv ({local_version}) differs from expected ({expected})")
+    if docker_version != api_expected:
+        print(
+            "error: Docker uv version mismatch with API pyproject.toml", file=sys.stderr
+        )
+        raise SystemExit(1)
+
+    if local_version != api_expected:
+        print(
+            f"warning: Local uv ({local_version}) differs from expected ({api_expected})"
+        )
         print(
             "  Patch version differences within the same minor version are compatible"
         )
@@ -409,9 +527,39 @@ def target_check_uv_version() -> None:
         print_success("All uv versions match")
 
 
+def normalized_dependency(value: str) -> str:
+    return value.strip().lower()
+
+
+def target_check_publisher_requirements() -> None:
+    print_step("Checking external SLI publisher requirements")
+    pyproject = tomllib.loads((PUBLISHER_DIR / "pyproject.toml").read_text("utf-8"))
+    pyproject_deps = {
+        normalized_dependency(dep) for dep in pyproject["project"]["dependencies"]
+    }
+    requirements = {
+        normalized_dependency(line)
+        for line in (PUBLISHER_DIR / "requirements.txt").read_text("utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    if pyproject_deps != requirements:
+        only_pyproject = sorted(pyproject_deps - requirements)
+        only_requirements = sorted(requirements - pyproject_deps)
+        print(
+            "error: Publisher pyproject.toml and requirements.txt differ",
+            file=sys.stderr,
+        )
+        if only_pyproject:
+            print(f"  only in pyproject.toml: {only_pyproject}", file=sys.stderr)
+        if only_requirements:
+            print(f"  only in requirements.txt: {only_requirements}", file=sys.stderr)
+        raise SystemExit(1)
+    print_success("External SLI publisher requirements match")
+
+
 def target_clean() -> None:
     print_step("Cleaning Python caches")
-    for base in (ROOT, SRC):
+    for base in (ROOT, SRC, API_DIR, PUBLISHER_DIR):
         for path in base.rglob("__pycache__"):
             shutil.rmtree(path, ignore_errors=True)
         for path in base.rglob("*.pyc"):
@@ -420,13 +568,18 @@ def target_clean() -> None:
         ROOT / ".ruff_cache",
         SRC / ".pytest_cache",
         SRC / ".ruff_cache",
-        SRC / "htmlcov",
+        API_DIR / ".pytest_cache",
+        API_DIR / ".ruff_cache",
+        API_DIR / "htmlcov",
+        PUBLISHER_DIR / ".pytest_cache",
+        PUBLISHER_DIR / ".ruff_cache",
     ):
         if path.is_dir():
             shutil.rmtree(path, ignore_errors=True)
         else:
             path.unlink(missing_ok=True)
-    (SRC / ".coverage").unlink(missing_ok=True)
+    (API_DIR / ".coverage").unlink(missing_ok=True)
+    (PUBLISHER_DIR / ".coverage").unlink(missing_ok=True)
     print_success("Caches cleaned")
 
 
@@ -434,14 +587,14 @@ def target_build() -> None:
     print_step("Building local Docker image")
     run(
         ["docker", "build", "-f", "Dockerfile", "-t", "aks-chaos-lab:local", "."],
-        cwd=SRC,
+        cwd=API_DIR,
     )
     print_success("Docker image built")
 
 
 def target_run() -> None:
     print_step("Starting app on http://localhost:8000")
-    run_uv_src(
+    run_uv_api(
         [
             "uvicorn",
             "app.main:app",
@@ -544,7 +697,7 @@ def run_load_profile(profile: str) -> None:
         f"duration={duration}s host={base_url}",
         file=sys.stderr,
     )
-    run_uv_src_dev(
+    run_uv_api_dev(
         [
             "locust",
             "-f",
@@ -589,19 +742,29 @@ TARGETS: dict[str, Callable[[], None]] = {
     "check-az": target_check_az,
     "check-docker": target_check_docker,
     "check-gh-aw": target_check_gh_aw,
+    "check-publisher-requirements": target_check_publisher_requirements,
     "check-uv-version": target_check_uv_version,
     "clean": target_clean,
     "compile-aw": target_compile_aw,
     "format": target_format,
+    "format-api": target_format_api,
+    "format-api-check": target_format_api_check,
     "format-check": target_format_check,
+    "format-publisher": target_format_publisher,
+    "format-publisher-check": target_format_publisher_check,
     "format-scripts": target_format_scripts,
     "format-scripts-check": target_format_scripts_check,
     "help": target_help,
     "install": target_install,
     "install-tools": target_install_tools,
     "lint": target_lint,
+    "lint-api": target_lint_api,
+    "lint-api-check": target_lint_api_check,
     "lint-bicep": target_lint_bicep,
+    "lint-check": target_lint_check,
     "lint-k8s": target_lint_k8s,
+    "lint-publisher": target_lint_publisher,
+    "lint-publisher-check": target_lint_publisher_check,
     "lint-scripts": target_lint_scripts,
     "lint-workflows": target_lint_workflows,
     "load-baseline": target_load_baseline,
@@ -618,10 +781,14 @@ TARGETS: dict[str, Callable[[], None]] = {
     "sync-dev": target_sync_dev,
     "test": target_test,
     "test-all": target_test_all,
+    "test-api": target_test_api,
     "test-cov": target_test_cov,
     "test-integration": target_test_integration,
     "test-load": target_test_load,
+    "test-publisher": target_test_publisher,
     "typecheck": target_typecheck,
+    "typecheck-api": target_typecheck_api,
+    "typecheck-publisher": target_typecheck_publisher,
     "typecheck-scripts": target_typecheck_scripts,
 }
 

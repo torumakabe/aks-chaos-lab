@@ -12,7 +12,7 @@
 # - stderr: chaos-lab is NOT excluded — uvicorn errors, unhandled exceptions,
 #   pre-init / post-shutdown crashes, and any non-`app` logger output are
 #   only visible in ContainerLogV2 stderr. OTLP only covers the `app`
-#   logger scope (see src/app/telemetry.py); it is NOT a complete substitute
+#   logger scope (see src/api/app/telemetry.py); it is NOT a complete substitute
 #   for container stdout/stderr collection.
 #
 # Defaults preserved:

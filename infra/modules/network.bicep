@@ -12,6 +12,8 @@ param aksSubnetPrefix string
 param peSubnetPrefix string
 @description('AKS API Server subnet prefix')
 param aksApiSubnetPrefix string
+@description('Function App Flex Consumption subnet prefix')
+param functionSubnetPrefix string
 @description('Resource token for unique naming')
 param resourceToken string
 
@@ -54,6 +56,20 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-07-01' = {
               name: 'Microsoft.ContainerService.managedClusters'
               properties: {
                 serviceName: 'Microsoft.ContainerService/managedClusters'
+              }
+            }
+          ]
+        }
+      }
+      {
+        name: 'snet-func'
+        properties: {
+          addressPrefix: functionSubnetPrefix
+          delegations: [
+            {
+              name: 'Microsoft.App.environments'
+              properties: {
+                serviceName: 'Microsoft.App/environments'
               }
             }
           ]
@@ -109,6 +125,7 @@ output vnetId string = virtualNetwork.id
 output aksSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-aks')
 output peSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-pe')
 output aksApiSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-aks-api')
+output functionSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-func')
 output vnetNameOut string = virtualNetwork.name
 output publicIPAddress string = ingressPublicIP.properties.ipAddress
 output publicIPId string = ingressPublicIP.id

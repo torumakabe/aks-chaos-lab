@@ -12,3 +12,5 @@
 | 008 | [AKS ノード OS を Ubuntu 24.04 (osSKU: Ubuntu2404) に明示ピン留め](008-node-os-ubuntu2404.md) | Accepted | 2026-04-24 |
 | 009 | [Azure Monitor SLI と Prometheus operational alerts の役割分担](009-azure-monitor-sli-and-prometheus-slo.md) | Accepted | 2026-05-01 |
 | 010 | [AKS Automatic は本リポジトリで非サポート (Deployment Safeguards が chaos-mesh と非互換)](010-aks-automatic-unsupported-due-to-deployment-safeguards.md) | Accepted | 2026-05-06 |
+| 011 | [外形 availability test を Azure Monitor SLI の正本にする](011-external-availability-sli-publisher.md) | Superseded | 2026-05-19 |
+| 012 | [Azure Functions direct probe を Azure Monitor SLI の正本にする](012-functions-direct-external-sli-probe.md) | Accepted | 2026-05-20 |

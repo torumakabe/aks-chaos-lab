@@ -9,7 +9,7 @@ param sliIdentityResourceId string
 @description('Managed Prometheus Azure Monitor Workspace resource ID used as source and destination AMW')
 param prometheusWorkspaceResourceId string
 
-@description('Azure Monitor SLI metric namespace for Managed Prometheus recording rules')
+@description('Azure Monitor SLI metric namespace for Managed Prometheus metrics')
 param metricNamespace string = 'customdefault'
 
 @description('Enable Azure Monitor SLI-generated alerts')
@@ -40,18 +40,23 @@ param evaluationPeriodDays int = 30
 @minValue(1)
 param windowSizeMinutes int = 5
 
-@description('Minimum ratio of requests completed within the latency threshold for a good latency window')
-param latencyGoodRateTarget string = '0.95'
+@description('Metric name for the request-based Availability SLI good signal')
+param availabilityGoodMetricName string = 'chaos_app_external_availability_good'
 
-@description('Metric name for the window-based Availability SLI success-rate signal')
-param availabilityMetricName string = 'gateway:chaos_app:http_success_rate:ratio'
+@description('Metric name for the request-based Availability SLI total signal')
+param availabilityTotalMetricName string = 'chaos_app_external_availability_total'
 
-@description('Metric name for the window-based Latency SLI threshold satisfaction ratio')
-param latencyMetricName string = 'gateway:chaos_app:http_request_duration:le_1s_ratio'
+@description('Metric name for the request-based Latency SLI good signal')
+param latencyGoodMetricName string = 'chaos_app_external_latency_good'
+
+@description('Metric name for the request-based Latency SLI total signal')
+param latencyTotalMetricName string = 'chaos_app_external_latency_total'
 
 @description('Prometheus label dimensions used for Azure Monitor SLI partitioning')
 param signalDimensions string[] = [
-  'cluster_name'
+  'environment'
+  'service'
+  'test'
 ]
 
 var sliUserAssignedIdentities = {
@@ -83,7 +88,7 @@ resource availabilitySli 'Microsoft.Monitor/slis@2025-03-01-preview' = {
   scope: serviceGroup
   identity: sliIdentity
   properties: {
-    description: 'Window-based Availability SLI for chaos app Gateway Envoy success rate.'
+    description: 'Request-based Availability SLI for external Azure Functions probe results.'
     baselineProperties: {
       baseline: {
         evaluationCalculationType: 'RollingDays'
@@ -94,30 +99,45 @@ resource availabilitySli 'Microsoft.Monitor/slis@2025-03-01-preview' = {
     category: 'Availability'
     destinationAmwAccounts: destinationAmwAccounts
     enableAlert: enableSliAlerts
-    evaluationType: 'WindowBased'
+    evaluationType: 'RequestBased'
     sliProperties: {
-      signals: {
+      goodSignals: {
         signalFormula: 'A'
         signalSources: [
           union(sourceSignalIdentityProperties, {
             filters: []
-            metricName: availabilityMetricName
+            metricName: availabilityGoodMetricName
             metricNamespace: metricNamespace
             signalSourceId: 'A'
             spatialAggregation: {
-              type: 'Average'
+              type: 'Sum'
               dimensions: signalDimensions
             }
             temporalAggregation: {
-              type: 'Average'
+              type: 'Sum'
               windowSizeMinutes: windowSizeMinutes
             }
           })
         ]
       }
-      windowUptimeCriteria: {
-        comparator: 'gt'
-        target: json('0.99')
+      totalSignals: {
+        signalFormula: 'A'
+        signalSources: [
+          union(sourceSignalIdentityProperties, {
+            filters: []
+            metricName: availabilityTotalMetricName
+            metricNamespace: metricNamespace
+            signalSourceId: 'A'
+            spatialAggregation: {
+              type: 'Sum'
+              dimensions: signalDimensions
+            }
+            temporalAggregation: {
+              type: 'Sum'
+              windowSizeMinutes: windowSizeMinutes
+            }
+          })
+        ]
       }
     }
   }
@@ -129,7 +149,7 @@ resource latencySli 'Microsoft.Monitor/slis@2025-03-01-preview' = {
   scope: serviceGroup
   identity: sliIdentity
   properties: {
-    description: 'Window-based Latency SLI for chaos app Gateway Envoy requests completed within 1 second.'
+    description: 'Request-based Latency SLI for external Azure Functions probe duration.'
     baselineProperties: {
       baseline: {
         evaluationCalculationType: 'RollingDays'
@@ -140,30 +160,45 @@ resource latencySli 'Microsoft.Monitor/slis@2025-03-01-preview' = {
     category: 'Latency'
     destinationAmwAccounts: destinationAmwAccounts
     enableAlert: enableSliAlerts
-    evaluationType: 'WindowBased'
+    evaluationType: 'RequestBased'
     sliProperties: {
-      signals: {
+      goodSignals: {
         signalFormula: 'A'
         signalSources: [
           union(sourceSignalIdentityProperties, {
             filters: []
-            metricName: latencyMetricName
+            metricName: latencyGoodMetricName
             metricNamespace: metricNamespace
             signalSourceId: 'A'
             spatialAggregation: {
-              type: 'Average'
+              type: 'Sum'
               dimensions: signalDimensions
             }
             temporalAggregation: {
-              type: 'Average'
+              type: 'Sum'
               windowSizeMinutes: windowSizeMinutes
             }
           })
         ]
       }
-      windowUptimeCriteria: {
-        comparator: 'gte'
-        target: json(latencyGoodRateTarget)
+      totalSignals: {
+        signalFormula: 'A'
+        signalSources: [
+          union(sourceSignalIdentityProperties, {
+            filters: []
+            metricName: latencyTotalMetricName
+            metricNamespace: metricNamespace
+            signalSourceId: 'A'
+            spatialAggregation: {
+              type: 'Sum'
+              dimensions: signalDimensions
+            }
+            temporalAggregation: {
+              type: 'Sum'
+              windowSizeMinutes: windowSizeMinutes
+            }
+          })
+        ]
       }
     }
   }

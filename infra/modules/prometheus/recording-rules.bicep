@@ -180,7 +180,7 @@ resource kubernetesRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRule
   }
 }
 
-// App reliability signal recording rules (Gateway 層 Envoy メトリクス)
+// App diagnostic recording rules (Gateway 層 Envoy メトリクス)
 // approuting-istio Gateway の Envoy が公開する envoy_cluster_* メトリクスを使用
 // proxyStatsMatcher を infrastructure.parametersRef の ConfigMap で設定し、リコンサイルに耐える構成
 
@@ -195,48 +195,15 @@ resource appSloRecordingRuleGroup 'Microsoft.AlertsManagement/prometheusRuleGrou
     interval: 'PT1M'
     rules: [
       {
-        // R1: p95 latency. no-traffic 時 (左辺が NaN/empty) は cluster_name 付きの 0 ベクトルを返し、
-        // SLI 側 partitioning dimension (cluster_name) と整合させる。
-        // `or on(cluster_name) (... * 0)` の右辺は completed series が存在する限り cluster_name 付き 0 を生成する。
+        // Gateway 内部の短期診断用。Azure Monitor SLI は Azure Functions direct probe 由来の metric を使う。
         record: 'gateway:chaos_app:http_request_duration:p95'
         expression: '(histogram_quantile(0.95, sum by (cluster_name, le) (rate(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))) / 1000) or on(cluster_name) (sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0)'
         enabled: true
       }
       {
-        // R2: latency threshold satisfaction ratio. SLI の主信号として、p95 の保存済み値ではなく
-        // 5 分窓内で 1s 以内に完了したリクエスト割合を使う。
-        // no-traffic 時は 1 (100%) を返し、無通信検知は ChaosAppNoTraffic に委ねる。
-        record: 'gateway:chaos_app:http_request_duration:le_1s_ratio'
-        expression: '((sum by (cluster_name) (increase(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",le="1000"}[5m])) / clamp_min(sum by (cluster_name) (increase(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",le="+inf"}[5m])), 1e-9)) and on(cluster_name) (sum by (cluster_name) (increase(envoy_cluster_external_upstream_rq_time_bucket{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",le="+inf"}[5m])) > 0)) or on(cluster_name) (sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0 + 1)'
-        enabled: true
-      }
-      {
-        // R3: error rate. 分母 0 で NaN 化するのを防ぐため clamp_min(..., 1e-9) で 0% に確定させる
+        // Gateway 内部の短期診断用。外形 Availability SLI の error budget alert とは分離する。
         record: 'gateway:chaos_app:http_error_rate:ratio'
         expression: '(sum by (cluster_name) (rate(envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}[5m])) or (sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0)) / clamp_min(sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])), 1e-9)'
-        enabled: true
-      }
-      {
-        // R4: success rate. clamp_min により no-traffic 時は 1 (100%) を返し SLI エラーバジェットを保護
-        record: 'gateway:chaos_app:http_success_rate:ratio'
-        expression: '1 - ((sum by (cluster_name) (rate(envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}[5m])) or (sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0)) / clamp_min(sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])), 1e-9))'
-        enabled: true
-      }
-      {
-        record: 'gateway:chaos_app:http_request_rate'
-        expression: 'sum by (cluster_name) (rate(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))'
-        enabled: true
-      }
-      {
-        // R5: success total. increase([5m]) で counter reset 耐性を獲得 (Envoy Pod 再起動時の値ドロップ防止)
-        record: 'gateway:chaos_app:http_success_total'
-        expression: 'sum by (cluster_name) (increase(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) - (sum by (cluster_name) (increase(envoy_cluster_upstream_rq{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*",response_code=~"5.."}[5m])) or (sum by (cluster_name) (increase(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m])) * 0))'
-        enabled: true
-      }
-      {
-        // R6: request total. increase([5m]) で counter reset 耐性を獲得
-        record: 'gateway:chaos_app:http_request_total'
-        expression: 'sum by (cluster_name) (increase(envoy_cluster_upstream_rq_completed{cluster_name=~"outbound\\\\|80\\\\|\\\\|chaos-app.*"}[5m]))'
         enabled: true
       }
     ]

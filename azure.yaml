@@ -7,14 +7,31 @@ infra:
       path: ./infra
     - name: sli
       path: ./infra/sli
+      hooks:
+        preprovision:
+          windows:
+            run: uv run ..\..\scripts\wait-for-external-sli-signals.py
+            interactive: false
+          posix:
+            run: uv run ../../scripts/wait-for-external-sli-signals.py
+            interactive: false
+        postprovision:
+          windows:
+            run: uv run ..\..\scripts\wait-for-external-sli-signals.py --skip-source --require-sli-destination
+            interactive: false
+          posix:
+            run: uv run ../../scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination
+            interactive: false
 
 workflows:
   up:
     steps:
       - azd: provision base
+      - azd: deploy api-instrumentation
       - azd: deploy api
       - azd: deploy observability
       - azd: deploy chaos-mesh
+      - azd: deploy external-sli-publisher
       - azd: provision sli
 
 hooks:
@@ -27,15 +44,48 @@ hooks:
       interactive: false
 
 services:
-  api:
-    project: src
-    language: python
+  api-instrumentation:
+    project: .
     host: aks
     resourceName: ${AZURE_AKS_CLUSTER_NAME}
+    hooks:
+      postdeploy:
+        windows:
+          run: uv run scripts\check-api-otel-injection.py wait-instrumentation
+          interactive: false
+        posix:
+          run: uv run scripts/check-api-otel-injection.py wait-instrumentation
+          interactive: false
     k8s:
       namespace: chaos-lab
       kustomize:
-        dir: ../k8s/apps/chaos-app
+        dir: k8s/apps/chaos-app/instrumentation
+        env:
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${APPLICATIONINSIGHTS_CONNECTION_STRING}
+  api:
+    project: src/api
+    language: python
+    host: aks
+    resourceName: ${AZURE_AKS_CLUSTER_NAME}
+    hooks:
+      predeploy:
+        windows:
+          run: uv run ..\..\scripts\check-api-otel-injection.py require-instrumentation
+          interactive: false
+        posix:
+          run: uv run ../../scripts/check-api-otel-injection.py require-instrumentation
+          interactive: false
+      postdeploy:
+        windows:
+          run: uv run ..\..\scripts\check-api-otel-injection.py check-injected
+          interactive: false
+        posix:
+          run: uv run ../../scripts/check-api-otel-injection.py check-injected
+          interactive: false
+    k8s:
+      namespace: chaos-lab
+      kustomize:
+        dir: ../../k8s/apps/chaos-app
         env:
           AZURE_CHAOS_APP_IDENTITY_CLIENT_ID: ${AZURE_CHAOS_APP_IDENTITY_CLIENT_ID}
           AZURE_INGRESS_FQDN: ${AZURE_INGRESS_FQDN}
@@ -50,18 +100,15 @@ services:
     project: .
     host: aks
     resourceName: ${AZURE_AKS_CLUSTER_NAME}
-    hooks:
-      postdeploy:
-        windows:
-          run: uv run scripts/warm-up-sli-signals.py
-          interactive: false
-        posix:
-          run: uv run scripts/warm-up-sli-signals.py
-          interactive: false
     k8s:
       namespace: kube-system
       kustomize:
         dir: k8s/observability
+  external-sli-publisher:
+    project: src/external-sli-publisher
+    language: python
+    host: function
+    resourceName: ${AZURE_EXTERNAL_SLI_FUNCTION_APP_NAME}
   chaos-mesh:
     project: .
     host: aks

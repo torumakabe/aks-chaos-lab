@@ -1,0 +1,5 @@
+azure-functions>=2.1.0
+azure-identity>=1.24.0
+azure-monitor-opentelemetry>=1.8.2
+azure-storage-blob>=12.29.0
+cramjam>=2.11.0

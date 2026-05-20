@@ -24,31 +24,31 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 ## A. Azure Monitor SLI 関連
 
-### A-1. `infra.layers` で base/sli を分離し、warm-up を挟む
+### A-1. `infra.layers` で base/sli を分離し、external SLI metric 出現を待つ
 
-- **概要**: `azd up` の workflow を `provision base` → `deploy api` → `deploy observability` → `deploy chaos-mesh` → `provision sli` に分割し、`observability.postdeploy` で warm-up traffic を流してから SLI を作成する。
-- **理由**: Azure Monitor SLI は作成時点で Managed Prometheus recording rule 出力（`cluster_name` dimension 付き）を要求する。メトリクス materialize 前に SLI を作ると validation で失敗する。
-- **場所**: `azure.yaml`、`infra/sli/main.bicep`、`docs/adr/009-azure-monitor-sli-and-prometheus-slo.md`
+- **概要**: `azd up` の workflow を `provision base` → `deploy api` → `deploy observability` → `deploy chaos-mesh` → `deploy external-sli-publisher` → `provision sli` に分割し、`sli` layer の `preprovision` で SLI 用 good / total metrics が Managed Prometheus に出るまで待つ。
+- **理由**: Azure Monitor SLI は作成時点で入力 metric と partitioning dimensions が Managed Prometheus に存在することを要求する。メトリクス materialize 前に SLI を作ると validation で失敗する。
+- **場所**: `azure.yaml`、`infra/sli/main.bicep`、`docs/adr/012-functions-direct-external-sli-probe.md`
 - **解消条件**: SLI が「将来生成されるメトリクス」を前提にした作成を許容する API になる。
-- **確認方法**: 一時環境で warm-up なしに `infra/sli/main.bicep` を作成し、SLI が作成エラーにならないか試す。
-- **最終確認**: 2026-05-17、warm-up なしの SLI 作成は `cluster_name` 不在で失敗。削除不可。
+- **確認方法**: 一時環境で external SLI metrics 出現待ちなしに `infra/sli/main.bicep` を作成し、SLI が作成エラーにならないか試す。
+- **最終確認**: 2026-05-19、入力 metric / dimensions 不在時の SLI 作成 validation failure を避けるため継続。
 
-### A-2. `scripts/warm-up-sli-signals.py` でトラフィック生成と recording rule 出力待機
+### A-2. `scripts/wait-for-external-sli-signals.py` で external SLI metric 出力待機
 
-- **概要**: `observability` service の `postdeploy` hook で、Envoy 経由のトラフィックを生成し、Managed Prometheus 上で `gateway:chaos_app:http_*` recording rule の出力に `cluster_name` dimension が出るまで待つ。
-- **理由**: A-1 と同じ。SLI 作成前に recording rule の出力が materialize されている必要があるため。
-- **場所**: `scripts/warm-up-sli-signals.py`、`azure.yaml`
+- **概要**: `sli` layer の `preprovision` hook で、Managed Prometheus 上に `chaos_app_external_availability_total` と `chaos_app_external_latency_total` が出るまで待つ。`postprovision` hook では `--skip-source --require-sli-destination` を付け、Azure Monitor SLI destination `:Value` metric まで確認する。
+- **理由**: A-1 と同じ。SLI 作成前に external SLI input metrics が materialize されている必要がある。SLI 作成後は input metric だけでは end-to-end 検証にならないため、destination metric を別途確認する。
+- **場所**: `scripts/wait-for-external-sli-signals.py`、`azure.yaml`
 - **解消条件**: A-1 と同じ。
 - **確認方法**: A-1 と同じ。
 
-### A-3. AMW managed resource group 内 DCR への `Monitoring Metrics Publisher` 付与
+### A-3. AMW managed resource group 内 DCR への SLI RBAC 付与
 
-- **概要**: `MA_<amw-name>_<region>_managed` リソースグループ内の AMW と同名 DCR に対して、SLI 用 UAMI に `Monitoring Metrics Publisher` を付与する。
-- **理由**: AMW 本体への RBAC だけでは SLI の storage location validation を通らない（Microsoft Learn 未記載の挙動）。
+- **概要**: `MA_<amw-name>_<region>_managed` リソースグループ内の AMW と同名 DCR に対して、SLI 用 UAMI に `Monitoring Reader` と `Monitoring Metrics Publisher` を付与する。
+- **理由**: AMW 本体への RBAC だけでは SLI の storage location validation を通らない（Microsoft Learn 未記載の挙動）。`Monitoring Reader` は destination workspace default DCR の最小権限要件に合わせる。
 - **場所**: `infra/modules/azmonitor/sli-managed-dcr-rbac.bicep`、ADR-009 §RBAC
 - **解消条件**: Microsoft 側で AMW 本体への RBAC だけで SLI が作れるよう挙動が修正される、または公式に managed RG への RBAC が必要だと文書化され、別の方法（policy / built-in role）が用意される。
 - **確認方法**: managed DCR への role assignment を一時的に外し、SLI 作成が通るか試す。
-- **最終確認**: 2026-05-17、managed DCR の `Monitoring Metrics Publisher` を外すと `DestinationAmwAccountAccessValidator` access denied。削除不可。
+- **最終確認**: 2026-05-19、managed DCR の `Monitoring Metrics Publisher` を外すと `DestinationAmwAccountAccessValidator` access denied。`Monitoring Reader` も destination metric 読み出し要件として付与。削除不可。
 
 ### A-4. `predown` hook で Service Group scope SLI と環境別 Service Group を削除
 
@@ -85,14 +85,14 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 ## C. プレビュー機能 / Preview API バージョン
 
-### C-1. 2 つの feature flag を `az feature register` 必須
+### C-1. 4 つの feature flag を `az feature register` 必須
 
-- **概要**: `AKS-AddonAutoscalingPreview`, `AzureMonitorAppMonitoringPreview` をサブスクリプション単位で事前登録する。
-- **理由**: これらは現行構成の AKS VPA addon autoscaling / AKS App Monitoring に必要。`AKS-OMSAppMonitoring` は full `azd up` 成功、`OtlpApplicationInsights` は GA App Insights API (`Microsoft.Insights/components@2020-02-02`) 前提で OTLP managed DCR / managed RG 作成成功を確認したため、手順から削除済み。
+- **概要**: `AKS-AddonAutoscalingPreview`, `AzureMonitorAppMonitoringPreview`, `Microsoft.Insights/EnableCustomMetricsV2`, `Microsoft.Insights/EnableAmwAutoscale` をサブスクリプション単位で事前登録する。
+- **理由**: これらは現行構成の AKS VPA addon autoscaling / AKS App Monitoring / Azure Monitor SLI destination metrics に必要。`AKS-OMSAppMonitoring` は full `azd up` 成功、`OtlpApplicationInsights` は GA App Insights API (`Microsoft.Insights/components@2020-02-02`) 前提で OTLP managed DCR / managed RG 作成成功を確認したため、手順から削除済み。
 - **場所**: `docs/deployment.md` §プレビュー機能とリソースプロバイダー登録
 - **解消条件**: 各機能が GA し、feature flag 登録が不要になる。
 - **確認方法**: feature を未登録に戻した一時サブスクリプション状態で fresh `azd up` または `azd provision base` が通るか確認する。
-- **最終確認**: 2026-05-17、`AKS-AddonAutoscalingPreview` 未登録では AKS preflight が失敗、`AzureMonitorAppMonitoringPreview` 未登録では AKS preflight が失敗。`AKS-OMSAppMonitoring` 未登録では full `azd up` 成功。`OtlpApplicationInsights` 未登録かつ App Insights GA API 前提の最小構成では、OTLP managed DCR / managed RG 作成成功。
+- **最終確認**: 2026-05-17、`AKS-AddonAutoscalingPreview` 未登録では AKS preflight が失敗、`AzureMonitorAppMonitoringPreview` 未登録では AKS preflight が失敗。2026-05-19、`EnableCustomMetricsV2` / `EnableAmwAutoscale` 未反映では Service Group namespace の SLI destination metric query が `Custom metrics are not enabled on this resource` で失敗。`AKS-OMSAppMonitoring` 未登録では full `azd up` 成功。`OtlpApplicationInsights` 未登録かつ App Insights GA API 前提の最小構成では、OTLP managed DCR / managed RG 作成成功。
 
 ### C-2. Fleet の preview API バージョンを継続使用
 
@@ -139,19 +139,19 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 - **概要**: FastAPI / OTel auto-instrumentation が emit する `http.server.active_requests` は UpDownCounter (DELTA aggregation) で per-process state を持つ。Chaos 実験で Pod 再起動が頻発する環境では、`rate()` / `delta()` で集計した時に負値や jitter が出る。
 - **理由**: UpDownCounter は process-local な state を保持し、Pod restart で reset されるが、Azure Monitor / Prometheus 側の集計クエリは Cumulative 前提で、reset を補正する仕組みがない。加えて、実機検証では標準 `http.server.active_requests` 自体が dot / underscore 名とも AMW に出ないケースがある。
-- **場所**: `docs/observability.md` §運用上の注意、`src/app/telemetry.py`、`src/app/main.py`
+- **場所**: `docs/observability.md` §運用上の注意、`src/api/app/telemetry.py`、`src/api/app/main.py`
 - **解消条件**: 標準 `http.server.active_requests` が restart / no-traffic に強い形で安定 emit される、または Azure Monitor 側で reset 補正が提供される。
 - **確認方法**: fresh 環境で App AMW に `http.server.active_requests` / `http_server_active_requests` が安定して出るか、かつ Pod restart 後に負値や jitter が出ないか確認する。
 - **最終確認**: 2026-05-17、custom `chaos_app.active_requests` は出るが、標準 `http.server.active_requests` は dot / underscore 名とも系列なし。削除不可。
 
-### D-6. 初回 `azd up` 直後に OTLP env injection が入らないことがある
+### D-6. API OTLP `Instrumentation` は Deployment より先に適用する必要がある
 
-- **概要**: AKS App Monitoring add-on の webhook が ready になる前に `chaos-app` Pod が作成されると、初回 `azd up` 直後の Pod に `OTEL_EXPORTER_OTLP_*` などの env が注入されないことがある。
-- **理由**: AKS App Monitoring add-on / Instrumentation webhook の準備と、`azd deploy api` による Deployment 作成の順序が完全には同期されていないため。
-- **場所**: `docs/observability.md` §運用上の注意、ADR-006
-- **解消条件**: AKS 側で webhook 準備前に作成済みの Pod へも自動反映される、または `azd up` workflow で webhook readiness を明示的に待てるようになる。
-- **確認方法**: fresh `azd up` 直後に `kubectl -n chaos-lab exec <pod> -- printenv | grep '^OTEL_'` を確認し、`OTelLogs` / `OTelSpans` が到達するか確認する。未注入なら `kubectl rollout restart deployment/chaos-app -n chaos-lab` 後に再確認する。
-- **最終確認**: 2026-05-17、fresh `azd up` 直後の `chaos-app` Pod で `OTEL_*` env が空。削除不可。
+- **概要**: AKS App Monitoring admission webhook は `Instrumentation` custom resource を参照して `OTEL_EXPORTER_OTLP_*` を注入する。`Deployment/chaos-app` と `Instrumentation/chaos-app-otel` を同じ Kustomize unit で同時適用すると、Pod admission 時点で `Instrumentation` が存在せず、API Pod に OTLP env が入らない race が起きる。
+- **理由**: Kubernetes は同一 Kustomize bundle 内の CR と Deployment の admission-time 依存を保証しない。既に admitted された Pod は後から retroactive に mutate されないため、Application Insights traces / metrics / logs と Redis dependency が欠落する。
+- **場所**: `azure.yaml` の `api-instrumentation` service、`k8s/apps/chaos-app/instrumentation/`、`scripts/check-api-otel-injection.py`、`docs/observability.md` §運用上の注意、ADR-006
+- **解消条件**: AKS App Monitoring が参照先 `Instrumentation` 未作成時でも Deployment / Pod を後から安全に再評価できる、または Kubernetes 側で CR と Deployment の admission-time ordering を宣言できる。
+- **確認方法**: `azd deploy api-instrumentation` 後に `uv run scripts/check-api-otel-injection.py wait-instrumentation`、`azd deploy api` 後に `uv run scripts/check-api-otel-injection.py check-injected` を実行する。`kubectl rollout restart` は既存の未注入 Pod を復旧する手段であり、通常の deploy path には使わない。
+- **最終確認**: 2026-05-20、`sli-flex-test` で `Instrumentation` が `Deployment` より 5 秒遅れて作成され API Pod の `OTEL_*` が欠落。`api-instrumentation` service と deploy hook で ordering / validation を追加。
 
 ### D-8. azd preflight が `Microsoft.Chaos/targets` に reserved-word warning を誤検知
 

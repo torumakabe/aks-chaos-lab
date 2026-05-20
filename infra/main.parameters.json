@@ -26,6 +26,9 @@
     "aksApiSubnetPrefix": {
       "value": "10.10.3.0/28"
     },
+    "functionSubnetPrefix": {
+      "value": "10.10.4.0/26"
+    },
     "kubernetesVersion": {
       "value": "1.34"
     },
@@ -39,9 +42,6 @@
       "value": true
     },
     "enablePrometheusRecordingRules": {
-      "value": true
-    },
-    "enablePrometheusAppOperationalAlerts": {
       "value": true
     },
     "enableAzureMonitorSli": {

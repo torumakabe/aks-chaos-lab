@@ -24,6 +24,9 @@ param peSubnetPrefix string = '10.10.2.0/24'
 @description('AKS API Server subnet address prefix')
 param aksApiSubnetPrefix string = '10.10.3.0/28'
 
+@description('Function App Flex Consumption subnet address prefix')
+param functionSubnetPrefix string = '10.10.4.0/26'
+
 @description('Kubernetes version for AKS (x.y or x.y.z).')
 param kubernetesVersion string = '1.34'
 
@@ -39,11 +42,49 @@ param enablePrometheusWorkspace bool = true
 @description('Deploy Prometheus recording rules (Linux/UX) into AMW')
 param enablePrometheusRecordingRules bool = true
 
-@description('Deploy short-window app operational Prometheus alert rules for incident detection.')
-param enablePrometheusAppOperationalAlerts bool = true
-
 @description('Deploy Azure Monitor SLI resources for the chaos app. Requires Service Group permissions at the tenant root or specified parent service group.')
 param enableAzureMonitorSli bool = false
+
+@description('Deploy external Azure Functions probe based SLI signals')
+param enableExternalSliSignals bool = true
+
+@description('External SLI probe scheme')
+@allowed([
+  'http'
+  'https'
+])
+param externalSliProbeScheme string = 'http'
+
+@description('External SLI probe path')
+param externalSliProbePath string = '/'
+
+@description('External SLI probe name. Defaults to the legacy availability test name shape to preserve SLI label continuity.')
+param externalSliProbeName string = ''
+
+@description('External SLI probe timeout in seconds')
+@minValue(2)
+param externalSliProbeTimeoutSeconds int = 10
+
+@description('External SLI publisher aggregation window in seconds')
+@minValue(60)
+param externalSliPublisherWindowSeconds int = 300
+
+@description('External latency threshold in milliseconds')
+@minValue(1)
+param externalSliLatencyThresholdMs int = 1000
+
+@description('Maximum closed windows published by one external SLI timer invocation')
+@minValue(1)
+param externalSliMaxCatchupWindows int = 12
+
+@description('Timer schedule for the external SLI publisher')
+param externalSliPublisherCronSchedule string = '0 */5 * * * *'
+
+@description('Earliest UTC time for external SLI publisher output. Defaults to deployment start to avoid backfilling pre-test windows.')
+param externalSliSignalNotBeforeUtc string = utcNow()
+
+@description('Principal ID allowed to upload the external SLI publisher deployment package. Defaults to the deployment principal.')
+param externalSliDeploymentPrincipalId string = deployer().objectId
 
 @description('Parent Service Group resource ID for Azure Monitor SLI. Leave empty to use the tenant root service group.')
 param azureMonitorSliParentServiceGroupId string = ''
@@ -137,6 +178,7 @@ module network './modules/network.bicep' = {
     aksSubnetPrefix: aksSubnetPrefix
     peSubnetPrefix: peSubnetPrefix
     aksApiSubnetPrefix: aksApiSubnetPrefix
+    functionSubnetPrefix: functionSubnetPrefix
     resourceToken: resourceToken
   }
 }
@@ -165,7 +207,8 @@ module azureMonitorWorkspace './modules/prometheus/workspace.bicep' = if (enable
 
 #disable-next-line BCP318
 var prometheusWorkspaceResourceId = enablePrometheusWorkspace ? azureMonitorWorkspace.outputs.workspaceId : ''
-var enableAzureMonitorSliEffective = enableAzureMonitorSli && enablePrometheusWorkspace && enablePrometheusPipeline && enablePrometheusRecordingRules
+var enableExternalSliEffective = enableExternalSliSignals && enablePrometheusWorkspace && enablePrometheusPipeline
+var enableAzureMonitorSliEffective = enableAzureMonitorSli && enableExternalSliEffective
 var normalizedAzureMonitorSliParentServiceGroupId = azureMonitorSliParentServiceGroupId == 'none' ? '' : azureMonitorSliParentServiceGroupId
 var normalizedAzureMonitorSliServiceGroupResourceId = azureMonitorSliServiceGroupResourceId == 'none' ? '' : azureMonitorSliServiceGroupResourceId
 var useExistingAzureMonitorSliServiceGroup = !empty(normalizedAzureMonitorSliServiceGroupResourceId)
@@ -188,6 +231,15 @@ var azureMonitorWorkspaceManagedResourceGroupName = 'MA_${azureMonitorWorkspaceN
 var azureMonitorSliIdentityName = '${abbrs.managedIdentityUserAssignedIdentities}${appName}-sli-${environment}'
 var azureMonitorAvailabilitySliName = 'availability-${resourceToken}'
 var azureMonitorLatencySliName = 'latency-${resourceToken}'
+var defaultExternalSliProbeNameBase = 'avail-${appName}-${environment}-${resourceToken}'
+var defaultExternalSliProbeName = substring(
+  defaultExternalSliProbeNameBase,
+  0,
+  min(64, length(defaultExternalSliProbeNameBase))
+)
+var effectiveExternalSliProbeName = empty(externalSliProbeName) ? defaultExternalSliProbeName : externalSliProbeName
+var normalizedExternalSliProbePath = startsWith(externalSliProbePath, '/') ? externalSliProbePath : '/${externalSliProbePath}'
+var externalSliProbeUrl = '${externalSliProbeScheme}://${network.outputs.fqdn}${normalizedExternalSliProbePath}'
 
 module prometheusPipeline './modules/prometheus/pipeline.bicep' = if (enablePrometheusWorkspace && enablePrometheusPipeline) {
   name: 'prometheusPipeline'
@@ -221,7 +273,60 @@ module prometheusAlertRules './modules/prometheus/alert-rules.bicep' = if (enabl
     prometheusWorkspaceId: prometheusWorkspaceResourceId
     aksId: aksCluster.outputs.aksId
     actionGroupId: actionGroupId
-    enableAppOperationalAlerts: enablePrometheusAppOperationalAlerts
+  }
+}
+
+module externalSliPublisher './modules/functions/external-sli-publisher.bicep' = if (enableExternalSliEffective) {
+  name: 'externalSliPublisher'
+  scope: resourceGroup
+  params: {
+    location: location
+    tags: tags
+    appName: appName
+    environment: environment
+    resourceToken: resourceToken
+    vnetId: network.outputs.vnetId
+    functionSubnetId: network.outputs.functionSubnetId
+    privateEndpointSubnetId: network.outputs.peSubnetId
+    deploymentPrincipalId: externalSliDeploymentPrincipalId
+    applicationInsightsConnectionString: azmonitorCore.outputs.applicationInsightsConnectionString
+    #disable-next-line BCP318
+    prometheusRemoteWriteUrl: prometheusPipeline.outputs.prometheusRemoteWriteUrl
+    probeUrl: externalSliProbeUrl
+    probeName: effectiveExternalSliProbeName
+    probeTimeoutSeconds: externalSliProbeTimeoutSeconds
+    publisherWindowSeconds: externalSliPublisherWindowSeconds
+    latencyThresholdMs: externalSliLatencyThresholdMs
+    maxCatchupWindows: externalSliMaxCatchupWindows
+    publisherCronSchedule: externalSliPublisherCronSchedule
+    signalNotBeforeUtc: externalSliSignalNotBeforeUtc
+  }
+}
+
+module externalSliPublisherRbac './modules/azmonitor/external-sli-publisher-rbac.bicep' = if (enableExternalSliEffective) {
+  name: 'externalSliPublisherRbac'
+  scope: resourceGroup
+  params: {
+    prometheusWorkspaceResourceId: prometheusWorkspaceResourceId
+    #disable-next-line BCP318
+    prometheusDataCollectionRuleId: prometheusPipeline.outputs.dataCollectionRuleId
+    #disable-next-line BCP318
+    publisherName: externalSliPublisher.outputs.functionAppName
+    #disable-next-line BCP318
+    publisherPrincipalId: externalSliPublisher.outputs.publisherPrincipalId
+  }
+}
+
+module externalSliPublisherAlerts './modules/prometheus/external-sli-publisher-alerts.bicep' = if (enableExternalSliEffective) {
+  name: 'externalSliPublisherAlerts'
+  scope: resourceGroup
+  params: {
+    location: location
+    tags: tags
+    environment: environment
+    prometheusWorkspaceResourceId: prometheusWorkspaceResourceId
+    probeName: effectiveExternalSliProbeName
+    actionGroupId: actionGroupId
   }
 }
 
@@ -473,11 +578,17 @@ output AZURE_APPLICATIONINSIGHTS_NAME string = applicationInsightsName
 
 @description('Log Analytics workspace id')
 output AZURE_LOG_ANALYTICS_ID string = azmonitorCore.outputs.logAnalyticsId
+@description('Log Analytics workspace customer ID for query APIs')
+output AZURE_LOG_ANALYTICS_WORKSPACE_ID string = azmonitorCore.outputs.logAnalyticsCustomerId
 @description('Log Analytics workspace name')
 output AZURE_LOG_ANALYTICS_WORKSPACE_NAME string = azmonitorCore.outputs.logAnalyticsNameOut
 
 @description('Azure Monitor Workspace resource ID for Managed Prometheus')
 output AZURE_MONITOR_PROMETHEUS_WORKSPACE_ID string = prometheusWorkspaceResourceId
+
+@description('Managed Prometheus remote-write URL for external SLI publisher')
+#disable-next-line BCP318
+output AZURE_MONITOR_PROMETHEUS_REMOTE_WRITE_URL string = enableExternalSliEffective ? prometheusPipeline.outputs.prometheusRemoteWriteUrl : ''
 
 @description('Azure Managed Redis resource id')
 output AZURE_REDIS_ID string = redisEnterprise.outputs.redisId
@@ -529,3 +640,17 @@ output AZURE_MONITOR_SLI_IDENTITY_ID string = enableAzureMonitorSliEffective ? a
 @description('Azure Monitor SLI managed identity client ID')
 #disable-next-line BCP318
 output AZURE_MONITOR_SLI_IDENTITY_CLIENT_ID string = enableAzureMonitorSliEffective ? azureMonitorSliIdentity.outputs.clientId : ''
+
+@description('External SLI publisher Function App name')
+#disable-next-line BCP318
+output AZURE_EXTERNAL_SLI_FUNCTION_APP_NAME string = enableExternalSliEffective ? externalSliPublisher.outputs.functionAppName : ''
+
+@description('External SLI probe name used in Prometheus labels')
+output AZURE_EXTERNAL_SLI_PROBE_NAME string = enableExternalSliEffective ? effectiveExternalSliProbeName : ''
+
+@description('External SLI probe URL used by the publisher')
+output AZURE_EXTERNAL_SLI_PROBE_URL string = enableExternalSliEffective ? externalSliProbeUrl : ''
+
+@description('External SLI publisher state blob URL')
+#disable-next-line BCP318
+output AZURE_EXTERNAL_SLI_STATE_BLOB_URL string = enableExternalSliEffective ? externalSliPublisher.outputs.stateBlobUrl : ''

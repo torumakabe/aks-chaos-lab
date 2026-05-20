@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- instrumentation.yaml
+configMapGenerator:
+- envs:
+  - .env
+  name: chaos-app-otel-config
+  namespace: chaos-lab
+  options:
+    disableNameSuffixHash: true
+replacements:
+- source:
+    fieldPath: data.APPLICATIONINSIGHTS_CONNECTION_STRING
+    kind: ConfigMap
+    name: chaos-app-otel-config
+  targets:
+  - fieldPaths:
+    - spec.destination.applicationInsightsConnectionString
+    select:
+      group: monitor.azure.com
+      kind: Instrumentation
+      name: chaos-app-otel
+      namespace: chaos-lab

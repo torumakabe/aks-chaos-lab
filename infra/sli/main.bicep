@@ -24,7 +24,7 @@ param sliIdentityResourceId string = ''
 @description('Managed Prometheus Azure Monitor Workspace resource ID')
 param prometheusWorkspaceResourceId string = ''
 
-@description('Metric namespace used by Azure Monitor SLI for Managed Prometheus recording rules')
+@description('Metric namespace used by Azure Monitor SLI for Managed Prometheus metrics')
 param metricNamespace string = 'customdefault'
 
 @description('Enable Azure Monitor SLI baseline / fast burn / slow burn metric alerts')
@@ -58,12 +58,11 @@ param evaluationPeriodDays int = 30
 @minValue(1)
 param windowSizeMinutes int = 5
 
-@description('Minimum ratio of requests completed within 1 second for a good latency window')
-param latencyGoodRateTarget string = '0.95'
-
 @description('Prometheus label dimensions used for Azure Monitor SLI partitioning')
 param signalDimensions string[] = [
-  'cluster_name'
+  'environment'
+  'service'
+  'test'
 ]
 
 @description('Azure Monitor SLI fast burn-rate alert threshold')
@@ -119,7 +118,6 @@ module azureMonitorSliDefinitions '../modules/azmonitor/sli-definitions.bicep' =
     latencyBaselineTargetPercent: latencyBaselineTargetPercent
     evaluationPeriodDays: evaluationPeriodDays
     windowSizeMinutes: windowSizeMinutes
-    latencyGoodRateTarget: latencyGoodRateTarget
     signalDimensions: signalDimensions
   }
 }

@@ -28,9 +28,7 @@ class TestRootWithRedisEnabled:
 
         s = _redis_enabled_settings()
         app.dependency_overrides[get_settings] = lambda: s
-        app.dependency_overrides[get_redis_client] = (
-            lambda: mock_client
-        )
+        app.dependency_overrides[get_redis_client] = lambda: mock_client
         try:
             with TestClient(app) as c:
                 r = c.get("/")
@@ -42,15 +40,11 @@ class TestRootWithRedisEnabled:
     def test_root_redis_failure_returns_503(self) -> None:
         """Redis enabled + exception returns 503."""
         mock_client = AsyncMock()
-        mock_client.get = AsyncMock(
-            side_effect=ConnectionError("connection refused")
-        )
+        mock_client.get = AsyncMock(side_effect=ConnectionError("connection refused"))
 
         s = _redis_enabled_settings()
         app.dependency_overrides[get_settings] = lambda: s
-        app.dependency_overrides[get_redis_client] = (
-            lambda: mock_client
-        )
+        app.dependency_overrides[get_redis_client] = lambda: mock_client
         try:
             with TestClient(app) as c:
                 r = c.get("/")

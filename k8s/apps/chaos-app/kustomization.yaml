@@ -1,9 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
 components:
 - ../../components/cilium-ingress-l7
-
 resources:
 - serviceaccount.yaml
 - deployment.yaml
@@ -15,9 +13,6 @@ resources:
 - pdb.yaml
 - ciliumnetworkpolicy-egress-allowlist.yaml
 - addon-vpa.yaml
-- instrumentation.yaml
-- cronjob-synthetic-traffic.yaml
-
 configMapGenerator:
 - envs:
   - .env
@@ -32,7 +27,6 @@ configMapGenerator:
   namespace: chaos-lab
   options:
     disableNameSuffixHash: true
-
 replacements:
 - source:
     fieldPath: data.AZURE_CHAOS_APP_IDENTITY_CLIENT_ID
@@ -87,18 +81,6 @@ replacements:
       kind: Gateway
       name: chaos-app
       namespace: chaos-lab
-- source:
-    fieldPath: data.APPLICATIONINSIGHTS_CONNECTION_STRING
-    kind: ConfigMap
-    name: app-config
-  targets:
-  - fieldPaths:
-    - spec.destination.applicationInsightsConnectionString
-    select:
-      group: monitor.azure.com
-      kind: Instrumentation
-      name: chaos-app-otel
-      namespace: chaos-lab
 patches:
 - patch: |-
     - op: replace
@@ -137,5 +119,5 @@ patches:
     version: v2
 images:
 - name: placeholder
-  newName: acr5dua5pkulsr3e.azurecr.io/aks-chaos-lab/api-eval
-  newTag: azd-deploy-1779149477
+  newName: placeholder
+  newTag: latest

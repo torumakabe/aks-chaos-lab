@@ -5,8 +5,8 @@ import pytest
 
 from app.telemetry import (
     ErrorAwareSampler,
-    _Once,
     _active_requests_callback,
+    _Once,
     _redis_status_callback,
     decrement_active_requests,
     increment_active_requests,
@@ -703,9 +703,7 @@ def test_reset_telemetry_removes_log_handler() -> None:
 
     assert tm._log_handler is None
     assert tm._logger_provider is None
-    assert not any(
-        h is attached_handler for h in logging.getLogger("app").handlers
-    )
+    assert not any(h is attached_handler for h in logging.getLogger("app").handlers)
 
 
 def test_setup_telemetry_no_duplicate_log_handlers() -> None:

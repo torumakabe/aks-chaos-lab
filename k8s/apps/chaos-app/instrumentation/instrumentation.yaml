@@ -1,0 +1,12 @@
+# AKS Auto-Configuration: injects OTEL_EXPORTER_OTLP_* into annotated pods.
+# App uses standard OTel SDK exporters; no Azure Monitor SDK is needed in code.
+apiVersion: monitor.azure.com/v1
+kind: Instrumentation
+metadata:
+  name: chaos-app-otel
+  namespace: chaos-lab
+spec:
+  settings:
+    autoInstrumentationPlatforms: []
+  destination:
+    applicationInsightsConnectionString: "PLACEHOLDER"
