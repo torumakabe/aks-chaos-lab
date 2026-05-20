@@ -106,7 +106,5 @@ def test_active_requests_handles_handler_exception() -> None:
         assert obs[0].value == 0
     finally:
         app.router.routes = [
-            r
-            for r in app.router.routes
-            if getattr(r, "path", None) != "/__probe_raise"
+            r for r in app.router.routes if getattr(r, "path", None) != "/__probe_raise"
         ]

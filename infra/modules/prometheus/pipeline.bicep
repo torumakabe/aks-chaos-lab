@@ -84,3 +84,5 @@ resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAss
 
 output dataCollectionRuleId string = dataCollectionRule.id
 output dataCollectionEndpointId string = dataCollectionEndpoint.id
+#disable-next-line BCP053
+output prometheusRemoteWriteUrl string = '${dataCollectionEndpoint.properties.metricsIngestion.endpoint}/dataCollectionRules/${dataCollectionRule.properties.immutableId}/streams/Microsoft-PrometheusMetrics/api/v1/write?api-version=2023-04-24'

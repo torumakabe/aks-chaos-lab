@@ -166,6 +166,25 @@ def resource_url(resource_id: str) -> str:
     return resource_id
 
 
+def service_group_name_from_id(service_group_id: str) -> str:
+    return service_group_id.rstrip("/").split("/")[-1]
+
+
+def is_owned_service_group_id(service_group_id: str, env_name: str) -> bool:
+    if not env_name:
+        return False
+    service_group_name = service_group_name_from_id(service_group_id)
+    prefix = f"sg-aks-chaos-lab-{env_name}-"
+    if not service_group_name.startswith(prefix):
+        return False
+    suffix = service_group_name.removeprefix(prefix)
+    return bool(suffix) and "-" not in suffix
+
+
+def is_owned_resource_group(resource_group: str, env_name: str) -> bool:
+    return bool(env_name) and resource_group == f"rg-aks-chaos-lab-{env_name}"
+
+
 def run_delete(args: Sequence[str], description: str, *, dry_run: bool) -> None:
     if dry_run:
         log(f"dry-run: would {description}")
@@ -626,9 +645,22 @@ def main() -> int:
             f"/providers/Microsoft.Management/serviceGroups/{service_group_name}"
         )
 
-    service_group_ids = (
+    candidate_service_group_ids = (
         [service_group_id] if service_group_id else discover_service_group_ids(env_name)
     )
+    service_group_ids = [
+        candidate_service_group_id
+        for candidate_service_group_id in candidate_service_group_ids
+        if is_owned_service_group_id(candidate_service_group_id, env_name)
+    ]
+    skipped_service_group_ids = sorted(
+        set(candidate_service_group_ids) - set(service_group_ids)
+    )
+    for skipped_service_group_id in skipped_service_group_ids:
+        log(
+            "skipping Service Group outside current env naming scope: "
+            f"env={env_name}, serviceGroup={skipped_service_group_id}"
+        )
 
     if not resource_group and env_name:
         resource_group = f"rg-aks-chaos-lab-{env_name}"
@@ -642,9 +674,15 @@ def main() -> int:
                 current_service_group_id, dry_run=dry_run
             )
     else:
+        log("no in-scope Service Group ID found; skipping Service Group scoped cleanup")
+
+    if resource_group and not is_owned_resource_group(resource_group, env_name):
         log(
-            "AZURE_MONITOR_SLI_SERVICE_GROUP_ID is not set; skipping Service Group scoped cleanup"
+            "resource group is outside current env naming scope; "
+            f"skipping RG-scoped cleanup: env={env_name}, resourceGroup={resource_group}"
         )
+        resource_group = ""
+        aks_cluster_name = ""
 
     delete_otlp_app_insights_dcra(resource_group, aks_cluster_name, dry_run=dry_run)
 

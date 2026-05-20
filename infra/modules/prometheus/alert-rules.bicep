@@ -14,9 +14,6 @@ param aksId string
 @description('Resource ID of the Action Group for alerts')
 param actionGroupId string = ''
 
-@description('Deploy Gateway Envoy based short-window application operational Prometheus alerts')
-param enableAppOperationalAlerts bool = true
-
 var aksName = split(aksId, '/')[8]
 
 resource recommendedMetricAlertsClusterLevel 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = {
@@ -779,110 +776,6 @@ resource recommendedMetricAlertsPodLevel 'Microsoft.AlertsManagement/prometheusR
         }
         labels: {
           severity: 'warning'
-        }
-        actions: actionGroupId != ''
-          ? [
-              {
-                actionGroupId: actionGroupId
-              }
-            ]
-          : []
-      }
-    ]
-  }
-}
-
-// Application operational alerts (Gateway 層 Envoy メトリクス)
-// ADR-009: Azure Monitor SLI は SLO/error-budget レイヤー、ここでは短期の症状検知を扱う。
-resource appOperationalAlerts 'Microsoft.AlertsManagement/prometheusRuleGroups@2023-03-01' = if (enableAppOperationalAlerts) {
-  name: 'app-operational-alerts-${split(aksId, '/')[8]}'
-  location: location
-  tags: union(tags, {
-    alertRuleCreatedWithAlertsRecommendations: 'true'
-  })
-  properties: {
-    description: 'Gateway 層 Envoy メトリクスベースの短期 operational アラート'
-    scopes: [prometheusWorkspaceId, aksId]
-    clusterName: split(aksId, '/')[8]
-    enabled: true
-    interval: 'PT1M'
-    rules: [
-      {
-        alert: 'ChaosAppRequestLatencyGoodRateLow'
-        expression: 'gateway:chaos_app:http_request_duration:le_1s_ratio < 0.95'
-        for: 'PT5M'
-        annotations: {
-          description: 'chaos-app の 1s 以内完了率が 95% を下回っています。短期 operational アラートであり、SLO/error budget アラートではありません。'
-        }
-        enabled: true
-        severity: 2
-        resolveConfiguration: {
-          autoResolved: true
-          timeToResolve: 'PT10M'
-        }
-        labels: {
-          severity: 'warning'
-          alert_type: 'operational'
-          signal: 'latency-good-rate'
-          source: 'gateway-envoy'
-        }
-        actions: actionGroupId != ''
-          ? [
-              {
-                actionGroupId: actionGroupId
-              }
-            ]
-          : []
-      }
-      {
-        alert: 'ChaosAppRequestFailureRateHigh'
-        expression: 'gateway:chaos_app:http_error_rate:ratio > 0.01'
-        for: 'PT5M'
-        annotations: {
-          description: 'chaos-app のエラー率が 1% を超過。短期 operational アラートであり、SLO/error budget アラートではありません。'
-        }
-        enabled: true
-        severity: 2
-        resolveConfiguration: {
-          autoResolved: true
-          timeToResolve: 'PT15M'
-        }
-        labels: {
-          severity: 'warning'
-          alert_type: 'operational'
-          signal: 'failure-rate'
-          source: 'gateway-envoy'
-        }
-        actions: actionGroupId != ''
-          ? [
-              {
-                actionGroupId: actionGroupId
-              }
-            ]
-          : []
-      }
-      {
-        // alrtB-chaos-no-traffic: synthetic-traffic CronJob が 5 分以上途絶した場合に発火。
-        // recording rule が clamp_min により no-traffic 時に 0 を返すため、SLI failure-rate alert では検知できない盲点
-        // (CronJob 障害 / Pod 完全停止 / Service/Gateway 障害 / HTTPRoute hostname 不一致) を補完する。
-        // 前提: cronjob/synthetic-traffic CronJob (k8s/apps/chaos-app/cronjob-synthetic-traffic.yaml) が 1 req/min で稼働している。
-        alert: 'ChaosAppNoTraffic'
-        expression: '(absent(gateway:chaos_app:http_request_rate) == 1) or (gateway:chaos_app:http_request_rate <= 0)'
-        for: 'PT5M'
-        annotations: {
-          description: 'chaos-app への合成トラフィック (synthetic-traffic CronJob) が 5〜10 分にわたり途絶 (rate[5m] + for 5m の合計遅延を含む実検知時間)。CronJob 失敗、Pod 完全停止、Service/Gateway 障害、または HTTPRoute hostname 不一致のいずれかが疑われます。kubectl -n chaos-lab get cronjob synthetic-traffic と get pods -l app=synthetic-traffic を確認してください。'
-        }
-        enabled: true
-        severity: 1
-        resolveConfiguration: {
-          autoResolved: true
-          timeToResolve: 'PT10M'
-        }
-        labels: {
-          severity: 'critical'
-          alert_type: 'operational'
-          signal: 'no-traffic'
-          source: 'gateway-envoy'
         }
         actions: actionGroupId != ''
           ? [

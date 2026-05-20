@@ -18,6 +18,7 @@ graph TD
   ACR[Azure Container Registry]
   Redis[Azure Managed Redis]
   AppInsights[Application Insights]
+  Publisher[Azure Functions external SLI probe/publisher]
   Prom[Azure Monitor managed Prometheus]
   SLI[Azure Monitor SLI]
   LA[Log Analytics]
@@ -33,11 +34,15 @@ graph TD
 
   ACR --> App
   Locust -->|load traffic| GW
+  Publisher -->|GET /| GW
+  Publisher -->|dependency telemetry| AppInsights
   GW --> App
   App -->|Entra ID auth| Redis
   App -->|OTLP traces/metrics/logs| AppInsights
+  AppInsights --> LA
+  Publisher -->|remote-write good/total| Prom
   GW -->|Envoy metrics| Prom
-  Prom -->|gateway:chaos_app:* signals| SLI
+  Prom -->|external SLI metrics| SLI
   CI --> LA
   CS --> CM
   CM --> App
@@ -45,10 +50,10 @@ graph TD
 
 | 領域 | 構成 | 詳細 |
 |------|------|------|
-| アプリ | Python 3.14 + FastAPI + Redis + OpenTelemetry | [`src/app/`](src/app/) |
+| アプリ | Python 3.14 + FastAPI + Redis + OpenTelemetry | [`src/api/app/`](src/api/app/) |
 | インフラ | Bicep subscription scope + `azd` layers (`base`, `sli`) | [`infra/`](infra/), [`azure.yaml`](azure.yaml) |
 | Kubernetes | Kustomize, Gateway API, Cilium L7 policy, Chaos Mesh | [`k8s/`](k8s/) |
-| 可観測性 | Application Insights, Managed Prometheus, Container Insights, SLI alerts | [docs/observability.md](docs/observability.md) |
+| 可観測性 | Azure Functions external SLI probe/publisher, Application Insights, Managed Prometheus, Container Insights, SLI alerts | [docs/observability.md](docs/observability.md) |
 | 障害注入 | Azure Chaos Studio から Chaos Mesh 実験を実行 | [docs/chaos-experiments.md](docs/chaos-experiments.md) |
 
 設計判断の理由は README では繰り返しません。判断の背景や却下した選択肢は [ADR 一覧](docs/adr/INDEX.md) を参照してください。
@@ -106,9 +111,12 @@ azd down --force --purge
 ## リポジトリ構造
 
 ```text
-src/app/             FastAPI アプリケーション
-src/tests/           unit / integration / load tests
+src/api/             FastAPI アプリケーション、Dockerfile、unit / integration / load tests
+src/external-sli-publisher/  Azure Functions external SLI publisher
 infra/               Bicep subscription-scope infrastructure
+infra/modules/functions/     Azure Functions hosting modules
+infra/modules/azmonitor/     Application Insights / Log Analytics / SLI modules
+infra/modules/prometheus/    Managed Prometheus pipeline / rules / alerts
 infra/sli/           Azure Monitor SLI layer
 k8s/apps/chaos-app/  chaos-app Kubernetes manifests
 k8s/observability/   Prometheus / Container Insights related manifests

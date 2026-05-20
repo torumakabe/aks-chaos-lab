@@ -75,7 +75,7 @@ wheels = [
 ]
 
 [[package]]
-name = "aks-chaos-lab"
+name = "aks-chaos-lab-api"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

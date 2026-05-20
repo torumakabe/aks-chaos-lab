@@ -53,12 +53,11 @@
     "windowSizeMinutes": {
       "value": 5
     },
-    "latencyGoodRateTarget": {
-      "value": "0.95"
-    },
     "signalDimensions": {
       "value": [
-        "cluster_name"
+        "environment",
+        "service",
+        "test"
       ]
     },
     "fastBurnRateThreshold": {
