@@ -2,10 +2,10 @@
 name = "aks-chaos-lab-api"
 version = "0.1.0"
 description = "AKS Chaos Lab demo app (FastAPI + Redis + OpenTelemetry)"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
   "fastapi>=0.133.1",
-  "uvicorn>=0.41.0",
+  "uvicorn[standard]>=0.41.0",
   "redis>=7.2.1",
   "azure-identity>=1.24.0",
   "redis-entraid>=1.1.0",
@@ -53,7 +53,7 @@ packages = ["app"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "ASYNC", "S", "B", "A", "C4", "T20", "SIM"]
@@ -76,7 +76,7 @@ ignore = ["E501", "S101"]                                                       
 ]
 
 [tool.ty.environment]
-python-version = "3.13"
+python-version = "3.14"
 
 [tool.ty.rules]
 # Detect unused type: ignore / ty: ignore comments

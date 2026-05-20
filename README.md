@@ -50,7 +50,7 @@ graph TD
 
 | 領域 | 構成 | 詳細 |
 |------|------|------|
-| アプリ | Python 3.13 + FastAPI + Redis + OpenTelemetry | [`src/api/app/`](src/api/app/) |
+| アプリ | Python 3.14 + FastAPI + Redis + OpenTelemetry | [`src/api/app/`](src/api/app/) |
 | インフラ | Bicep subscription scope + `azd` layers (`base`, `sli`) | [`infra/`](infra/), [`azure.yaml`](azure.yaml) |
 | Kubernetes | Kustomize, Gateway API, Cilium L7 policy, Chaos Mesh | [`k8s/`](k8s/) |
 | 可観測性 | Azure Functions external SLI probe/publisher, Application Insights, Managed Prometheus, Container Insights, SLI alerts | [docs/observability.md](docs/observability.md) |
@@ -64,7 +64,7 @@ graph TD
 - [Azure Developer CLI (`azd`)](https://learn.microsoft.com/azure/developer/azure-developer-cli/)
 - Azure CLI + Bicep extension
 - `kubectl`
-- Python 3.13+ + [`uv`](https://github.com/astral-sh/uv)
+- Python 3.14+ + [`uv`](https://github.com/astral-sh/uv)
 - `azd up` 実行 identity に、サブスクリプション スコープの **Owner**、または **Contributor** + **User Access Administrator**
 - Azure Monitor SLI を有効化する場合は、Service Group スコープの追加権限
 - 事前登録が必要なプレビュー機能: `AKS-AddonAutoscalingPreview`, `AzureMonitorAppMonitoringPreview`

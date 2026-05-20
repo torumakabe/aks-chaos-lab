@@ -8,7 +8,7 @@
 - [Azure Developer CLI (`azd`)](https://learn.microsoft.com/azure/developer/azure-developer-cli/)
 - Azure CLI + Bicep extension
 - `kubectl`
-- Python 3.13+ + [`uv`](https://github.com/astral-sh/uv)
+- Python 3.14+ + [`uv`](https://github.com/astral-sh/uv)
 - リポジトリ全体の QA を実行する場合は Docker と GitHub CLI + `gh-aw` extension
 
 ## 必要なロール

@@ -2,7 +2,7 @@
 # Run 'uv run scripts/tasks.py check-uv-version' from the repository root to verify consistency
 FROM ghcr.io/astral-sh/uv:0.10.6 AS uv
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 # Copy uv binary from the uv image
 COPY --from=uv /uv /uvx /bin/
@@ -34,4 +34,4 @@ USER app:app
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Run with uvicorn directly (not uv run)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "30"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--loop", "uvloop", "--http", "httptools", "--timeout-graceful-shutdown", "30"]
