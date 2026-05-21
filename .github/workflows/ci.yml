@@ -18,7 +18,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version-file: "src/api/pyproject.toml"
+          version-file: "pyproject.toml"
           python-version: "3.14"
       - name: Sync deps (dev)
         run: uv run scripts/tasks.py sync-dev
@@ -33,7 +33,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version-file: "src/api/pyproject.toml"
+          version-file: "pyproject.toml"
           python-version: "3.14"
       - name: Sync deps (dev)
         run: uv run scripts/tasks.py sync-dev
@@ -49,7 +49,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version-file: "src/api/pyproject.toml"
+          version-file: "pyproject.toml"
           python-version: "3.14"
       - name: Sync deps (dev)
         run: uv run scripts/tasks.py sync-dev
@@ -64,7 +64,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version-file: "src/api/pyproject.toml"
+          version-file: "pyproject.toml"
           python-version: "3.14"
       - name: Sync deps (dev)
         run: uv run scripts/tasks.py sync-dev
