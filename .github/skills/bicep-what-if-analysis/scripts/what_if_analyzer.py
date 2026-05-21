@@ -20,7 +20,7 @@ import re
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -252,7 +252,7 @@ class NoisePatternLoader:
         try:
             with open(self._stats_file, encoding="utf-8") as f:
                 self._stats = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except FileNotFoundError, json.JSONDecodeError:
             self._stats = {"patterns": {}, "lastRun": None}
 
         return self._stats
@@ -276,22 +276,18 @@ class NoisePatternLoader:
                     valid_keys.add(f"{category}:{item['pattern']}")
 
         # リソースタイプ別パターン
-        for resource_type, resource_patterns in (
-            data.get("resource_types", {}).items()
-        ):
+        for resource_type, resource_patterns in data.get("resource_types", {}).items():
             for category in pattern_categories:
                 for item in resource_patterns.get(category, []):
                     if isinstance(item, dict) and "pattern" in item:
-                        valid_keys.add(
-                            f"{resource_type}:{category}:{item['pattern']}"
-                        )
+                        valid_keys.add(f"{resource_type}:{category}:{item['pattern']}")
 
         return valid_keys
 
     def save_stats(self) -> None:
         """統計ファイルを保存する。"""
         stats = self._load_stats()
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         stats["lastRun"] = now
 
@@ -329,14 +325,16 @@ class NoisePatternLoader:
             未使用パターンのリスト
         """
         stats = self._load_stats()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         threshold = now - __import__("datetime").timedelta(days=days)
         unused = []
 
         for key, info in stats.get("patterns", {}).items():
             last_matched_str = info.get("lastMatched")
             if last_matched_str:
-                last_matched = datetime.fromisoformat(last_matched_str.replace("Z", "+00:00"))
+                last_matched = datetime.fromisoformat(
+                    last_matched_str.replace("Z", "+00:00")
+                )
                 if last_matched < threshold:
                     # キー形式: "resource_type:category:pattern" または "category:pattern"
                     parts = key.split(":")
@@ -395,9 +393,10 @@ def match_known_default(
 
     path_end = check_path.split(".")[-1]
     for default_path, default_value, description in known_defaults:
-        if path_end == default_path or check_path.endswith(default_path):
-            if value == default_value:
-                return description
+        if (
+            path_end == default_path or check_path.endswith(default_path)
+        ) and value == default_value:
+            return description
     return None
 
 
@@ -494,7 +493,7 @@ class BicepFileCache:
         for bicep_file in bicep_path.rglob("*.bicep"):
             try:
                 self._cache[str(bicep_file)] = bicep_file.read_text(encoding="utf-8")
-            except (IOError, UnicodeDecodeError):
+            except OSError, UnicodeDecodeError:
                 continue
 
         return self._cache
@@ -676,7 +675,9 @@ def find_array_element_range(
     for i in range(start_search, len(lines)):
         line = lines[i]
         stripped = line.strip()
-        if stripped.startswith(f"{array_name}:") or stripped.startswith(f"{array_name} :"):
+        if stripped.startswith(f"{array_name}:") or stripped.startswith(
+            f"{array_name} :"
+        ):
             array_start_idx = i
             break
 
@@ -702,7 +703,7 @@ def find_array_element_range(
     for i in range(bracket_start_idx, len(lines)):
         line = lines[i]
 
-        for char_idx, char in enumerate(line):
+        for _char_idx, char in enumerate(line):
             if char == "[" and i == bracket_start_idx:
                 # 配列の開始
                 continue
@@ -916,12 +917,11 @@ def find_bicep_definition(
                         continue
 
                     # 配列インデックスがある場合、特定の要素内にあるか検証
-                    if array_indices:
-                        if not is_inside_array_element(
-                            lines, line_num, array_indices, resource_ranges
-                        ):
-                            matches.append(match_info)
-                            continue
+                    if array_indices and not is_inside_array_element(
+                        lines, line_num, array_indices, resource_ranges
+                    ):
+                        matches.append(match_info)
+                        continue
 
                     context_matches.append(match_info)
                 else:
@@ -1020,7 +1020,7 @@ def get_azd_env_values() -> dict[str, str]:
                 # クォートを除去
                 values[key] = value.strip("\"'")
         return values
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except subprocess.CalledProcessError, FileNotFoundError:
         return {}
 
 
@@ -1309,7 +1309,7 @@ def run_what_if(
         try:
             return json.loads(result.stdout)
         except json.JSONDecodeError:
-            raise RuntimeError(f"what-if failed: {result.stderr}")
+            raise RuntimeError(f"what-if failed: {result.stderr}") from None
 
     return json.loads(result.stdout)
 
@@ -1509,9 +1509,7 @@ def normalize_unsupported_extension_resource(
         return None
 
     extension_name = extension_type.split("/")[-1]
-    normalized_resource_id = (
-        f"{scope_id}/providers/{extension_type}/<dynamic>"
-    )
+    normalized_resource_id = f"{scope_id}/providers/{extension_type}/<dynamic>"
     resource_type = f"{scope_type}/providers/{extension_name}"
     resource_name = "<dynamic>"
     return normalized_resource_id, resource_type, resource_name
@@ -1531,7 +1529,10 @@ def is_known_acr_acrpull_unsupported(change: dict[str, Any]) -> bool:
         return False
 
     resource_type = str(change.get("resourceType", "")).lower()
-    if resource_type != "microsoft.containerregistry/registries/providers/roleassignments":
+    if (
+        resource_type
+        != "microsoft.containerregistry/registries/providers/roleassignments"
+    ):
         return False
 
     original_resource_id = str(change.get("originalResourceId", "")).lower()
@@ -1632,9 +1633,7 @@ def extract_resource_changes(
         }
 
         # Create false positive 判定
-        change_entry["likelyFalsePositive"] = is_create_false_positive(
-            change_entry
-        )
+        change_entry["likelyFalsePositive"] = is_create_false_positive(change_entry)
 
         changes.append(change_entry)
 
@@ -1719,7 +1718,7 @@ def build_output(
             "template": template,
             "location": location,
             "bicepDir": bicep_dir,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
         "summary": summary,
         "createFalsePositives": create_false_positives,
@@ -1772,7 +1771,10 @@ class DisplayConfigLoader:
                 self._data = json.load(f)
         except (FileNotFoundError, json.JSONDecodeError) as e:
             logger.warning("Failed to load display config file: %s", e)
-            self._data = {"resource_type_display_names": {}, "filtered_resource_types": []}
+            self._data = {
+                "resource_type_display_names": {},
+                "filtered_resource_types": [],
+            }
 
         return self._data
 
@@ -1941,9 +1943,7 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
 
     # text 出力対象をフィルタリング
     display_candidates = [
-        c
-        for c in output_data["changes"]
-        if should_show_resource_in_text_output(c)
+        c for c in output_data["changes"] if should_show_resource_in_text_output(c)
     ]
 
     # Create false positive をフィルタ（件数は記録）
