@@ -71,6 +71,11 @@ ignore = [
   "S603", # subprocess invocations
   "T201", # print is the intended UX for CLI scripts
 ]
+# Hook scripts: same operational profile as scripts/.
+".github/hooks/scripts/**/*.py" = [
+  "S603", # subprocess invocations
+  "T201",
+]
 
 [tool.ty.environment]
 python-version = "3.14"

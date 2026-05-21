@@ -24,6 +24,14 @@ from shutil import which
 COMMAND_TIMEOUT_SEC = 45
 MAX_OUTPUT_CHARS = 1600
 MAX_CONTEXT_CHARS = 4000
+MAX_BICEP_WARNINGS = 10
+
+# Substrings that mark `az bicep build` stderr lines as tool-side notices
+# (e.g. CLI upgrade hints) rather than code diagnostics.
+IGNORE_BICEP_NOTICE_PATTERNS: tuple[str, ...] = (
+    "A new Bicep release is available",
+    "Upgrade now by running",
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -249,6 +257,45 @@ def _normalize_eol(content: bytes, eol: bytes) -> bytes:
     return unified.replace(b"\n", b"\r\n")
 
 
+def _is_bicep_notice(line: str) -> bool:
+    return any(pattern in line for pattern in IGNORE_BICEP_NOTICE_PATTERNS)
+
+
+def extract_bicep_warnings(result: CommandResult) -> list[str]:
+    """Pick `Warning` diagnostic lines from a successful bicep build run.
+
+    Tool-side notices (CLI upgrade hints, etc.) are filtered out so only
+    actionable code diagnostics surface to the agent.
+    """
+
+    warnings: list[str] = []
+    for raw_line in result.stderr.splitlines():
+        line = raw_line.strip()
+        if not line or "Warning" not in line:
+            continue
+        if _is_bicep_notice(line):
+            continue
+        warnings.append(line)
+
+    if len(warnings) <= MAX_BICEP_WARNINGS:
+        return warnings
+
+    truncated = warnings[:MAX_BICEP_WARNINGS]
+    remaining = len(warnings) - MAX_BICEP_WARNINGS
+    truncated.append(f"(+{remaining} more)")
+    return truncated
+
+
+def warnings_message(path: Path, warnings: list[str]) -> str:
+    joined = "\n".join(warnings)
+    summary = (
+        joined
+        if len(joined) <= MAX_OUTPUT_CHARS
+        else f"{joined[:MAX_OUTPUT_CHARS].rstrip()}..."
+    )
+    return f"Bicep build warnings for `{path}`:\n{summary}"
+
+
 def process_bicep(path: Path) -> list[str]:
     before = path.read_bytes()
     original_eol = _detect_eol(before)
@@ -269,6 +316,10 @@ def process_bicep(path: Path) -> list[str]:
         )
         if build_result.failed:
             messages.append(failure_message(path, build_result))
+        else:
+            warnings = extract_bicep_warnings(build_result)
+            if warnings:
+                messages.append(warnings_message(path, warnings))
 
     if path.exists() and path.read_bytes() != before:
         messages.append(file_changed_message(path))
