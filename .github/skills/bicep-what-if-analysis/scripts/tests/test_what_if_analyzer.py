@@ -108,7 +108,11 @@ class TestContainsArmReference(unittest.TestCase):
 
     def test_resourceid_function(self) -> None:
         """resourceId() 関数を検出"""
-        self.assertTrue(contains_arm_reference("[resourceId('Microsoft.Network/virtualNetworks', 'vnet')]"))
+        self.assertTrue(
+            contains_arm_reference(
+                "[resourceId('Microsoft.Network/virtualNetworks', 'vnet')]"
+            )
+        )
 
     def test_plain_string(self) -> None:
         """通常の文字列は検出しない"""
@@ -306,7 +310,10 @@ class TestDisplayConfigLoader(unittest.TestCase):
         """表示名を読み込める"""
         loader = DisplayConfigLoader()
         names = loader.get_display_names()
-        self.assertEqual(names.get("Microsoft.ContainerService/managedClusters"), "AKS Managed Cluster")
+        self.assertEqual(
+            names.get("Microsoft.ContainerService/managedClusters"),
+            "AKS Managed Cluster",
+        )
 
     def test_load_filtered_types(self) -> None:
         """フィルタリング対象を読み込める"""
@@ -622,7 +629,10 @@ class TestIsCreateFalsePositive(unittest.TestCase):
             "resourceName": "vnet-new",
             "resourceId": "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/virtualNetworks/vnet-new",
             "beforeState": None,
-            "afterState": {"type": "Microsoft.Network/virtualNetworks", "name": "vnet-new"},
+            "afterState": {
+                "type": "Microsoft.Network/virtualNetworks",
+                "name": "vnet-new",
+            },
             "propertyChanges": [],
         }
         self.assertFalse(is_create_false_positive(change))
@@ -753,6 +763,7 @@ class TestFormatAzdStyleOutputFalsePositive(unittest.TestCase):
         self.assertNotIn("exp-aks-pod-failure", result)
         self.assertIn("aks-test", result)
         self.assertIn("1 件の Create を非表示", result)
+
     def test_no_summary_when_no_false_positives(self) -> None:
         """false positive がない場合はサマリー行なし"""
         output_data = {
@@ -781,12 +792,11 @@ class TestParseAzureYamlLayers(unittest.TestCase):
     """parse_azure_yaml_layers のテスト"""
 
     def _write_yaml(self, content: str) -> str:
-        f = tempfile.NamedTemporaryFile(
+        with tempfile.NamedTemporaryFile(
             mode="w", suffix=".yaml", delete=False, encoding="utf-8"
-        )
-        f.write(content)
-        f.close()
-        return f.name
+        ) as f:
+            f.write(content)
+            return f.name
 
     def test_repo_format(self) -> None:
         """本リポと同じ multi-layer 形式を解析できる"""
@@ -824,10 +834,7 @@ class TestParseAzureYamlLayers(unittest.TestCase):
     def test_quoted_values_stripped(self) -> None:
         """quote を剥がす"""
         path = self._write_yaml(
-            "infra:\n"
-            "  layers:\n"
-            '    - name: "base"\n'
-            "      path: './infra'\n"
+            "infra:\n  layers:\n    - name: \"base\"\n      path: './infra'\n"
         )
         self.assertEqual(
             parse_azure_yaml_layers(path), [{"name": "base", "path": "./infra"}]
@@ -848,10 +855,7 @@ class TestParseAzureYamlLayers(unittest.TestCase):
     def test_path_first_then_name(self) -> None:
         """- path: で項目が始まり次に name: の形式も解析できる"""
         path = self._write_yaml(
-            "infra:\n"
-            "  layers:\n"
-            "    - path: ./infra/sli\n"
-            "      name: sli\n"
+            "infra:\n  layers:\n    - path: ./infra/sli\n      name: sli\n"
         )
         self.assertEqual(
             parse_azure_yaml_layers(path), [{"name": "sli", "path": "./infra/sli"}]
@@ -919,12 +923,11 @@ class TestGetBicepParamNames(unittest.TestCase):
     """get_bicep_param_names のテスト"""
 
     def _write_bicep(self, content: str) -> str:
-        f = tempfile.NamedTemporaryFile(
+        with tempfile.NamedTemporaryFile(
             mode="w", suffix=".bicep", delete=False, encoding="utf-8"
-        )
-        f.write(content)
-        f.close()
-        return f.name
+        ) as f:
+            f.write(content)
+            return f.name
 
     def test_extracts_params(self) -> None:
         """param 宣言を抽出する"""
@@ -942,10 +945,7 @@ class TestGetBicepParamNames(unittest.TestCase):
 
     def test_skips_commented_param(self) -> None:
         """コメント行内の 'param' は拾わない"""
-        path = self._write_bicep(
-            "// param disabled string\n"
-            "param environment string\n"
-        )
+        path = self._write_bicep("// param disabled string\nparam environment string\n")
         self.assertEqual(get_bicep_param_names(path), {"environment"})
 
     def test_missing_template(self) -> None:
@@ -957,12 +957,11 @@ class TestResolveParametersFilePlaceholders(unittest.TestCase):
     """resolve_parameters_file_placeholders のテスト"""
 
     def _write_params(self, data: dict) -> str:
-        f = tempfile.NamedTemporaryFile(
+        with tempfile.NamedTemporaryFile(
             mode="w", suffix=".json", delete=False, encoding="utf-8"
-        )
-        json.dump(data, f)
-        f.close()
-        return f.name
+        ) as f:
+            json.dump(data, f)
+            return f.name
 
     def test_resolves_env_var(self) -> None:
         """${VAR} を env から解決する"""
@@ -974,9 +973,7 @@ class TestResolveParametersFilePlaceholders(unittest.TestCase):
                 }
             }
         )
-        result = resolve_parameters_file_placeholders(
-            path, {"AZURE_ENV_NAME": "eval"}
-        )
+        result = resolve_parameters_file_placeholders(path, {"AZURE_ENV_NAME": "eval"})
         self.assertEqual(result, {"environment": "eval"})
 
     def test_uses_default_when_env_missing(self) -> None:
@@ -989,9 +986,7 @@ class TestResolveParametersFilePlaceholders(unittest.TestCase):
 
     def test_skips_when_no_env_no_default(self) -> None:
         """env も default もなければ含めない (file の literal がそのまま渡る)"""
-        path = self._write_params(
-            {"parameters": {"x": {"value": "${MISSING_VAR}"}}}
-        )
+        path = self._write_params({"parameters": {"x": {"value": "${MISSING_VAR}"}}})
         self.assertEqual(resolve_parameters_file_placeholders(path, {}), {})
 
     def test_ignores_non_string_values(self) -> None:
@@ -1007,9 +1002,7 @@ class TestResolveParametersFilePlaceholders(unittest.TestCase):
                 }
             }
         )
-        result = resolve_parameters_file_placeholders(
-            path, {"AZURE_ENV_NAME": "eval"}
-        )
+        result = resolve_parameters_file_placeholders(path, {"AZURE_ENV_NAME": "eval"})
         self.assertEqual(result, {"name": "eval"})
 
     def test_ignores_partial_placeholder(self) -> None:
@@ -1018,9 +1011,7 @@ class TestResolveParametersFilePlaceholders(unittest.TestCase):
             {"parameters": {"x": {"value": "prefix-${AZURE_ENV_NAME}-suffix"}}}
         )
         self.assertEqual(
-            resolve_parameters_file_placeholders(
-                path, {"AZURE_ENV_NAME": "eval"}
-            ),
+            resolve_parameters_file_placeholders(path, {"AZURE_ENV_NAME": "eval"}),
             {},
         )
 
@@ -1033,9 +1024,7 @@ class TestResolveParametersFilePlaceholders(unittest.TestCase):
     def test_default_with_empty_string(self) -> None:
         """${VAR:} (空 default) は空文字列を返す"""
         path = self._write_params({"parameters": {"x": {"value": "${VAR:}"}}})
-        self.assertEqual(
-            resolve_parameters_file_placeholders(path, {}), {"x": ""}
-        )
+        self.assertEqual(resolve_parameters_file_placeholders(path, {}), {"x": ""})
 
 
 class TestRunWhatIfCommandConstruction(unittest.TestCase):

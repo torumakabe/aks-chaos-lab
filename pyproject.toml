@@ -76,6 +76,15 @@ ignore = [
   "S603", # subprocess invocations
   "T201",
 ]
+# Skill operational scripts: subprocess and CLI print are intentional
+".github/skills/bicep-what-if-analysis/scripts/**/*.py" = [
+  "S603", # subprocess invocations against trusted CLI args
+  "T201", # print is the intended UX for the analyzer CLI
+]
+# Skill tests: temp paths in fixtures are acceptable
+".github/skills/bicep-what-if-analysis/scripts/tests/**/*.py" = [
+  "S108", # /tmp/... strings are passed only to mocked subprocesses
+]
 
 [tool.ty.environment]
 python-version = "3.14"
