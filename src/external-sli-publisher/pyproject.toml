@@ -2,7 +2,7 @@
 name = "external-sli-publisher"
 version = "0.1.0"
 description = "Azure Functions publisher for external Azure Monitor SLI signals"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
   "azure-functions>=2.1.0",
   "azure-identity>=1.24.0",
@@ -20,7 +20,7 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "ASYNC", "S", "B", "A", "C4", "T20", "SIM"]
@@ -39,7 +39,7 @@ ignore = ["E501", "S101"]
 ]
 
 [tool.ty.environment]
-python-version = "3.13"
+python-version = "3.14"
 
 [tool.ty.rules]
 unused-type-ignore-comment = "warn"
