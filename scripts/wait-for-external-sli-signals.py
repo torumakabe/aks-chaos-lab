@@ -300,9 +300,7 @@ def main() -> int:
         selector_inner = (
             f'environment="{env_name}",service="chaos-app",test="{probe_name}"'
         )
-        latency_le = (
-            get_env_value("AZURE_MONITOR_LATENCY_SLI_THRESHOLD_LE") or "1"
-        )
+        latency_le = get_env_value("AZURE_MONITOR_LATENCY_SLI_THRESHOLD_LE") or "1"
         latency_good_metric = "chaos_app_external_latency_good"
         query_range_minutes = env_int("EXTERNAL_SLI_WAIT_RANGE_MINUTES", 45)
         availability_query = (

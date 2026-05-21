@@ -44,7 +44,7 @@ SLI 作成後の destination metric は、SLI ARM resource の `destinationMetri
 
 Gateway Envoy 由来の `gateway:chaos_app:http_request_duration:p95` と `gateway:chaos_app:http_error_rate:ratio` は、短期診断用の recording rule として残します。Azure Monitor SLI の error budget 判定には使いません。
 
-SLI / SLO 系の判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md) と [ADR-013](adr/013-histogram-bucket-latency-sli.md) を参照してください。Latency SLI のしきい値は SLI 定義 (`infra/modules/azmonitor/sli-definitions.bicep`) の `latencyThresholdLe` パラメータで決定し、publisher は単一 metric `chaos_app_external_latency_good` を `le` ラベル付きで bucket 別に emit します。
+SLI / SLO 系の判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md) と [ADR-014](adr/014-histogram-bucket-latency-sli.md) を参照してください。Latency SLI のしきい値は SLI 定義 (`infra/modules/azmonitor/sli-definitions.bicep`) の `latencyThresholdLe` パラメータで決定し、publisher は単一 metric `chaos_app_external_latency_good` を `le` ラベル付きで bucket 別に emit します。
 
 ## エンドポイントと L7 policy
 

@@ -1,4 +1,4 @@
-# ADR-013: Latency SLI を histogram bucket + `EQ` filter 方式に変更する
+# ADR-014: Latency SLI を histogram bucket + `EQ` filter 方式に変更する
 
 ## Status
 

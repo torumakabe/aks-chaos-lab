@@ -75,7 +75,7 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
   - **operator**: spec が宣言する wire value (`==`, `!=`, `<`, `<=`, `>`, `>=`, `@in`, `!in`, `startswith`, `!startswith`, `contains`, `!contains`) および x-ms-enum SDK 名 (`Equal`, `LessThanOrEqual` 等) はいずれも ARM が `MalformedStructureError` で拒否する。実装が受理するのは `EQ` / `Eq` / `In` / `NotIn` / `NotContains` / `NotStartsWith` / `contains` / `startswith` のみで、Microsoft Learn の SLI 概念ドキュメントにも DSL 解説が無いため、Bicep / Terraform / REST / SDK ユーザーが正規ルートで正解の operator 名を得られない。本リポジトリでは `EQ` を string equality 比較として bucket 選択に使用する。
   - **value プロパティ**: spec 通り `values: ["1"]` を送ると `ObjectMissingRequiredProperty: value` + `ObjectAdditionalProperties: values` で拒否される。実装はスカラー `value: "1"` のみ受理し、`GET` 応答も `"value": "1"` で返す。spec の `required: ["values"]` 宣言と完全に矛盾しており、これも公開ドキュメント上は触れられていない。
   - 2026-05-21 の eval 環境 `azd provision sli` で両 mismatch を実機確認 (test SLI 8 個での enum 網羅 PUT + 本番 SLI provision)。
-- **場所**: `infra/modules/azmonitor/sli-definitions.bicep` (`latencyGoodFilters` 変数)、ADR-013
+- **場所**: `infra/modules/azmonitor/sli-definitions.bicep` (`latencyGoodFilters` 変数)、ADR-014
 - **解消条件**: spec / 実装のいずれかが修正され、宣言通りの operator wire value (`==` 等) と `values` array で provision が通るようになる、もしくは現行の受理形 (`EQ` / `Eq` 等 + scalar `value`) が公式ドキュメントに明記される。
 - **確認方法**: spec 修正後、operator と value プロパティを spec 通りの形に置き換えて `azd provision sli` が `MalformedStructureError` / `ObjectMissingRequiredProperty` を出さずに通るか確認する。
 - **最終確認**: 2026-05-21、Azure/azure-rest-api-specs に [issue #43415](https://github.com/Azure/azure-rest-api-specs/issues/43415) として spec/実装乖離 (operator + value プロパティ) およびドキュメント不在を報告済み。`value` scalar mismatch は同 issue の[追加コメント](https://github.com/Azure/azure-rest-api-specs/issues/43415#issuecomment-4505825808)で報告。upstream 対応待ち。

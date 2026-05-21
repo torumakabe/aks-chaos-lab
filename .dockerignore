@@ -1,0 +1,43 @@
+# Build context = repository root. Used by src/api/Dockerfile.
+# Keep this aggressive: only files explicitly COPYed should land in build layers,
+# but reducing the unused context speeds the initial transfer.
+
+# VCS / editor
+.git/
+.github/
+.vscode/
+.idea/
+
+# Virtualenvs and Python caches
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/*.egg-info/
+
+# Test / coverage / cache artifacts
+**/.pytest_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+**/dist/
+**/build/
+
+# Infra / docs / non-API code that the API image does not need
+docs/
+infra/
+k8s/
+scripts/
+tests/
+# Exclude publisher source/tests but keep its pyproject.toml so the Dockerfile
+# can resolve the workspace lockfile (uv requires every member's manifest).
+src/external-sli-publisher/*
+!src/external-sli-publisher/pyproject.toml
+
+# Logs and local files
+**/*.log
+**/.env*
+.DS_Store
+Thumbs.db

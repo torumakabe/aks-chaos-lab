@@ -52,7 +52,7 @@ param latencyGoodMetricName string = 'chaos_app_external_latency_good'
 @description('Metric name for the request-based Latency SLI total signal (probe observation count).')
 param latencyTotalMetricName string = 'chaos_app_external_latency_total'
 
-@description('Threshold for the Latency SLI good signal, expressed as the upper-bound `le` of a bucket (seconds). Must exactly match a bucket label emitted by the publisher. Changing this value re-points the SLI to a different `le` bucket via a dimension filter, without redeploying the publisher (ADR-013).')
+@description('Threshold for the Latency SLI good signal, expressed as the upper-bound `le` of a bucket (seconds). Must exactly match a bucket label emitted by the publisher. Changing this value re-points the SLI to a different `le` bucket via a dimension filter, without redeploying the publisher (ADR-014).')
 @allowed([
   '0.1'
   '0.25'
@@ -93,7 +93,7 @@ var sourceSignalIdentityProperties = {
 // rejects the operator wire values declared in its OpenAPI spec (`==`,
 // `<=`, etc.) but accepts the undocumented PascalCase value `EQ`. The
 // service also rejects the spec's `values` array property and instead
-// requires the undocumented scalar `value`. See ADR-013 and the upstream
+// requires the undocumented scalar `value`. See ADR-014 and the upstream
 // Azure/azure-rest-api-specs issue.
 var latencyGoodFilters = [
   {
