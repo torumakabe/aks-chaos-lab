@@ -35,7 +35,7 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 ### A-2. `scripts/wait-for-external-sli-signals.py` で external SLI metric 出力待機
 
-- **概要**: `sli` layer の `preprovision` hook で、Managed Prometheus 上に `chaos_app_external_availability_total` と `chaos_app_external_latency_total` が出るまで待つ。`postprovision` hook では `--skip-source --require-sli-destination` を付け、Azure Monitor SLI destination `:Value` metric まで確認する。
+- **概要**: `sli` layer の `preprovision` hook で、Managed Prometheus 上に `chaos_app_external_availability_total`、`chaos_app_external_latency_total`、および `latencyThresholdLe` に対応する `chaos_app_external_latency_good{le="<latencyThresholdLe>"}` が出るまで待つ。`postprovision` hook では `--skip-source --require-sli-destination` を付け、Azure Monitor SLI destination `:Value` metric まで確認する。
 - **理由**: A-1 と同じ。SLI 作成前に external SLI input metrics が materialize されている必要がある。SLI 作成後は input metric だけでは end-to-end 検証にならないため、destination metric を別途確認する。
 - **場所**: `scripts/wait-for-external-sli-signals.py`、`azure.yaml`
 - **解消条件**: A-1 と同じ。
@@ -67,6 +67,18 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: Service Group RBAC が Azure RBAC の path 継承に揃う、または親 Service Group からの継承で SLI 作成が許可される。
 - **確認方法**: 親 Service Group の Contributor のみを付与し、子 Service Group での SLI 作成が通るか確認する。
 - **最終確認**: 2026-05-17、親 Service Group Contributor のみでは `Microsoft.Monitor/slis/write` が AuthorizationFailed。削除不可。
+
+### A-7. Latency SLI の dimension filter で未文書化演算子 `EQ` と未文書化スカラー `value` を使用
+
+- **概要**: `infra/modules/azmonitor/sli-definitions.bicep` の Latency SLI good signal の filter で、(1) operator に `EQ` を指定、(2) 値プロパティとして spec 宣言の `values: string[]` (array, required) ではなくスカラー `value: string` を指定している。いずれも `Microsoft.Monitor/slis@2025-03-01-preview` の OpenAPI spec / Bicep auto-gen template reference / 生成済み SDK のどこにも記載されていない。
+- **理由**:
+  - **operator**: spec が宣言する wire value (`==`, `!=`, `<`, `<=`, `>`, `>=`, `@in`, `!in`, `startswith`, `!startswith`, `contains`, `!contains`) および x-ms-enum SDK 名 (`Equal`, `LessThanOrEqual` 等) はいずれも ARM が `MalformedStructureError` で拒否する。実装が受理するのは `EQ` / `Eq` / `In` / `NotIn` / `NotContains` / `NotStartsWith` / `contains` / `startswith` のみで、Microsoft Learn の SLI 概念ドキュメントにも DSL 解説が無いため、Bicep / Terraform / REST / SDK ユーザーが正規ルートで正解の operator 名を得られない。本リポジトリでは `EQ` を string equality 比較として bucket 選択に使用する。
+  - **value プロパティ**: spec 通り `values: ["1"]` を送ると `ObjectMissingRequiredProperty: value` + `ObjectAdditionalProperties: values` で拒否される。実装はスカラー `value: "1"` のみ受理し、`GET` 応答も `"value": "1"` で返す。spec の `required: ["values"]` 宣言と完全に矛盾しており、これも公開ドキュメント上は触れられていない。
+  - 2026-05-21 の eval 環境 `azd provision sli` で両 mismatch を実機確認 (test SLI 8 個での enum 網羅 PUT + 本番 SLI provision)。
+- **場所**: `infra/modules/azmonitor/sli-definitions.bicep` (`latencyGoodFilters` 変数)、ADR-014
+- **解消条件**: spec / 実装のいずれかが修正され、宣言通りの operator wire value (`==` 等) と `values` array で provision が通るようになる、もしくは現行の受理形 (`EQ` / `Eq` 等 + scalar `value`) が公式ドキュメントに明記される。
+- **確認方法**: spec 修正後、operator と value プロパティを spec 通りの形に置き換えて `azd provision sli` が `MalformedStructureError` / `ObjectMissingRequiredProperty` を出さずに通るか確認する。
+- **最終確認**: 2026-05-21、Azure/azure-rest-api-specs に [issue #43415](https://github.com/Azure/azure-rest-api-specs/issues/43415) として spec/実装乖離 (operator + value プロパティ) およびドキュメント不在を報告済み。`value` scalar mismatch は同 issue の[追加コメント](https://github.com/Azure/azure-rest-api-specs/issues/43415#issuecomment-4505825808)で報告。upstream 対応待ち。
 
 ---
 

@@ -13,5 +13,6 @@
 | 009 | [Azure Monitor SLI と Prometheus operational alerts の役割分担](009-azure-monitor-sli-and-prometheus-slo.md) | Accepted | 2026-05-01 |
 | 010 | [AKS Automatic は本リポジトリで非サポート (Deployment Safeguards が chaos-mesh と非互換)](010-aks-automatic-unsupported-due-to-deployment-safeguards.md) | Accepted | 2026-05-06 |
 | 011 | [外形 availability test を Azure Monitor SLI の正本にする](011-external-availability-sli-publisher.md) | Superseded | 2026-05-19 |
-| 012 | [Azure Functions direct probe を Azure Monitor SLI の正本にする](012-functions-direct-external-sli-probe.md) | Accepted | 2026-05-20 |
+| 012 | [Azure Functions direct probe を Azure Monitor SLI の正本にする](012-functions-direct-external-sli-probe.md) | Accepted (Latency 部分は ADR-014 で amend) | 2026-05-20 |
 | 013 | [uv workspace でツーリングを統一しつつデプロイ単位は分離維持](013-uv-workspace-unified-tooling.md) | Accepted | 2026-05-21 |
+| 014 | [Latency SLI を histogram bucket + `EQ` filter 方式に変更する](014-histogram-bucket-latency-sli.md) | Accepted | 2026-05-21 |

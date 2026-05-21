@@ -47,6 +47,9 @@
     "latencyBaselineTargetPercent": {
       "value": 95
     },
+    "latencyThresholdLe": {
+      "value": "1"
+    },
     "evaluationPeriodDays": {
       "value": 7
     },

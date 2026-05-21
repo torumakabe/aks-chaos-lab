@@ -31,6 +31,24 @@ TRACER = trace.get_tracer(__name__)
 UrlOpen = Callable[..., Any]
 Clock = Callable[[], float]
 
+# Latency threshold buckets used to emit "good" samples per `le` boundary.
+# Each entry is `(label_string, seconds_float)`. The publisher emits one
+# sample per bucket per window with label `le=<label_string>`; the SLI
+# definition picks which bucket to evaluate via a `dimensionName=le,
+# operator=EQ, values=[<threshold>]` filter. Changing the SLO threshold
+# therefore does not require redeploying the publisher. See ADR-014.
+LATENCY_BUCKETS: tuple[tuple[str, float], ...] = (
+    ("0.1", 0.1),
+    ("0.25", 0.25),
+    ("0.5", 0.5),
+    ("1", 1.0),
+    ("2", 2.0),
+    ("5", 5.0),
+)
+MAX_BUCKET_SECONDS: float = max(seconds for _, seconds in LATENCY_BUCKETS)
+LATENCY_GOOD_METRIC = "chaos_app_external_latency_good"
+LATENCY_TOTAL_METRIC = "chaos_app_external_latency_total"
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -42,15 +60,15 @@ class Settings:
     environment: str
     window_seconds: int
     probe_timeout_seconds: int
-    latency_threshold_ms: int
     max_catchup_windows: int
     not_before: datetime | None
 
     def __post_init__(self) -> None:
-        if self.probe_timeout_seconds * 1000 <= self.latency_threshold_ms:
+        if self.probe_timeout_seconds <= MAX_BUCKET_SECONDS:
             raise RuntimeError(
-                "EXTERNAL_SLI_PROBE_TIMEOUT_SECONDS must be greater than "
-                "EXTERNAL_SLI_LATENCY_THRESHOLD_MS"
+                "EXTERNAL_SLI_PROBE_TIMEOUT_SECONDS must be greater than the "
+                f"largest latency bucket ({MAX_BUCKET_SECONDS:g}s) so successful "
+                "but slow probes can be observed in the top bucket"
             )
 
     @classmethod
@@ -64,7 +82,6 @@ class Settings:
             environment=os.environ.get("AZURE_ENV_NAME", "unknown"),
             window_seconds=env_int("EXTERNAL_SLI_WINDOW_SECONDS", 300),
             probe_timeout_seconds=env_int("EXTERNAL_SLI_PROBE_TIMEOUT_SECONDS", 10),
-            latency_threshold_ms=env_int("EXTERNAL_SLI_LATENCY_THRESHOLD_MS", 1000),
             max_catchup_windows=env_int("EXTERNAL_SLI_MAX_CATCHUP_WINDOWS", 12),
             not_before=optional_datetime("EXTERNAL_SLI_NOT_BEFORE_UTC"),
         )
@@ -86,9 +103,20 @@ class ProbeResult:
 
 @dataclass(frozen=True)
 class SliSamples:
+    """Aggregated SLI signal contribution for one publish operation.
+
+    `latency_buckets` is keyed by the `le` label string (e.g. "1") and stores
+    the count of probes whose duration <= that bucket boundary. Each bucket
+    is published as one sample of the single metric `LATENCY_GOOD_METRIC`
+    distinguished by the `le` label; see `LATENCY_BUCKETS` and
+    `metric_samples`. `latency_total` is the Latency SLI denominator
+    (== availability_total). We intentionally do not emit an average latency
+    because missed/failed windows would skew the mean.
+    """
+
     availability_good: int
     availability_total: int
-    latency_good: int
+    latency_buckets: dict[str, int]
     latency_total: int
 
 
@@ -252,20 +280,25 @@ def elapsed_ms(start: float, clock: Clock) -> int:
     return max(0, int((clock() - start) * 1000))
 
 
+def empty_latency_buckets() -> dict[str, int]:
+    return {le_label: 0 for le_label, _ in LATENCY_BUCKETS}
+
+
 def probe_result_to_sli_samples(
     result: ProbeResult,
-    settings: Settings,
+    settings: Settings,  # noqa: ARG001 — kept for API symmetry; threshold lives in SLI
 ) -> SliSamples:
     availability_good = 1 if result.success else 0
-    latency_good = (
-        1
-        if result.success and result.duration_ms <= settings.latency_threshold_ms
-        else 0
-    )
+    buckets = empty_latency_buckets()
+    if result.success:
+        duration_seconds = result.duration_ms / 1000.0
+        for le_label, le_seconds in LATENCY_BUCKETS:
+            if duration_seconds <= le_seconds:
+                buckets[le_label] = 1
     return SliSamples(
         availability_good=availability_good,
         availability_total=1,
-        latency_good=latency_good,
+        latency_buckets=buckets,
         latency_total=1,
     )
 
@@ -274,7 +307,7 @@ def missed_window_samples(count: int) -> SliSamples:
     return SliSamples(
         availability_good=0,
         availability_total=count,
-        latency_good=0,
+        latency_buckets=empty_latency_buckets(),
         latency_total=count,
     )
 
@@ -282,17 +315,18 @@ def missed_window_samples(count: int) -> SliSamples:
 def combine_sli_samples(samples: Iterable[SliSamples]) -> SliSamples:
     availability_good = 0
     availability_total = 0
-    latency_good = 0
     latency_total = 0
+    latency_buckets = empty_latency_buckets()
     for sample in samples:
         availability_good += sample.availability_good
         availability_total += sample.availability_total
-        latency_good += sample.latency_good
         latency_total += sample.latency_total
+        for le_label, value in sample.latency_buckets.items():
+            latency_buckets[le_label] = latency_buckets.get(le_label, 0) + value
     return SliSamples(
         availability_good=availability_good,
         availability_total=availability_total,
-        latency_good=latency_good,
+        latency_buckets=latency_buckets,
         latency_total=latency_total,
     )
 
@@ -376,7 +410,7 @@ def metric_samples(
 ) -> list[tuple[str, dict[str, str], float, int]]:
     labels = sli_labels(settings)
     sample_timestamp_ms = timestamp_ms(sample_time)
-    return [
+    samples: list[tuple[str, dict[str, str], float, int]] = [
         (
             "chaos_app_external_availability_good",
             labels,
@@ -390,18 +424,22 @@ def metric_samples(
             sample_timestamp_ms,
         ),
         (
-            "chaos_app_external_latency_good",
-            labels,
-            float(sli_samples.latency_good),
-            sample_timestamp_ms,
-        ),
-        (
-            "chaos_app_external_latency_total",
+            LATENCY_TOTAL_METRIC,
             labels,
             float(sli_samples.latency_total),
             sample_timestamp_ms,
         ),
     ]
+    for le_label, _ in LATENCY_BUCKETS:
+        samples.append(
+            (
+                LATENCY_GOOD_METRIC,
+                {**labels, "le": le_label},
+                float(sli_samples.latency_buckets.get(le_label, 0)),
+                sample_timestamp_ms,
+            )
+        )
+    return samples
 
 
 def heartbeat_sample(
@@ -529,7 +567,7 @@ def run_once(settings: Settings, now: datetime | None = None) -> int:
     last_window = windows[-1]
     save_last_published(blob, last_window.end)
     LOGGER.info(
-        "published external SLI probe windows start=%s end=%s count=%s sample_time=%s missed=%s status=%s duration_ms=%s availability_good=%s/%s latency_good=%s/%s",
+        "published external SLI probe windows start=%s end=%s count=%s sample_time=%s missed=%s status=%s duration_ms=%s availability_good=%s/%s latency_total=%s buckets=%s",
         format_state_datetime(windows[0].start),
         format_state_datetime(last_window.end),
         len(windows),
@@ -539,8 +577,8 @@ def run_once(settings: Settings, now: datetime | None = None) -> int:
         current_result.duration_ms,
         samples.availability_good,
         samples.availability_total,
-        samples.latency_good,
         samples.latency_total,
+        samples.latency_buckets,
     )
     if missed_window_count:
         LOGGER.info(

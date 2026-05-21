@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — Supersedes [ADR-011](011-external-availability-sli-publisher.md)
+Accepted — Supersedes [ADR-011](011-external-availability-sli-publisher.md). Latency SLI 部分は [ADR-014](014-histogram-bucket-latency-sli.md) で histogram bucket + `EQ` filter 方式に amend。
 
 ## Context
 

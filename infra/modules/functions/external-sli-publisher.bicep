@@ -40,15 +40,11 @@ param probeTimeoutSeconds int = 10
 
 @description('Publisher aggregation window size in seconds')
 @minValue(60)
-param publisherWindowSeconds int = 300
-
-@description('Maximum probe duration counted as good latency')
-@minValue(1)
-param latencyThresholdMs int = 1000
+param publisherWindowSeconds int = 60
 
 @description('Maximum closed windows published by one timer invocation')
 @minValue(1)
-param maxCatchupWindows int = 12
+param maxCatchupWindows int = 60
 
 @description('Maximum Flex Consumption scale-out instance count for the publisher')
 @minValue(40)
@@ -63,7 +59,7 @@ param maximumInstanceCount int = 40
 param instanceMemoryMB int = 2048
 
 @description('Timer schedule for the external SLI publisher')
-param publisherCronSchedule string = '0 */5 * * * *'
+param publisherCronSchedule string = '0 */1 * * * *'
 
 @description('Earliest window start that the publisher may emit. Prevents first deployment from backfilling pre-test windows as bad.')
 param signalNotBeforeUtc string = utcNow()
@@ -402,10 +398,6 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         {
           name: 'EXTERNAL_SLI_PROBE_TIMEOUT_SECONDS'
           value: '${probeTimeoutSeconds}'
-        }
-        {
-          name: 'EXTERNAL_SLI_LATENCY_THRESHOLD_MS'
-          value: '${latencyThresholdMs}'
         }
         {
           name: 'EXTERNAL_SLI_MAX_CATCHUP_WINDOWS'

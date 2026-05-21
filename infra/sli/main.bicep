@@ -49,6 +49,17 @@ param availabilityBaselineTargetPercent int = 99
 @maxValue(100)
 param latencyBaselineTargetPercent int = 95
 
+@description('Bucket boundary `le` label string used by the request-based Latency SLI good signal. Must match a bucket emitted by the publisher (e.g. "1" for 1 second).')
+@allowed([
+  '0.1'
+  '0.25'
+  '0.5'
+  '1'
+  '2'
+  '5'
+])
+param latencyThresholdLe string = '1'
+
 @description('Azure Monitor SLI evaluation period in days')
 @minValue(1)
 @maxValue(90)
@@ -116,6 +127,7 @@ module azureMonitorSliDefinitions '../modules/azmonitor/sli-definitions.bicep' =
     latencySliName: normalizedLatencySliName
     availabilityBaselineTargetPercent: availabilityBaselineTargetPercent
     latencyBaselineTargetPercent: latencyBaselineTargetPercent
+    latencyThresholdLe: latencyThresholdLe
     evaluationPeriodDays: evaluationPeriodDays
     windowSizeMinutes: windowSizeMinutes
     signalDimensions: signalDimensions
@@ -152,6 +164,9 @@ output AZURE_MONITOR_AVAILABILITY_SLI_ID string = canCreateSli ? azureMonitorSli
 @description('Azure Monitor Latency SLI resource ID')
 #disable-next-line BCP318
 output AZURE_MONITOR_LATENCY_SLI_ID string = canCreateSli ? azureMonitorSliDefinitions.outputs.latencySliId : ''
+
+@description('Bucket boundary `le` label string used by the Latency SLI good signal filter')
+output AZURE_MONITOR_LATENCY_SLI_THRESHOLD_LE string = latencyThresholdLe
 
 @description('Azure Monitor SLI baseline alert resource IDs')
 #disable-next-line BCP318
