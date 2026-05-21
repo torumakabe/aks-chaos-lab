@@ -22,7 +22,6 @@ ACTIONLINT_IMAGE = "rhysd/actionlint:1.7.12"
 KUBECONFORM_IMAGE = "ghcr.io/yannh/kubeconform:v0.7.0"
 K8S_VERSION = "1.33.0"
 KUBECONFORM_SKIP = "VerticalPodAutoscaler,CiliumNetworkPolicy,Kustomization,Gateway,HTTPRoute,Instrumentation"
-SCRIPT_RUFF_IGNORES = "S104,S310,S603,T201"
 
 
 def print_step(message: str) -> None:
@@ -53,13 +52,6 @@ def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env.setdefault("PYTHONUTF8", "1")
     if extra:
         env.update(extra)
-    return env
-
-
-def pythonpath_env() -> dict[str, str]:
-    env = child_env()
-    existing = env.get("PYTHONPATH")
-    env["PYTHONPATH"] = f".{os.pathsep}{existing}" if existing else "."
     return env
 
 
@@ -104,18 +96,30 @@ def command_output(
     return completed.stdout.strip()
 
 
-def run_uv_api(args: Sequence[str], *, env: dict[str, str] | None = None) -> None:
-    run(["uv", "run", *args], cwd=API_DIR, env=env)
+def run_uv(args: Sequence[str], *, env: dict[str, str] | None = None) -> None:
+    """Run a command in the workspace venv from the repository root."""
+    run(["uv", "run", *args], cwd=ROOT, env=env)
 
 
-def run_uv_api_dev(args: Sequence[str], *, env: dict[str, str] | None = None) -> None:
-    run(["uv", "run", "--group", "dev", *args], cwd=API_DIR, env=env)
-
-
-def run_uv_publisher_dev(
-    args: Sequence[str], *, env: dict[str, str] | None = None
+def run_uv_in(
+    cwd: Path,
+    args: Sequence[str],
+    *,
+    env: dict[str, str] | None = None,
 ) -> None:
-    run(["uv", "run", "--group", "dev", *args], cwd=PUBLISHER_DIR, env=env)
+    """Run a command in the workspace venv from a specific subdirectory.
+
+    Used for pytest invocations that rely on the subpackage's pytest config and
+    PYTHONPATH layout (e.g. `tests/` discovering `app/` via cwd-based imports).
+    """
+    run(["uv", "run", *args], cwd=cwd, env=env)
+
+
+def pythonpath_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    env = child_env(extra)
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = f".{os.pathsep}{existing}" if existing else "."
+    return env
 
 
 def docker_mount(path: Path, target: str) -> str:
@@ -131,135 +135,74 @@ def target_help() -> None:
 
 
 def target_install() -> None:
-    print_step("Installing application development dependencies")
-    run(["uv", "sync", "--all-groups"], cwd=API_DIR)
-    run(["uv", "sync", "--all-groups"], cwd=PUBLISHER_DIR)
+    print_step("Installing workspace development dependencies")
+    run(["uv", "sync", "--all-packages", "--all-groups"])
     print_success("Dependencies installed")
 
 
 def target_sync() -> None:
-    print_step("Syncing application dependencies")
-    run(["uv", "sync"], cwd=API_DIR)
-    run(["uv", "sync"], cwd=PUBLISHER_DIR)
+    print_step("Syncing workspace dependencies (runtime only)")
+    run(["uv", "sync", "--all-packages"])
     print_success("Dependencies synced")
 
 
 def target_sync_dev() -> None:
-    print_step("Syncing application development dependencies")
-    run(["uv", "sync", "--group", "dev"], cwd=API_DIR)
-    run(["uv", "sync", "--group", "dev"], cwd=PUBLISHER_DIR)
+    print_step("Syncing workspace development dependencies")
+    run(["uv", "sync", "--all-packages", "--all-groups"])
     print_success("Development dependencies synced")
 
 
-def target_format_api() -> None:
-    print_step("Formatting API code")
-    run_uv_api_dev(["ruff", "format", "app/", "tests/"])
-    print_success("API code formatted")
+# ---------------------------------------------------------------------------
+# Lint / format / typecheck — unified workspace invocations
+# ---------------------------------------------------------------------------
 
-
-def target_format_publisher() -> None:
-    print_step("Formatting external SLI publisher code")
-    run_uv_publisher_dev(["ruff", "format", "external_sli_publisher/", "tests/"])
-    print_success("External SLI publisher code formatted")
+LINT_PATHS = ["src", "scripts"]
 
 
 def target_format() -> None:
-    target_format_api()
-    target_format_publisher()
-    print_success("Application code formatted")
-
-
-def target_format_api_check() -> None:
-    print_step("Checking API code format")
-    run_uv_api_dev(["ruff", "format", "app/", "tests/", "--check"])
-    print_success("API format check passed")
-
-
-def target_format_publisher_check() -> None:
-    print_step("Checking external SLI publisher code format")
-    run_uv_publisher_dev(
-        ["ruff", "format", "external_sli_publisher/", "tests/", "--check"]
-    )
-    print_success("External SLI publisher format check passed")
+    print_step("Formatting workspace Python code")
+    run_uv(["ruff", "format", *LINT_PATHS])
+    print_success("Code formatted")
 
 
 def target_format_check() -> None:
-    target_format_api_check()
-    target_format_publisher_check()
-    print_success("Application format check passed")
-
-
-def target_lint_api() -> None:
-    print_step("Linting API code")
-    run_uv_api_dev(["ruff", "check", "app/", "--fix"], env=pythonpath_env())
-    print_success("API lint passed")
-
-
-def target_lint_publisher() -> None:
-    print_step("Linting external SLI publisher code")
-    run_uv_publisher_dev(
-        ["ruff", "check", "external_sli_publisher/", "tests/", "--fix"],
-        env=pythonpath_env(),
-    )
-    print_success("External SLI publisher lint passed")
+    print_step("Checking workspace Python format")
+    run_uv(["ruff", "format", "--check", *LINT_PATHS])
+    print_success("Format check passed")
 
 
 def target_lint() -> None:
-    target_lint_api()
-    target_lint_publisher()
-    print_success("Application lint passed")
-
-
-def target_lint_api_check() -> None:
-    print_step("Checking API lint")
-    run_uv_api_dev(["ruff", "check", "app/"], env=pythonpath_env())
-    print_success("API lint check passed")
-
-
-def target_lint_publisher_check() -> None:
-    print_step("Checking external SLI publisher lint")
-    run_uv_publisher_dev(
-        ["ruff", "check", "external_sli_publisher/", "tests/"],
-        env=pythonpath_env(),
-    )
-    print_success("External SLI publisher lint check passed")
+    print_step("Linting workspace Python code")
+    run_uv(["ruff", "check", "--fix", *LINT_PATHS])
+    print_success("Lint passed")
 
 
 def target_lint_check() -> None:
-    target_lint_api_check()
-    target_lint_publisher_check()
-    print_success("Application lint check passed")
-
-
-def target_typecheck_api() -> None:
-    print_step("Type checking API code")
-    run_uv_api_dev(["ty", "check", "app/", "tests/"], env=pythonpath_env())
-    print_success("API type check passed")
-
-
-def target_typecheck_publisher() -> None:
-    print_step("Type checking external SLI publisher code")
-    run_uv_publisher_dev(
-        ["ty", "check", "external_sli_publisher/", "tests/"], env=pythonpath_env()
-    )
-    print_success("External SLI publisher type check passed")
+    print_step("Checking workspace Python lint")
+    run_uv(["ruff", "check", *LINT_PATHS])
+    print_success("Lint check passed")
 
 
 def target_typecheck() -> None:
-    target_typecheck_api()
-    target_typecheck_publisher()
-    print_success("Application type check passed")
+    print_step("Type checking workspace Python code")
+    run_uv(["ty", "check", *LINT_PATHS])
+    print_success("Type check passed")
+
+
+# ---------------------------------------------------------------------------
+# Tests — kept per subpackage because their pytest config and import roots differ
+# ---------------------------------------------------------------------------
 
 
 def target_test_api() -> None:
     print_step("Running API unit tests")
-    run_uv_api_dev(["pytest", "tests/unit/", "-q"], env=pythonpath_env())
+    run_uv_in(API_DIR, ["pytest", "tests/unit/", "-q"], env=pythonpath_env())
     print_success("API unit tests passed")
 
 
 def target_test_publisher() -> None:
     print_step("Running external SLI publisher unit tests")
-    run_uv_publisher_dev(["pytest", "tests/unit/", "-q"], env=pythonpath_env())
+    run_uv_in(PUBLISHER_DIR, ["pytest", "tests/unit/", "-q"], env=pythonpath_env())
     print_success("External SLI publisher unit tests passed")
 
 
@@ -271,7 +214,8 @@ def target_test() -> None:
 
 def target_test_cov() -> None:
     print_step("Running API unit tests with coverage")
-    run_uv_api_dev(
+    run_uv_in(
+        API_DIR,
         [
             "pytest",
             "tests/unit/",
@@ -286,7 +230,7 @@ def target_test_cov() -> None:
 
 def target_test_integration() -> None:
     print_step("Running API integration tests")
-    run_uv_api_dev(["pytest", "tests/integration/", "-q"], env=pythonpath_env())
+    run_uv_in(API_DIR, ["pytest", "tests/integration/", "-q"], env=pythonpath_env())
     print_success("Integration tests passed")
 
 
@@ -295,47 +239,9 @@ def target_test_all() -> None:
     target_test_integration()
 
 
-def target_format_scripts() -> None:
-    print_step("Formatting repository scripts")
-    run_uv_api_dev(["ruff", "format", "../../scripts", "--config", "pyproject.toml"])
-    print_success("Script formatting complete")
-
-
-def target_format_scripts_check() -> None:
-    print_step("Checking repository script format")
-    run_uv_api_dev(
-        ["ruff", "format", "../../scripts", "--check", "--config", "pyproject.toml"]
-    )
-    print_success("Script format check passed")
-
-
-def target_lint_scripts() -> None:
-    print_step("Linting repository scripts")
-    run_uv_api_dev(
-        [
-            "ruff",
-            "check",
-            "../../scripts",
-            "--config",
-            "pyproject.toml",
-            "--ignore",
-            SCRIPT_RUFF_IGNORES,
-            "--fix",
-        ]
-    )
-    print_success("Script lint passed")
-
-
-def target_typecheck_scripts() -> None:
-    print_step("Type checking repository scripts")
-    run_uv_api_dev(["ty", "check", "../../scripts"], env=pythonpath_env())
-    print_success("Script type check passed")
-
-
-def target_qa_scripts() -> None:
-    target_lint_scripts()
-    target_format_scripts_check()
-    target_typecheck_scripts()
+# ---------------------------------------------------------------------------
+# QA aggregates
+# ---------------------------------------------------------------------------
 
 
 def target_check() -> None:
@@ -346,11 +252,24 @@ def target_check() -> None:
 
 def target_qa_app() -> None:
     target_format_check()
-    target_lint()
-    target_test()
+    target_lint_check()
     target_typecheck()
+    target_test()
     target_check_publisher_requirements()
     print_success("Application QA passed")
+
+
+def target_qa_scripts() -> None:
+    """Backward-compatible alias.
+
+    Workspace ruff/ty already cover scripts/ via target_qa_app, but qa-scripts
+    remains exposed for CI ergonomics and documentation continuity.
+    """
+    print_step("Running scripts QA (workspace lint + format + typecheck)")
+    target_lint_check()
+    target_format_check()
+    target_typecheck()
+    print_success("Scripts QA passed")
 
 
 def target_lint_bicep() -> None:
@@ -451,8 +370,12 @@ def target_qa() -> None:
     target_qa_workflows()
     target_qa_platform()
     target_qa_app()
-    target_qa_scripts()
     print_success("All QA passed")
+
+
+# ---------------------------------------------------------------------------
+# External tool checks
+# ---------------------------------------------------------------------------
 
 
 def target_check_docker() -> None:
@@ -476,17 +399,9 @@ def target_install_tools() -> None:
 
 
 def target_check_uv_version() -> None:
-    api_pyproject = (API_DIR / "pyproject.toml").read_text(encoding="utf-8")
-    api_expected_match = re.search(r'required-version\s*=\s*">=([^"]+)"', api_pyproject)
-    api_expected = api_expected_match.group(1) if api_expected_match else "not set"
-
-    publisher_pyproject = (PUBLISHER_DIR / "pyproject.toml").read_text(encoding="utf-8")
-    publisher_expected_match = re.search(
-        r'required-version\s*=\s*">=([^"]+)"', publisher_pyproject
-    )
-    publisher_expected = (
-        publisher_expected_match.group(1) if publisher_expected_match else "not set"
-    )
+    root_pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    expected_match = re.search(r'required-version\s*=\s*">=([^"]+)"', root_pyproject)
+    expected = expected_match.group(1) if expected_match else "not set"
 
     local_version_output = command_output(
         ["uv", "--version"], allow_failure=True, quiet_stderr=True
@@ -501,25 +416,19 @@ def target_check_uv_version() -> None:
     )
     docker_version = docker_match.group(1) if docker_match else "not found"
 
-    print(f"  Expected API uv:        {api_expected}")
-    print(f"  Expected publisher uv:  {publisher_expected}")
+    print(f"  Expected workspace uv:  {expected}")
     print(f"  Local uv:               {local_version}")
     print(f"  Docker uv:              {docker_version}")
 
-    if publisher_expected != api_expected:
-        print("error: Publisher uv required-version differs from API", file=sys.stderr)
-        raise SystemExit(1)
-
-    if docker_version != api_expected:
+    if docker_version != expected:
         print(
-            "error: Docker uv version mismatch with API pyproject.toml", file=sys.stderr
+            "error: Docker uv version mismatch with root pyproject.toml",
+            file=sys.stderr,
         )
         raise SystemExit(1)
 
-    if local_version != api_expected:
-        print(
-            f"warning: Local uv ({local_version}) differs from expected ({api_expected})"
-        )
+    if local_version != expected:
+        print(f"warning: Local uv ({local_version}) differs from expected ({expected})")
         print(
             "  Patch version differences within the same minor version are compatible"
         )
@@ -566,6 +475,7 @@ def target_clean() -> None:
             path.unlink(missing_ok=True)
     for path in (
         ROOT / ".ruff_cache",
+        ROOT / ".pytest_cache",
         SRC / ".pytest_cache",
         SRC / ".ruff_cache",
         API_DIR / ".pytest_cache",
@@ -584,17 +494,26 @@ def target_clean() -> None:
 
 
 def target_build() -> None:
-    print_step("Building local Docker image")
+    print_step("Building local Docker image (workspace context)")
     run(
-        ["docker", "build", "-f", "Dockerfile", "-t", "aks-chaos-lab:local", "."],
-        cwd=API_DIR,
+        [
+            "docker",
+            "build",
+            "-f",
+            "src/api/Dockerfile",
+            "-t",
+            "aks-chaos-lab:local",
+            ".",
+        ],
+        cwd=ROOT,
     )
     print_success("Docker image built")
 
 
 def target_run() -> None:
     print_step("Starting app on http://localhost:8000")
-    run_uv_api(
+    run_uv_in(
+        API_DIR,
         [
             "uvicorn",
             "app.main:app",
@@ -691,13 +610,14 @@ def run_load_profile(profile: str) -> None:
     duration = os.environ.get("DURATION", default_duration)
     base_url = resolve_base_url()
 
-    env = child_env({"TEST_BASE_PATH": base_url})
+    env = pythonpath_env({"TEST_BASE_PATH": base_url})
     print(
         f"[load] profile={profile} users={users} spawn_rate={spawn_rate}/s "
         f"duration={duration}s host={base_url}",
         file=sys.stderr,
     )
-    run_uv_api_dev(
+    run_uv_in(
+        API_DIR,
         [
             "locust",
             "-f",
@@ -747,25 +667,14 @@ TARGETS: dict[str, Callable[[], None]] = {
     "clean": target_clean,
     "compile-aw": target_compile_aw,
     "format": target_format,
-    "format-api": target_format_api,
-    "format-api-check": target_format_api_check,
     "format-check": target_format_check,
-    "format-publisher": target_format_publisher,
-    "format-publisher-check": target_format_publisher_check,
-    "format-scripts": target_format_scripts,
-    "format-scripts-check": target_format_scripts_check,
     "help": target_help,
     "install": target_install,
     "install-tools": target_install_tools,
     "lint": target_lint,
-    "lint-api": target_lint_api,
-    "lint-api-check": target_lint_api_check,
     "lint-bicep": target_lint_bicep,
     "lint-check": target_lint_check,
     "lint-k8s": target_lint_k8s,
-    "lint-publisher": target_lint_publisher,
-    "lint-publisher-check": target_lint_publisher_check,
-    "lint-scripts": target_lint_scripts,
     "lint-workflows": target_lint_workflows,
     "load-baseline": target_load_baseline,
     "load-smoke": target_load_smoke,
@@ -787,9 +696,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "test-load": target_test_load,
     "test-publisher": target_test_publisher,
     "typecheck": target_typecheck,
-    "typecheck-api": target_typecheck_api,
-    "typecheck-publisher": target_typecheck_publisher,
-    "typecheck-scripts": target_typecheck_scripts,
 }
 
 

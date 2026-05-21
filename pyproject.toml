@@ -1,0 +1,79 @@
+[project]
+name = "aks-chaos-lab"
+version = "0.0.0"
+description = "AKS Chaos Lab — repository-level uv workspace for shared tooling"
+requires-python = ">=3.14"
+
+[dependency-groups]
+dev = [
+  "ruff>=0.15.2",
+  "ty>=0.0.19",
+  "pytest>=9.0.3",
+  "pytest-asyncio>=1.3.0",
+  "pytest-cov>=7.0.0",
+  "pytest-env>=1.5.0",
+  "freezegun>=1.5.5",
+  "httpx>=0.28.1",
+  "requests>=2.32.5",
+  "types-requests>=2.32.4",
+  "locust>=2.43.3",
+]
+
+[tool.uv]
+required-version = ">=0.10.6"
+package = false
+
+[tool.uv.workspace]
+members = ["src/api", "src/external-sli-publisher"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+src = ["src/api", "src/external-sli-publisher"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "ASYNC", "S", "B", "A", "C4", "T20", "SIM"]
+ignore = [
+  "E501", # line length is enforced via formatter
+  "S101", # assert is fine in tests and is widely used
+]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI Depends() in function defaults is the official pattern
+"src/api/app/main.py" = ["B008"]
+# Publisher calls fixed Azure Monitor endpoints supplied by infrastructure.
+"src/external-sli-publisher/external_sli_publisher/publisher.py" = ["S310"]
+# API test relaxations
+"src/api/tests/**/*.py" = [
+  "S311",
+  "S105",
+  "S106",
+  "S501", # integration tests intentionally skip TLS verify against self-signed endpoints
+  "S603",
+  "S607",
+  "T201",
+  "E722",
+  "S110",
+  "SIM117",
+]
+# Publisher test relaxations
+"src/external-sli-publisher/tests/**/*.py" = [
+  "S105",
+  "S106",
+  "S311",
+  "S603",
+  "S607",
+]
+# Repository scripts: allow common operational patterns
+"scripts/**/*.py" = [
+  "S104", # 0.0.0.0 binds are intentional in scripts
+  "S310", # http(s) urls are validated by callers
+  "S603", # subprocess invocations
+  "T201", # print is the intended UX for CLI scripts
+]
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.rules]
+unused-type-ignore-comment = "warn"

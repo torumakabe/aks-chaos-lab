@@ -67,6 +67,9 @@ services:
     language: python
     host: aks
     resourceName: ${AZURE_AKS_CLUSTER_NAME}
+    docker:
+      path: Dockerfile
+      context: ../..
     hooks:
       predeploy:
         windows:

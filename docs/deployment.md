@@ -132,6 +132,8 @@ azd provision sli --preview
 
 ## ローカル開発
 
+リポジトリは uv workspace 構成です。ルートで一度同期すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest / locust) が揃います。
+
 ```bash
 uv run scripts/tasks.py sync-dev
 uv run scripts/tasks.py run

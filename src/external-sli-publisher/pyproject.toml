@@ -11,39 +11,6 @@ dependencies = [
   "cramjam>=2.11.0",
 ]
 
-[dependency-groups]
-dev = [
-  "pytest>=9.0.3",
-  "ruff>=0.15.2",
-  "ty>=0.0.19",
-]
-
-[tool.ruff]
-line-length = 88
-target-version = "py314"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "ASYNC", "S", "B", "A", "C4", "T20", "SIM"]
-ignore = ["E501", "S101"]
-
-[tool.ruff.lint.per-file-ignores]
-# Publisher calls fixed Azure Monitor endpoints supplied by infrastructure.
-"external_sli_publisher/publisher.py" = ["S310"]
-# Test files can use more relaxed security rules.
-"tests/**/*.py" = [
-  "S105",
-  "S106",
-  "S311",
-  "S603",
-  "S607",
-]
-
-[tool.ty.environment]
-python-version = "3.14"
-
-[tool.ty.rules]
-unused-type-ignore-comment = "warn"
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
@@ -51,4 +18,4 @@ python_classes = "Test*"
 python_functions = "test_*"
 
 [tool.uv]
-required-version = ">=0.10.6"
+package = false

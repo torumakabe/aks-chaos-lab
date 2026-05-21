@@ -111,6 +111,8 @@ azd down --force --purge
 ## リポジトリ構造
 
 ```text
+pyproject.toml       uv workspace ルート設定 (ruff/ty 共通設定、開発用依存)
+uv.lock              workspace 全体のロックファイル
 src/api/             FastAPI アプリケーション、Dockerfile、unit / integration / load tests
 src/external-sli-publisher/  Azure Functions external SLI publisher
 infra/               Bicep subscription-scope infrastructure
@@ -123,7 +125,10 @@ k8s/observability/   Prometheus / Container Insights related manifests
 docs/adr/            Architecture Decision Records
 docs/features/       セッションをまたぐ Feature Document
 .github/agents/      コーディングエージェント定義
+.github/hooks/       Copilot CLI postToolUse 用 lint/format フィードバック
 ```
+
+> Python は uv workspace 構成です。ルートで `uv sync --all-packages --all-groups` を一度実行すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest) が揃います。詳細は [ADR-013](docs/adr/013-uv-workspace-unified-tooling.md) を参照。
 
 ## ライセンス
 
