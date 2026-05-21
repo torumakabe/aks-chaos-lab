@@ -67,18 +67,14 @@ param externalSliProbeTimeoutSeconds int = 10
 
 @description('External SLI publisher aggregation window in seconds')
 @minValue(60)
-param externalSliPublisherWindowSeconds int = 300
-
-@description('External latency threshold in milliseconds')
-@minValue(1)
-param externalSliLatencyThresholdMs int = 1000
+param externalSliPublisherWindowSeconds int = 60
 
 @description('Maximum closed windows published by one external SLI timer invocation')
 @minValue(1)
-param externalSliMaxCatchupWindows int = 12
+param externalSliMaxCatchupWindows int = 60
 
 @description('Timer schedule for the external SLI publisher')
-param externalSliPublisherCronSchedule string = '0 */5 * * * *'
+param externalSliPublisherCronSchedule string = '0 */1 * * * *'
 
 @description('Earliest UTC time for external SLI publisher output. Defaults to deployment start to avoid backfilling pre-test windows.')
 param externalSliSignalNotBeforeUtc string = utcNow()
@@ -296,7 +292,6 @@ module externalSliPublisher './modules/functions/external-sli-publisher.bicep' =
     probeName: effectiveExternalSliProbeName
     probeTimeoutSeconds: externalSliProbeTimeoutSeconds
     publisherWindowSeconds: externalSliPublisherWindowSeconds
-    latencyThresholdMs: externalSliLatencyThresholdMs
     maxCatchupWindows: externalSliMaxCatchupWindows
     publisherCronSchedule: externalSliPublisherCronSchedule
     signalNotBeforeUtc: externalSliSignalNotBeforeUtc

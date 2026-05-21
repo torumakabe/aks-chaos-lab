@@ -44,10 +44,15 @@ def command_output(
         stderr=subprocess.DEVNULL if quiet_stderr else subprocess.PIPE,
         text=True,
     )
-    if completed.returncode != 0 and not allow_failure:
-        if completed.stderr:
-            print(completed.stderr, file=sys.stderr, end="")
-        raise SystemExit(completed.returncode)
+    if completed.returncode != 0:
+        if not allow_failure:
+            if completed.stderr:
+                print(completed.stderr, file=sys.stderr, end="")
+            raise SystemExit(completed.returncode)
+        # On allowed failure, don't trust stdout — some tools (e.g. azd) write
+        # error messages to stdout, which callers would otherwise treat as a
+        # valid value.
+        return ""
     return completed.stdout.strip()
 
 
@@ -292,18 +297,40 @@ def main() -> int:
     if args.skip_source:
         log("skipping external SLI source metric wait")
     else:
-        selector = (
-            f'{{environment="{env_name}",service="chaos-app",test="{probe_name}"}}'
+        selector_inner = (
+            f'environment="{env_name}",service="chaos-app",test="{probe_name}"'
         )
+        latency_le = (
+            get_env_value("AZURE_MONITOR_LATENCY_SLI_THRESHOLD_LE") or "1"
+        )
+        latency_good_metric = "chaos_app_external_latency_good"
         query_range_minutes = env_int("EXTERNAL_SLI_WAIT_RANGE_MINUTES", 45)
-        availability_query = f"count_over_time(chaos_app_external_availability_total{selector}[{query_range_minutes}m])"
-        latency_query = f"count_over_time(chaos_app_external_latency_total{selector}[{query_range_minutes}m])"
+        availability_query = (
+            f"count_over_time(chaos_app_external_availability_total"
+            f"{{{selector_inner}}}[{query_range_minutes}m])"
+        )
+        latency_total_query = (
+            f"count_over_time(chaos_app_external_latency_total"
+            f"{{{selector_inner}}}[{query_range_minutes}m])"
+        )
+        # SLI provisioning validates that the bucket whose `le` label matches
+        # the SLO threshold actually has samples for the partitioning
+        # dimensions. Wait for that specific bucket label explicitly.
+        latency_good_query = (
+            f"count_over_time({latency_good_metric}"
+            f'{{{selector_inner},le="{latency_le}"}}[{query_range_minutes}m])'
+        )
         source_ready = False
 
         for attempt in range(1, attempts + 1):
             availability_count = query_prometheus(endpoint, availability_query)
-            latency_count = query_prometheus(endpoint, latency_query)
-            if availability_count > 0 and latency_count > 0:
+            latency_total_count = query_prometheus(endpoint, latency_total_query)
+            latency_good_count = query_prometheus(endpoint, latency_good_query)
+            if (
+                availability_count > 0
+                and latency_total_count > 0
+                and latency_good_count > 0
+            ):
                 log("external SLI signals are available in Managed Prometheus")
                 source_ready = True
                 break
@@ -311,7 +338,9 @@ def main() -> int:
             log(
                 "waiting for external SLI signals "
                 f"({attempt}/{attempts}): "
-                f"availability={availability_count}, latency={latency_count}"
+                f"availability={availability_count}, "
+                f"latency_total={latency_total_count}, "
+                f'{latency_good_metric}{{le="{latency_le}"}}={latency_good_count}'
             )
             time.sleep(sleep_seconds)
 

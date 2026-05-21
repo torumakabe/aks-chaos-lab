@@ -46,11 +46,22 @@ param availabilityGoodMetricName string = 'chaos_app_external_availability_good'
 @description('Metric name for the request-based Availability SLI total signal')
 param availabilityTotalMetricName string = 'chaos_app_external_availability_total'
 
-@description('Metric name for the request-based Latency SLI good signal')
+@description('Metric name for the request-based Latency SLI good signal. The publisher emits one sample of this metric per `le` bucket per window with the bucket label as the `le` dimension; the SLI selects a bucket via a `dimensionName=le, operator=EQ, values=[latencyThresholdLe]` filter.')
 param latencyGoodMetricName string = 'chaos_app_external_latency_good'
 
-@description('Metric name for the request-based Latency SLI total signal')
+@description('Metric name for the request-based Latency SLI total signal (probe observation count).')
 param latencyTotalMetricName string = 'chaos_app_external_latency_total'
+
+@description('Threshold for the Latency SLI good signal, expressed as the upper-bound `le` of a bucket (seconds). Must exactly match a bucket label emitted by the publisher. Changing this value re-points the SLI to a different `le` bucket via a dimension filter, without redeploying the publisher (ADR-013).')
+@allowed([
+  '0.1'
+  '0.25'
+  '0.5'
+  '1'
+  '2'
+  '5'
+])
+param latencyThresholdLe string = '1'
 
 @description('Prometheus label dimensions used for Azure Monitor SLI partitioning')
 param signalDimensions string[] = [
@@ -76,6 +87,21 @@ var sourceSignalIdentityProperties = {
   sourceAmwAccountManagedIdentity: sliIdentityResourceId
   sourceAmwAccountResourceId: prometheusWorkspaceResourceId
 }
+
+// Latency SLI good-signal filter: select the bucket whose `le` label equals
+// the SLO threshold. The Microsoft.Monitor/slis 2025-03-01-preview API
+// rejects the operator wire values declared in its OpenAPI spec (`==`,
+// `<=`, etc.) but accepts the undocumented PascalCase value `EQ`. The
+// service also rejects the spec's `values` array property and instead
+// requires the undocumented scalar `value`. See ADR-013 and the upstream
+// Azure/azure-rest-api-specs issue.
+var latencyGoodFilters = [
+  {
+    dimensionName: 'le'
+    operator: 'EQ'
+    value: latencyThresholdLe
+  }
+]
 
 resource serviceGroup 'Microsoft.Management/serviceGroups@2024-02-01-preview' existing = {
   scope: tenant()
@@ -149,7 +175,7 @@ resource latencySli 'Microsoft.Monitor/slis@2025-03-01-preview' = {
   scope: serviceGroup
   identity: sliIdentity
   properties: {
-    description: 'Request-based Latency SLI for external Azure Functions probe duration.'
+    description: 'Request-based Latency SLI for external Azure Functions probe duration. The good signal selects the bucket whose `le` label matches latencyThresholdLe.'
     baselineProperties: {
       baseline: {
         evaluationCalculationType: 'RollingDays'
@@ -166,7 +192,7 @@ resource latencySli 'Microsoft.Monitor/slis@2025-03-01-preview' = {
         signalFormula: 'A'
         signalSources: [
           union(sourceSignalIdentityProperties, {
-            filters: []
+            filters: latencyGoodFilters
             metricName: latencyGoodMetricName
             metricNamespace: metricNamespace
             signalSourceId: 'A'
