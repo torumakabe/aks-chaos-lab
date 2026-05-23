@@ -168,20 +168,33 @@ PYEOF
 
 ## Step 4: 影響度分析
 
-Step 1〜3 の情報を照合し、**Step 1 と Step 2 で取得した全アップデートを漏れなく**以下のカテゴリに分類してください:
+Step 1〜3 の情報を照合し、**Step 1 と Step 2 で取得した全アップデートを漏れなく**以下のカテゴリに分類してください。
 
-- 🔴 **要対応**: このリポジトリが**使用中**の機能・コンポーネントに影響する以下のいずれか:
-  - セキュリティ修正（CVE）を含むコンポーネント更新
+### 前提: 自動適用構成の解釈
+
+「🔴 / 🟡」を判定する前に、`infra/modules/aks.bicep` から以下の自動適用構成を必ず確認してください。CVE 修正・コンポーネント更新であっても、対象が「マネージドコンポーネント」かつ以下の自動適用構成が有効な場合は、ユーザー操作なしにロールアウトされるため **🔴 ではなく 🟡 に分類**します。
+
+- `autoUpgradeProfile.upgradeChannel` — Kubernetes コントロールプレーン / クラスタの自動更新
+- `autoUpgradeProfile.nodeOSUpgradeChannel` — ノード OS イメージの自動更新（CVE-mitigated node image を含む）
+- `Microsoft.ContainerService/managedClusters/maintenanceConfigurations` — `aksManagedAutoUpgradeSchedule` / `aksManagedNodeOSUpgradeSchedule` 等のスケジュール
+- AKS マネージド add-on / アドオン相当のマネージドコンポーネント全般（Cilium、Azure Policy add-on、CSI drivers、cloud-provider-azure、Container Insights、Managed Prometheus collector、Application Routing、Cost-analysis agent 等）
+
+なお「使用中」の判定は **bicep / k8s マニフェストでの明示的有効化が確認できるもの**のみ「使用中」とみなし、確認できない add-on / 機能は「未使用」として扱ってください（false-positive 防止）。
+
+### カテゴリ定義
+
+- 🔴 **要対応**: このリポジトリが**使用中**の機能・コンポーネントに影響し、かつ **ユーザー側のコード変更・運用操作が必要**なもの:
   - 非推奨化・廃止（Retirement / Deprecation）の影響を受けるもの
   - 破壊的変更（Breaking Changes）の影響を受けるもの
-- 🟡 **認識しておくべき**: 使用中の機能に関連するが即座のアクション不要:
+  - 自動適用構成の対象外であり、ユーザーが明示的にバージョン指定・パラメータ変更しない限り適用されない CVE 修正・更新
+- 🟡 **認識しておくべき**: 使用中の機能に関連するが即座のユーザー操作は不要:
   - Kubernetes パッチバージョン更新
   - 新リージョン対応
   - 将来バージョンでの動作変更予告
-  - マネージドコンポーネントの自動更新（CVE を含まないもの）
-- ⚪ **影響なし**: このリポジトリが**使用していない**機能に関するアップデート
+  - マネージドコンポーネントの自動更新（CVE 修正を含むものも、上記「自動適用構成」が有効な範囲では本カテゴリに分類し、推奨アクションは「自動適用後の動作確認」とする）
+- ⚪ **影響なし**: このリポジトリが**使用していない**機能に関するアップデート（明示的な有効化設定が無いものを含む）
 
-各項目には具体的な推奨アクションと、元ソースへのリンクを必ず含めてください。
+各項目には具体的な推奨アクションと、元ソースへのリンクを必ず含めてください。CVE-related 項目を 🟡 に分類した場合は、推奨アクションに「(自動適用) `nodeOSUpgradeChannel: <設定値>` / メンテナンスウィンドウ <曜日・時刻> により適用済み想定。`az aks ...` または `kubectl ...` で対象バージョンの到達を確認」のように、自動適用の根拠と確認コマンドを併記してください。
 
 ## Step 5: Issue を作成
 
