@@ -364,7 +364,7 @@ resource azureMonitorSliServiceGroup 'Microsoft.Management/serviceGroups@2024-02
   scope: tenant()
   name: azureMonitorSliServiceGroupName
   properties: {
-    displayName: '${appName} ${environment} SLO'
+    displayName: '${appName} ${environment}'
     parent: {
       resourceId: azureMonitorSliEffectiveParentServiceGroupId
     }
