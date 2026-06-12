@@ -97,6 +97,15 @@ var aksCommonProperties = {
       }
     }
   }
+  // Azure Policy add-on (Gatekeeper). Declared here so IaC owns the desired state and
+  // the subscription-scope Defender for Cloud DINE policy ("Deploy Azure Policy Add-on
+  // to AKS") finds its existence condition satisfied, stopping its recurring cluster PUT
+  // (which previously left the cluster in provisioningState=Failed). See ADR-015.
+  addonProfiles: {
+    azurepolicy: {
+      enabled: true
+    }
+  }
 }
 
 // Base mode specific properties
