@@ -9,3 +9,12 @@ paths:
   .github/workflows/*.lock.yml:
     ignore:
       - 'shellcheck reported issue in this script: SC2016:.+'
+      # gh-aw が出力する生成スクリプトで shellcheck SC2086 が発火するが、
+      # 自動生成物のため手編集できない。lock ファイルに限り抑制する。
+      - 'shellcheck reported issue in this script: SC2086:.+'
+      # copilot-requests は Copilot 推論をビルトイン GITHUB_TOKEN で認証するための
+      # 新しい permission scope。GitHub Actions では有効だが actionlint 1.7.12 が未対応。
+      - 'unknown permission scope "copilot-requests".+'
+      # gh-aw v0.79.x が concurrency に出力する queue キー。GitHub Actions では受理されるが
+      # actionlint 1.7.12 が未対応。
+      - 'unexpected key "queue" for "concurrency" section.+'
