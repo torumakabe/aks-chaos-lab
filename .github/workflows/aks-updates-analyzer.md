@@ -6,6 +6,7 @@ description: "Weekly AKS updates analyzer that checks Azure Updates RSS and GitH
 labels: [aks, automation]
 permissions:
   contents: read
+  copilot-requests: write
 engine:
   id: copilot
   model: claude-opus-4.6
