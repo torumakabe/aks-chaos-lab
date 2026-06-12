@@ -35,7 +35,9 @@
             "readonly_patterns": [
                 "^powerState$",
                 "^currentKubernetesVersion$",
-                "^networkProfile\\.loadBalancerProfile\\.effectiveOutboundIPs$"
+                "^networkProfile\\.loadBalancerProfile\\.effectiveOutboundIPs$",
+                "^status$",
+                "^agentPoolProfiles\\.\\d+\\.status$"
             ],
             "auto_managed_patterns": [
                 {"pattern": "^aadProfile\\.tenantID$", "description": "Azure AD テナント ID は自動設定"},
@@ -67,7 +69,10 @@
                 {"pattern": "^serviceMeshProfile$", "description": "サービスメッシュプロファイルは Bicep 未定義時に Azure が Disabled をデフォルト設定"},
                 {"pattern": "^azureMonitorProfile\\.metrics\\.controlPlane$", "description": "Managed Prometheus 有効時に Azure がコントロールプレーン scrape 設定を自動付与"},
                 {"pattern": "^healthMonitorProfile$", "description": "Health monitor profile は preview 機能で Azure が自動有効化"},
-                {"pattern": "^nodeDisruptionProfile$", "description": "Node disruption profile は Azure が自動構成"}
+                {"pattern": "^nodeDisruptionProfile$", "description": "Node disruption profile は Azure が自動構成"},
+                {"pattern": "^addonProfiles\\.omsagent$", "description": "omsagent アドオン設定は Container Insights 有効時に Azure が自動構成"},
+                {"pattern": "^addonProfiles\\.extensionManager$", "description": "extensionManager アドオンは AKS 拡張機能利用時に Azure が自動有効化"},
+                {"pattern": "^hostedSystemProfile$", "description": "Hosted system profile は preview API のシステムプロファイルで Azure が自動付与"}
             ],
             "custom_patterns": [
                 {"pattern": "^kubernetesVersion$", "description": "K8s バージョン要確認（マイナーまで一致ならOK、パッチは AKS 自動適用）"},
@@ -233,7 +238,7 @@
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Monitor/accounts": {
-            "readonly_patterns": ["^properties$"],
+            "readonly_patterns": ["^properties$", "^endpoints$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Insights/dataCollectionEndpoints": {
@@ -310,6 +315,54 @@
                 {"pattern": "^dataCollectionRuleId$", "description": "App Insights managed DCR ID は reference() 解決時に what-if がノイズ検出（要 drift 照合）"}
             ],
             "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Insights/dataCollectionRules/providers/roleAssignments": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^principalId$", "description": "マネージド ID の principalId は reference() 解決時に what-if がノイズ検出"},
+                {"pattern": "^principalType$", "description": "principalType は ARM what-if が null と指定値の差分をノイズ検出"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Monitor/accounts/providers/roleAssignments": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^principalId$", "description": "マネージド ID の principalId は reference() 解決時に what-if がノイズ検出"},
+                {"pattern": "^principalType$", "description": "principalType は ARM what-if が null と指定値の差分をノイズ検出"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Storage/storageAccounts/providers/roleAssignments": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^principalId$", "description": "マネージド ID の principalId は reference() 解決時に what-if がノイズ検出"},
+                {"pattern": "^principalType$", "description": "principalType は ARM what-if が null と指定値の差分をノイズ検出"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Storage/storageAccounts/blobServices": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^properties$", "description": "Blob service の properties（deleteRetentionPolicy 等）は Bicep 未指定時に Azure が既定値を自動設定"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Storage/storageAccounts/blobServices/containers": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^defaultEncryptionScope$", "description": "コンテナーの既定暗号化スコープは Bicep 未指定時に Azure がアカウント暗号化キーを自動設定"},
+                {"pattern": "^denyEncryptionScopeOverride$", "description": "暗号化スコープ上書き拒否は Bicep 未指定時に Azure が false をデフォルト設定"}
+            ],
+            "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.Web/sites": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [],
+            "custom_patterns": [],
+            "known_defaults": [
+                {"path": "siteConfig.localMySqlEnabled", "value": false, "description": "ローカル MySQL は App Service API のデフォルトで無効"},
+                {"path": "siteConfig.netFrameworkVersion", "value": "v4.6", "description": ".NET Framework バージョンは App Service API のデフォルト値"}
+            ]
         }
     }
 }
