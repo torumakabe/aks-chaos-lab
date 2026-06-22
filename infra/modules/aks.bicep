@@ -283,9 +283,7 @@ resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/main
 }
 
 // Node OS auto-upgrade alert (native resource)
-// TODO: Migrate to GA API version when available
-// Check: az provider show -n Microsoft.Insights --query "resourceTypes[?resourceType=='scheduledQueryRules'].apiVersions" -o tsv
-resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = {
   name: 'aks-nodeos-autoupgrade'
   location: location
   tags: tags

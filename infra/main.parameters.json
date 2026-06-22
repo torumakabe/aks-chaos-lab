@@ -3,7 +3,7 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "location": {
-      "value": "${AZURE_LOCATION:japaneast}"
+      "value": "${AZURE_LOCATION:eastus2}"
     },
     "appName": {
       "value": "aks-chaos-lab"

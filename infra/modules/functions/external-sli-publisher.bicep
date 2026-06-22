@@ -94,7 +94,7 @@ var storageTableDataContributorRoleDefinitionId = subscriptionResourceId(
   '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3'
 )
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = {
   name: storageAccountName
   location: location
   tags: tags
@@ -263,12 +263,12 @@ resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/pri
   ]
 }
 
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2026-04-01' = {
   name: 'default'
   parent: storageAccount
 }
 
-resource stateContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+resource stateContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01' = {
   name: stateContainerName
   parent: blobService
   properties: {
@@ -276,7 +276,7 @@ resource stateContainer 'Microsoft.Storage/storageAccounts/blobServices/containe
   }
 }
 
-resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01' = {
   name: deploymentContainerName
   parent: blobService
   properties: {

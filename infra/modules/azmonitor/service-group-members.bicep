@@ -27,11 +27,11 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-03-02-previ
   name: aksName
 }
 
-resource prometheusWorkspace 'Microsoft.Monitor/accounts@2023-04-03' existing = {
+resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = {
   name: prometheusWorkspaceName
 }
 
-resource appAzureMonitorWorkspace 'Microsoft.Monitor/accounts@2023-04-03' existing = {
+resource appAzureMonitorWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = {
   name: appAzureMonitorWorkspaceName
 }
 
