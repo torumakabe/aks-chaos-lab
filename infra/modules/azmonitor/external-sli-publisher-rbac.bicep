@@ -19,7 +19,7 @@ var monitoringReaderRoleDefinitionId = subscriptionResourceId(
   '43d0d8ad-25c7-4714-9337-8ba259a9fe05'
 )
 
-resource prometheusWorkspace 'Microsoft.Monitor/accounts@2023-04-03' existing = {
+resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = {
   name: last(split(prometheusWorkspaceResourceId, '/'))
 }
 

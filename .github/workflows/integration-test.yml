@@ -39,7 +39,7 @@ permissions:
 
 env:
   AZURE_ENV_NAME: inttest-${{ github.run_id }}
-  AZURE_LOCATION: japaneast
+  AZURE_LOCATION: eastus2
 
 jobs:
   validate:

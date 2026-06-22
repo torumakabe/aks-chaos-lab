@@ -21,7 +21,7 @@ var monitoringMetricsPublisherRoleDefinitionId = subscriptionResourceId(
 )
 var prometheusDataCollectionRuleName = last(split(prometheusDataCollectionRuleId, '/'))
 
-resource prometheusWorkspace 'Microsoft.Monitor/accounts@2023-04-03' existing = {
+resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = {
   name: prometheusWorkspaceName
 }
 

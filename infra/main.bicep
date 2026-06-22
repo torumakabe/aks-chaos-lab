@@ -1,7 +1,7 @@
 targetScope = 'subscription'
 
-@description('Deployment location. Defaults to resource group location')
-param location string
+@description('Deployment location')
+param location string = 'eastus2'
 
 @description('Workload/application name (used for resource naming)')
 param appName string = 'aks-chaos-lab'
@@ -10,7 +10,7 @@ param appName string = 'aks-chaos-lab'
 param environment string = 'dev'
 
 @description('AKS node VM size')
-param nodeVmSize string = 'Standard_D4ds_v5'
+param nodeVmSize string = 'Standard_D4ds_v7'
 
 @description('Virtual network address prefix')
 param vnetAddressPrefix string = '10.10.0.0/16'

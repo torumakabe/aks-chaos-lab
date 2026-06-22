@@ -28,7 +28,7 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-07
 
 // Azure Monitor Workspace for app OTLP telemetry
 // Must be separate from Prometheus AMW per OTLP App Insights requirements
-resource appAzureMonitorWorkspace 'Microsoft.Monitor/accounts@2023-04-03' = {
+resource appAzureMonitorWorkspace 'Microsoft.Monitor/accounts@2025-10-03' = {
   name: appAzureMonitorWorkspaceName
   location: location
   tags: tags

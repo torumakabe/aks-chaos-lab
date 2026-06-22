@@ -98,7 +98,7 @@ resource autoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfil
   }
 }
 
-resource fleetPendingApprovalAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+resource fleetPendingApprovalAlert 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = {
   name: 'fleet-approval-pending'
   location: location
   tags: tags
