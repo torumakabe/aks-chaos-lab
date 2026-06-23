@@ -205,8 +205,12 @@ module azureMonitorWorkspace './modules/prometheus/workspace.bicep' = if (enable
 var prometheusWorkspaceResourceId = enablePrometheusWorkspace ? azureMonitorWorkspace.outputs.workspaceId : ''
 var enableExternalSliEffective = enableExternalSliSignals && enablePrometheusWorkspace && enablePrometheusPipeline
 var enableAzureMonitorSliEffective = enableAzureMonitorSli && enableExternalSliEffective
-var normalizedAzureMonitorSliParentServiceGroupId = azureMonitorSliParentServiceGroupId == 'none' ? '' : azureMonitorSliParentServiceGroupId
-var normalizedAzureMonitorSliServiceGroupResourceId = azureMonitorSliServiceGroupResourceId == 'none' ? '' : azureMonitorSliServiceGroupResourceId
+var normalizedAzureMonitorSliParentServiceGroupId = azureMonitorSliParentServiceGroupId == 'none'
+  ? ''
+  : azureMonitorSliParentServiceGroupId
+var normalizedAzureMonitorSliServiceGroupResourceId = azureMonitorSliServiceGroupResourceId == 'none'
+  ? ''
+  : azureMonitorSliServiceGroupResourceId
 var useExistingAzureMonitorSliServiceGroup = !empty(normalizedAzureMonitorSliServiceGroupResourceId)
 var azureMonitorSliServiceGroupNameBase = 'sg-${appName}-${environment}-${resourceToken}'
 var azureMonitorSliServiceGroupName = substring(
@@ -234,7 +238,9 @@ var defaultExternalSliProbeName = substring(
   min(64, length(defaultExternalSliProbeNameBase))
 )
 var effectiveExternalSliProbeName = empty(externalSliProbeName) ? defaultExternalSliProbeName : externalSliProbeName
-var normalizedExternalSliProbePath = startsWith(externalSliProbePath, '/') ? externalSliProbePath : '/${externalSliProbePath}'
+var normalizedExternalSliProbePath = startsWith(externalSliProbePath, '/')
+  ? externalSliProbePath
+  : '/${externalSliProbePath}'
 var externalSliProbeUrl = '${externalSliProbeScheme}://${network.outputs.fqdn}${normalizedExternalSliProbePath}'
 
 module prometheusPipeline './modules/prometheus/pipeline.bicep' = if (enablePrometheusWorkspace && enablePrometheusPipeline) {
@@ -407,7 +413,9 @@ module aksCluster './modules/aks.bicep' = {
 // Separated into a module so principalId (a runtime value) can be passed as a parameter,
 // which makes it a deploy-time value in the module context and usable in guid() for names.
 module alertSubRoleAssignments './modules/alert-sub-role-assignments.bicep' = {
-  name: 'alertSubRoleAssignments'
+  // Subscription-scoped deployment names are keyed by name+location. Suffix with
+  // environment so different regions (dev=eastus2, eval-arm=japaneast) don't collide.
+  name: 'alertSubRoleAssignments-${environment}'
   params: {
     aksAlertPrincipalId: aksCluster.outputs.nodeOsAutoUpgradeAlertPrincipalId
     fleetAlertPrincipalId: fleetManager.outputs.pendingApprovalAlertPrincipalId
@@ -583,7 +591,9 @@ output AZURE_MONITOR_PROMETHEUS_WORKSPACE_ID string = prometheusWorkspaceResourc
 
 @description('Managed Prometheus remote-write URL for external SLI publisher')
 #disable-next-line BCP318
-output AZURE_MONITOR_PROMETHEUS_REMOTE_WRITE_URL string = enableExternalSliEffective ? prometheusPipeline.outputs.prometheusRemoteWriteUrl : ''
+output AZURE_MONITOR_PROMETHEUS_REMOTE_WRITE_URL string = enableExternalSliEffective
+  ? prometheusPipeline.outputs.prometheusRemoteWriteUrl
+  : ''
 
 @description('Azure Managed Redis resource id')
 output AZURE_REDIS_ID string = redisEnterprise.outputs.redisId
@@ -617,28 +627,40 @@ output AZURE_INGRESS_PUBLIC_IP_NAME string = network.outputs.publicIPName
 output AZURE_TENANT_ID string = tenant().tenantId
 
 @description('Azure Service Group resource ID used by Azure Monitor SLI')
-output AZURE_MONITOR_SLI_SERVICE_GROUP_ID string = enableAzureMonitorSliEffective ? azureMonitorSliEffectiveServiceGroupId : ''
+output AZURE_MONITOR_SLI_SERVICE_GROUP_ID string = enableAzureMonitorSliEffective
+  ? azureMonitorSliEffectiveServiceGroupId
+  : ''
 
 @description('Azure Service Group name used by Azure Monitor SLI')
-output AZURE_MONITOR_SLI_SERVICE_GROUP_NAME string = enableAzureMonitorSliEffective ? azureMonitorSliEffectiveServiceGroupName : ''
+output AZURE_MONITOR_SLI_SERVICE_GROUP_NAME string = enableAzureMonitorSliEffective
+  ? azureMonitorSliEffectiveServiceGroupName
+  : ''
 
 @description('Azure Monitor Availability SLI resource name')
-output AZURE_MONITOR_AVAILABILITY_SLI_NAME string = enableAzureMonitorSliEffective ? azureMonitorAvailabilitySliName : ''
+output AZURE_MONITOR_AVAILABILITY_SLI_NAME string = enableAzureMonitorSliEffective
+  ? azureMonitorAvailabilitySliName
+  : ''
 
 @description('Azure Monitor Latency SLI resource name')
 output AZURE_MONITOR_LATENCY_SLI_NAME string = enableAzureMonitorSliEffective ? azureMonitorLatencySliName : ''
 
 @description('Azure Monitor SLI managed identity resource ID')
 #disable-next-line BCP318
-output AZURE_MONITOR_SLI_IDENTITY_ID string = enableAzureMonitorSliEffective ? azureMonitorSliIdentity.outputs.identityId : ''
+output AZURE_MONITOR_SLI_IDENTITY_ID string = enableAzureMonitorSliEffective
+  ? azureMonitorSliIdentity.outputs.identityId
+  : ''
 
 @description('Azure Monitor SLI managed identity client ID')
 #disable-next-line BCP318
-output AZURE_MONITOR_SLI_IDENTITY_CLIENT_ID string = enableAzureMonitorSliEffective ? azureMonitorSliIdentity.outputs.clientId : ''
+output AZURE_MONITOR_SLI_IDENTITY_CLIENT_ID string = enableAzureMonitorSliEffective
+  ? azureMonitorSliIdentity.outputs.clientId
+  : ''
 
 @description('External SLI publisher Function App name')
 #disable-next-line BCP318
-output AZURE_EXTERNAL_SLI_FUNCTION_APP_NAME string = enableExternalSliEffective ? externalSliPublisher.outputs.functionAppName : ''
+output AZURE_EXTERNAL_SLI_FUNCTION_APP_NAME string = enableExternalSliEffective
+  ? externalSliPublisher.outputs.functionAppName
+  : ''
 
 @description('External SLI probe name used in Prometheus labels')
 output AZURE_EXTERNAL_SLI_PROBE_NAME string = enableExternalSliEffective ? effectiveExternalSliProbeName : ''
@@ -648,4 +670,6 @@ output AZURE_EXTERNAL_SLI_PROBE_URL string = enableExternalSliEffective ? extern
 
 @description('External SLI publisher state blob URL')
 #disable-next-line BCP318
-output AZURE_EXTERNAL_SLI_STATE_BLOB_URL string = enableExternalSliEffective ? externalSliPublisher.outputs.stateBlobUrl : ''
+output AZURE_EXTERNAL_SLI_STATE_BLOB_URL string = enableExternalSliEffective
+  ? externalSliPublisher.outputs.stateBlobUrl
+  : ''
