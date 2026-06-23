@@ -70,6 +70,10 @@ services:
     docker:
       path: Dockerfile
       context: ../..
+      # Default build is amd64. azd does not env-expand docker.platform, so to
+      # build for Arm64 node pools (e.g. Standard_D4pds_v6) edit this value to:
+      #   platform: linux/arm64
+      platform: linux/amd64
     hooks:
       predeploy:
         windows:

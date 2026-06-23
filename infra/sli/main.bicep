@@ -99,11 +99,15 @@ var normalizedResourceGroupName = resourceGroupName == 'none' ? '' : resourceGro
 var normalizedServiceGroupId = serviceGroupId == 'none' ? '' : serviceGroupId
 var normalizedServiceGroupName = serviceGroupName == 'none' ? '' : serviceGroupName
 var normalizedSliIdentityResourceId = sliIdentityResourceId == 'none' ? '' : sliIdentityResourceId
-var normalizedPrometheusWorkspaceResourceId = prometheusWorkspaceResourceId == 'none' ? '' : prometheusWorkspaceResourceId
+var normalizedPrometheusWorkspaceResourceId = prometheusWorkspaceResourceId == 'none'
+  ? ''
+  : prometheusWorkspaceResourceId
 var normalizedAvailabilitySliName = availabilitySliName == 'none' ? '' : availabilitySliName
 var normalizedLatencySliName = latencySliName == 'none' ? '' : latencySliName
 var normalizedActionGroupId = actionGroupId == 'none' ? '' : actionGroupId
-var effectiveResourceGroupName = empty(normalizedResourceGroupName) ? 'rg-${appName}-${environment}' : normalizedResourceGroupName
+var effectiveResourceGroupName = empty(normalizedResourceGroupName)
+  ? 'rg-${appName}-${environment}'
+  : normalizedResourceGroupName
 var effectiveServiceGroupName = !empty(normalizedServiceGroupName)
   ? normalizedServiceGroupName
   : (!empty(normalizedServiceGroupId) ? last(split(normalizedServiceGroupId, '/')) : '')
@@ -116,7 +120,9 @@ var hasSliNames = !empty(normalizedAvailabilitySliName) && !empty(normalizedLate
 var canCreateSli = enabled && hasServiceGroup && hasSliPipeline && hasSliNames
 
 module azureMonitorSliDefinitions '../modules/azmonitor/sli-definitions.bicep' = if (canCreateSli) {
-  name: 'azureMonitorSliDefinitions'
+  // Subscription-scoped deployment name; suffix with environment so different
+  // regions (dev=eastus2, eval-arm=japaneast) don't collide.
+  name: 'azureMonitorSliDefinitions-${environment}'
   params: {
     serviceGroupName: effectiveServiceGroupName
     sliIdentityResourceId: normalizedSliIdentityResourceId
@@ -159,7 +165,9 @@ module azureMonitorSliMetricAlerts '../modules/azmonitor/sli-metric-alerts.bicep
 
 @description('Azure Monitor Availability SLI resource ID')
 #disable-next-line BCP318
-output AZURE_MONITOR_AVAILABILITY_SLI_ID string = canCreateSli ? azureMonitorSliDefinitions.outputs.availabilitySliId : ''
+output AZURE_MONITOR_AVAILABILITY_SLI_ID string = canCreateSli
+  ? azureMonitorSliDefinitions.outputs.availabilitySliId
+  : ''
 
 @description('Azure Monitor Latency SLI resource ID')
 #disable-next-line BCP318
@@ -170,12 +178,18 @@ output AZURE_MONITOR_LATENCY_SLI_THRESHOLD_LE string = latencyThresholdLe
 
 @description('Azure Monitor SLI baseline alert resource IDs')
 #disable-next-line BCP318
-output AZURE_MONITOR_SLI_BASELINE_ALERT_IDS array = canCreateSli && enableSliAlerts ? azureMonitorSliMetricAlerts.outputs.baselineAlertIds : []
+output AZURE_MONITOR_SLI_BASELINE_ALERT_IDS array = canCreateSli && enableSliAlerts
+  ? azureMonitorSliMetricAlerts.outputs.baselineAlertIds
+  : []
 
 @description('Azure Monitor SLI fast burn-rate alert resource IDs')
 #disable-next-line BCP318
-output AZURE_MONITOR_SLI_FAST_BURN_ALERT_IDS array = canCreateSli && enableSliAlerts ? azureMonitorSliMetricAlerts.outputs.fastBurnRateAlertIds : []
+output AZURE_MONITOR_SLI_FAST_BURN_ALERT_IDS array = canCreateSli && enableSliAlerts
+  ? azureMonitorSliMetricAlerts.outputs.fastBurnRateAlertIds
+  : []
 
 @description('Azure Monitor SLI slow burn-rate alert resource IDs')
 #disable-next-line BCP318
-output AZURE_MONITOR_SLI_SLOW_BURN_ALERT_IDS array = canCreateSli && enableSliAlerts ? azureMonitorSliMetricAlerts.outputs.slowBurnRateAlertIds : []
+output AZURE_MONITOR_SLI_SLOW_BURN_ALERT_IDS array = canCreateSli && enableSliAlerts
+  ? azureMonitorSliMetricAlerts.outputs.slowBurnRateAlertIds
+  : []

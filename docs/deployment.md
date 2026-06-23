@@ -43,7 +43,7 @@ managed DCR で `Monitoring Metrics Publisher` が不足すると、SLI の stor
 
 ### 4. AKS の Microsoft Entra 統合
 
-AKS は `aadProfile.managed=true` + `enableAzureRbac=true` + `disableLocalAccounts=true` のため、`kubectl` は Microsoft Entra ID 経由になります。Bicep が deployment 実行 identity に **Azure Kubernetes Service RBAC Cluster Admin** を付与するため、追加のテナント権限は不要です。
+AKS は `aadProfile.managed=true` + `enableAzureRbac=true` + `disableLocalAccounts=true` のため、`kubectl`（`azd up` 中の Kubernetes マニフェスト適用を含む）は Microsoft Entra ID 経由の Azure RBAC で認可されます。`azd up` を実行する identity には、サブスクリプション スコープで **Azure Kubernetes Service RBAC Cluster Admin** を事前に付与してください。
 
 ## プレビュー機能とリソースプロバイダー登録
 
