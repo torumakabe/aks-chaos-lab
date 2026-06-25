@@ -56,10 +56,6 @@ az feature register --namespace Microsoft.ContainerService --name AKS-AddonAutos
 # OTLP 経由の Application Insights / Azure Monitor managed Prometheus 連携 (ADR-006)
 az feature register --namespace Microsoft.ContainerService --name AzureMonitorAppMonitoringPreview
 
-# Azure Monitor SLI destination metrics / AMW custom metrics
-az feature register --namespace Microsoft.Insights --name EnableCustomMetricsV2
-az feature register --namespace Microsoft.Insights --name EnableAmwAutoscale
-
 # 反映後に provider を再登録
 az provider register --namespace Microsoft.ContainerService
 az provider register --namespace Microsoft.Insights

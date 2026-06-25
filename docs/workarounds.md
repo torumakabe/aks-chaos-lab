@@ -14,7 +14,7 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 | B-1 | 削除 | `Microsoft.Insights/components@2020-02-02` でも OTLP managed DCR / managed RG が作成された。 |
 | B-3 | 削除 | B-2 の DCRA 先行削除を残す前提では、`postdown` force-delete なしで `ai_*_managed` が残留しない。 |
 | B-4 | 削除 | 現行 Microsoft Learn では誤記 `AKSAzureMonitorAISupportPreview` が確認できない。feature flag 管理は C-1 に集約。 |
-| C-1 | 一部削除 | `AKS-OMSAppMonitoring` 未登録でも full `azd up` 成功。`Microsoft.Insights/components@2020-02-02` 前提では `OtlpApplicationInsights` 未登録でも OTLP managed DCR / managed RG 作成成功。残り 2 flag は未登録で失敗したため継続。 |
+| C-1 | 一部削除 | `AKS-OMSAppMonitoring` 未登録でも full `azd up` 成功。`Microsoft.Insights/components@2020-02-02` 前提では `OtlpApplicationInsights` 未登録でも OTLP managed DCR / managed RG 作成成功。Azure Monitor SLI destination metrics は `EnableCustomMetricsV2` が Pending のまま動作したため、SLI 用 feature flag 登録手順を削除。残り 2 flag は AKS preflight で必要なため継続。 |
 | C-2 | 一部削除 | AKS `managedClusters` は `2026-03-01` GA API に移行。Fleet は GA API が `UnsupportedApiVersion` のため preview 継続。 |
 | D-1 | 削除 | fresh 環境で `up{job="node"}` / `node_cpu_seconds_total` / `node_memory_MemAvailable_bytes` を即時確認。 |
 | D-3 | 削除 | 200 requests で App Insights `requests` が rows=206 / itemCount=206。sampling 影響を再現せず。 |
@@ -97,14 +97,14 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 ## C. プレビュー機能 / Preview API バージョン
 
-### C-1. 4 つの feature flag を `az feature register` 必須
+### C-1. 2 つの feature flag を `az feature register` 必須
 
-- **概要**: `AKS-AddonAutoscalingPreview`, `AzureMonitorAppMonitoringPreview`, `Microsoft.Insights/EnableCustomMetricsV2`, `Microsoft.Insights/EnableAmwAutoscale` をサブスクリプション単位で事前登録する。
-- **理由**: これらは現行構成の AKS VPA addon autoscaling / AKS App Monitoring / Azure Monitor SLI destination metrics に必要。`AKS-OMSAppMonitoring` は full `azd up` 成功、`OtlpApplicationInsights` は GA App Insights API (`Microsoft.Insights/components@2020-02-02`) 前提で OTLP managed DCR / managed RG 作成成功を確認したため、手順から削除済み。
+- **概要**: `AKS-AddonAutoscalingPreview`, `AzureMonitorAppMonitoringPreview` をサブスクリプション単位で事前登録する。
+- **理由**: これらは現行構成の AKS VPA addon autoscaling / AKS App Monitoring に必要。`AKS-OMSAppMonitoring` は full `azd up` 成功、`OtlpApplicationInsights` は GA App Insights API (`Microsoft.Insights/components@2020-02-02`) 前提で OTLP managed DCR / managed RG 作成成功を確認したため、手順から削除済み。Azure Monitor SLI destination metrics 用に扱っていた `Microsoft.Insights/EnableCustomMetricsV2` / `Microsoft.Insights/EnableAmwAutoscale` は、2026-06-25 時点で `EnableCustomMetricsV2` が Pending のまま SLI destination metrics が出ることを確認したため、手順から削除済み。
 - **場所**: `docs/deployment.md` §プレビュー機能とリソースプロバイダー登録
 - **解消条件**: 各機能が GA し、feature flag 登録が不要になる。
 - **確認方法**: feature を未登録に戻した一時サブスクリプション状態で fresh `azd up` または `azd provision base` が通るか確認する。
-- **最終確認**: 2026-05-17、`AKS-AddonAutoscalingPreview` 未登録では AKS preflight が失敗、`AzureMonitorAppMonitoringPreview` 未登録では AKS preflight が失敗。2026-05-19、`EnableCustomMetricsV2` / `EnableAmwAutoscale` 未反映では Service Group namespace の SLI destination metric query が `Custom metrics are not enabled on this resource` で失敗。`AKS-OMSAppMonitoring` 未登録では full `azd up` 成功。`OtlpApplicationInsights` 未登録かつ App Insights GA API 前提の最小構成では、OTLP managed DCR / managed RG 作成成功。
+- **最終確認**: 2026-05-17、`AKS-AddonAutoscalingPreview` 未登録では AKS preflight が失敗、`AzureMonitorAppMonitoringPreview` 未登録では AKS preflight が失敗。`AKS-OMSAppMonitoring` 未登録では full `azd up` 成功。`OtlpApplicationInsights` 未登録かつ App Insights GA API 前提の最小構成では、OTLP managed DCR / managed RG 作成成功。2026-06-25、`Microsoft.Insights/EnableCustomMetricsV2` は Pending のまま Azure Monitor SLI destination metrics が AMW に出ることを確認したため、SLI 用 feature flag 登録手順を削除。
 
 ### C-2. Fleet の preview API バージョンを継続使用
 
