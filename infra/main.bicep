@@ -1,7 +1,7 @@
 targetScope = 'subscription'
 
 @description('Deployment location')
-param location string = 'eastus2'
+param location string = 'japaneast'
 
 @description('Workload/application name (used for resource naming)')
 param appName string = 'aks-chaos-lab'
@@ -10,7 +10,7 @@ param appName string = 'aks-chaos-lab'
 param environment string = 'dev'
 
 @description('AKS node VM size')
-param nodeVmSize string = 'Standard_D4ds_v7'
+param nodeVmSize string = 'Standard_D4pds_v6'
 
 @description('Virtual network address prefix')
 param vnetAddressPrefix string = '10.10.0.0/16'
@@ -414,7 +414,7 @@ module aksCluster './modules/aks.bicep' = {
 // which makes it a deploy-time value in the module context and usable in guid() for names.
 module alertSubRoleAssignments './modules/alert-sub-role-assignments.bicep' = {
   // Subscription-scoped deployment names are keyed by name+location. Suffix with
-  // environment so different regions (dev=eastus2, eval-arm=japaneast) don't collide.
+  // environment so deployments across regions don't collide.
   name: 'alertSubRoleAssignments-${environment}'
   params: {
     aksAlertPrincipalId: aksCluster.outputs.nodeOsAutoUpgradeAlertPrincipalId

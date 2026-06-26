@@ -107,9 +107,15 @@ azd up
 4. `azd deploy observability` — Envoy Gateway などをデプロイ
 5. `azd deploy chaos-mesh` — Chaos Mesh を Helm install
 6. `azd deploy external-sli-publisher` — Flex Consumption の Azure Functions publisher をデプロイ
-7. `azd provision sli` (`infra/sli/main.bicep`) — layer `preprovision` hook で external SLI input metrics の出現を待ってから Azure Monitor SLI definitions と SLI metric alerts を作成し、`postprovision` hook で SLI destination metrics の出現を待機
+7. `azd provision sli` (`infra/sli/main.bicep`) — layer `preprovision` hook で external SLI input metrics の出現を待ってから Azure Monitor SLI definitions と SLI metric alerts を作成
 
 SLI layer は external SLI publisher が Managed Prometheus に good / total metrics を出した後に実行する必要があるため、`infra.layers` で `base` と `sli` を分離しています。この判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md) を参照してください。
+
+Azure Monitor SLI destination metrics は、SLI resource 作成後に評価が始まるまで時間がかかることがあります。`azd up` は destination metric の出現を待ちません。評価開始を手動で確認する場合は、デプロイ後に次のコマンドを実行します。
+
+```bash
+uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination
+```
 
 `api-instrumentation` は app-specific な `Instrumentation/chaos-app-otel` だけを `k8s/apps/chaos-app/instrumentation/` から適用します。クラスタ共通の `k8s/observability` には置きません。`Instrumentation` を `Deployment/chaos-app` より先に作成しないと、AKS App Monitoring の admission webhook が Pod template に `OTEL_EXPORTER_OTLP_*` を注入できず、API の Application Insights traces / metrics / logs と Redis dependency が欠落します。
 
@@ -125,6 +131,14 @@ azd provision sli --preview
 ```
 
 `azd up` 中に `DeploymentNotFound` が出ても、ARM 上の deployment が `Succeeded` で残るケースがあります。その場合は `azd env refresh <env> --no-prompt` で env outputs を同期してから、`azd up --no-prompt` を再実行してください。詳細は [docs/workarounds.md §D-2](workarounds.md#d-2-azd-の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す) を参照してください。
+
+リージョンや AKS node VM size を変更した直後に既存の azd 環境を再利用する場合、`azd env refresh` は過去の Azure deployment outputs から旧値を取り込むことがあります。`azd env refresh` の後、`azd down` や `azd up` の前に対象環境の値を明示してください。
+
+```bash
+azd env refresh eval --no-prompt
+azd env set AZURE_LOCATION japaneast -e eval
+azd env set AZURE_AKS_NODE_VM_SIZE Standard_D4pds_v6 -e eval
+```
 
 ## ローカル開発
 
