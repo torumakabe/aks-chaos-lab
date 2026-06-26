@@ -80,6 +80,9 @@ resource containerRegistryPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoint
       { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }
     ]
   }
+  dependsOn: [
+    containerRegistryPrivateDnsZoneLink
+  ]
 }
 
 output registryId string = containerRegistry.id

@@ -35,11 +35,11 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 ### A-2. `scripts/wait-for-external-sli-signals.py` で external SLI metric 出力待機
 
-- **概要**: `sli` layer の `preprovision` hook で、Managed Prometheus 上に `chaos_app_external_availability_total`、`chaos_app_external_latency_total`、および `latencyThresholdLe` に対応する `chaos_app_external_latency_good{le="<latencyThresholdLe>"}` が出るまで待つ。`postprovision` hook では `--skip-source --require-sli-destination` を付け、Azure Monitor SLI destination `:Value` metric まで確認する。
-- **理由**: A-1 と同じ。SLI 作成前に external SLI input metrics が materialize されている必要がある。SLI 作成後は input metric だけでは end-to-end 検証にならないため、destination metric を別途確認する。
+- **概要**: `sli` layer の `preprovision` hook で、Managed Prometheus 上に `chaos_app_external_availability_total`、`chaos_app_external_latency_total`、および `latencyThresholdLe` に対応する `chaos_app_external_latency_good{le="<latencyThresholdLe>"}` が出るまで待つ。Azure Monitor SLI destination `:Value` metric は `postprovision` hook では待たない。
+- **理由**: A-1 と同じ。SLI 作成前に external SLI input metrics が materialize されている必要がある。SLI 作成後の destination metric は評価開始まで時間がかかるため、`azd up` の完了条件にしない。必要な場合は `uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination` で手動確認する。
 - **場所**: `scripts/wait-for-external-sli-signals.py`、`azure.yaml`
 - **解消条件**: A-1 と同じ。
-- **確認方法**: A-1 と同じ。
+- **確認方法**: A-1 と同じ。destination metric の手動確認は、SLI 作成後に `uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination` を実行する。
 
 ### A-3. AMW managed resource group 内 DCR への SLI RBAC 付与
 

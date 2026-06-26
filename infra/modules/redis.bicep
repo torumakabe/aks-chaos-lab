@@ -83,6 +83,9 @@ resource redisPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDns
       { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }
     ]
   }
+  dependsOn: [
+    redisPrivateDnsZoneLink
+  ]
 }
 
 output redisId string = redisEnterprise.id

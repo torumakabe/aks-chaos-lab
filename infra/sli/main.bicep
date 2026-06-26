@@ -121,7 +121,7 @@ var canCreateSli = enabled && hasServiceGroup && hasSliPipeline && hasSliNames
 
 module azureMonitorSliDefinitions '../modules/azmonitor/sli-definitions.bicep' = if (canCreateSli) {
   // Subscription-scoped deployment name; suffix with environment so different
-  // regions (dev=eastus2, eval-arm=japaneast) don't collide.
+  // regions don't collide.
   name: 'azureMonitorSliDefinitions-${environment}'
   params: {
     serviceGroupName: effectiveServiceGroupName

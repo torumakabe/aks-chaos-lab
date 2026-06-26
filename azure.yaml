@@ -15,14 +15,6 @@ infra:
           posix:
             run: uv run ../../scripts/wait-for-external-sli-signals.py
             interactive: false
-        postprovision:
-          windows:
-            run: uv run ..\..\scripts\wait-for-external-sli-signals.py --skip-source --require-sli-destination
-            interactive: false
-          posix:
-            run: uv run ../../scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination
-            interactive: false
-
 workflows:
   up:
     steps:
@@ -49,6 +41,13 @@ services:
     host: aks
     resourceName: ${AZURE_AKS_CLUSTER_NAME}
     hooks:
+      predeploy:
+        windows:
+          run: uv run scripts\wait-for-aks-readiness.py
+          interactive: false
+        posix:
+          run: uv run scripts/wait-for-aks-readiness.py
+          interactive: false
       postdeploy:
         windows:
           run: uv run scripts\check-api-otel-injection.py wait-instrumentation
@@ -70,10 +69,8 @@ services:
     docker:
       path: Dockerfile
       context: ../..
-      # Default build is amd64. azd does not env-expand docker.platform, so to
-      # build for Arm64 node pools (e.g. Standard_D4pds_v6) edit this value to:
-      #   platform: linux/arm64
-      platform: linux/amd64
+      # azd does not env-expand docker.platform; keep this in sync with the AKS node architecture.
+      platform: linux/arm64
     hooks:
       predeploy:
         windows:
