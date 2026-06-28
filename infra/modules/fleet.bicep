@@ -36,7 +36,8 @@ param autoUpgradeChannel string = 'Stable'
 
 var memberGroupName = fleetMemberName
 
-resource fleet 'Microsoft.ContainerService/fleets@2025-04-01-preview' = {
+#disable-next-line BCP081
+resource fleet 'Microsoft.ContainerService/fleets@2026-06-01' = {
   name: fleetName
   location: location
   tags: tags
@@ -48,7 +49,8 @@ resource fleet 'Microsoft.ContainerService/fleets@2025-04-01-preview' = {
 var pendingApprovalGateKqlTemplate = sys.loadTextContent('./templates/pending-approval-gate.kql')
 var pendingApprovalGateKql = replace(pendingApprovalGateKqlTemplate, '{{FLEET_RESOURCE_ID}}', toLower(fleet.id))
 
-resource fleetMember 'Microsoft.ContainerService/fleets/members@2025-04-01-preview' = {
+#disable-next-line BCP081
+resource fleetMember 'Microsoft.ContainerService/fleets/members@2026-06-01' = {
   name: fleetMemberName
   parent: fleet
   properties: {
@@ -57,7 +59,8 @@ resource fleetMember 'Microsoft.ContainerService/fleets/members@2025-04-01-previ
   }
 }
 
-resource fleetUpdateStrategy 'Microsoft.ContainerService/fleets/updateStrategies@2025-04-01-preview' = {
+#disable-next-line BCP081
+resource fleetUpdateStrategy 'Microsoft.ContainerService/fleets/updateStrategies@2026-06-01' = {
   name: updateStrategyName
   parent: fleet
   properties: {
@@ -85,7 +88,8 @@ resource fleetUpdateStrategy 'Microsoft.ContainerService/fleets/updateStrategies
   ]
 }
 
-resource autoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfiles@2025-04-01-preview' = {
+#disable-next-line BCP081
+resource autoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfiles@2026-06-01' = {
   name: 'default-auto-upgrade'
   parent: fleet
   properties: {

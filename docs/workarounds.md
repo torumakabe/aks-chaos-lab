@@ -4,6 +4,16 @@
 
 ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
+## 2026-06-26 棚卸し結果
+
+リポジトリの現行 IaC と upstream issue の状態を確認し、以下を整理した。
+
+| ID | 反映内容 | 検証結果 |
+|---|---|---|
+| C-2 | 一部削除 | Fleet は `2026-06-01` GA API に移行し、eval で `azd provision base` 成功。AKS は `2026-04-01` GA API で `addonAutoscaling` が未対応のため、`2026-03-02-preview` を継続。 |
+| D-2 | 経過観察 | Azure/azure-dev#8064 は close 済み。azd 1.26.0 で eval の fresh `azd down` / `azd up` / `azd env refresh` が成功し、`DeploymentNotFound` は再現しなかった。旧版 azd 向けの復旧手順として記述は残す。 |
+| D-8 | 削除 | Azure/azure-dev#8239 は close 済み。azd 1.26.0 の eval `azd up` で reserved-word warning は再現せず、Bicep コメントから false-positive 記述を削除。 |
+
 ## 2026-05-17 棚卸し結果
 
 実環境を使って「workaround を削除できるか」を確認し、以下を削除または整理した。
@@ -15,7 +25,7 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 | B-3 | 削除 | B-2 の DCRA 先行削除を残す前提では、`postdown` force-delete なしで `ai_*_managed` が残留しない。 |
 | B-4 | 削除 | 現行 Microsoft Learn では誤記 `AKSAzureMonitorAISupportPreview` が確認できない。feature flag 管理は C-1 に集約。 |
 | C-1 | 一部削除 | `AKS-OMSAppMonitoring` 未登録でも full `azd up` 成功。`Microsoft.Insights/components@2020-02-02` 前提では `OtlpApplicationInsights` 未登録でも OTLP managed DCR / managed RG 作成成功。Azure Monitor SLI destination metrics は `EnableCustomMetricsV2` が Pending のまま動作したため、SLI 用 feature flag 登録手順を削除。残り 2 flag は AKS preflight で必要なため継続。 |
-| C-2 | 一部削除 | AKS `managedClusters` は `2026-03-01` GA API に移行。Fleet は GA API が `UnsupportedApiVersion` のため preview 継続。 |
+| C-2 | 一部削除 | 当時の検証では AKS `managedClusters` を `2026-03-01` GA API に移行し、Fleet は GA API が `UnsupportedApiVersion` のため preview 継続とした。現行 IaC の状態は 2026-06-26 棚卸しを参照。 |
 | D-1 | 削除 | fresh 環境で `up{job="node"}` / `node_cpu_seconds_total` / `node_memory_MemAvailable_bytes` を即時確認。 |
 | D-3 | 削除 | 200 requests で App Insights `requests` が rows=206 / itemCount=206。sampling 影響を再現せず。 |
 | D-6 | 書き換え | OTLP logs pipeline 自体は実装済み。一方、fresh `azd up` 直後に Pod へ `OTEL_*` env が注入されない事象が残る。 |
@@ -106,14 +116,14 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **確認方法**: feature を未登録に戻した一時サブスクリプション状態で fresh `azd up` または `azd provision base` が通るか確認する。
 - **最終確認**: 2026-05-17、`AKS-AddonAutoscalingPreview` 未登録では AKS preflight が失敗、`AzureMonitorAppMonitoringPreview` 未登録では AKS preflight が失敗。`AKS-OMSAppMonitoring` 未登録では full `azd up` 成功。`OtlpApplicationInsights` 未登録かつ App Insights GA API 前提の最小構成では、OTLP managed DCR / managed RG 作成成功。2026-06-25、`Microsoft.Insights/EnableCustomMetricsV2` は Pending のまま Azure Monitor SLI destination metrics が AMW に出ることを確認したため、SLI 用 feature flag 登録手順を削除。
 
-### C-2. Fleet の preview API バージョンを継続使用
+### C-2. AKS の preview API バージョンを継続使用
 
-- **概要**: `Microsoft.ContainerService/fleets@2025-04-01-preview` など Fleet 関連 resource type は preview API を使用する。AKS `managedClusters` は `2026-03-01` GA API に移行済み。
-- **理由**: Fleet update strategy の Approval gate / auto upgrade profile は、検証時点の GA API では ARM preflight が `UnsupportedApiVersion` になり作成できない。
-- **場所**: `infra/modules/fleet.bicep`
-- **解消条件**: Fleet の必要機能を含む GA API バージョンが提供される。
-- **確認方法**: Fleet resources を latest GA API に置換して `azd provision base --preview` が通るか確認する。
-- **最終確認**: 2026-05-17、AKS は `managedClusters@2026-03-01` で preview 成功。Fleet は `fleets@2025-03-01` で `UnsupportedApiVersion`。
+- **概要**: 現行 IaC では AKS `managedClusters` に `Microsoft.ContainerService/managedClusters@2026-03-02-preview` を使用する。Fleet 関連 resource type は `Microsoft.ContainerService/fleets@2026-06-01` と同 version の member / update strategy / auto upgrade profile に移行済み。
+- **理由**: AKS `2026-04-01` GA API では、現行構成の VPA addon autoscaling に必要な `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling` が `unknown field "addonAutoscaling"` として拒否される。
+- **場所**: `infra/modules/aks.bicep`、`infra/modules/fleet.bicep`
+- **解消条件**: AKS の VPA addon autoscaling を含む GA API バージョンが提供される。
+- **確認方法**: AKS `managedClusters` を最新の GA API に置換して `azd provision base --preview` と `azd provision base` が通るか確認する。
+- **最終確認**: 2026-06-26、eval で AKS `managedClusters@2026-04-01` を試すと `addonAutoscaling` 未対応で `azd provision base` が失敗。Fleet `2026-06-01` GA API は `azd provision base` 成功。
 
 ### C-3. Azure Monitor 系 managed resource group 命名は制御不可
 
@@ -128,15 +138,16 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 ## D. 既知の遅延 / 制約
 
-### D-2. azd の subscription scope deployment polling が散発的に `DeploymentNotFound` を返す
+### D-2. azd 旧版の subscription scope deployment polling が散発的に `DeploymentNotFound` を返す
 
-- **概要**: `azd up` / `azd down` の subscription scope deployment 操作で `Deployment '<env>-<layer>?-<unix>' could not be found.` が返って失敗することがある。同名 deployment record は ARM 上で `Succeeded` 状態で残っているケースが直接観測されている。
-- **理由**: 未確定。ARM の deployment record が一時的に GET で見えないウィンドウがあるように見えるが、根本原因は未特定。観測事実の報告として upstream issue [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) を起票済み。
+- **概要**: azd 1.24.3 では、`azd up` / `azd down` の subscription scope deployment 操作で `Deployment '<env>-<layer>?-<unix>' could not be found.` が返って失敗することがあった。同名 deployment record は ARM 上で `Succeeded` 状態で残っているケースが直接観測されていた。
+- **理由**: 未確定。ARM の deployment record が一時的に GET で見えないウィンドウがあるように見えるが、根本原因は未特定。観測事実は upstream issue [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) で報告済み。
 - **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、ADR-009
 - **構造的対処 (down 側のみ・実装済み)**: `predown` hook が Service Group scope SLI / Service Group / OTLP DCRA / SLI layer deployment record / base RG / base layer deployment record を順に削除し、`azd down` の Destroy 経路を両 layer で graceful skip path に短絡する。これにより down 側の `voidSubscriptionDeploymentState` を呼ばない。
-- **対処できない範囲 (up 側)**: `azd up` の通常 deployment polling は azd 側で起こるため、リポジトリ側からは予防できない。再現した場合は ARM 上の該当 subscription deployment が `Succeeded` か確認し、成功していれば `azd env refresh <env> --no-prompt` で env outputs を同期してから `azd up --no-prompt` を再実行する。
-- **確認方法**: 一時環境の削除後、`az deployment sub list` で該当 env の deployment record が残っていないことを確認する。
-- **最終確認**: 2026-05-18、`eval` 環境の `azd up` で `provision sli` が `DeploymentNotFound` を返したが、ARM 上の `eval-sli-1779095707` は `Succeeded`。`azd env refresh eval --no-prompt` 後の `azd up --no-prompt` 再実行で成功。削除不可。
+- **旧版 azd で再現した場合の復旧手順**: ARM 上の該当 subscription deployment が `Succeeded` か確認し、成功していれば `azd env refresh <env> --no-prompt` で env outputs を同期してから `azd up --no-prompt` を再実行する。
+- **確認方法**: 一時環境で `azd down --force --purge --no-prompt`、`azd up --no-prompt`、`azd env refresh <env> --no-prompt` を実行し、`DeploymentNotFound` が出ないことを確認する。
+- **追跡**: [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) は 2026-06-12 に close 済み。
+- **最終確認**: 2026-05-18、`eval` 環境の azd 1.24.3 で `provision sli` が `DeploymentNotFound` を返したが、ARM 上の `eval-sli-1779095707` は `Succeeded`。`azd env refresh eval --no-prompt` 後の `azd up --no-prompt` 再実行で成功。2026-06-26、azd 1.26.0 で eval の fresh `azd down` / `azd up` / `azd env refresh` が成功し、再現なし。
 
 ### D-4. Azure Monitor SLI Metric Alert (Portal 型) の動作仕様が未公開
 
@@ -164,21 +175,6 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: AKS App Monitoring が参照先 `Instrumentation` 未作成時でも Deployment / Pod を後から安全に再評価できる、または Kubernetes 側で CR と Deployment の admission-time ordering を宣言できる。
 - **確認方法**: `azd deploy api-instrumentation` 後に `uv run scripts/check-api-otel-injection.py wait-instrumentation`、`azd deploy api` 後に `uv run scripts/check-api-otel-injection.py check-injected` を実行する。`kubectl rollout restart` は既存の未注入 Pod を復旧する手段であり、通常の deploy path には使わない。
 - **最終確認**: 2026-05-20、`sli-flex-test` で `Instrumentation` が `Deployment` より 5 秒遅れて作成され API Pod の `OTEL_*` が欠落。`api-instrumentation` service と deploy hook で ordering / validation を追加。
-
-### D-8. azd preflight が `Microsoft.Chaos/targets` に reserved-word warning を誤検知
-
-- **概要**: `azd up` / `azd provision` 実行時に以下の warning が出る。`Microsoft.Chaos/targets` の名前 `microsoft-azurekubernetesservicechaosmesh` は Azure Chaos Studio 仕様で固定であり、変更不可。
-  ```
-  (!) Warning: Resource "microsoft-azurekubernetesservicechaosmesh" (Microsoft.Chaos/targets) contains the reserved word "MICROSOFT"
-    Azure does not allow reserved words in resource names. The deployment will fail.
-  ```
-- **理由**: azd の preflight (`cli/azd/pkg/infra/provisioning/bicep/bicep_provider.go` の `azureReservedResourceNameContainsMatches = ["MICROSOFT", "WINDOWS"]`) が、`azureReservedResourceNameExemptTypes` に未登録の `Microsoft.Chaos/targets` を弾く。target type 名は Chaos Studio capability binding (`urn:csci:microsoft:azureKubernetesServiceChaosMesh:*`) と一対一で固定されており、サービス仕様上の固有名。ARM 側で reserved-word ルールは適用されないため、warning に反してデプロイは成功する（false positive）。
-- **実害評価**: なし。`azd` 実行ログにノイズが出るのみ。
-- **場所**: `infra/modules/chaos/experiments.bicep` の `chaosTarget` リソース（コメントで根拠を明記済み）。
-- **解消条件**: upstream で `Microsoft.Chaos/targets` が exempt list に追加される。
-- **追跡**: [Azure/azure-dev#8239](https://github.com/Azure/azure-dev/issues/8239)
-- **確認方法**: 上記 upstream issue が close されたバージョンの `azd` で `azd up` を実行し、warning が出ないことを確認する。
-- **最終確認**: 2026-05-19、`azd up` で warning が出るがデプロイは成功。Chaos experiment も正常動作。
 
 ### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発（実害なし・ログノイズのみ）
 

@@ -36,6 +36,10 @@ Azure Monitor SLI は上記 good / total metrics を Request-based SLI として
 
 External SLI metrics は最新の閉じた window に対する probe と、欠落 window の bad sample を合算して発行します。Azure Monitor Workspace は `OldData` として現在から 20 分より古い timestamp を拒否するため、catch-up した複数 window は publisher の実行時刻に合算します。Request-based SLI は good / total の合計で評価されるため、時間分布は圧縮されますが、rolling period 内の分子・分母は回復できます。heartbeat metric は publisher freshness を表すため、実行時刻で発行します。SLI 作成前の入力確認は Managed Prometheus の PromQL で行います。
 
+Latency SLI の good / total は monotonic counter ではなく、window ごとに書き込む gauge です。成功 probe は `latency_total += 1` とし、`duration <= le` を満たす bucket の `latency_good{le="<bucket>"}` を 1 として扱います。timeout、non-2xx、network error、Function host 停止などで probe 結果を再構成できない欠損 window は、保守的に `latency_total += 1`、全 bucket の good を 0 として扱います。`externalSliProbeTimeoutSeconds` は最大 bucket の 5 秒より大きくする必要があります。
+
+`chaos_app_external_latency_good` は Prometheus histogram の `_bucket` ではありません。`_sum` / `_count` を持たないため、`histogram_quantile()` や `rate()` では解析しません。分位点や平均の診断は Gateway Envoy 由来の `gateway:chaos_app:*` recording rules を使います。SLI metric の形式を変更した場合は、旧 metric と新 metric を dual-publish せず、`deploy external-sli-publisher` 後に `provision sli` する標準フローで切り替えます。
+
 ```promql
 count_over_time(chaos_app_external_availability_total{environment="<env>",service="chaos-app",test="<probe-name>"}[45m])
 ```
@@ -84,7 +88,29 @@ SLI 用の人工トラフィックは AKS 内 CronJob ではなく、Azure Funct
 - stdout は OTLP のみで取得し、ContainerLogV2 では除外する
 - stderr は ContainerLogV2 で維持し、uvicorn error / 未捕捉例外 / crash 時の証跡として残す
 
-Python OpenTelemetry Logs SDK の成熟度リスクと依存 pin の理由は [ADR-006 §成熟度の前提とリスク](adr/006-otlp-vendor-neutral-otel.md#成熟度の前提とリスク) を参照してください。
+OTLP logs pipeline は ContainerLogV2 の完全な代替ではありません。次のログは OTLP 経路では取得できないため、`chaos-lab` namespace の stderr は ContainerLogV2 で維持します。
+
+| 取得できないログ | 理由 |
+|---|---|
+| uvicorn access / error log | uvicorn の独自 logger は `app` 配下ではない |
+| 未捕捉例外の traceback | Python が stderr に直接書き込む |
+| telemetry 初期化前 / shutdown 後の log | `LoggerProvider` の lifecycle 外 |
+| `print()` や library の stdout / stderr | Python `logging` 経由ではない |
+| third-party logger | allowlist 外 |
+| process crash 時の最後の stderr | OTLP exporter の flush 前に失われる可能性がある |
+
+OpenTelemetry Logs の仕様は Stable ですが、Python の logs 実装は公式 status page で Development tier です。`opentelemetry.sdk._logs` が internal namespace であること、upstream で破壊的変更が続いていること、`opentelemetry-instrumentation-*` が pre-1.0 であることから、OTel 依存は `src/api/pyproject.toml` で上限を付けます。major だけでなく minor / beta upgrade も自動 merge せず、upgrade 時は `OTelLogs` に `ScopeName=app.main` のアプリログが届くことを確認してください。
+
+```kusto
+OTelLogs
+| where TimeGenerated > ago(30m)
+| where ServiceName == "chaos-app"
+| where ScopeName startswith "app."
+| project TimeGenerated, ServiceName, ScopeName, SeverityText, Body, TraceId
+| order by TimeGenerated desc
+```
+
+ContainerLogV2 の stdout 除外を確認する場合は、アプリ logger から一意な marker を出し、`OTelLogs` に存在し、`ContainerLogV2` の `stdout` に存在しないことを確認します。Container Insights agent の ConfigMap 反映には最大 15 分程度かかることがあります。stdout を ContainerLogV2 に戻す場合は、`k8s/observability/container-azm-ms-agentconfig.yaml` の stdout `exclude_namespaces` から `chaos-lab` を削除します。
 
 ## 運用上の注意
 
