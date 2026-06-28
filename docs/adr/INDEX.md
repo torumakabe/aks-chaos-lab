@@ -7,7 +7,7 @@
 | 003 | [Container Insights データ収集プリセットの Custom 化](003-container-insights-custom-preset.md) | Accepted | 2026-04-03 |
 | 004 | [Envoy Gateway メトリクスによる SLO/SLI signal 監視](004-envoy-gateway-metrics-for-slo.md) | Accepted | 2026-04-04 |
 | 005 | [AKS 診断ログの Basic テーブル収集](005-aks-diagnostics-basic-logs.md) | Accepted | 2026-04-07 |
-| 006 | [Application Insights OTLP 統合とベンダー非依存 OTel 計装への移行](006-otlp-vendor-neutral-otel.md) | Accepted | 2026-07-22 |
+| 006 | [Application Insights OTLP 統合とベンダー非依存 OTel 計装への移行](006-otlp-vendor-neutral-otel.md) | Accepted | 2026-04-10 |
 | 007 | [ACNS Advanced Network Policies の L7 化と Cilium L7 HTTP 可観測性の導入](007-acns-l7-observability.md) | Accepted | 2026-04-17 |
 | 008 | [AKS ノード OS を Ubuntu 24.04 (osSKU: Ubuntu2404) に明示ピン留め](008-node-os-ubuntu2404.md) | Accepted | 2026-04-24 |
 | 009 | [Azure Monitor SLI と Prometheus operational alerts の役割分担](009-azure-monitor-sli-and-prometheus-slo.md) | Accepted | 2026-05-01 |
@@ -15,4 +15,5 @@
 | 011 | [外形 availability test を Azure Monitor SLI の正本にする](011-external-availability-sli-publisher.md) | Superseded | 2026-05-19 |
 | 012 | [Azure Functions direct probe を Azure Monitor SLI の正本にする](012-functions-direct-external-sli-probe.md) | Accepted (Latency 部分は ADR-014 で amend) | 2026-05-20 |
 | 013 | [uv workspace でツーリングを統一しつつデプロイ単位は分離維持](013-uv-workspace-unified-tooling.md) | Accepted | 2026-05-21 |
-| 014 | [Latency SLI を histogram bucket + `EQ` filter 方式に変更する](014-histogram-bucket-latency-sli.md) | Accepted | 2026-05-21 |
+| 014 | [Latency SLI を `le` bucket と `EQ` filter で定義する](014-histogram-bucket-latency-sli.md) | Accepted | 2026-05-21 |
+| 015 | [Azure リソース名への resourceToken サフィックス付与ルール](015-resource-token-suffix-naming.md) | Accepted | 2026-06-28 |

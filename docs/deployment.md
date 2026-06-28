@@ -130,7 +130,7 @@ azd provision base --preview
 azd provision sli --preview
 ```
 
-`azd up` 中に `DeploymentNotFound` が出ても、ARM 上の deployment が `Succeeded` で残るケースがあります。その場合は `azd env refresh <env> --no-prompt` で env outputs を同期してから、`azd up --no-prompt` を再実行してください。詳細は [docs/workarounds.md §D-2](workarounds.md#d-2-azd-の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す) を参照してください。
+azd 旧版で `azd up` 中に `DeploymentNotFound` が出ても、ARM 上の deployment が `Succeeded` で残るケースがあります。その場合は `azd env refresh <env> --no-prompt` で env outputs を同期してから、`azd up --no-prompt` を再実行してください。詳細は [docs/workarounds.md §D-2](workarounds.md#d-2-azd-旧版の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す) を参照してください。
 
 リージョンや AKS node VM size を変更した直後に既存の azd 環境を再利用する場合、`azd env refresh` は過去の Azure deployment outputs から旧値を取り込むことがあります。`azd env refresh` の後、`azd down` や `azd up` の前に対象環境の値を明示してください。
 
@@ -152,6 +152,8 @@ uv run scripts/tasks.py run
 ## テストと品質確認
 
 アプリケーション:
+
+クリーン環境や新しい worktree では、先に `uv run scripts/tasks.py sync-dev` を実行してください。`qa-app` は同期済みの workspace venv を前提に ruff、ty、pytest を実行します。
 
 ```bash
 uv run scripts/tasks.py test

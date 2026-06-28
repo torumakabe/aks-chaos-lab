@@ -2,87 +2,37 @@
 
 ## Status
 
-Accepted — Extends ADR-004。ADR-011 により Azure Monitor SLI の正本 signal は Gateway Envoy 由来から外形 availability test 由来へ変更され、ADR-012 により Azure Functions direct probe 由来へ変更。
+Accepted — Extends ADR-004
 
-> ADR-012 は、本 ADR の「Gateway Envoy recording rules を Azure Monitor SLI 入力にする」「AKS 内 synthetic traffic で no-data を補う」部分を部分的に supersede する。Prometheus operational / diagnostic signal の役割分担と Service Group / cleanup の制約は本 ADR の判断を維持する。
+ADR-011 は Azure Monitor SLI の正本 signal を Gateway Envoy 由来から外形 availability test 由来へ変更した。ADR-012 は正本を Azure Functions direct probe 由来へ変更し、本 ADR の「Gateway Envoy recording rules を Azure Monitor SLI 入力にする」「AKS 内 synthetic traffic で no-data を補う」部分を supersede した。ADR-014 は ADR-012 の Latency SLI を `le` bucket + `EQ` filter 方式へ amend した。
 
 ## Context
 
-Azure Monitor Service Level Indicators (SLI) は、Service Group を単位に Availability / Latency の SLI、Baseline (SLO)、error budget、fast/slow burn rate alert を提供する。これは、短期のしきい値超過を検知する仕組みではなく、サービスの信頼性目標とエラーバジェットを扱うレイヤーである。
+ADR-004 では Gateway Envoy メトリクスを信頼性 signal として採用した。その後、Azure Monitor Service Level Indicators (SLI) を使い、Availability / Latency SLI、Baseline、error budget、burn-rate alert を Azure Monitor 側で扱えるようになった。
 
-このリポジトリでは、ADR-004 により Gateway 層 Envoy メトリクスへ信頼性 signal を統一済みである。`app-slo-recording-rules-group-*` は raw Envoy メトリクスを `gateway:chaos_app:*` に整形しており、Azure Monitor SLI の入力にも、短期 Prometheus operational alerts の入力にも使う。
+一方、Managed Prometheus の短期アラートは、Chaos 実験やインシデント観測で数分以内の異常を知らせるために使う。これは SLO の error budget を評価する仕組みとは目的が異なる。
 
-一方、従来の `app-slo-alerts-*` は `gateway:chaos_app:http_request_duration:p95 > 1` と `gateway:chaos_app:http_error_rate:ratio > 0.01` の 5 分しきい値アラートだった。これは SLO/error-budget alert ではなく、短期のインシデント検知・Chaos 実験観測のための operational alert である。
-
-Azure Monitor SLI の Bicep 型は preview として `Microsoft.Monitor/slis@2025-03-01-preview` が提供されている。Service Group は `Microsoft.Management/serviceGroups@2024-02-01-preview`、membership は `Microsoft.Relationships/serviceGroupMember@2023-09-01-preview` で作成できる。Portal が作る SLI alert は `Microsoft.Insights/metricAlerts@2024-03-01-preview` の `PromQLCriteria` として作成される。
+そのため、Azure Monitor SLI と Prometheus alerts を同じ「SLO アラート」として扱うと、長期の信頼性評価と短期の運用検知が混ざって読みにくくなる。
 
 ## Decision
 
-- Azure Monitor SLI を、このラボの正規 SLO/SLI・error budget レイヤーとして扱う。
+- Azure Monitor SLI を、このラボの正規 SLO / SLI と error budget のレイヤーとして扱う。
 - Managed Prometheus の短期アラートは、SLO alert ではなく operational / incident detection alert として扱う。
-- `app-slo-alerts-*` は `app-operational-alerts-*` に改名する。
-- `ChaosAppSLOLatencyP95High` は `ChaosAppRequestLatencyGoodRateLow` に改名する。
-- `ChaosAppSLOErrorRateHigh` は `ChaosAppRequestFailureRateHigh` に改名する。
-- `enablePrometheusAppSloAlerts` は `enablePrometheusAppOperationalAlerts` に改名する。
-- alert labels では `slo` を使わず、`alert_type: operational`、`signal: latency-good-rate` / `signal: failure-rate`、`source: gateway-envoy` を使う。
-- Latency SLI の主シグナルは、保存済み p95 ではなく、5分窓内で 1秒以内に完了したリクエスト割合 `gateway:chaos_app:http_request_duration:le_1s_ratio` とする。`gateway:chaos_app:http_request_duration:p95` は operational / debug 用に維持する。
-- `app-slo-recording-rules-group-*` はリソース名の互換性を維持するため改名しない。ただし意味づけは「SLO 専用」ではなく、SLI source / reliability signal recording rules とする。
-- Azure Monitor SLI の baseline / fast burn / slow burn alerts は、Portal 型 Metric Alert を Bicep 管理する `infra/modules/azmonitor/sli-metric-alerts.bicep` に一本化する。
-- SLI output metrics を Managed Prometheus rule group に戻してアラート化する迂回構成は採用しない。これは Azure Monitor SLI の本来の alert 経路ではなく、用途を誤解して試した構成だったためである。
-- Azure Monitor SLI は 1回の `azd up` で作成する。`azure.yaml` の `infra.layers` に `base` (`infra/`) と `sli` (`infra/sli/`) を分離し、`workflows.up` で `azd provision base` → `azd deploy api` → `azd deploy observability` → `azd deploy chaos-mesh` → `azd deploy external-sli-publisher` → `azd provision sli` の順序を宣言する。`sli` layer の `preprovision` hook は `uv run ../../scripts/wait-for-external-sli-signals.py` で外形 good / total input metrics の出現を待ち、AKS 内 traffic は生成しない。Azure Monitor SLI が出力する destination metrics (SLI 評価値を Managed Prometheus に書き出したメトリクス) は評価開始まで時間がかかるため、`postprovision` hook では待たない。必要な場合は `uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination` を手動実行する。
-- 通常の `azd provision base` は Service Group、SLI 用 User Assigned Managed Identity、AMW/DCR RBAC、Service Group membership までを作る。SLI definitions と SLI metric alerts は warm-up 後の `azd provision sli` (`infra/sli/main.bicep`) で作る。これにより Managed Prometheus の入力メトリクス未準備で SLI 作成が走る経路が `azure.yaml` レベルで構造的に排除される。
-- 親 Service Group を指定する場合は `azureMonitorSliParentServiceGroupId` を使い、その配下に環境別 Service Group を作成する。既存の環境別 Service Group を `azureMonitorSliServiceGroupResourceId` で指定した場合のみ、その Service Group を SLI scope として直接使う。
-- `azd down` は resource group 外の Service Group scope resources を取りこぼす可能性があり、加えて subscription scope deployment の polling が ARM の read-after-write 不整合に晒されると `DeploymentNotFound` で偽陽性失敗する (詳細は [docs/workarounds.md §D-2](../workarounds.md#d-2-azd-の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す)、upstream 観測報告 [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064))。環境削除時は `predown` hook で次の順序で **base / SLI 両 layer の Destroy 経路を graceful skip path に短絡** する: (1) Service Group scope SLI と Service Group、(2) AKS 上の OTLP Application Insights DCR association、(3) SLI layer の sub-scope deployment record (`tags.azd-layer-name=sli`)、(4) base RG (`AZURE_RESOURCE_GROUP` 出力。fallback で `rg-aks-chaos-lab-<env>`) を `az group delete --no-wait` + `az group exists` polling で同期削除、(5) base layer の sub-scope deployment record (`tags.azd-layer-name=base`) を strict に削除。これにより `azd down` 本体の `CompletedDeployments` が両 layer とも `ErrDeploymentsNotFound` を返し、`voidSubscriptionDeploymentState` が呼ばれず **down 側の polling 404 リスクが構造的に除去**される (`azd up` 側の polling 404 は azd 側で起こるためリポジトリ側からは予防できない、upstream 動向待ち)。AKS 上の OTLP DCRA を先に削除する前提では App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) も base RG 削除に連動して消えるため、`postdown` の force-delete hook は使わない。`preinfradelete` hook は使わない。cleanup hook は Python hook として project-level `azd down` で自動実行し、非破壊検証時だけ `AZURE_MONITOR_SLI_CLEANUP_DRY_RUN=true` を使う。`azd down <layer>` のような layer 指定 down は cleanup の対象範囲が一致しないためサポート対象外とし、project-level `azd down` のみを正規ルートとする。
-
-## Azure Monitor SLI 作成に必要な権限
-
-Azure Monitor SLI は Service Group scope の resource と、AMW / DCR / managed DCR への RBAC を組み合わせて動作する。base / sli の Bicep layer で再現するには、デプロイ主体と SLI 用 User Assigned Managed Identity の両方に必要な権限がそろっている必要がある。
-
-### デプロイ主体に必要な権限
-
-- サブスクリプション スコープで Bicep deployment を実行できる権限。
-- 対象リソースグループに AKS、AMW、DCR、UAMI、Metric Alert などを作成できる権限。
-- `Microsoft.Authorization/roleAssignments/write` を実行できる権限。Bicep が SLI 用 UAMI に RBAC を付与するために必要。
-- Service Group を作成・更新できる権限。
-- SLI を作成できる Service Group scope の権限。検証では `Microsoft.Monitor/slis/write` 不足で停止した。
-- tenant root の Service Group 配下に作る場合は、tenant root Service Group に対する管理権限。別の親 Service Group を使う場合は `azureMonitorSliParentServiceGroupId` を指定し、その親 Service Group で必要な権限を持つこと。
-- Service Group の親子関係は Azure RBAC のリソース ID パス継承とは別である。親 Service Group の Contributor だけでは、子 Service Group scope の `Microsoft.Monitor/slis/write` を満たせないことがある。
-- 既存の環境別 Service Group を 1回デプロイの SLI scope として使う場合は、`azureMonitorSliServiceGroupResourceId` にその resource ID を指定する。親 Service Group の配下に環境別 Service Group を作る場合は `azureMonitorSliParentServiceGroupId` を指定する。
-
-### Bicep が SLI 用 UAMI に付与する権限
-
-- Managed Prometheus Azure Monitor Workspace:
-  - Monitoring Reader
-  - Monitoring Data Reader
-  - Monitoring Metrics Publisher
-- Prometheus pipeline Data Collection Rule:
-  - Monitoring Reader
-  - Monitoring Metrics Publisher
-- AMW managed resource group 内の同名 Data Collection Rule:
-  - Monitoring Reader
-  - Monitoring Metrics Publisher
-
-managed resource group は `MA_<amw-name>_<region>_managed` という名前で作られる。検証では、AMW 本体だけでなく、この managed resource group 内の同名 DCR に `Monitoring Metrics Publisher` が必要だった。`Monitoring Reader` は destination workspace default DCR の読み出し要件に合わせて付与する。
+- Prometheus alert 名、labels、feature flag は `slo` ではなく operational alert として命名する。
+- Gateway Envoy 由来の recording rules は、短期診断と operational alert の入力として維持する。
+- Azure Monitor SLI の現在の正本 input は、ADR-012 と ADR-014 に従い、Azure Functions external SLI publisher が発行する external availability / latency metrics とする。
+- Azure Monitor SLI definitions と SLI metric alerts は warm-up 後の `sli` layer で作成する。
 
 ## Consequences
 
-- **利点**: SLO/SLI と短期 operational alert の責務が分かれ、Azure Monitor SLI の日・時間単位の評価モデルと、Prometheus の 5 分しきい値アラートが矛盾して見えなくなる。
-- **利点**: Azure Monitor SLI をラボの主要な学習対象として扱いつつ、Chaos 実験で即時に反応する operational alert も維持できる。
-- **利点**: Portal 型 SLI Metric Alerts の Bicep 管理に一本化し、SLI output metrics を Prometheus rule group に戻す迂回構成を削除できる。
-- **利点**: 親 Service Group を指定して環境別 Service Group を作ることで、`eval` と同じ Service Group 構造を保ちつつ、1回の `azd up` で Azure Monitor SLI まで作成できる。
-- **制約**: Prometheus recording rules は引き続き必要であり、Azure Monitor SLI だけで raw Envoy histogram / ratio 計算を完全に置き換える設計にはしない。
-- **制約**: Service Group と Azure Monitor SLI は preview API を使う。クリーン環境での検証では、Service Group と SLI 定義を同じ nested deployment に置く構成が `Microsoft.Monitor/slis/write` の AuthorizationFailed になった。
-- **制約**: `azd provision --preview` は、新規 Service Group 作成後に自動的に付く可能性がある Service Group scope 権限を考慮できない。preview を含めて 1回で検証するには、親 Service Group 配下に環境別 Service Group を作る構成で検証する。
-- **制約**: Azure Monitor SLI 作成時 validation は、Managed Prometheus の入力 metric / dimension が実際に存在することを前提にする。クリーン環境の `azd provision` 時点では app deploy と Gateway traffic がまだないため、`gateway:chaos_app:http_*` metric の `cluster_name` dimension が存在せず `SloCreateValidateError` になり得る。
-- **制約**: `azd provision` だけでは app deploy / warm-up を挟めないため、通常経路は `azd up` とする。SLI finalize の差分確認は、app deploy / warm-up 後に `infra/sli/main.bicep` を `az deployment sub what-if` で確認する。
-- **整理**: `eval` 環境で成功していた理由は、対象 Service Group 直下にデプロイ主体の `Service Group Administrator` role assignment が存在していたためである。親 Service Group の Contributor だけで SLI 作成が成功していたわけではない。
-- **整理**: base レイヤー (`infra/main.bicep`) と sli レイヤー (`infra/sli/main.bicep`) の責務を厳密に分割した。base は Service Group / SLI 用 UAMI / RBAC / Service Group membership / Managed Prometheus recording rules までで停止し、SLI definitions / metric alerts は warm-up 後の `azd provision sli` でのみ作成する。base 側の `enableAzureMonitorSliDefinitions` / `enableAzureMonitorSliAlerts` フラグや SLI definition 用パラメータは廃止した。sli レイヤーの `enabled` / `enableSliAlerts` だけで SLI 定義とアラートを制御する。
-- **制約**: 2026-05 時点の preview API では、Azure Monitor SLI が Managed Prometheus recording rules を `customdefault` metric namespace として扱う。Bicep の既定値も `customdefault` とし、`azureMonitorSliMetricNamespace` で上書き可能にする。
-- **制約**: SLI の partitioning dimension は `cluster_name` を使う。Availability は `gateway:chaos_app:http_success_rate:ratio`、Latency は `gateway:chaos_app:http_request_duration:le_1s_ratio` を Azure Monitor SLI の入力にする。1 分 window では Azure Monitor SLI の作成時 validation で partitioning dimension が query context から消えるため、SLO 用の window は 5 分にする。分単位の短期検知は SLO ではなく Managed Prometheus の operational alerts で扱う。
-- **制約**: `eval` で `chaos-app` Pod を 0 replicas にした停止テストでは、SLI Availability の `downtime=1` と PromQL 条件成立を確認した。一方、Portal 型 SLI Metric Alert の alert instance は確認できなかったため、短期 operational alert の唯一の代替にはしない。
-- **制約**: `sli-final` / `sli-verify` の再検証で、AKS 削除後に App Insights managed resource group 削除を試みると、managed DCR/DCE が AKS の OTLP DCR association や DCR/DCE の削除順序に阻まれて残り、DCR/DCE の直接削除も system deny assignment により失敗するケースを確認した。このため、AKS が存在する pre hook の時点で `OtlpAppInsightsExtension` DCR association を削除する。App Insights managed resource group は直接 DCR/DCE を削除せず、親 App Insights の削除または resource group 削除に任せる。
-- **移行条件**: Azure Monitor SLI の alert 通知連携がラボの目的に十分であることを確認できた場合のみ、Prometheus operational alerts の既定値や通知ルーティングを再検討する。
-- **制約 (no-traffic 時の SLI シグナル空白)**: Managed Prometheus の `gateway:chaos_app:*` recording rule は raw 入力 series が無いと NaN を返し、Azure Monitor SLI WindowBased 評価で no-data が Bad 扱いされ得る。`infra/modules/prometheus/recording-rules.bicep` の R1-R6 は `or on(cluster_name) (... * 0)` (R1 p95) / `increase(...[5m])` と `clamp_min(..., 1e-9)` (R2 latency good-rate、R3/R4 ratio、R5/R6 totals) を使い、no-traffic 時にも安定した値を出す。R1 p95 は operational / debug 用に維持するが、Latency SLI の主シグナルにはしない。Latency SLI は R2 `gateway:chaos_app:http_request_duration:le_1s_ratio` を使い、no-traffic 時は 1 (100%) を返す。合成トラフィック途絶は `ChaosAppNoTraffic` alert が検知する。
-- **制約 (合成トラフィック CronJob)**: SLI シグナル源を常時供給するため `k8s/apps/chaos-app/cronjob-synthetic-traffic.yaml` で 1 req/min の合成トラフィックを `chaos-app-approuting-istio.chaos-lab.svc.cluster.local` (AKS Istio addon の Gateway controller が作る per-Gateway LoadBalancer Service) 経由で `/` に流す。Cilium L7 Egress NetworkPolicy は機能軸で chaos-app egress と同じ `k8s/apps/chaos-app/ciliumnetworkpolicy-egress-allowlist.yaml` に統合し、Pod 単位で `app: synthetic-traffic` を allowlist 化する。負荷テスト時など一時無効化したい場合は `kubectl -n chaos-lab patch cronjob synthetic-traffic --type=merge -p '{"spec":{"suspend":true}}'` で suspend 可能 (suspend 中は `ChaosAppNoTraffic` alert が発火しうる)。
-- **制約 (合成トラフィック自体の障害検知)**: 合成トラフィック CronJob 自体の失敗、`chaos-app` Pod の完全停止、Gateway / Service 障害を別経路で検知するため、新規 Prometheus alert `ChaosAppNoTraffic` (severity=1, `absent(gateway:chaos_app:http_request_rate) or rate == 0` for 5m) を `infra/modules/prometheus/alert-rules.bicep` に追加した。SLI burn rate alert (preview API、観測不安定) の代替を兼ねる。実機検証 (eval, 2026-05-07) で CronJob を 04:35:50Z に suspend し、`for=PT5M` + AlertsManagement 反映遅延を経て **04:45:56Z (約 10 分後)** に Sev1 firing が `Microsoft.AlertsManagement/alerts` に出現することを確認した (検出遅延の上限目安 ≒ 10 分)。
-- **制約 (OTLP / Python telemetry の no-traffic 補強)**: Python アプリの OTLP export interval を `TELEMETRY_EXPORT_INTERVAL_MS` (default 30000) で SDK 既定 60s から 30s に短縮、`redis_connection_status` を ObservableGauge 化してアイドル時に no-data になることを回避、`record_redis_metrics` を `record_redis_status_only` に分離して latency 未測定パスから 0ms 偽値を histogram に書き込まない、`ErrorAwareSampler` で chaos / error / throw を含む span を常時 sample する変更を入れた。詳細は `src/api/app/telemetry.py`。
+- 長期の SLO / error budget 評価と、数分単位の operational alert を分離できる。
+- Prometheus recording rules は、SLI の正本ではなく、診断と短期検知のために残す。
+- Azure Monitor SLI は preview API と Service Group scope resource に依存する。必要な RBAC、Service Group cleanup、入力 metric 出現待ち、azd 旧版の回避手順は [docs/deployment.md](../deployment.md) と [docs/workarounds.md](../workarounds.md) に置く。
+- SLI input / destination metrics、Gateway Envoy recording rules、external SLI publisher の観測方法は [docs/observability.md](../observability.md) に置く。
+- 旧設計で検討した AKS 内 synthetic traffic と `ChaosAppNoTraffic` は履歴として扱う。現在の SLI 正本は external SLI publisher であり、AKS 内 CronJob ではない。
+
+## Alternatives considered
+
+- **SLI output metrics を Prometheus rule group に戻して alert 化する方式**: Azure Monitor SLI の本来の alert 経路ではなく、責務が曖昧になるため不採用。
+- **Prometheus operational alert を SLO alert として扱う方式**: 短期しきい値検知と error budget 評価が混ざるため不採用。
+- **Azure Monitor SLI のみで短期検知も置き換える方式**: Chaos 実験の即時観測には Managed Prometheus alerts の方が扱いやすいため不採用。

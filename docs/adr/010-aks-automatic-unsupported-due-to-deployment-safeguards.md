@@ -39,7 +39,7 @@ allowedCapabilities = [
 ]
 ```
 
-Chaos Mesh `v2.8.1` の公式 [`values.yaml`](https://github.com/chaos-mesh/chaos-mesh/blob/v2.8.1/helm/chaos-mesh/values.yaml) で chaos-daemon 既定 capability:
+Chaos Mesh `v2.8.3` の公式 [`values.yaml`](https://github.com/chaos-mesh/chaos-mesh/blob/v2.8.3/helm/chaos-mesh/values.yaml) で chaos-daemon 既定 capability:
 
 ```yaml
 chaosDaemon:
@@ -144,7 +144,7 @@ AKS Automatic で chaos-mesh を Trusted Container Add-on として allow-list �
 
 - [Microsoft Learn: Deployment safeguards in AKS](https://learn.microsoft.com/azure/aks/deployment-safeguards)
 - [Microsoft Learn: AKS Automatic 概要](https://learn.microsoft.com/azure/aks/intro-aks-automatic)
-- [Chaos Mesh v2.8.1 Helm values](https://github.com/chaos-mesh/chaos-mesh/blob/v2.8.1/helm/chaos-mesh/values.yaml)
+- [Chaos Mesh v2.8.3 Helm values](https://github.com/chaos-mesh/chaos-mesh/blob/v2.8.3/helm/chaos-mesh/values.yaml)
 - [Azure/AKS#5442 — OTel Collector blocked by deployment safeguards on Automatic](https://github.com/Azure/AKS/issues/5442)
 - 実機検証ログ: `tmp/sli-auto/cycle1-up.log` (chaos-mesh helm install 失敗時の VAP denial メッセージ)
 - VAP CEL allow-list の取得元: 本リポジトリで `aksSkuName=Automatic` で構築した AKS 1.34.6 クラスタ `aks-aks-chaos-lab-sli-auto` (japaneast, 2026-05-06)

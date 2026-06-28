@@ -20,7 +20,7 @@ ADR-011 では、AKS クラスタ停止時も SLI を悪化させるため、App
 - Metric names は ADR-011 と同じ `chaos_app_external_availability_good/total`, `chaos_app_external_latency_good/total`, `chaos_app_external_sli_publisher_heartbeat` を維持する。Prometheus label key も `environment`, `service`, `test` を維持し、`test` には probe name を入れる。
 - Probe name の既定値は旧 availability test name と同じ `avail-${appName}-${environment}-${resourceToken}` 形にし、既存 SLI dimension の連続性を保つ。
 - Function App では Azure Monitor OpenTelemetry を構成し、probe HTTP 呼び出しを client span として記録する。Probe は trace context を伝搬し、chaos-app 側の `GET /` request telemetry と相関させる。Application Map の Function App -> chaos app の線は診断用であり、SLI の正本は Managed Prometheus に発行する good / total metrics とする。
-- Function App の Application Insights role name は生成ホスト名ではなく `external-sli-publisher` とし、Functions host は `telemetryMode: OpenTelemetry` と `OTEL_SERVICE_NAME`、Python worker は `service.name` resource attribute で揃える。環境差分は role instance 側に寄せる。
+- Function App の Application Insights role name は生成ホスト名ではなく `external-sli-publisher` とし、Functions host は `telemetryMode: OpenTelemetry` と `OTEL_SERVICE_NAME`、Python worker は `service.name` resource attribute で揃える。環境差分は role instance 側で識別する。
 - Publisher の Function host storage と deployment storage は managed identity 接続を維持し、public access は無効化する。Prometheus remote-write に必要な `Monitoring Metrics Publisher` RBAC は維持し、Log Analytics Reader RBAC は不要化する。
 
 ## Consequences

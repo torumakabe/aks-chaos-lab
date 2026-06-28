@@ -58,13 +58,9 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-03-02-previ
   scope: resourceGroup()
 }
 
-// Azure Chaos Studio mandates this target type name for AKS Chaos Mesh.
-// `azd` preflight emits a false-positive "contains the reserved word MICROSOFT"
-// warning because Microsoft.Chaos/targets is not in its exempt list. The name is
-// bound to capability URNs (urn:csci:microsoft:azureKubernetesServiceChaosMesh:*)
-// and cannot be changed. ARM does not enforce the reserved-word rule here, so
-// deployment succeeds despite the warning. Tracked in docs/workarounds.md D-8 /
-// Azure/azure-dev#8239.
+// Azure Chaos Studio mandates this target type name for AKS Chaos Mesh. The name
+// is bound to capability URNs (urn:csci:microsoft:azureKubernetesServiceChaosMesh:*)
+// and cannot be changed.
 resource chaosTarget 'Microsoft.Chaos/targets@2025-01-01' = {
   name: 'microsoft-azurekubernetesservicechaosmesh'
   scope: aksCluster
