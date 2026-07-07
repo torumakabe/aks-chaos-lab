@@ -409,6 +409,14 @@ module aksCluster './modules/aks.bicep' = {
   }
 }
 
+module inspektorGadget './modules/inspektor-gadget.bicep' = {
+  name: 'inspektorGadget'
+  scope: resourceGroup
+  params: {
+    aksClusterName: aksCluster.outputs.aksNameOut
+  }
+}
+
 // Alert role assignments - subscription scope
 // Separated into a module so principalId (a runtime value) can be passed as a parameter,
 // which makes it a deploy-time value in the module context and usable in guid() for names.

@@ -58,6 +58,7 @@ az feature register --namespace Microsoft.ContainerService --name AzureMonitorAp
 
 # 反映後に provider を再登録
 az provider register --namespace Microsoft.ContainerService
+az provider register --namespace Microsoft.KubernetesConfiguration
 az provider register --namespace Microsoft.Insights
 ```
 
@@ -101,7 +102,7 @@ azd up
 
 `azd up` は `azure.yaml` の `workflows.up` に従い、以下の順で実行されます。
 
-1. `azd provision base` (`infra/main.bicep`) — VNet / AKS / Redis / Application Insights / Managed Prometheus / external SLI publisher infra / Service Group / SLI 用 Managed Identity / RBAC を作成
+1. `azd provision base` (`infra/main.bicep`) — VNet / AKS / Inspektor Gadget 拡張 / Redis / Application Insights / Managed Prometheus / external SLI publisher infra / Service Group / SLI 用 Managed Identity / RBAC を作成
 2. `azd deploy api-instrumentation` — chaos-app 固有の Application Insights OTLP `Instrumentation` を先に適用し、AKS App Monitoring webhook が参照できる状態にする
 3. `azd deploy api` — chaos-app をデプロイし、`postdeploy` hook で Pod に `OTEL_EXPORTER_OTLP_*` が注入されたことを確認
 4. `azd deploy observability` — Envoy Gateway などをデプロイ
