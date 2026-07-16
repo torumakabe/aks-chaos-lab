@@ -17,3 +17,4 @@
 | 013 | [uv workspace でツーリングを統一しつつデプロイ単位は分離維持](013-uv-workspace-unified-tooling.md) | Accepted | 2026-05-21 |
 | 014 | [Latency SLI を `le` bucket と `EQ` filter で定義する](014-histogram-bucket-latency-sli.md) | Accepted | 2026-05-21 |
 | 015 | [Azure リソース名への resourceToken サフィックス付与ルール](015-resource-token-suffix-naming.md) | Accepted | 2026-06-28 |
+| 016 | [Azure Chaos Studio Workspace の採用](016-azure-chaos-studio-workspace-adoption.md) | Rejected | 2026-07-16 |
