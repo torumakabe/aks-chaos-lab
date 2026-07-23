@@ -5,7 +5,7 @@ param aksName string
 @description('Tags object')
 param tags object = {}
 @description('Kubernetes version (x.y or x.y.z).')
-param kubernetesVersion string = '1.34'
+param kubernetesVersion string = '1.35'
 @description('Node resource group name for AKS managed resources')
 param nodeResourceGroupName string
 @description('Node VM size')
