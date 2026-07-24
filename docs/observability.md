@@ -29,7 +29,7 @@ Application Insights の role name は Function host 名ではなく `external-s
 | `chaos_app_external_availability_good` | probe が HTTP 2xx で完了した window 数 |
 | `chaos_app_external_availability_total` | probe window 数。欠損 window も total に含める |
 | `chaos_app_external_latency_total` | Latency probe の window 数（Latency SLI total） |
-| `chaos_app_external_latency_good` | `duration ≤ le && 2xx` を 0/1 で表す gauge。`le` ラベル (`0.1`, `0.25`, `0.5`, `1`, `2`, `5` 秒) で bucket を区別。SLI 定義は `latencyThresholdLe` (default `"1"`) に一致する `le` ラベルを `EQ` filter で選択する |
+| `chaos_app_external_latency_good` | `duration ≤ le && 2xx` を 0/1 で表す gauge。`le` ラベル (`0.1`, `0.25`, `0.5`, `1`, `2`, `5` 秒) で bucket を区別。SLI 定義は `latencyThresholdLe` (default `"1"`) に一致する `le` ラベルを `eq` filter で選択する |
 | `chaos_app_external_sli_publisher_heartbeat` | publisher が実行されたことを示す freshness signal |
 
 Azure Monitor SLI は上記 good / total metrics を Request-based SLI として `Sum` 集計します。既定の partitioning dimensions は `environment`, `service`, `test` です。publisher 自体の停止は `ExternalSliPublisherHeartbeatMissing` で検知します。

@@ -35,7 +35,7 @@ Clock = Callable[[], float]
 # Each entry is `(label_string, seconds_float)`. The publisher emits one
 # sample per bucket per window with label `le=<label_string>`; the SLI
 # definition picks which bucket to evaluate via a `dimensionName=le,
-# operator=EQ, values=[<threshold>]` filter. Changing the SLO threshold
+# operator=eq, value=<threshold>` filter. Changing the SLO threshold
 # therefore does not require redeploying the publisher. See ADR-014.
 LATENCY_BUCKETS: tuple[tuple[str, float], ...] = (
     ("0.1", 0.1),
