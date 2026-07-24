@@ -2,7 +2,7 @@
 param aksClusterName string
 
 #disable-next-line BCP081
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-03-02-preview' existing = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-05-02-preview' existing = {
   name: aksClusterName
 }
 

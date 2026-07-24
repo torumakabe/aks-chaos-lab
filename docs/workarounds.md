@@ -4,6 +4,18 @@
 
 ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
+## 2026-07-24 棚卸し結果
+
+既存の azd `eval` 環境で、削除候補を個別に差分検証した。
+
+| ID | 反映内容 | 検証結果 |
+|---|---|---|
+| A-3 | 継続 | managed DCR の `Monitoring Metrics Publisher` を外して SLI の PUT を実行すると、`DestinationAmwAccountAccessValidator` が access denied を返した。割り当てを復旧すると provision が成功した。 |
+| A-7 | 削除 | 現行 spec の `eq` と scalar `value` へ変更し、what-if の operator 差分解消、SLI provision、GET、宛先メトリクスを確認した。 |
+| C-2 | 更新 | 最新 GA `2026-05-01` は `addonAutoscaling` 未対応のため preview 継続。公式 schema で対応を確認した最新 preview `2026-05-02-preview` へ全 managedClusters 参照を更新した。 |
+| D-2 | 削除 | `azure.yaml` で今回検証した azd 1.28.1 以上を必須化し、`eval` の refresh と SLI what-if が成功した。旧版向け復旧手順を削除した。 |
+| D-4 | 継続 | `metricAlerts@2026-01-01` は Bicep build を通るが、`eval` の provider validation は `NoRegisteredProviderFound` で拒否した。`2024-03-01-preview` を継続する。 |
+
 ## 2026-06-26 棚卸し結果
 
 リポジトリの現行 IaC と upstream issue の状態を確認し、以下を整理した。
@@ -54,11 +66,11 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 ### A-3. AMW managed resource group 内 DCR への SLI RBAC 付与
 
 - **概要**: `MA_<amw-name>_<region>_managed` リソースグループ内の AMW と同名 DCR に対して、SLI 用 UAMI に `Monitoring Reader` と `Monitoring Metrics Publisher` を付与する。
-- **理由**: AMW 本体への RBAC だけでは SLI の storage location validation を通らない（Microsoft Learn 未記載の挙動）。`Monitoring Reader` は destination workspace default DCR の最小権限要件に合わせる。
+- **理由**: AMW 本体への RBAC だけでは SLI の storage location validation を通らない。Microsoft Learn は destination workspace default DCR の最小権限として `Monitoring Reader` を記載しているが、実機の validator は `Monitoring Metrics Publisher` も要求する。
 - **場所**: `infra/modules/azmonitor/sli-managed-dcr-rbac.bicep`、ADR-009 §RBAC
 - **解消条件**: Microsoft 側で AMW 本体への RBAC だけで SLI が作れるよう挙動が修正される、または公式に managed RG への RBAC が必要だと文書化され、別の方法（policy / built-in role）が用意される。
 - **確認方法**: managed DCR への role assignment を一時的に外し、SLI 作成が通るか試す。
-- **最終確認**: 2026-05-19、managed DCR の `Monitoring Metrics Publisher` を外すと `DestinationAmwAccountAccessValidator` access denied。`Monitoring Reader` も destination metric 読み出し要件として付与。削除不可。
+- **最終確認**: 2026-07-24、`eval` 環境で managed DCR の `Monitoring Metrics Publisher` を外し、SLI の description 変更で PUT を発生させると `DestinationAmwAccountAccessValidator` access denied。割り当てを同じ ID で復旧し、RBAC 伝播後に provision 成功。`Monitoring Reader` と `Monitoring Metrics Publisher` は削除不可。
 
 ### A-4. `predown` hook で Service Group scope SLI と環境別 Service Group を削除
 
@@ -77,18 +89,6 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: Service Group RBAC が Azure RBAC の path 継承に揃う、または親 Service Group からの継承で SLI 作成が許可される。
 - **確認方法**: 親 Service Group の Contributor のみを付与し、子 Service Group での SLI 作成が通るか確認する。
 - **最終確認**: 2026-05-17、親 Service Group Contributor のみでは `Microsoft.Monitor/slis/write` が AuthorizationFailed。削除不可。
-
-### A-7. Latency SLI の dimension filter で未文書化演算子 `EQ` と未文書化スカラー `value` を使用
-
-- **概要**: `infra/modules/azmonitor/sli-definitions.bicep` の Latency SLI good signal の filter で、(1) operator に `EQ` を指定、(2) 値プロパティとして spec 宣言の `values: string[]` (array, required) ではなくスカラー `value: string` を指定している。いずれも `Microsoft.Monitor/slis@2025-03-01-preview` の OpenAPI spec / Bicep auto-gen template reference / 生成済み SDK のどこにも記載されていない。
-- **理由**:
-  - **operator**: spec が宣言する wire value (`==`, `!=`, `<`, `<=`, `>`, `>=`, `@in`, `!in`, `startswith`, `!startswith`, `contains`, `!contains`) および x-ms-enum SDK 名 (`Equal`, `LessThanOrEqual` 等) はいずれも ARM が `MalformedStructureError` で拒否する。実装が受理するのは `EQ` / `Eq` / `In` / `NotIn` / `NotContains` / `NotStartsWith` / `contains` / `startswith` のみで、Microsoft Learn の SLI 概念ドキュメントにも DSL 解説が無いため、Bicep / Terraform / REST / SDK ユーザーが正規ルートで正解の operator 名を得られない。本リポジトリでは `EQ` を string equality 比較として bucket 選択に使用する。
-  - **value プロパティ**: spec 通り `values: ["1"]` を送ると `ObjectMissingRequiredProperty: value` + `ObjectAdditionalProperties: values` で拒否される。実装はスカラー `value: "1"` のみ受理し、`GET` 応答も `"value": "1"` で返す。spec の `required: ["values"]` 宣言と完全に矛盾しており、これも公開ドキュメント上は触れられていない。
-  - 2026-05-21 の eval 環境 `azd provision sli` で両 mismatch を実機確認 (test SLI 8 個での enum 網羅 PUT + 本番 SLI provision)。
-- **場所**: `infra/modules/azmonitor/sli-definitions.bicep` (`latencyGoodFilters` 変数)、ADR-014
-- **解消条件**: spec / 実装のいずれかが修正され、宣言通りの operator wire value (`==` 等) と `values` array で provision が通るようになる、もしくは現行の受理形 (`EQ` / `Eq` 等 + scalar `value`) が公式ドキュメントに明記される。
-- **確認方法**: spec 修正後、operator と value プロパティを spec 通りの形に置き換えて `azd provision sli` が `MalformedStructureError` / `ObjectMissingRequiredProperty` を出さずに通るか確認する。
-- **最終確認**: 2026-05-21、Azure/azure-rest-api-specs に [issue #43415](https://github.com/Azure/azure-rest-api-specs/issues/43415) として spec/実装乖離 (operator + value プロパティ) およびドキュメント不在を報告済み。`value` scalar mismatch は同 issue の[追加コメント](https://github.com/Azure/azure-rest-api-specs/issues/43415#issuecomment-4505825808)で報告。upstream 対応待ち。
 
 ---
 
@@ -118,12 +118,12 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 ### C-2. AKS の preview API バージョンを継続使用
 
-- **概要**: 現行 IaC では AKS `managedClusters` に `Microsoft.ContainerService/managedClusters@2026-03-02-preview` を使用する。Fleet 関連 resource type は `Microsoft.ContainerService/fleets@2026-06-01` と同 version の member / update strategy / auto upgrade profile に移行済み。
-- **理由**: AKS `2026-04-01` GA API では、現行構成の VPA addon autoscaling に必要な `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling` が `unknown field "addonAutoscaling"` として拒否される。
-- **場所**: `infra/modules/aks.bicep`、`infra/modules/fleet.bicep`
+- **概要**: 現行 IaC では AKS `managedClusters` に `Microsoft.ContainerService/managedClusters@2026-05-02-preview` を使用する。Fleet 関連 resource type は `Microsoft.ContainerService/fleets@2026-06-01` と同 version の member / update strategy / auto upgrade profile に移行済み。
+- **理由**: AKS の最新 GA `2026-05-01` には、現行構成の VPA addon autoscaling に必要な `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling` が存在しない。最新 preview `2026-05-02-preview` の公式 schema には同プロパティが定義されている。
+- **場所**: `infra/modules/aks.bicep` と managedClusters を参照する各 Bicep module、`infra/modules/fleet.bicep`
 - **解消条件**: AKS の VPA addon autoscaling を含む GA API バージョンが提供される。
 - **確認方法**: AKS `managedClusters` を最新の GA API に置換して `azd provision base --preview` と `azd provision base` が通るか確認する。
-- **最終確認**: 2026-06-26、eval で AKS `managedClusters@2026-04-01` を試すと `addonAutoscaling` 未対応で `azd provision base` が失敗。Fleet `2026-06-01` GA API は `azd provision base` 成功。
+- **最終確認**: 2026-07-24、公式 schema で GA `2026-05-01` に `addonAutoscaling` がなく、preview `2026-05-02-preview` に存在することを確認。managedClusters の全参照を最新 preview へ更新し、eval の base 差分デプロイが成功した。GET では `provisioningState: Succeeded` と `addonAutoscaling: Enabled` を確認した。
 
 ### C-3. Azure Monitor 系 managed resource group 命名は制御不可
 
@@ -138,25 +138,14 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 ## D. 既知の遅延 / 制約
 
-### D-2. azd 旧版の subscription scope deployment polling が散発的に `DeploymentNotFound` を返す
-
-- **概要**: azd 1.24.3 では、`azd up` / `azd down` の subscription scope deployment 操作で `Deployment '<env>-<layer>?-<unix>' could not be found.` が返って失敗することがあった。同名 deployment record は ARM 上で `Succeeded` 状態で残っているケースが直接観測されていた。
-- **理由**: 未確定。ARM の deployment record が一時的に GET で見えないウィンドウがあるように見えるが、根本原因は未特定。観測事実は upstream issue [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) で報告済み。
-- **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、ADR-009
-- **構造的対処 (down 側のみ・実装済み)**: `predown` hook が Service Group scope SLI / Service Group / OTLP DCRA / SLI layer deployment record / base RG / base layer deployment record を順に削除し、`azd down` の Destroy 経路を両 layer で graceful skip path に短絡する。これにより down 側の `voidSubscriptionDeploymentState` を呼ばない。
-- **旧版 azd で再現した場合の復旧手順**: ARM 上の該当 subscription deployment が `Succeeded` か確認し、成功していれば `azd env refresh <env> --no-prompt` で env outputs を同期してから `azd up --no-prompt` を再実行する。
-- **確認方法**: 一時環境で `azd down --force --purge --no-prompt`、`azd up --no-prompt`、`azd env refresh <env> --no-prompt` を実行し、`DeploymentNotFound` が出ないことを確認する。
-- **追跡**: [Azure/azure-dev#8064](https://github.com/Azure/azure-dev/issues/8064) は 2026-06-12 に close 済み。
-- **最終確認**: 2026-05-18、`eval` 環境の azd 1.24.3 で `provision sli` が `DeploymentNotFound` を返したが、ARM 上の `eval-sli-1779095707` は `Succeeded`。`azd env refresh eval --no-prompt` 後の `azd up --no-prompt` 再実行で成功。2026-06-26、azd 1.26.0 で eval の fresh `azd down` / `azd up` / `azd env refresh` が成功し、再現なし。
-
 ### D-4. Azure Monitor SLI Metric Alert (Portal 型) の動作仕様が未公開
 
-- **概要**: `Microsoft.Insights/metricAlerts@2024-03-01-preview` の `PromQLCriteria` で SLI を criteria にする Portal 型 alert は preview 段階で、`query` フィールドのプレースホルダー動作や alert instance のトリガー条件が公式 docs に記載されていない。
-- **理由**: Azure Monitor SLI 自体が preview API (`Microsoft.Monitor/slis@2025-03-01-preview`) で動作中。Portal / Bicep / API の差分が docs に残っていない。
+- **概要**: `Microsoft.Insights/metricAlerts@2024-03-01-preview` の `PromQLCriteria` で SLI を criteria にする Portal 型 alert を使用する。stable schema `2026-01-01` は公開済みだが、`eval` の Microsoft.Insights provider では未提供である。
+- **理由**: Azure Monitor SLI 自体が preview API (`Microsoft.Monitor/slis@2025-03-01-preview`) で動作中。Portal / Bicep / API の動作差分と alert instance のトリガー条件も公式 docs に記載されていない。
 - **場所**: `infra/modules/azmonitor/sli-metric-alerts.bicep`、ADR-009 §Consequences
-- **解消条件**: Microsoft が SLI Metric Alert を GA し、Portal / Bicep / API の動作が docs にまとまる。
+- **解消条件**: Microsoft.Insights provider が `metricAlerts@2026-01-01` を提供し、SLI Metric Alert の Portal / Bicep / API の動作が docs にまとまる。
 - **確認方法**: SLI burn rate alert の test fire (`chaos-app` Pod を 0 replicas にして 5 分以上維持) で alert instance が記録されるかを確認する。
-- **最終確認**: 2026-05-17、`Microsoft.Monitor/slis` は `2025-03-01-preview` のみ。削除不可。
+- **最終確認**: 2026-07-24、`metricAlerts@2026-01-01` は Bicep build に成功したが、`eval` の provider what-if は `NoRegisteredProviderFound` で拒否した。`2024-03-01-preview` を継続する。
 
 ### D-5. OpenTelemetry UpDownCounter `http.server.active_requests` の Pod 再起動時ドリフト
 

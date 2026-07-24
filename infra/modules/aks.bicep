@@ -194,7 +194,7 @@ resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-3
 }
 
 #disable-next-line BCP081
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-03-02-preview' = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-05-02-preview' = {
   name: aksName
   location: location
   tags: tags

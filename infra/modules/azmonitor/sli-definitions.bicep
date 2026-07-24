@@ -46,7 +46,7 @@ param availabilityGoodMetricName string = 'chaos_app_external_availability_good'
 @description('Metric name for the request-based Availability SLI total signal')
 param availabilityTotalMetricName string = 'chaos_app_external_availability_total'
 
-@description('Metric name for the request-based Latency SLI good signal. The publisher emits one sample of this metric per `le` bucket per window with the bucket label as the `le` dimension; the SLI selects a bucket via a `dimensionName=le, operator=EQ, values=[latencyThresholdLe]` filter.')
+@description('Metric name for the request-based Latency SLI good signal. The publisher emits one sample of this metric per `le` bucket per window with the bucket label as the `le` dimension; the SLI selects a bucket via a `dimensionName=le, operator=eq, value=latencyThresholdLe` filter.')
 param latencyGoodMetricName string = 'chaos_app_external_latency_good'
 
 @description('Metric name for the request-based Latency SLI total signal (probe observation count).')
@@ -89,16 +89,13 @@ var sourceSignalIdentityProperties = {
 }
 
 // Latency SLI good-signal filter: select the bucket whose `le` label equals
-// the SLO threshold. The Microsoft.Monitor/slis 2025-03-01-preview API
-// rejects the operator wire values declared in its OpenAPI spec (`==`,
-// `<=`, etc.) but accepts the undocumented PascalCase value `EQ`. The
-// service also rejects the spec's `values` array property and instead
-// requires the undocumented scalar `value`. See ADR-014 and the upstream
-// Azure/azure-rest-api-specs issue.
+// the SLO threshold. The current API contract uses lowercase operator names
+// and a scalar `value`; the eval deployment verified `eq` on 2026-07-24.
+// See ADR-014.
 var latencyGoodFilters = [
   {
     dimensionName: 'le'
-    operator: 'EQ'
+    operator: 'eq'
     value: latencyThresholdLe
   }
 ]

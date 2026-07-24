@@ -131,12 +131,12 @@ azd provision base --preview
 azd provision sli --preview
 ```
 
-azd 旧版で `azd up` 中に `DeploymentNotFound` が出ても、ARM 上の deployment が `Succeeded` で残るケースがあります。その場合は `azd env refresh <env> --no-prompt` で env outputs を同期してから、`azd up --no-prompt` を再実行してください。詳細は [docs/workarounds.md §D-2](workarounds.md#d-2-azd-旧版の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す) を参照してください。
+このプロジェクトは `azure.yaml` の `requiredVersions` で、今回 `eval` 環境を検証した azd 1.28.1 以上を要求します。古い azd ではプロジェクトを実行せず、azd を更新してください。
 
 リージョンや AKS node VM size を変更した直後に既存の azd 環境を再利用する場合、`azd env refresh` は過去の Azure deployment outputs から旧値を取り込むことがあります。`azd env refresh` の後、`azd down` や `azd up` の前に対象環境の値を明示してください。
 
 ```bash
-azd env refresh eval --no-prompt
+azd env refresh -e eval --no-prompt
 azd env set AZURE_LOCATION japaneast -e eval
 azd env set AZURE_AKS_NODE_VM_SIZE Standard_D4pds_v6 -e eval
 ```
@@ -226,7 +226,7 @@ Azure Monitor SLI を有効化した環境では、Service Group scope の `Micr
 azd down --force --purge
 ```
 
-`predown` hook は Service Group scope の SLI / Service Group / AKS の OTLP Application Insights DCR association / deployment record / base resource group を整理します。AKS 上の OTLP DCRA を先に削除することで、App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) は base RG の削除に連動して消えます。詳細な順序と理由は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md) と [docs/workarounds.md §D-2](workarounds.md#d-2-azd-の-subscription-scope-deployment-polling-が散発的に-deploymentnotfound-を返す) を参照してください。
+`predown` hook は Service Group scope の SLI / Service Group / AKS の OTLP Application Insights DCR association / deployment record / base resource group を整理します。AKS 上の OTLP DCRA を先に削除することで、App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) は base RG の削除に連動して消えます。詳細な順序と理由は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md)、[docs/workarounds.md §A-4](workarounds.md#a-4-predown-hook-で-service-group-scope-sli-と環境別-service-group-を削除)、[§B-2](workarounds.md#b-2-predown-hook-で-aks-上の-otlpappinsightsextension-dcra-を先に削除) を参照してください。
 
 cleanup hook の構文・実行経路だけを非破壊で確認する場合は、削除系処理を dry-run にして hook を単体実行できます。
 
