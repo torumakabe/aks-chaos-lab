@@ -9,7 +9,7 @@ dependencies = [
   "redis>=7.2.1",
   "azure-identity>=1.24.0",
   "redis-entraid>=1.1.0",
-  "aiohttp>=3.13.3",
+  "aiohttp>=3.14.3",
   # OTel SDK / exporter / instrumentation are version-pinned to mitigate the silent-failure
   # risk documented in ADR-006 ("成熟度の前提とリスク"): the Python OTel Logs SDK is in the
   # "Development" maturity tier and the `opentelemetry.sdk._logs` namespace remains internal,
