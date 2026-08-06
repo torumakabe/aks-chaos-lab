@@ -206,6 +206,13 @@ def target_test_publisher() -> None:
     print_success("External SLI publisher unit tests passed")
 
 
+def target_test_hooks() -> None:
+    print_step("Testing repository hooks")
+    target_check_lefthook()
+    run_uv(["pytest", "scripts/tests/test_lefthook.py", "-q"])
+    print_success("Repository hook tests passed")
+
+
 def target_test() -> None:
     target_test_api()
     target_test_publisher()
@@ -272,7 +279,7 @@ def target_qa_scripts() -> None:
     print_success("Scripts QA passed")
 
 
-def target_lint_bicep() -> None:
+def target_build_bicep() -> None:
     target_check_az()
     print_step("Building Bicep template infra/main.bicep")
     run(["az", "bicep", "build", "--file", "infra/main.bicep"])
@@ -311,7 +318,7 @@ def target_lint_k8s() -> None:
 
 
 def target_qa_platform() -> None:
-    target_lint_bicep()
+    target_build_bicep()
     target_lint_k8s()
     print_success("Platform QA passed")
 
@@ -391,10 +398,16 @@ def target_check_gh_aw() -> None:
     run(["gh", "aw", "--version"], check=True)
 
 
+def target_check_lefthook() -> None:
+    require_command("lefthook")
+    run(["lefthook", "validate"])
+
+
 def target_install_tools() -> None:
     target_check_docker()
     target_check_az()
     target_check_gh_aw()
+    target_check_lefthook()
     print_success("All required external tools are available")
 
 
@@ -658,10 +671,12 @@ def target_test_load() -> None:
 
 TARGETS: dict[str, Callable[[], None]] = {
     "build": target_build,
+    "build-bicep": target_build_bicep,
     "check": target_check,
     "check-az": target_check_az,
     "check-docker": target_check_docker,
     "check-gh-aw": target_check_gh_aw,
+    "check-lefthook": target_check_lefthook,
     "check-publisher-requirements": target_check_publisher_requirements,
     "check-uv-version": target_check_uv_version,
     "clean": target_clean,
@@ -672,7 +687,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "install": target_install,
     "install-tools": target_install_tools,
     "lint": target_lint,
-    "lint-bicep": target_lint_bicep,
     "lint-check": target_lint_check,
     "lint-k8s": target_lint_k8s,
     "lint-workflows": target_lint_workflows,
@@ -693,6 +707,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "test-api": target_test_api,
     "test-cov": target_test_cov,
     "test-integration": target_test_integration,
+    "test-hooks": target_test_hooks,
     "test-load": target_test_load,
     "test-publisher": target_test_publisher,
     "typecheck": target_typecheck,

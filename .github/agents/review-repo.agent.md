@@ -1,6 +1,6 @@
 ---
 name: review-repo
-description: リポジトリ全体の衛生チェック。instructions の鮮度、ADR/Feature Doc の健全性、追跡衛生、規約整合性を確認する。「リポジトリを点検」「衛生チェック」「hygiene」「priming をレビュー」「instructions を見直して」「review-repo」と言われたら使う。
+description: リポジトリ全体の衛生チェック。instructions とツールの鮮度、ADR/Feature Doc の健全性、追跡衛生、規約整合性を確認する。「リポジトリを点検」「衛生チェック」「hygiene」「priming をレビュー」「instructions を見直して」「review-repo」と言われたら使う。
 ---
 
 リポジトリの衛生状態を包括的にチェックし、問題を報告・修正する。
@@ -116,6 +116,22 @@ az feature show --namespace Microsoft.ContainerService --name AzureMonitorAppMon
 - 必要なら ADR を Superseded / 新規 ADR で置き換え（`manage-adr` 経由）
 
 新しいワークアラウンドを追加する場合は、棚卸しの構造（概要 / 理由 / 場所 / 解消条件 / 確認方法）に揃えて記載する。
+
+### 9. Bicep CLI 固定バージョンの鮮度
+
+`.github/workflows/ci.yml` の `BICEP_VERSION` と、`Azure/bicep` の最新安定リリースを比較する。
+
+```console
+gh api repos/Azure/bicep/releases/latest --jq .tag_name
+```
+
+判定基準:
+
+- CI 固定版が最新安定版と一致 → 問題なし
+- CI 固定版が古い → リリースノートを確認し、Bicep buildとintegration testへの影響を添えて更新を提案する
+- CI 固定版を取得できない、またはGitHub APIに失敗 → バージョン検出処理の問題として報告する
+
+定期検出とIssue通知は `.github/workflows/bicep-version-check.yml` が担う。`review-repo` は固定版を自動更新せず、workflowの存在と検出結果を手動レビュー時に確認する。
 
 ## 出力
 

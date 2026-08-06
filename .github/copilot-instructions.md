@@ -12,8 +12,8 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 - **依存**: Redis (Managed, Entra ID auth), Application Insights, Prometheus
 - **パッケージ管理**: uv workspace (ルート `pyproject.toml` + `uv.lock`、`python`/`pip` 直接実行禁止)
 - **品質検証**: ruff + ty + pytest → クリーン環境では `uv run scripts/tasks.py sync-dev` 後に `uv run scripts/tasks.py qa-app`
-- **Bicep 検証**: `az bicep build --file infra/main.bicep`
-- **編集時自動検証**: `.github/hooks/hooks.json` に postToolUse hook を登録。`.py` 編集で workspace ruff (check --fix + format)、`.bicep` 編集で `az bicep format` + `build` を実行し、変更/失敗時はエージェントへ `additionalContext` でフィードバックする
+- **Bicep 検証**: `uv run scripts/tasks.py build-bicep`。Lefthook の pre-commit は、ステージされた Bicep 変更がある場合に実行する
+- **編集時自動検証**: `.github/hooks/hooks.json` に postToolUse hook を登録。`.py` 編集で workspace ruff (check --fix + format)、`.bicep` 編集で `az bicep format` を実行し、変更/失敗時はエージェントへ `additionalContext` でフィードバックする
 
 ## プロジェクト構造
 
@@ -53,7 +53,7 @@ docs/features/    # Feature Document（作業途中の状態保存）
 ## 品質ゲート（必須）
 
 - **Python**: ty エラー 0 件、ruff 警告 0 件、pytest 全テスト合格
-- **Bicep**: `az bicep build` エラー 0 件
+- **Bicep**: `uv run scripts/tasks.py build-bicep` エラー 0 件
 
 ## Windows / cross-shell 注意
 
