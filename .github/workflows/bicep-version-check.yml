@@ -1,0 +1,139 @@
+name: Bicep Version Check
+
+on:
+  schedule:
+    # GitHub cron cannot express the first Monday directly. The first step
+    # skips the remaining Mondays.
+    - cron: "17 0 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Check latest stable version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Select first Monday
+        id: schedule
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          run=false
+          day="$(date -u +%d)"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]] || (( 10#$day <= 7 )); then
+            run=true
+          fi
+
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.schedule.outputs.run == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Compare Bicep CLI versions
+        if: steps.schedule.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_TITLE: Bicep CLIのCI固定バージョンを更新する
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t current_versions < <(
+            sed -nE 's/^[[:space:]]*BICEP_VERSION=v([^[:space:]]+)[[:space:]]*$/\1/p' \
+              .github/workflows/ci.yml
+          )
+          if (( ${#current_versions[@]} != 1 )); then
+            echo "::error::Expected exactly one BICEP_VERSION in .github/workflows/ci.yml"
+            exit 1
+          fi
+
+          current="${current_versions[0]}"
+          latest_tag="$(gh api repos/Azure/bicep/releases/latest --jq '.tag_name')"
+          if [[ ! "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+             [[ ! "$latest_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected Bicep version: current=$current latest=$latest_tag"
+            exit 1
+          fi
+          latest="${latest_tag#v}"
+          tick='`'
+
+          issue_record="$(
+            gh issue list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state all \
+              --limit 100 \
+              --json number,state,title |
+              jq -r \
+                --arg title "$ISSUE_TITLE" \
+                '[.[] | select(.title == $title) | "\(.number) \(.state)"][0] // empty'
+          )"
+          issue_number="${issue_record%% *}"
+          issue_state="${issue_record#* }"
+
+          if [[ "$current" == "$latest" ]]; then
+            result="latest"
+          elif [[ "$(printf '%s\n%s\n' "$current" "$latest" | sort -V | head -n 1)" == "$current" ]]; then
+            result="outdated"
+          else
+            result="ahead"
+          fi
+
+          {
+            echo "## Bicep CLI version check"
+            echo
+            echo "| CI fixed version | Latest stable version | Result |"
+            echo "|---|---|---|"
+            echo "| ${tick}${current}${tick} | ${tick}${latest}${tick} | ${tick}${result}${tick} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$result" == "outdated" ]]; then
+            body="$(cat <<EOF
+          ## Bicep CLI バージョン
+
+          | 対象 | バージョン |
+          |---|---|
+          | CI 固定版 | ${tick}${current}${tick} |
+          | 最新安定版 | ${tick}${latest}${tick} |
+
+          [Bicep v$latest のリリースノート](https://github.com/Azure/bicep/releases/tag/v$latest)を確認し、${tick}.github/workflows/ci.yml${tick} の ${tick}BICEP_VERSION${tick} を更新してください。更新時はBicep buildとintegration testへの影響を確認します。
+
+          このIssueは ${tick}bicep-version-check.yml${tick} が管理します。CI固定版が最新安定版へ追従すると自動的に閉じます。
+          EOF
+          )"
+
+            if [[ -n "$issue_number" ]]; then
+              gh api \
+                --method PATCH \
+                "repos/$GITHUB_REPOSITORY/issues/$issue_number" \
+                -f body="$body" \
+                -f state=open \
+                > /dev/null
+            else
+              gh api \
+                --method POST \
+                "repos/$GITHUB_REPOSITORY/issues" \
+                -f title="$ISSUE_TITLE" \
+                -f body="$body" \
+                > /dev/null
+            fi
+          elif [[ -n "$issue_number" && "$issue_state" == "OPEN" ]]; then
+            if [[ "$result" == "latest" ]]; then
+              close_message="CI固定版 ${tick}${current}${tick} は最新安定版 ${tick}${latest}${tick} に追従しました。"
+            else
+              close_message="CI固定版 ${tick}${current}${tick} は最新安定版 ${tick}${latest}${tick} より新しいため、更新通知を閉じます。"
+            fi
+            gh issue comment \
+              "$issue_number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --body "$close_message"
+            gh issue close \
+              "$issue_number" \
+              --repo "$GITHUB_REPOSITORY" \
+              --reason completed
+          fi
