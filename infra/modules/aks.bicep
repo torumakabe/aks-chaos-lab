@@ -227,7 +227,7 @@ resource existingVirtualNetwork 'Microsoft.Network/virtualNetworks@2024-07-01' e
 }
 
 @description('Existing AKS subnet (role assignment scope)')
-resource existingAksSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-07-01' existing = {
+resource existingAksSubnet 'Microsoft.Network/virtualNetworks/subnets@2025-07-01' existing = {
   name: subnetName
   parent: existingVirtualNetwork
 }
@@ -263,7 +263,7 @@ output aksIdentityPrincipalId string = aksIdentity.properties.principalId
 
 // AKS Managed Node OS Upgrade Schedule (weekly on Wednesday)
 #disable-next-line BCP081
-resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2026-03-01' = {
+resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2026-04-01' = {
   parent: aksCluster
   name: 'aksManagedNodeOSUpgradeSchedule'
   properties: {

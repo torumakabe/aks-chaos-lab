@@ -152,7 +152,7 @@ resource storageBlobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-05-
   }
 }
 
-resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-05-01' = {
+resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-07-01' = {
   parent: storageBlobPrivateEndpoint
   name: 'default'
   properties: {
@@ -201,7 +201,7 @@ resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-05
   }
 }
 
-resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-05-01' = {
+resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-07-01' = {
   parent: storageQueuePrivateEndpoint
   name: 'default'
   properties: {
@@ -250,7 +250,7 @@ resource storageTablePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-05
   }
 }
 
-resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-05-01' = {
+resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-07-01' = {
   parent: storageTablePrivateEndpoint
   name: 'default'
   properties: {

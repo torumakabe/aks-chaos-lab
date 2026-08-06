@@ -53,6 +53,7 @@
                 {"pattern": "^controlPlanePluginProfiles$", "description": "コントロールプレーンプラグインは自動管理"},
                 {"pattern": "^nodeProvisioningProfile$", "description": "ノードプロビジョニングは自動管理"},
                 {"pattern": "^ingressProfile\\.webAppRouting\\.nginx$", "description": "Web App Routing Nginx 設定は自動管理"},
+                {"pattern": "^ingressProfile\\.webAppRouting\\.nginx\\.mode$", "description": "Web App Routing Nginx の動作状態は Azure が自動管理"},
                 {"pattern": "^networkProfile\\.podCidrs$", "description": "Pod CIDR は Azure CNI Overlay で自動設定"},
                 {"pattern": "^networkProfile\\.serviceCidrs$", "description": "Service CIDR は自動設定"},
                 {"pattern": "^networkProfile\\.advancedNetworking\\.security\\.transitEncryption$", "description": "トランジット暗号化は自動管理"},
@@ -174,7 +175,9 @@
                 "^streamingRuleLastUpdatedTimestamp$"
             ],
             "auto_managed_patterns": [],
-            "custom_patterns": [],
+            "custom_patterns": [
+                {"pattern": "^sliProperties\\.(goodSignals|totalSignals)\\.signalSources\\.\\d+\\.temporalAggregation\\.windowSizeMinutes$", "description": "SLI の集計ウィンドウは Resource Provider の GET 応答で省略されるため要確認"}
+            ],
             "known_defaults": []
         },
         "Microsoft.Cache/redisEnterprise/providers/serviceGroupMember": {
@@ -188,6 +191,19 @@
         "Microsoft.ContainerService/managedClusters/providers/serviceGroupMember": {
             "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
+        },
+        "Microsoft.ContainerService/managedClusters/providers/extensions": {
+            "readonly_patterns": [],
+            "auto_managed_patterns": [
+                {"pattern": "^aksAssignedIdentity$", "description": "AKS 拡張機能の割り当て ID は Azure が自動管理"},
+                {"pattern": "^extensionState$", "description": "AKS 拡張機能の状態は Azure が自動管理"},
+                {"pattern": "^managementDetails$", "description": "AKS 拡張機能の管理メタデータは Azure が自動設定"}
+            ],
+            "custom_patterns": [
+                {"pattern": "^autoUpgradeMode$", "description": "AKS 拡張機能の自動アップグレードモードは設定値の確認が必要"},
+                {"pattern": "^scope$", "description": "AKS 拡張機能のスコープは既定値との照合が必要"}
+            ],
+            "known_defaults": []
         },
         "Microsoft.Insights/components/providers/serviceGroupMember": {
             "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],

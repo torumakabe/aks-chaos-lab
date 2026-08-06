@@ -375,6 +375,76 @@ class TestGetReferenceInfo(unittest.TestCase):
         )
         self.assertIn("❓", result)
 
+    def test_aks_nginx_mode_returns_auto_managed(self) -> None:
+        """AKS Web App Routing の Nginx mode は自動管理として扱う"""
+        result = get_reference_info(
+            path="properties.ingressProfile.webAppRouting.nginx.mode",
+            before="Enabled",
+            after=None,
+            bicep_definition={"status": "notDefined"},
+            resource_type="Microsoft.ContainerService/managedClusters",
+        )
+        self.assertIn("📘", result)
+
+    def test_extension_generated_properties_return_auto_managed(self) -> None:
+        """AKS 拡張機能の生成プロパティは自動管理として扱う"""
+        resource_type = (
+            "Microsoft.ContainerService/managedClusters/providers/extensions"
+        )
+        for path in ("aksAssignedIdentity", "extensionState", "managementDetails"):
+            with self.subTest(path=path):
+                result = get_reference_info(
+                    path=f"properties.{path}",
+                    before={"value": "generated"},
+                    after=None,
+                    bicep_definition={"status": "notDefined"},
+                    resource_type=resource_type,
+                )
+                self.assertIn("📘", result)
+
+    def test_extension_auto_upgrade_mode_returns_warning(self) -> None:
+        """AKS 拡張機能の autoUpgradeMode は要確認として扱う"""
+        resource_type = (
+            "Microsoft.ContainerService/managedClusters/providers/extensions"
+        )
+        for before, after in (("compatible", None), ("compatible", "patch")):
+            with self.subTest(before=before, after=after):
+                result = get_reference_info(
+                    path="properties.autoUpgradeMode",
+                    before=before,
+                    after=after,
+                    bicep_definition={"status": "notDefined"},
+                    resource_type=resource_type,
+                )
+                self.assertIn("⚠️", result)
+
+    def test_extension_scope_returns_warning(self) -> None:
+        """AKS 拡張機能の scope は要確認として扱う"""
+        result = get_reference_info(
+            path="properties.scope",
+            before={"cluster": {"releaseNamespace": "gadget"}},
+            after=None,
+            bicep_definition={"status": "notDefined"},
+            resource_type=(
+                "Microsoft.ContainerService/managedClusters/providers/extensions"
+            ),
+        )
+        self.assertIn("⚠️", result)
+
+    def test_sli_window_size_returns_warning(self) -> None:
+        """SLI の windowSizeMinutes は要確認として扱う"""
+        result = get_reference_info(
+            path=(
+                "properties.sliProperties.goodSignals.signalSources.0."
+                "temporalAggregation.windowSizeMinutes"
+            ),
+            before=None,
+            after=5,
+            bicep_definition={"status": "defined"},
+            resource_type="Microsoft.Management/serviceGroups/providers/slis",
+        )
+        self.assertIn("⚠️", result)
+
 
 class TestFormatAzdStyleOutput(unittest.TestCase):
     """format_azd_style_output のテスト"""
