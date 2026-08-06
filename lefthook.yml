@@ -1,0 +1,5 @@
+pre-commit:
+  commands:
+    bicep-build:
+      glob: "{infra/*.bicep,infra/**/*.bicep}"
+      run: uv run scripts/tasks.py build-bicep

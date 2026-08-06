@@ -70,6 +70,19 @@ jobs:
         run: uv run scripts/tasks.py sync-dev
       - name: Run unit tests with coverage
         run: uv run scripts/tasks.py test
+      - name: Install Lefthook
+        run: |
+          set -euxo pipefail
+          LEFTHOOK_VERSION=2.1.10
+          LEFTHOOK_SHA256=0b14162a0bb2f0c64ae0759f6102f6e19c4d00981666a8ac73d4f5a6878ada4f
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o /tmp/lefthook.gz "https://github.com/evilmartians/lefthook/releases/download/v${LEFTHOOK_VERSION}/lefthook_${LEFTHOOK_VERSION}_Linux_x86_64.gz"
+          echo "${LEFTHOOK_SHA256}  /tmp/lefthook.gz" | sha256sum -c -
+          gzip -dc /tmp/lefthook.gz > "$HOME/.local/bin/lefthook"
+          chmod +x "$HOME/.local/bin/lefthook"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Test Git hooks
+        run: uv run scripts/tasks.py test-hooks
   bicep:
     name: Bicep Build
     runs-on: ubuntu-latest

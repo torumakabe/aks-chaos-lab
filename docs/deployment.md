@@ -147,8 +147,11 @@ azd env set AZURE_AKS_NODE_VM_SIZE Standard_D4pds_v6 -e eval
 
 ```bash
 uv run scripts/tasks.py sync-dev
+lefthook install
 uv run scripts/tasks.py run
 ```
+
+`lefthook install` は、コントリビュータ向けにこのリポジトリの Git hooks を登録します。ステージされた `infra/` 配下の Bicep ファイルがある場合、pre-commit は `infra/main.bicep` をビルドし、失敗したコミットを中止します。Lefthook のインストール方法は [公式手順](https://lefthook.dev/install/) を参照してください。
 
 ## テストと品質確認
 
@@ -162,6 +165,18 @@ uv run scripts/tasks.py test-cov
 uv run scripts/tasks.py lint
 uv run scripts/tasks.py typecheck
 uv run scripts/tasks.py qa-app
+```
+
+Bicep:
+
+```bash
+uv run scripts/tasks.py build-bicep
+```
+
+Git hooks:
+
+```bash
+uv run scripts/tasks.py test-hooks
 ```
 
 リポジトリ全体:

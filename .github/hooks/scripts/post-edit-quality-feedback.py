@@ -5,7 +5,7 @@
 
 Runs after edit/create/write tool use:
   *.py    -> ruff check --fix + ruff format (workspace ruff config at the repo root)
-  *.bicep -> az bicep format + az bicep build
+  *.bicep -> az bicep format
 
 When checks modify files or fail, emits additionalContext JSON for Copilot.
 """
@@ -24,14 +24,6 @@ from shutil import which
 COMMAND_TIMEOUT_SEC = 45
 MAX_OUTPUT_CHARS = 1600
 MAX_CONTEXT_CHARS = 4000
-MAX_BICEP_WARNINGS = 10
-
-# Substrings that mark `az bicep build` stderr lines as tool-side notices
-# (e.g. CLI upgrade hints) rather than code diagnostics.
-IGNORE_BICEP_NOTICE_PATTERNS: tuple[str, ...] = (
-    "A new Bicep release is available",
-    "Upgrade now by running",
-)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -85,7 +77,6 @@ def run_command(
     *,
     cwd: Path | None = None,
     timeout_sec: int = COMMAND_TIMEOUT_SEC,
-    capture_stdout: bool = True,
 ) -> CommandResult:
     resolved_command = resolve_command(command)
     env = os.environ.copy()
@@ -95,8 +86,7 @@ def run_command(
         completed = subprocess.run(
             resolved_command,
             cwd=str(cwd) if cwd else None,
-            stdout=subprocess.PIPE if capture_stdout else subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=timeout_sec,
             check=False,
@@ -257,46 +247,7 @@ def _normalize_eol(content: bytes, eol: bytes) -> bytes:
     return unified.replace(b"\n", b"\r\n")
 
 
-def _is_bicep_notice(line: str) -> bool:
-    return any(pattern in line for pattern in IGNORE_BICEP_NOTICE_PATTERNS)
-
-
-def extract_bicep_warnings(result: CommandResult) -> list[str]:
-    """Pick `Warning` diagnostic lines from a successful bicep build run.
-
-    Tool-side notices (CLI upgrade hints, etc.) are filtered out so only
-    actionable code diagnostics surface to the agent.
-    """
-
-    warnings: list[str] = []
-    for raw_line in result.stderr.splitlines():
-        line = raw_line.strip()
-        if not line or "Warning" not in line:
-            continue
-        if _is_bicep_notice(line):
-            continue
-        warnings.append(line)
-
-    if len(warnings) <= MAX_BICEP_WARNINGS:
-        return warnings
-
-    truncated = warnings[:MAX_BICEP_WARNINGS]
-    remaining = len(warnings) - MAX_BICEP_WARNINGS
-    truncated.append(f"(+{remaining} more)")
-    return truncated
-
-
-def warnings_message(path: Path, warnings: list[str]) -> str:
-    joined = "\n".join(warnings)
-    summary = (
-        joined
-        if len(joined) <= MAX_OUTPUT_CHARS
-        else f"{joined[:MAX_OUTPUT_CHARS].rstrip()}..."
-    )
-    return f"Bicep build warnings for `{path}`:\n{summary}"
-
-
-def process_bicep(path: Path) -> list[str]:
+def process_bicep_format(path: Path) -> list[str]:
     before = path.read_bytes()
     original_eol = _detect_eol(before)
     messages: list[str] = []
@@ -310,16 +261,6 @@ def process_bicep(path: Path) -> list[str]:
             preserved = _normalize_eol(formatted, original_eol)
             if preserved != formatted:
                 path.write_bytes(preserved)
-        build_result = run_command(
-            ["az", "bicep", "build", "--file", str(path), "--stdout"],
-            capture_stdout=False,
-        )
-        if build_result.failed:
-            messages.append(failure_message(path, build_result))
-        else:
-            warnings = extract_bicep_warnings(build_result)
-            if warnings:
-                messages.append(warnings_message(path, warnings))
 
     if path.exists() and path.read_bytes() != before:
         messages.append(file_changed_message(path))
@@ -365,7 +306,7 @@ def main() -> None:
     if suffix == ".py":
         messages = process_python(path)
     elif suffix == ".bicep":
-        messages = process_bicep(path)
+        messages = process_bicep_format(path)
 
     emit_additional_context(messages)
 
