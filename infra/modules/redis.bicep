@@ -75,7 +75,7 @@ resource redisPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-05-01' = 
   }
 }
 
-resource redisPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-05-01' = {
+resource redisPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-07-01' = {
   parent: redisPrivateEndpoint
   name: 'default'
   properties: {

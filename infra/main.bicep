@@ -141,7 +141,7 @@ var tags = {
   'azd-env-name': environment
 }
 var resourceGroupName = '${abbrs.resourcesResourceGroups}${appName}-${environment}'
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-07-01' = {
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: resourceGroupName
   location: location
   tags: tags
@@ -598,9 +598,8 @@ output AZURE_LOG_ANALYTICS_WORKSPACE_NAME string = azmonitorCore.outputs.logAnal
 output AZURE_MONITOR_PROMETHEUS_WORKSPACE_ID string = prometheusWorkspaceResourceId
 
 @description('Managed Prometheus remote-write URL for external SLI publisher')
-#disable-next-line BCP318
 output AZURE_MONITOR_PROMETHEUS_REMOTE_WRITE_URL string = enableExternalSliEffective
-  ? prometheusPipeline.outputs.prometheusRemoteWriteUrl
+  ? prometheusPipeline!.outputs.prometheusRemoteWriteUrl
   : ''
 
 @description('Azure Managed Redis resource id')
@@ -653,21 +652,18 @@ output AZURE_MONITOR_AVAILABILITY_SLI_NAME string = enableAzureMonitorSliEffecti
 output AZURE_MONITOR_LATENCY_SLI_NAME string = enableAzureMonitorSliEffective ? azureMonitorLatencySliName : ''
 
 @description('Azure Monitor SLI managed identity resource ID')
-#disable-next-line BCP318
 output AZURE_MONITOR_SLI_IDENTITY_ID string = enableAzureMonitorSliEffective
-  ? azureMonitorSliIdentity.outputs.identityId
+  ? azureMonitorSliIdentity!.outputs.identityId
   : ''
 
 @description('Azure Monitor SLI managed identity client ID')
-#disable-next-line BCP318
 output AZURE_MONITOR_SLI_IDENTITY_CLIENT_ID string = enableAzureMonitorSliEffective
-  ? azureMonitorSliIdentity.outputs.clientId
+  ? azureMonitorSliIdentity!.outputs.clientId
   : ''
 
 @description('External SLI publisher Function App name')
-#disable-next-line BCP318
 output AZURE_EXTERNAL_SLI_FUNCTION_APP_NAME string = enableExternalSliEffective
-  ? externalSliPublisher.outputs.functionAppName
+  ? externalSliPublisher!.outputs.functionAppName
   : ''
 
 @description('External SLI probe name used in Prometheus labels')
@@ -677,7 +673,6 @@ output AZURE_EXTERNAL_SLI_PROBE_NAME string = enableExternalSliEffective ? effec
 output AZURE_EXTERNAL_SLI_PROBE_URL string = enableExternalSliEffective ? externalSliProbeUrl : ''
 
 @description('External SLI publisher state blob URL')
-#disable-next-line BCP318
 output AZURE_EXTERNAL_SLI_STATE_BLOB_URL string = enableExternalSliEffective
-  ? externalSliPublisher.outputs.stateBlobUrl
+  ? externalSliPublisher!.outputs.stateBlobUrl
   : ''
