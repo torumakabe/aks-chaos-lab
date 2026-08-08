@@ -29,7 +29,9 @@
 docs/
 infra/
 k8s/
-scripts/
+scripts/*
+!scripts/approved_index_config.py
+!scripts/public_lock.py
 tests/
 # Exclude publisher source/tests but keep its pyproject.toml so the Dockerfile
 # can resolve the workspace lockfile (uv requires every member's manifest).

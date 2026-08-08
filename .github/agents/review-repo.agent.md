@@ -50,7 +50,7 @@ git で追跡されているファイルに、追跡すべきでないものが�
 
 品質ゲートが通るか確認する:
 
-- Python: クリーン環境では `uv run scripts/tasks.py sync-dev` 後に `uv run scripts/tasks.py qa-app`（ruff + ty + pytest）
+- Python: クリーン環境では `uv run --no-project "${PWD}/scripts/tasks.py" sync-dev` 後に `uv run --no-project "${PWD}/scripts/tasks.py" qa-app`（ruff + ty + pytest）
 - Bicep: `az bicep build --file infra/main.bicep`
 
 ### 4. ADR 健全性

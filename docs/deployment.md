@@ -143,59 +143,119 @@ azd env set AZURE_AKS_NODE_VM_SIZE Standard_D4pds_v6 -e eval
 
 ## ローカル開発
 
-リポジトリは uv workspace 構成です。ルートで一度同期すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest / locust) が揃います。
+リポジトリは uv workspace 構成です。uv は host、CI、Docker で `0.12.2` に固定しています。ルートで一度同期すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest / locust) が揃います。
 
 ```bash
-uv run scripts/tasks.py sync-dev
+uv run --no-project "${PWD}/scripts/tasks.py" check-uv-version
+uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
 lefthook install
-uv run scripts/tasks.py run
+uv run --no-project "${PWD}/scripts/tasks.py" run
 ```
 
 `lefthook install` は、コントリビュータ向けにこのリポジトリの Git hooks を登録します。ステージされた `infra/` 配下の Bicep ファイルがある場合、pre-commit は `infra/main.bicep` をビルドし、失敗したコミットを中止します。Lefthook のインストール方法は [公式手順](https://lefthook.dev/install/) を参照してください。
+
+### 組織承認済み package index を使う環境
+
+public package registry へ直接接続できない環境では、user-level の uv 設定に組織承認済みの Python package index を一つ構成します。`[[index]]`には`default = true`を指定し、public PyPIへのfallbackを無効にします。index URLや認証情報はリポジトリへ保存しません。
+
+```bash
+uv run --no-project "${PWD}/scripts/tasks.py" sync-dev-approved-index
+uv run --no-project "${PWD}/scripts/tasks.py" qa-app
+```
+
+このタスクはuser-level設定とpublic lockのsourceを検査してから、public `uv.lock`を一時requirementsへ変換し、構成済みのpackage indexから`.venv`を作成します。変換後のrequirementsも検査し、direct URL、find-links、hash検証やTLS検証を無効にする設定、projectやdependency groupを変更する環境変数を拒否します。exportと後続の`uv run`はroot projectと対象venvの絶対pathへ固定します。registry packageには`--require-hashes`を適用し、workspace sourceはindexを介さず`.pth`で参照します。通常環境と分離した`.uv-state/cache/`を使い、一時requirementsは処理後に削除します。`.uv-state/`配下のstateは同期した`uv.lock`のSHA-256を記録し、後続のtaskは検証済み環境へ`--no-sync`を適用します。stateを`.venv`の外へ置くため、環境の再作成が中断しても未完了状態が残ります。
+
+post-edit hookは依存関係の整合性を判定しません。Python編集時はprojectの`.venv`にある`ruff`を直接実行し、ruffがない場合は同期を要求します。lockと仮想環境の整合性は同期taskとCIで検証します。
+
+`uv.lock`が変わった場合や同期が中断した場合、taskは古い環境を使わず再同期を要求します。同じコマンドを再実行してください。通常の同期へ戻す場合は`.venv`を削除し、`uv run --no-project "${PWD}/scripts/tasks.py" reset-approved-index-state`を実行してから`sync-dev`を実行します。
+
+task runnerを介さない `uv run` では、projectの自動同期を明示的に止めます。
+
+```bash
+UV_NO_SYNC=1 uv run <command>
+```
+
+PowerShellでは `$env:UV_NO_SYNC = "1"` を設定します。
+
+### Docker build のpackage index
+
+通常のDocker buildはpublic PyPIを使用します。
+
+```bash
+docker build -f src/api/Dockerfile -t aks-chaos-lab:local .
+```
+
+組織承認済みpackage indexが必要な管理対象環境では、ローカルbuildに限りuser-level `uv.toml` をBuildKit secretとして渡します。このsecretを公開CIへ渡してはいけません。
+
+```bash
+UV_CONFIG_PATH="$HOME/.config/uv/uv.toml"
+UV_INDEX_CONFIG_SHA256="$(
+  uv run --no-project "${PWD}/scripts/approved_index_config.py" digest "$UV_CONFIG_PATH"
+)"
+docker build \
+  --build-arg UV_INDEX_MODE=approved-index \
+  --build-arg UV_INDEX_CONFIG_SHA256="$UV_INDEX_CONFIG_SHA256" \
+  --secret id=uv-config,src="$UV_CONFIG_PATH" \
+  -f src/api/Dockerfile \
+  -t aks-chaos-lab:local .
+```
+
+configのSHA-256はdependency layerとcache mountのkeyになります。Dockerfileはmountしたconfigのhashを照合するため、configを変更すると古いlayerを再利用しません。build logを共有する前に、index URLや認証情報が含まれていないことを確認してください。
+
+### public lockfile の更新
+
+dependencyを変更する場合、public PyPIへ接続できるGitHub Actionsでlockfileを生成します。workflowはrepositoryへのwrite permissionを持たず、`uv.lock` をartifactとして返します。
+
+```bash
+gh run list --workflow refresh-uv-lock.yml --branch <branch>
+gh run download <run-id> --name uv-lock-public --dir tmp/refresh-uv-lock
+```
+
+workflowは`pyproject.toml`、`uv.lock`、workflow定義自身を変更したpull requestで実行されます。既定branchへmergeした後は`workflow_dispatch`でも実行できます。取得した`uv.lock`の差分を確認して変更branchへ追加した後、組織承認済みpackage indexを使う環境で`sync-dev-approved-index`を再実行します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
 
 ## テストと品質確認
 
 アプリケーション:
 
-クリーン環境や新しい worktree では、先に `uv run scripts/tasks.py sync-dev` を実行してください。`qa-app` は同期済みの workspace venv を前提に ruff、ty、pytest を実行します。
+クリーン環境や新しいworktreeでは、先に通常環境で`uv run --no-project "${PWD}/scripts/tasks.py" sync-dev`、組織承認済みpackage indexを使う環境で`uv run --no-project "${PWD}/scripts/tasks.py" sync-dev-approved-index`を実行してください。絶対pathと`--no-project`は、task runnerの起動前にuvが別のprojectを探索または同期することを防ぎます。`qa-app`は同期済みのworkspace venvを前提にruff、ty、pytestを実行します。
 
 ```bash
-uv run scripts/tasks.py test
-uv run scripts/tasks.py test-cov
-uv run scripts/tasks.py lint
-uv run scripts/tasks.py typecheck
-uv run scripts/tasks.py qa-app
+uv run --no-project "${PWD}/scripts/tasks.py" test
+uv run --no-project "${PWD}/scripts/tasks.py" test-cov
+uv run --no-project "${PWD}/scripts/tasks.py" lint
+uv run --no-project "${PWD}/scripts/tasks.py" typecheck
+uv run --no-project "${PWD}/scripts/tasks.py" qa-app
 ```
 
 Bicep:
 
 ```bash
-uv run scripts/tasks.py build-bicep
+uv run --no-project "${PWD}/scripts/tasks.py" build-bicep
 ```
 
 Git hooks:
 
 ```bash
-uv run scripts/tasks.py test-hooks
+uv run --no-project "${PWD}/scripts/tasks.py" test-hooks
 ```
 
 リポジトリ全体:
 
 ```bash
-uv run scripts/tasks.py qa
+uv run --no-project "${PWD}/scripts/tasks.py" qa
 ```
 
-`uv run scripts/tasks.py qa` は workflows、Bicep、Kubernetes manifests、アプリ、リポジトリ用 Python scripts の QA をまとめて実行します。必要な外部ツールの確認は `uv run scripts/tasks.py install-tools` / `check-*` ターゲットで実行できます。
+`uv run --no-project "${PWD}/scripts/tasks.py" qa`はworkflows、Bicep、Kubernetes manifests、アプリ、リポジトリ用Python scriptsのQAをまとめて実行します。必要な外部ツールの確認は`uv run --no-project "${PWD}/scripts/tasks.py" install-tools`と`check-*`ターゲットで実行できます。
 
 ## 負荷テスト
 
 Locust ベースの負荷を生成できます。`BASE_URL` 未指定時は `AZURE_INGRESS_FQDN` を優先し、未設定の場合は Gateway から自動検出します。
 
 ```bash
-uv run scripts/tasks.py load-smoke
-uv run scripts/tasks.py load-baseline
-uv run scripts/tasks.py load-stress
-uv run scripts/tasks.py load-spike
+uv run --no-project "${PWD}/scripts/tasks.py" load-smoke
+uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
+uv run --no-project "${PWD}/scripts/tasks.py" load-stress
+uv run --no-project "${PWD}/scripts/tasks.py" load-spike
 ```
 
 手動で対象 URL や負荷パラメーターを指定する場合は、利用中のシェルで環境変数を設定してから同じタスクを実行します。
@@ -205,7 +265,7 @@ $env:BASE_URL = "http://<host-or-ip>"
 $env:USERS = "100"
 $env:SPAWN_RATE = "10"
 $env:DURATION = "300"
-uv run scripts/tasks.py load-baseline
+uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 ```
 
 ```bash
@@ -213,10 +273,10 @@ export BASE_URL=http://<host-or-ip>
 export USERS=100
 export SPAWN_RATE=10
 export DURATION=300
-uv run scripts/tasks.py load-baseline
+uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 ```
 
-Chaos 実験の観察時は、別ターミナルで `uv run scripts/tasks.py load-baseline` を継続しながら [docs/chaos-experiments.md](chaos-experiments.md) の実験を開始すると挙動を追いやすくなります。
+Chaos実験の観察時は、別ターミナルで`uv run --no-project "${PWD}/scripts/tasks.py" load-baseline`を継続しながら[docs/chaos-experiments.md](chaos-experiments.md)の実験を開始すると挙動を追いやすくなります。
 
 ## 既存環境の SLI 信号移行 cleanup
 

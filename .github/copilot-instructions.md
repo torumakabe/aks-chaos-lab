@@ -10,10 +10,10 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 - **IaC**: Bicep, subscription scope (`infra/`)
 - **K8s**: Kustomize (`k8s/`)
 - **依存**: Redis (Managed, Entra ID auth), Application Insights, Prometheus
-- **パッケージ管理**: uv workspace (ルート `pyproject.toml` + `uv.lock`、`python`/`pip` 直接実行禁止)
-- **品質検証**: ruff + ty + pytest → クリーン環境では `uv run scripts/tasks.py sync-dev` 後に `uv run scripts/tasks.py qa-app`
-- **Bicep 検証**: `uv run scripts/tasks.py build-bicep`。Lefthook の pre-commit は、ステージされた Bicep 変更がある場合に実行する
-- **編集時自動検証**: `.github/hooks/hooks.json` に postToolUse hook を登録。`.py` 編集で workspace ruff (check --fix + format)、`.bicep` 編集で `az bicep format` を実行し、変更/失敗時はエージェントへ `additionalContext` でフィードバックする
+- **パッケージ管理**: uv 0.12.2 の workspace (ルート `pyproject.toml` + public PyPI source の `uv.lock`、`python`/`pip` 直接実行禁止)
+- **品質検証**: ruff + ty + pytest → クリーン環境では通常は `uv run --no-project "${PWD}/scripts/tasks.py" sync-dev`、組織承認済み package index を必須とする環境では `uv run --no-project "${PWD}/scripts/tasks.py" sync-dev-approved-index` の後に `uv run --no-project "${PWD}/scripts/tasks.py" qa-app`
+- **Bicep 検証**: `uv run --no-project "${PWD}/scripts/tasks.py" build-bicep`。Lefthook の pre-commit は、ステージされた Bicep 変更がある場合に実行する
+- **編集時自動検証**: `.github/hooks/hooks.json` に postToolUse hook を登録。`.py` 編集では project `.venv` の ruff を直接実行し、`.bicep` 編集では `az bicep format` を実行する。変更/失敗時はエージェントへ `additionalContext` でフィードバックする。依存関係の整合性は同期taskとCIが検証する
 
 ## プロジェクト構造
 
@@ -22,7 +22,7 @@ pyproject.toml    # uv workspace ルート (ruff/ty 共通設定、開発用依�
 uv.lock           # workspace 共通ロック
 src/api/          # FastAPI アプリ (uv member: aks-chaos-lab-api)
 src/api/app/      # main.py, config.py, models.py, redis_client.py 等
-src/api/Dockerfile # build context = repo root, `uv sync --package aks-chaos-lab-api`
+src/api/Dockerfile # build context = repo root, `uv export` + `uv pip sync` で API 依存を導入
 src/external-sli-publisher/  # Azure Functions publisher (uv member, デプロイは requirements.txt)
 infra/modules/    # Bicep モジュール (aks, network, redis, acr, identity, chaos 等)
 k8s/apps/chaos-app/ # chaos-app Kustomize マニフェスト
@@ -53,11 +53,11 @@ docs/features/    # Feature Document（作業途中の状態保存）
 ## 品質ゲート（必須）
 
 - **Python**: ty エラー 0 件、ruff 警告 0 件、pytest 全テスト合格
-- **Bicep**: `uv run scripts/tasks.py build-bicep` エラー 0 件
+- **Bicep**: `uv run --no-project "${PWD}/scripts/tasks.py" build-bicep` エラー 0 件
 
 ## Windows / cross-shell 注意
 
-- Windows で Locust 負荷テストを実行する場合は、`uv run locust ...` を直接使わず `uv run scripts/tasks.py load-*` を使う。wrapper が child process に `PYTHONUTF8=1` を設定し、cp932 などの既定 encoding による TOML 読み取り失敗を避ける。
+- Windows で Locust 負荷テストを実行する場合は、`uv run locust ...` を直接使わず `uv run --no-project "${PWD}/scripts/tasks.py" load-*` を使う。wrapper が child process に `PYTHONUTF8=1` を設定し、cp932 などの既定 encoding による TOML 読み取り失敗を避ける。
 - Locust CSV 出力は `LOCUST_CSV_PREFIX` と、必要な場合のみ `LOCUST_CSV_FULL_HISTORY=true` で指定する。任意引数を広く通す `LOCUST_EXTRA_ARGS` のような仕組みは追加しない。
 - WSL / bash helper に Windows path を渡す場合は、`C:\...` ではなく `/mnt/c/...` 形式へ変換する。PowerShell / Windows native shell では `C:\...` 形式を使う。
 

@@ -76,7 +76,9 @@ def test_bicep_pre_commit_selection(
     calls = (
         log_path.read_text(encoding="utf-8").splitlines() if log_path.exists() else []
     )
-    expected = ["run scripts/tasks.py build-bicep"] if should_run else []
+    expected = (
+        [f"run --no-project {ROOT}/scripts/tasks.py build-bicep"] if should_run else []
+    )
     assert calls == expected
 
 
@@ -144,5 +146,5 @@ def test_bicep_pre_commit_uses_staged_files(tmp_path: Path) -> None:
     )
     assert staged_result.returncode == 0, staged_result.stderr
     assert log_path.read_text(encoding="utf-8").splitlines() == [
-        "run scripts/tasks.py build-bicep"
+        f"run --no-project {repository}/scripts/tasks.py build-bicep"
     ]

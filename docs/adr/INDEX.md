@@ -14,7 +14,8 @@
 | 010 | [AKS Automatic は本リポジトリで非サポート (Deployment Safeguards が chaos-mesh と非互換)](010-aks-automatic-unsupported-due-to-deployment-safeguards.md) | Accepted | 2026-05-06 |
 | 011 | [外形 availability test を Azure Monitor SLI の正本にする](011-external-availability-sli-publisher.md) | Superseded | 2026-05-19 |
 | 012 | [Azure Functions direct probe を Azure Monitor SLI の正本にする](012-functions-direct-external-sli-probe.md) | Accepted (Latency 部分は ADR-014 で amend) | 2026-05-20 |
-| 013 | [uv workspace でツーリングを統一しつつデプロイ単位は分離維持](013-uv-workspace-unified-tooling.md) | Accepted | 2026-05-21 |
+| 013 | [uv workspace でツーリングを統一しつつデプロイ単位は分離維持](013-uv-workspace-unified-tooling.md) | Accepted (root lock 一本化、Docker uv sync、post-edit hook 自動 sync 許可の該当部分は ADR-017 で amend) | 2026-05-21 |
 | 014 | [Latency SLI を `le` bucket と `eq` filter で定義する](014-histogram-bucket-latency-sli.md) | Accepted | 2026-05-21 |
 | 015 | [Azure リソース名への resourceToken サフィックス付与ルール](015-resource-token-suffix-naming.md) | Accepted | 2026-06-28 |
 | 016 | [Azure Chaos Studio Workspace の採用](016-azure-chaos-studio-workspace-adoption.md) | Rejected | 2026-07-16 |
+| 017 | [管理対象環境向け approved-index 変換フロー (ADR-013 の一部を amend)](017-approved-index-conversion-for-managed-environments.md) | Accepted | 2026-08-08 |
