@@ -207,12 +207,11 @@ configのSHA-256はdependency layerとcache mountのkeyになります。Dockerf
 dependencyを変更する場合、public PyPIへ接続できるGitHub Actionsでlockfileを生成します。workflowはrepositoryへのwrite permissionを持たず、`uv.lock` をartifactとして返します。
 
 ```bash
-gh workflow run refresh-uv-lock.yml --ref <branch>
-gh run list --workflow refresh-uv-lock.yml
-gh run download <run-id> --name uv-lock-public
+gh run list --workflow refresh-uv-lock.yml --branch <branch>
+gh run download <run-id> --name uv-lock-public --dir tmp/refresh-uv-lock
 ```
 
-取得した`uv.lock`の差分を確認して変更branchへ追加した後、組織承認済みpackage indexを使う環境で`sync-dev-approved-index`を再実行します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
+workflowは`pyproject.toml`、`uv.lock`、workflow定義自身を変更したpull requestで実行されます。既定branchへmergeした後は`workflow_dispatch`でも実行できます。取得した`uv.lock`の差分を確認して変更branchへ追加した後、組織承認済みpackage indexを使う環境で`sync-dev-approved-index`を再実行します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
 
 ## テストと品質確認
 
