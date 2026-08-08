@@ -4,31 +4,31 @@
     {
       "label": "sync-dev",
       "type": "shell",
-      "command": "uv run scripts/tasks.py sync-dev",
+      "command": "uv run --no-project \"${workspaceFolder}/scripts/tasks.py\" sync-dev",
       "group": "build"
     },
     {
       "label": "test",
       "type": "shell",
-      "command": "uv run scripts/tasks.py test",
+      "command": "uv run --no-project \"${workspaceFolder}/scripts/tasks.py\" test",
       "group": "build"
     },
     {
       "label": "lint",
       "type": "shell",
-      "command": "uv run scripts/tasks.py lint",
+      "command": "uv run --no-project \"${workspaceFolder}/scripts/tasks.py\" lint",
       "group": "build"
     },
     {
       "label": "typecheck",
       "type": "shell",
-      "command": "uv run scripts/tasks.py typecheck",
+      "command": "uv run --no-project \"${workspaceFolder}/scripts/tasks.py\" typecheck",
       "group": "build"
     },
     {
       "label": "qa",
       "type": "shell",
-      "command": "uv run scripts/tasks.py qa",
+      "command": "uv run --no-project \"${workspaceFolder}/scripts/tasks.py\" qa",
       "group": "build"
     }
   ]

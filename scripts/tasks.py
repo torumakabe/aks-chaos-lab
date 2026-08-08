@@ -5,14 +5,30 @@
 # ///
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 from collections.abc import Callable, Sequence
+from contextlib import suppress
 from pathlib import Path
+
+from approved_index_config import (
+    UNSAFE_UV_ENVIRONMENT_VARIABLES,
+    ApprovedIndexConfigError,
+    user_uv_config_path,
+    validate_approved_index_config,
+)
+from public_lock import (
+    PublicLockError,
+    validate_exported_requirements,
+    validate_public_lock,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -22,6 +38,9 @@ ACTIONLINT_IMAGE = "rhysd/actionlint:1.7.12"
 KUBECONFORM_IMAGE = "ghcr.io/yannh/kubeconform:v0.7.0"
 K8S_VERSION = "1.33.0"
 KUBECONFORM_SKIP = "VerticalPodAutoscaler,CiliumNetworkPolicy,Kustomization,Gateway,HTTPRoute,Instrumentation"
+APPROVED_INDEX_STATE_DIRECTORY = ".uv-state"
+APPROVED_INDEX_ENVIRONMENT_STATE_FILENAME = ".approved-index-sync.json"
+APPROVED_INDEX_STATE_VERSION = 3
 
 
 def print_step(message: str) -> None:
@@ -49,10 +68,158 @@ def resolve_command(args: Sequence[str]) -> list[str]:
 def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = os.environ.copy()
     env.pop("VIRTUAL_ENV", None)
+    for name in UNSAFE_UV_ENVIRONMENT_VARIABLES:
+        env.pop(name, None)
     env.setdefault("PYTHONUTF8", "1")
     if extra:
         env.update(extra)
     return env
+
+
+def project_environment_path() -> Path:
+    configured = os.environ.get("UV_PROJECT_ENVIRONMENT")
+    if not configured:
+        return ROOT / ".venv"
+    path = Path(configured).expanduser()
+    return path if path.is_absolute() else ROOT / path
+
+
+def approved_index_state_path() -> Path:
+    environment = str(project_environment_path().resolve())
+    environment_key = hashlib.sha256(environment.encode()).hexdigest()[:16]
+    return (
+        ROOT / APPROVED_INDEX_STATE_DIRECTORY / f"approved-index-{environment_key}.json"
+    )
+
+
+def approved_index_cache_path() -> Path:
+    return ROOT / APPROVED_INDEX_STATE_DIRECTORY / "cache"
+
+
+def approved_index_environment_state_path() -> Path:
+    return project_environment_path() / APPROVED_INDEX_ENVIRONMENT_STATE_FILENAME
+
+
+def lock_sha256() -> str:
+    digest = hashlib.sha256()
+    with (ROOT / "uv.lock").open("rb") as lock_file:
+        for chunk in iter(lambda: lock_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_approved_index_state(status: str, lock_digest: str | None = None) -> None:
+    state = {
+        "schema": APPROVED_INDEX_STATE_VERSION,
+        "status": status,
+        "lock_sha256": lock_digest or lock_sha256(),
+    }
+
+    def write_state(state_path: Path) -> None:
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = state_path.with_suffix(".tmp")
+        temporary_path.write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        temporary_path.replace(state_path)
+
+    if status == "ready":
+        write_state(approved_index_environment_state_path())
+    state_path = approved_index_state_path()
+    write_state(state_path)
+
+
+def read_approved_index_state() -> dict[str, object] | None:
+    state_path = approved_index_state_path()
+    if not state_path.exists():
+        return None
+    try:
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"error: Invalid approved-index sync state: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    if not isinstance(state, dict):
+        print("error: Invalid approved-index sync state format", file=sys.stderr)
+        raise SystemExit(1)
+    return state
+
+
+def approved_index_run_flags() -> list[str]:
+    state = read_approved_index_state()
+    if state is None:
+        return []
+    if (
+        state.get("schema") != APPROVED_INDEX_STATE_VERSION
+        or state.get("status") != "ready"
+    ):
+        print(
+            "error: The approved-index environment is incomplete. "
+            'Run \'uv run --no-project "${PWD}/scripts/tasks.py" '
+            "sync-dev-approved-index'.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    if state.get("lock_sha256") != lock_sha256():
+        print(
+            "error: uv.lock changed after the approved-index environment was synced. "
+            'Run \'uv run --no-project "${PWD}/scripts/tasks.py" '
+            "sync-dev-approved-index'.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    environment_state_path = approved_index_environment_state_path()
+    try:
+        environment_state = json.loads(
+            environment_state_path.read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError) as error:
+        print(
+            f"error: Invalid approved-index environment provenance: {error}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from error
+    if environment_state != state:
+        print(
+            "error: The virtual environment does not match its approved-index state. "
+            'Run \'uv run --no-project "${PWD}/scripts/tasks.py" '
+            "sync-dev-approved-index'.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return ["--no-sync"]
+
+
+def ensure_standard_sync_allowed() -> None:
+    if approved_index_state_path().exists():
+        print(
+            "error: This environment is managed by the approved-index workflow. "
+            'Run \'uv run --no-project "${PWD}/scripts/tasks.py" '
+            "sync-dev-approved-index' "
+            "to refresh it. To return to standard sync, remove the virtual environment "
+            "and run the reset-approved-index-state target.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+
+def environment_python_path() -> Path:
+    environment = project_environment_path()
+    if os.name == "nt":
+        return environment / "Scripts" / "python.exe"
+    return environment / "bin" / "python"
+
+
+def environment_site_packages_path() -> Path:
+    environment = project_environment_path()
+    if os.name == "nt":
+        return environment / "Lib" / "site-packages"
+    return (
+        environment
+        / "lib"
+        / f"python{sys.version_info.major}.{sys.version_info.minor}"
+        / "site-packages"
+    )
 
 
 def run(
@@ -65,7 +232,7 @@ def run(
     completed = subprocess.run(
         resolve_command(args),
         cwd=cwd,
-        env=env if env is not None else child_env(),
+        env=child_env(env),
         check=False,
     )
     if check and completed.returncode != 0:
@@ -98,7 +265,22 @@ def command_output(
 
 def run_uv(args: Sequence[str], *, env: dict[str, str] | None = None) -> None:
     """Run a command in the workspace venv from the repository root."""
-    run(["uv", "run", *args], cwd=ROOT, env=env)
+    project_env = {
+        "UV_PROJECT_ENVIRONMENT": str(project_environment_path()),
+        **(env or {}),
+    }
+    run(
+        [
+            "uv",
+            "run",
+            "--project",
+            str(ROOT),
+            *approved_index_run_flags(),
+            *args,
+        ],
+        cwd=ROOT,
+        env=project_env,
+    )
 
 
 def run_uv_in(
@@ -112,12 +294,27 @@ def run_uv_in(
     Used for pytest invocations that rely on the subpackage's pytest config and
     PYTHONPATH layout (e.g. `tests/` discovering `app/` via cwd-based imports).
     """
-    run(["uv", "run", *args], cwd=cwd, env=env)
+    project_env = {
+        "UV_PROJECT_ENVIRONMENT": str(project_environment_path()),
+        **(env or {}),
+    }
+    run(
+        [
+            "uv",
+            "run",
+            "--project",
+            str(ROOT),
+            *approved_index_run_flags(),
+            *args,
+        ],
+        cwd=cwd,
+        env=project_env,
+    )
 
 
 def pythonpath_env(extra: dict[str, str] | None = None) -> dict[str, str]:
-    env = child_env(extra)
-    existing = env.get("PYTHONPATH")
+    env = dict(extra or {})
+    existing = os.environ.get("PYTHONPATH")
     env["PYTHONPATH"] = f".{os.pathsep}{existing}" if existing else "."
     return env
 
@@ -127,7 +324,7 @@ def docker_mount(path: Path, target: str) -> str:
 
 
 def target_help() -> None:
-    print("Usage: uv run scripts/tasks.py <target>")
+    print('Usage: uv run --no-project "${PWD}/scripts/tasks.py" <target>')
     print()
     print("Targets:")
     for name in sorted(TARGETS):
@@ -135,21 +332,120 @@ def target_help() -> None:
 
 
 def target_install() -> None:
+    ensure_standard_sync_allowed()
     print_step("Installing workspace development dependencies")
-    run(["uv", "sync", "--all-packages", "--all-groups"])
+    run(["uv", "sync", "--project", str(ROOT), "--all-packages", "--all-groups"])
     print_success("Dependencies installed")
 
 
 def target_sync() -> None:
+    ensure_standard_sync_allowed()
     print_step("Syncing workspace dependencies (runtime only)")
-    run(["uv", "sync", "--all-packages"])
+    run(["uv", "sync", "--project", str(ROOT), "--all-packages"])
     print_success("Dependencies synced")
 
 
 def target_sync_dev() -> None:
+    ensure_standard_sync_allowed()
     print_step("Syncing workspace development dependencies")
-    run(["uv", "sync", "--all-packages", "--all-groups"])
+    run(["uv", "sync", "--project", str(ROOT), "--all-packages", "--all-groups"])
     print_success("Development dependencies synced")
+
+
+def target_sync_dev_approved_index() -> None:
+    print_step("Syncing workspace dependencies from the approved package index")
+    environment = project_environment_path()
+    config_path = user_uv_config_path()
+    try:
+        validate_approved_index_config(config_path)
+    except ApprovedIndexConfigError as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    lock_digest = lock_sha256()
+    try:
+        validate_public_lock(ROOT / "pyproject.toml", ROOT / "uv.lock")
+    except (OSError, PublicLockError, tomllib.TOMLDecodeError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    write_approved_index_state("in-progress", lock_digest)
+    with tempfile.TemporaryDirectory(prefix="aks-chaos-lab-uv-") as temporary_dir:
+        requirements = Path(temporary_dir) / "requirements.txt"
+        run(
+            [
+                "uv",
+                "venv",
+                "--clear",
+                "--python",
+                "3.14",
+                str(environment),
+            ]
+        )
+        run(
+            [
+                "uv",
+                "export",
+                "--project",
+                str(ROOT),
+                "--quiet",
+                "--frozen",
+                "--all-packages",
+                "--all-groups",
+                "--no-emit-workspace",
+                "--no-emit-index-url",
+                "--output-file",
+                str(requirements),
+            ]
+        )
+        try:
+            validate_exported_requirements(requirements)
+        except (OSError, PublicLockError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            raise SystemExit(1) from error
+        run(
+            [
+                "uv",
+                "pip",
+                "sync",
+                "--require-hashes",
+                str(requirements),
+                "--python",
+                str(environment_python_path()),
+            ],
+            env={
+                "UV_CACHE_DIR": str(approved_index_cache_path()),
+                "UV_CONFIG_FILE": str(config_path),
+            },
+        )
+        site_packages = environment_site_packages_path()
+        site_packages.mkdir(parents=True, exist_ok=True)
+        (site_packages / "aks-chaos-lab-workspace.pth").write_text(
+            f"{API_DIR.resolve()}\n{PUBLISHER_DIR.resolve()}\n",
+            encoding="utf-8",
+        )
+    if lock_sha256() != lock_digest:
+        print(
+            "error: uv.lock changed while the approved-index environment was syncing. "
+            "Run the sync target again.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    write_approved_index_state("ready", lock_digest)
+    print_success("Approved-index development dependencies synced")
+
+
+def target_reset_approved_index_state() -> None:
+    environment = project_environment_path()
+    if environment.exists():
+        print(
+            f"error: Remove the virtual environment first: {environment}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    state_path = approved_index_state_path()
+    state_path.unlink(missing_ok=True)
+    with suppress(OSError):
+        state_path.parent.rmdir()
+    print_success("Approved-index state reset")
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +505,7 @@ def target_test_publisher() -> None:
 def target_test_hooks() -> None:
     print_step("Testing repository hooks")
     target_check_lefthook()
-    run_uv(["pytest", "scripts/tests/test_lefthook.py", "-q"])
+    run_uv(["pytest", "scripts/tests/", "-q"])
     print_success("Repository hook tests passed")
 
 
@@ -412,9 +708,18 @@ def target_install_tools() -> None:
 
 
 def target_check_uv_version() -> None:
-    root_pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    expected_match = re.search(r'required-version\s*=\s*">=([^"]+)"', root_pyproject)
-    expected = expected_match.group(1) if expected_match else "not set"
+    root_pyproject = tomllib.loads(
+        (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    required_version = root_pyproject["tool"]["uv"].get("required-version", "")
+    expected_match = re.fullmatch(r"==([0-9]+\.[0-9]+\.[0-9]+)", required_version)
+    if expected_match is None:
+        print(
+            "error: [tool.uv].required-version must use an exact ==X.Y.Z version",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    expected = expected_match.group(1)
 
     local_version_output = command_output(
         ["uv", "--version"], allow_failure=True, quiet_stderr=True
@@ -441,12 +746,22 @@ def target_check_uv_version() -> None:
         raise SystemExit(1)
 
     if local_version != expected:
-        print(f"warning: Local uv ({local_version}) differs from expected ({expected})")
         print(
-            "  Patch version differences within the same minor version are compatible"
+            f"error: Local uv ({local_version}) differs from expected ({expected})",
+            file=sys.stderr,
         )
-    else:
-        print_success("All uv versions match")
+        raise SystemExit(1)
+    print_success("All uv versions match")
+
+
+def target_check_public_lock() -> None:
+    print_step("Checking public uv.lock package sources")
+    try:
+        validate_public_lock(ROOT / "pyproject.toml", ROOT / "uv.lock")
+    except (OSError, PublicLockError, tomllib.TOMLDecodeError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    print_success("uv.lock contains only public PyPI package sources")
 
 
 def normalized_dependency(value: str) -> str:
@@ -678,6 +993,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "check-gh-aw": target_check_gh_aw,
     "check-lefthook": target_check_lefthook,
     "check-publisher-requirements": target_check_publisher_requirements,
+    "check-public-lock": target_check_public_lock,
     "check-uv-version": target_check_uv_version,
     "clean": target_clean,
     "compile-aw": target_compile_aw,
@@ -699,9 +1015,11 @@ TARGETS: dict[str, Callable[[], None]] = {
     "qa-platform": target_qa_platform,
     "qa-scripts": target_qa_scripts,
     "qa-workflows": target_qa_workflows,
+    "reset-approved-index-state": target_reset_approved_index_state,
     "run": target_run,
     "sync": target_sync,
     "sync-dev": target_sync_dev,
+    "sync-dev-approved-index": target_sync_dev_approved_index,
     "test": target_test,
     "test-all": target_test_all,
     "test-api": target_test_api,
@@ -728,7 +1046,9 @@ def main(argv: Sequence[str]) -> int:
     if handler is None:
         print(f"error: Unknown target: {target}", file=sys.stderr)
         print(
-            "Run 'uv run scripts/tasks.py help' for available targets.", file=sys.stderr
+            "Run 'uv run --no-project \"${PWD}/scripts/tasks.py\" help' "
+            "for available targets.",
+            file=sys.stderr,
         )
         return 1
 

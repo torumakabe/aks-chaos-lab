@@ -14,29 +14,29 @@
 ### 基本的な使用（自動検出）
 ```bash
 # BASE_URLを自動検出してbaseline負荷テスト実行
-uv run scripts/tasks.py load-baseline
+uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 
 # smoke（軽量・既定のクイック検証）
-uv run scripts/tasks.py load-smoke
+uv run --no-project "${PWD}/scripts/tasks.py" load-smoke
 
 # stress負荷テスト実行
-uv run scripts/tasks.py load-stress
+uv run --no-project "${PWD}/scripts/tasks.py" load-stress
 
 # spike負荷テスト実行
-uv run scripts/tasks.py load-spike
+uv run --no-project "${PWD}/scripts/tasks.py" load-spike
 ```
 
 ### 手動でBASE_URL指定
 ```bash
 export BASE_URL=https://myapp.example.com
-uv run scripts/tasks.py load-baseline
+uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 ```
 
 PowerShell:
 
 ```powershell
 $env:BASE_URL = "https://myapp.example.com"
-uv run scripts/tasks.py load-baseline
+uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 ```
 
 ### カスタム設定
@@ -44,13 +44,13 @@ uv run scripts/tasks.py load-baseline
 # 異なるGatewayを対象にする場合
 export GATEWAY_NAME=my-gateway
 export GATEWAY_NS=my-namespace
-uv run scripts/tasks.py load-baseline
+uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 
 # 負荷パラメータをカスタマイズ
 export USERS=100
 export SPAWN_RATE=10
 export DURATION=300
-uv run scripts/tasks.py load-baseline
+uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 ```
 
 ## 負荷プロファイル
@@ -79,13 +79,13 @@ uv run scripts/tasks.py load-baseline
 
 ### 初回実行前の準備
 ```bash
-uv run scripts/tasks.py sync-dev
+uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
 ```
 
 ### 依存関係について
 - locustはsrc/api/pyproject.tomlのdev dependenciesで定義
 - uvが自動的に仮想環境を管理  
-- `uv run scripts/tasks.py load-*` は `src/api/` の dev dependencies を使って Locust を実行
+- `uv run --no-project "${PWD}/scripts/tasks.py" load-*` は `src/api/` の dev dependencies を使って Locust を実行
 
 ## 前提条件
 - kubectl がインストール済みでクラスタにアクセス可能
@@ -102,7 +102,7 @@ BASE_URL が未設定の場合、以下の優先順で自動検出します：
 例：
 ```bash
 # BASE_URL 自動検出で baseline を実行
-uv run scripts/tasks.py load-baseline
+uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 ```
 
 2) Kubernetes Gateway からの検出

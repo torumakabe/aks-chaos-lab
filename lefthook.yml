@@ -2,4 +2,4 @@ pre-commit:
   commands:
     bicep-build:
       glob: "{infra/*.bicep,infra/**/*.bicep}"
-      run: uv run scripts/tasks.py build-bicep
+      run: uv run --no-project "${PWD}/scripts/tasks.py" build-bicep

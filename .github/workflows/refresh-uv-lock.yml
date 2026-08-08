@@ -1,0 +1,33 @@
+name: Refresh public uv lock
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-lock:
+    name: Generate public uv.lock
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version-file: "pyproject.toml"
+          python-version: "3.14"
+      - name: Refresh lock
+        run: uv lock
+      - name: Check lock consistency
+        run: uv lock --check
+      - name: Check lock package sources
+        run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" check-public-lock
+      - name: Upload public lock
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: uv-lock-public
+          path: uv.lock
+          if-no-files-found: error
+          retention-days: 7

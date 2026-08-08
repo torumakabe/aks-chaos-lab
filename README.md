@@ -87,8 +87,15 @@ azd up
 ローカル開発と検証:
 
 ```bash
-uv run scripts/tasks.py sync-dev
-uv run scripts/tasks.py qa
+uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
+uv run --no-project "${PWD}/scripts/tasks.py" qa
+```
+
+public package registry へ直接接続できず、組織承認済みの Python package index を使う環境では、代わりに次の同期タスクを実行します。
+
+```bash
+uv run --no-project "${PWD}/scripts/tasks.py" sync-dev-approved-index
+uv run --no-project "${PWD}/scripts/tasks.py" qa
 ```
 
 環境削除:
@@ -128,7 +135,7 @@ docs/features/       セッションをまたぐ Feature Document
 .github/hooks/       Copilot CLI postToolUse 用 lint/format フィードバック
 ```
 
-> Python は uv workspace 構成です。ルートで `uv sync --all-packages --all-groups` を一度実行すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest) が揃います。詳細は [ADR-013](docs/adr/013-uv-workspace-unified-tooling.md) を参照。
+> Python は uv workspace 構成です。ルートで同期すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest) が揃います。通常の同期は [ADR-013](docs/adr/013-uv-workspace-unified-tooling.md)、組織承認済み package index を使う環境は [ADR-017](docs/adr/017-approved-index-conversion-for-managed-environments.md) を参照してください。
 
 ## ライセンス
 

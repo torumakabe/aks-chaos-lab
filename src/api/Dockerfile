@@ -1,10 +1,10 @@
 # uv version pinned - keep in sync with the root pyproject.toml [tool.uv] required-version
-# Run 'uv run scripts/tasks.py check-uv-version' from the repository root to verify consistency
+# Run 'uv run --no-project scripts/tasks.py check-uv-version' to verify consistency
 #
 # Build context MUST be the repository root because the workspace lockfile lives at the
 # repository root. Build with:
 #   docker build -f src/api/Dockerfile -t aks-chaos-lab:local .
-FROM ghcr.io/astral-sh/uv:0.10.6 AS uv
+FROM ghcr.io/astral-sh/uv:0.12.2 AS uv
 
 FROM python:3.14-slim
 
@@ -19,13 +19,37 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY src/api/pyproject.toml ./src/api/
 COPY src/external-sli-publisher/pyproject.toml ./src/external-sli-publisher/
+COPY scripts/approved_index_config.py ./scripts/
+COPY scripts/public_lock.py ./scripts/
 
-# Install only the API package's locked dependencies (no dev, no project install).
-# --package selects the workspace member; --no-install-project skips installing
-# aks-chaos-lab-api itself so that we can copy the source tree later.
+# Export only the API package's locked dependencies, then resolve the artifacts
+# through the package index configured for this build environment.
 ENV UV_LINK_MODE=copy
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --package aks-chaos-lab-api --no-install-project --no-dev --compile-bytecode
+ARG UV_INDEX_MODE=public
+ARG UV_INDEX_CONFIG_SHA256=public
+RUN --mount=type=cache,id=uv-${UV_INDEX_MODE}-${UV_INDEX_CONFIG_SHA256},target=/root/.cache/uv \
+    --mount=type=secret,id=uv-config,target=/root/.config/uv/uv.toml,required=false \
+    case "$UV_INDEX_MODE" in \
+      public) \
+        test "$UV_INDEX_CONFIG_SHA256" = public \
+        && test ! -e /root/.config/uv/uv.toml \
+        ;; \
+      approved-index) \
+        printf '%s  %s\n' "$UV_INDEX_CONFIG_SHA256" /root/.config/uv/uv.toml \
+          | sha256sum -c - \
+        && python scripts/approved_index_config.py /root/.config/uv/uv.toml \
+        ;; \
+      *) echo "error: UV_INDEX_MODE must be public or approved-index" >&2; exit 1 ;; \
+    esac \
+    && python scripts/public_lock.py lock pyproject.toml uv.lock \
+    && uv export --quiet --frozen --package aks-chaos-lab-api --no-dev \
+      --no-emit-workspace --no-emit-index-url \
+      --output-file /tmp/requirements.txt \
+    && python scripts/public_lock.py requirements /tmp/requirements.txt \
+    && uv venv /app/.venv \
+    && uv pip sync --require-hashes /tmp/requirements.txt \
+      --python /app/.venv/bin/python --compile-bytecode \
+    && rm /tmp/requirements.txt
 
 # Copy application code
 COPY src/api/app ./app

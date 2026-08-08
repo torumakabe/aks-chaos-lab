@@ -42,6 +42,12 @@ class CommandResult:
         return self.timed_out or self.returncode is None or self.returncode != 0
 
 
+def project_ruff_path() -> Path:
+    if os.name == "nt":
+        return REPO_ROOT / ".venv" / "Scripts" / "ruff.exe"
+    return REPO_ROOT / ".venv" / "bin" / "ruff"
+
+
 def to_text(value: str | bytes | None) -> str:
     if value is None:
         return ""
@@ -219,10 +225,27 @@ def process_python(path: Path) -> list[str]:
 
     before = absolute.read_bytes()
     messages: list[str] = []
+    ruff = project_ruff_path()
+    if not ruff.is_file():
+        return [
+            "The project virtual environment does not contain ruff. Run the "
+            "appropriate sync target before editing Python files."
+        ]
 
     for command in (
-        ["uv", "run", "ruff", "check", "--fix", "--quiet", str(absolute)],
-        ["uv", "run", "ruff", "format", "--quiet", str(absolute)],
+        [
+            str(ruff),
+            "check",
+            "--fix",
+            "--quiet",
+            str(absolute),
+        ],
+        [
+            str(ruff),
+            "format",
+            "--quiet",
+            str(absolute),
+        ],
     ):
         result = run_command(command, cwd=REPO_ROOT)
         if result.failed:
