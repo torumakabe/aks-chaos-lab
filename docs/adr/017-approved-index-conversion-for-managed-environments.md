@@ -14,7 +14,7 @@ Public GitHub repository では public PyPI source の root `uv.lock` を唯一�
 5. task runnerはscriptの絶対pathと`uv run --no-project`で起動し、taskのstate検査より前に別のprojectを探索または同期しないようにする。
 6. GitHub Actions、Azure Functions remote build、外部利用者はpublic PyPIを継続して使用する。
 7. Docker buildも同じexportとpip syncを使う。管理対象環境のローカルbuildはbuild argumentでapproved-index modeとconfigのSHA-256を明示し、BuildKit secretでuser-level uv configをmountする。Dockerfileはmountしたconfigのhashを照合し、build modeとhashをdependency layerおよびBuildKit cache mountのkeyへ含める。公開CIにはsecretを渡さない。
-8. uvはhost、CI、Dockerのすべてで`0.12.2`にexact pinする。
+8. uvのhostはルート`pyproject.toml`で定義する単一minor seriesの互換範囲を許可する。CI、Docker、lock更新workflowは互換範囲の下限へexact pinし、再現性を維持する。
 9. dependency update時のpublic lockはGitHub Actionsのread-only artifact workflowで生成し、botのcommit permissionまたはwrite permissionを使わない。
 10. ADR-013のroot lock一本化、Dockerのuv sync、post-edit hookの自動sync許可を上記方式へamendする。post-edit hookは依存関係の整合性を判定せず、project venvのruffを直接実行する。uv workspaceによる統一とADR-009/012のdeploy単位分離は維持する。
 

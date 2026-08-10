@@ -143,7 +143,7 @@ azd env set AZURE_AKS_NODE_VM_SIZE Standard_D4pds_v6 -e eval
 
 ## ローカル開発
 
-リポジトリは uv workspace 構成です。uv は host、CI、Docker で `0.12.2` に固定しています。ルートで一度同期すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest / locust) が揃います。
+リポジトリは uv workspace 構成です。hostはルート`pyproject.toml`の互換範囲に従います。CI、Docker、lock更新workflowは、再現性を維持するため互換範囲の下限へ固定します。`check-uv-version`はこの関係を検査します。ルートで一度同期すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest / locust) が揃います。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" check-uv-version

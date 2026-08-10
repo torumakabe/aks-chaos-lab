@@ -1,5 +1,6 @@
-# uv version pinned - keep in sync with the root pyproject.toml [tool.uv] required-version
-# Run 'uv run --no-project scripts/tasks.py check-uv-version' to verify consistency
+# uv is pinned for reproducible builds and must equal the minimum version allowed
+# by the root pyproject.toml [tool.uv] required-version range.
+# Run 'uv run --no-project scripts/tasks.py check-uv-version' to verify the policy.
 #
 # Build context MUST be the repository root because the workspace lockfile lives at the
 # repository root. Build with:
