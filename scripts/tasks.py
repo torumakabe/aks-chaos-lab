@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 API_DIR = SRC / "api"
 PUBLISHER_DIR = SRC / "external-sli-publisher"
+WORKFLOWS_DIR = ROOT / ".github" / "workflows"
 ACTIONLINT_IMAGE = "rhysd/actionlint:1.7.12"
 KUBECONFORM_IMAGE = "ghcr.io/yannh/kubeconform:v0.7.0"
 K8S_VERSION = "1.33.0"
@@ -712,14 +713,27 @@ def target_check_uv_version() -> None:
         (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     )
     required_version = root_pyproject["tool"]["uv"].get("required-version", "")
-    expected_match = re.fullmatch(r"==([0-9]+\.[0-9]+\.[0-9]+)", required_version)
-    if expected_match is None:
+    required_match = re.fullmatch(
+        r">=([0-9]+\.[0-9]+\.[0-9]+),<([0-9]+\.[0-9]+\.[0-9]+)",
+        required_version,
+    )
+    if required_match is None:
         print(
-            "error: [tool.uv].required-version must use an exact ==X.Y.Z version",
+            "error: [tool.uv].required-version must use "
+            "a >=X.Y.Z,<X.Y.Z compatibility range",
             file=sys.stderr,
         )
         raise SystemExit(1)
-    expected = expected_match.group(1)
+    minimum_text, upper_bound_text = required_match.groups()
+    minimum = tuple(int(part) for part in minimum_text.split("."))
+    upper_bound = tuple(int(part) for part in upper_bound_text.split("."))
+    expected_upper_bound = (minimum[0], minimum[1] + 1, 0)
+    if upper_bound != expected_upper_bound:
+        print(
+            "error: [tool.uv].required-version must allow one uv minor series",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
 
     local_version_output = command_output(
         ["uv", "--version"], allow_failure=True, quiet_stderr=True
@@ -730,28 +744,92 @@ def target_check_uv_version() -> None:
 
     dockerfile = (API_DIR / "Dockerfile").read_text(encoding="utf-8")
     docker_match = re.search(
-        r"ghcr\.io/astral-sh/uv:([0-9]+\.[0-9]+\.[0-9]+)", dockerfile
+        r"^FROM\s+ghcr\.io/astral-sh/uv:"
+        r"([0-9]+\.[0-9]+\.[0-9]+)\s+AS\s+uv\s*$",
+        dockerfile,
+        flags=re.IGNORECASE | re.MULTILINE,
     )
     docker_version = docker_match.group(1) if docker_match else "not found"
 
-    print(f"  Expected workspace uv:  {expected}")
+    workflow_versions: list[tuple[Path, str]] = []
+    workflow_paths = sorted(
+        (*WORKFLOWS_DIR.glob("*.yml"), *WORKFLOWS_DIR.glob("*.yaml"))
+    )
+    for workflow_path in workflow_paths:
+        lines = workflow_path.read_text(encoding="utf-8").splitlines()
+        for index, line in enumerate(lines):
+            if "uses: astral-sh/setup-uv@" not in line:
+                continue
+            action_indent = len(line) - len(line.lstrip())
+            pinned_version = "not pinned"
+            with_indent: int | None = None
+            with_child_indent: int | None = None
+            for candidate in lines[index + 1 :]:
+                stripped_candidate = candidate.strip()
+                if not stripped_candidate:
+                    continue
+                candidate_indent = len(candidate) - len(candidate.lstrip())
+                if candidate_indent <= action_indent and candidate.lstrip().startswith(
+                    "- "
+                ):
+                    break
+                if with_indent is None:
+                    if stripped_candidate == "with:":
+                        with_indent = candidate_indent
+                    continue
+                if candidate_indent <= with_indent:
+                    break
+                if with_child_indent is None:
+                    with_child_indent = candidate_indent
+                if candidate_indent != with_child_indent:
+                    continue
+                version_match = re.fullmatch(
+                    r"""version:\s*["']?([0-9]+\.[0-9]+\.[0-9]+)["']?""",
+                    stripped_candidate,
+                )
+                if version_match is not None:
+                    pinned_version = version_match.group(1)
+                    break
+            workflow_versions.append((workflow_path, pinned_version))
+
+    print(f"  Required workspace uv:  {required_version}")
     print(f"  Local uv:               {local_version}")
-    print(f"  Docker uv:              {docker_version}")
+    print(f"  Pinned Docker uv:       {docker_version}")
+    print(f"  Pinned workflow uv:     {minimum_text}")
 
-    if docker_version != expected:
+    if docker_version != minimum_text:
         print(
-            "error: Docker uv version mismatch with root pyproject.toml",
+            f"error: Docker uv ({docker_version}) must remain pinned to "
+            f"the minimum workspace version ({minimum_text})",
             file=sys.stderr,
         )
         raise SystemExit(1)
 
-    if local_version != expected:
+    for workflow_path, workflow_version in workflow_versions:
+        if workflow_version != minimum_text:
+            print(
+                f"error: {workflow_path.relative_to(ROOT)} setup-uv "
+                f"({workflow_version}) must remain pinned to "
+                f"the minimum workspace version ({minimum_text})",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
+
+    local_match = re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", local_version)
+    if local_match is None:
         print(
-            f"error: Local uv ({local_version}) differs from expected ({expected})",
+            f"error: Local uv version is unavailable or invalid ({local_version})",
             file=sys.stderr,
         )
         raise SystemExit(1)
-    print_success("All uv versions match")
+    local = tuple(int(part) for part in local_version.split("."))
+    if not minimum <= local < upper_bound:
+        print(
+            f"error: Local uv ({local_version}) does not satisfy {required_version}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    print_success("Local uv is compatible and reproducible environments remain pinned")
 
 
 def target_check_public_lock() -> None:
