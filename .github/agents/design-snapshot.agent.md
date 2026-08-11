@@ -9,7 +9,7 @@ description: 現在の IaC と ADR から設計書スナップショットを生
 
 以下を読み取る:
 - `infra/main.bicep` — 現在のインフラ構成
-- `infra/main.bicepparam` — パラメータ設定
+- `infra/main.parameters.json` — subscription scope のパラメータ設定
 - `k8s/apps/chaos-app/` — chaos-app Kubernetes マニフェスト
 - `docs/adr/` — 確定済みの設計判断
 - `.github/copilot-instructions.md` — プロジェクト概要と規約

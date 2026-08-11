@@ -174,3 +174,12 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: Microsoft 側で `prometheus-collector` image の supervisor が replica pod でも `AMACoreAgent` を起動する、あるいは OTLP DCR 配信を replica pod 対象から除外する修正が入る。
 - **確認方法**: image tag の更新後に `kubectl -n kube-system exec <ama-metrics-pod> -c prometheus-collector -- ps -ef | grep amacoreagent` と `mdsd.err` を確認する。
 - **追跡**: [#130](https://github.com/torumakabe/aks-chaos-lab/issues/130)（実害なしと判定済み・closed）。
+
+### D-9. `ErrorAwareSampler` は span 終了後の ERROR を判定できない
+
+- **概要**: `OTEL_TRACES_SAMPLER` が未設定の場合、API は `ParentBased(ErrorAwareSampler)` を使用する。この sampler は親のない root span の name または HTTP path attribute に `chaos`、`error`、`throw` を含む場合に常にサンプルし、それ以外を `TELEMETRY_SAMPLING_RATE` に従って判定する。親 span がある場合は親の sampling decision を継承するため、キーワードを含むリクエストでも未サンプルの親を継承すると保持されない。キーワードを含まないリクエストが span 終了時に ERROR となった場合も、その trace が保持される保証はない。
+- **理由**: OpenTelemetry SDK は sampler を span 開始時に呼び出すため、span 終了時に設定される `status=ERROR` を判定材料にできない。リポジトリには Collector 側の tail-based sampling 構成がなく、アプリ側のキーワード判定は欠落を減らすための限定的な回避策である。
+- **場所**: `src/api/app/telemetry.py` の `ErrorAwareSampler`、`src/api/tests/unit/test_telemetry.py`
+- **解消条件**: SDK 側で全 span を Collector へ送り、Collector 側で `status=ERROR` を条件にした tail-based sampling を構成して、キーワードに依存せず ERROR trace を保持できるようになる。または OpenTelemetry SDK が span 終了時の状態に基づく sampling を提供する。
+- **確認方法**: `uv run pytest src/api/tests/unit/test_telemetry.py -k error_aware_sampler` でキーワード判定と ratio-based 判定を確認する。tail-based sampling を導入する場合は、キーワードを含まないエンドポイントでエラーを発生させ、Collector と Application Insights で該当 trace が保持されることを確認する。
+- **最終確認**: 2026-08-10、リポジトリ内に tail-based sampling 構成はなく、`ErrorAwareSampler` の単体テストはキーワード判定と ratio-based 判定を対象としている。

@@ -71,9 +71,10 @@ class ErrorAwareSampler(Sampler):
     SDK の sampler は span 開始時にしか呼ばれないため、span 終了時の
     ``status=ERROR`` を直接判定できない。本サンプラーは現実解として、
     chaos / error / throw を含む span name や HTTP attribute を持つ
-    リクエストを 100% サンプル対象とすることで、障害調査時に該当 trace
-    が引けない問題を緩和する。post-hoc な ERROR 保証は Collector 側の
-    tail-based sampling に委ねる (docs/workarounds.md 参照)。
+    root span を 100% サンプル対象とすることで、障害調査時に該当 trace
+    が引けない問題を緩和する。ParentBased で未サンプルの親を継承する場合や、
+    span 終了後に確定する ERROR の完全な捕捉は保証しない
+    (docs/workarounds.md D-9 参照)。
     """
 
     _ALWAYS_PATTERNS: tuple[str, ...] = (
@@ -203,9 +204,9 @@ def setup_telemetry(app: Any) -> None:
       (auto-injected by AKS Instrumentation CRD, or set manually)
     - Sampling: env var OTEL_TRACES_SAMPLER (AKS auto-config) を優先。
       未設定時は TELEMETRY_SAMPLING_RATE を base rate にした
-      ParentBased(ErrorAwareSampler(rate)) を採用し、parent が sampled なら
-      子も sampled、chaos/error 系 path は base rate を無視して 100% sample
-      する。
+      ParentBased(ErrorAwareSampler(rate)) を採用し、parent の sampling
+      decision を継承する。親のない chaos/error 系 path は base rate を
+      無視して 100% sample する。
     - Export interval: TELEMETRY_EXPORT_INTERVAL_MS (デフォルト 30s) で
       MeterReader の export 周期を制御し、低トラフィック時の signal 鮮度を
       確保する。

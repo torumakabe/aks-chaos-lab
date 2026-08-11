@@ -20,6 +20,8 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 ```
 pyproject.toml    # uv workspace ルート (ruff/ty 共通設定、開発用依存)
 uv.lock           # workspace 共通ロック
+.github/          # agents, skills, hooks, workflows
+scripts/          # QA・デプロイ・クリーンアップのタスク
 src/api/          # FastAPI アプリ (uv member: aks-chaos-lab-api)
 src/api/app/      # main.py, config.py, models.py, redis_client.py 等
 src/api/Dockerfile # build context = repo root, `uv export` + `uv pip sync` で API 依存を導入
@@ -69,6 +71,9 @@ docs/features/    # Feature Document（作業途中の状態保存）
 - `docs/features/` — 作業中の Feature Document。決定事項・制約を尊重する
 - `docs/deployment.md` — 構築・削除・検証手順
 - `docs/observability.md` — 可観測性の運用詳細
+- `docs/chaos-experiments.md` — Chaos 実験の実行手順
+- `docs/workarounds.md` — 継続中のワークアラウンドと解消条件
+- `.github/skills/` — リポジトリ固有タスクの詳細な実行手順
 - `infra/` — 現在のインフラ構成（Bicep）
 - `src/` — 現在のアプリケーションコード
 - `k8s/` — 現在の Kubernetes マニフェスト
