@@ -149,6 +149,7 @@ def read_approved_index_state() -> dict[str, object] | None:
 def approved_index_run_flags() -> list[str]:
     state = read_approved_index_state()
     if state is None:
+        ensure_approved_index_not_selected()
         return []
     if (
         state.get("schema") != APPROVED_INDEX_STATE_VERSION
@@ -191,6 +192,19 @@ def approved_index_run_flags() -> list[str]:
     return ["--no-sync"]
 
 
+def ensure_approved_index_not_selected() -> None:
+    try:
+        validate_approved_index_config(user_uv_config_path(), environ={})
+    except ApprovedIndexConfigError:
+        return
+    print(
+        "error: Standard sync cannot use the approved package index. "
+        'Run the "sync-dev-approved-index" target instead.',
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+
 def ensure_standard_sync_allowed() -> None:
     if approved_index_state_path().exists():
         print(
@@ -202,6 +216,7 @@ def ensure_standard_sync_allowed() -> None:
             file=sys.stderr,
         )
         raise SystemExit(1)
+    ensure_approved_index_not_selected()
 
 
 def environment_python_path() -> Path:

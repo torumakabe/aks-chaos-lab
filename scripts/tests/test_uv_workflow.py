@@ -42,6 +42,11 @@ def configure_root(
     (tmp_path / "uv.lock").write_text(lock_content, encoding="utf-8")
     monkeypatch.setattr(tasks, "ROOT", tmp_path)
     monkeypatch.setattr(post_edit, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        tasks,
+        "user_uv_config_path",
+        lambda: tmp_path / "missing-uv.toml",
+    )
     monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
 
 
@@ -59,6 +64,11 @@ def test_ready_state_adds_no_sync(
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     (tmp_path / ".venv").mkdir()
+    monkeypatch.setattr(
+        tasks,
+        "user_uv_config_path",
+        lambda: pytest.fail("ready state must not inspect user config"),
+    )
 
     tasks.write_approved_index_state("ready")
 
@@ -128,6 +138,65 @@ def test_state_is_stored_outside_virtual_environment(
 
     assert state_path.parent == tmp_path / tasks.APPROVED_INDEX_STATE_DIRECTORY
     assert tmp_path / ".venv" not in state_path.parents
+
+
+@pytest.mark.parametrize(
+    "target_name",
+    ("target_install", "target_sync", "target_sync_dev"),
+)
+def test_standard_sync_targets_reject_approved_index(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    target_name: str,
+) -> None:
+    configure_root(monkeypatch, tmp_path)
+    config_path = tmp_path / "uv.toml"
+    write_approved_config(config_path)
+    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    monkeypatch.setattr(
+        tasks,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("uv must not run"),
+    )
+
+    with pytest.raises(SystemExit):
+        getattr(tasks, target_name)()
+
+
+def test_state_free_run_flags_reject_approved_index(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    configure_root(monkeypatch, tmp_path)
+    config_path = tmp_path / "uv.toml"
+    write_approved_config(config_path)
+    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+
+    with pytest.raises(SystemExit):
+        tasks.approved_index_run_flags()
+
+
+@pytest.mark.parametrize(
+    "content",
+    (
+        None,
+        '[[index]]\nname = "pypi"\nurl = "https://pypi.org/simple"\ndefault = true\n',
+        "[[index]\n",
+    ),
+)
+def test_non_approved_config_is_deferred_to_uv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    content: str | None,
+) -> None:
+    configure_root(monkeypatch, tmp_path)
+    config_path = tmp_path / "uv.toml"
+    if content is not None:
+        config_path.write_text(content, encoding="utf-8")
+    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+
+    tasks.ensure_approved_index_not_selected()
+    assert tasks.approved_index_run_flags() == []
 
 
 def test_approved_index_config_requires_one_non_public_default(
