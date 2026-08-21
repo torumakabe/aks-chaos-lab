@@ -12,6 +12,9 @@ param environment string = 'dev'
 @description('AKS node VM size')
 param nodeVmSize string = 'Standard_D4pds_v6'
 
+@description('Enable AKS Node Auto Provisioning for user workload capacity')
+param enableNodeAutoProvisioning bool = false
+
 @description('Virtual network address prefix')
 param vnetAddressPrefix string = '10.10.0.0/16'
 
@@ -398,6 +401,7 @@ module aksCluster './modules/aks.bicep' = {
     tags: tags
     aksName: aksClusterName
     nodeVmSize: nodeVmSize
+    enableNodeAutoProvisioning: enableNodeAutoProvisioning
     aksSubnetId: network.outputs.aksSubnetId
     aksApiSubnetId: network.outputs.aksApiSubnetId
     kubernetesVersion: kubernetesVersion

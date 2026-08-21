@@ -1,0 +1,41 @@
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: chaos-arm64
+spec:
+  template:
+    spec:
+      nodeClassRef:
+        group: karpenter.azure.com
+        kind: AKSNodeClass
+        name: chaos-arm64
+      expireAfter: Never
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: [arm64]
+        - key: kubernetes.io/os
+          operator: In
+          values: [linux]
+        - key: karpenter.azure.com/sku-name
+          operator: In
+          values:
+            - Standard_D4pds_v6
+            - Standard_D4pds_v5
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: [on-demand]
+        - key: karpenter.azure.com/sku-storage-ephemeralos-maxsize
+          operator: Gt
+          values: ["99"]
+      startupTaints:
+        - key: node.cilium.io/agent-not-ready
+          value: "true"
+          effect: NoExecute
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 10m
+    budgets:
+      - nodes: "1"
+  limits:
+    cpu: "8"

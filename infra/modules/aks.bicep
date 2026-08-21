@@ -10,6 +10,8 @@ param kubernetesVersion string = '1.35'
 param nodeResourceGroupName string
 @description('Node VM size')
 param nodeVmSize string
+@description('Enable AKS Node Auto Provisioning for user workload capacity')
+param enableNodeAutoProvisioning bool = false
 @description('AKS subnet id')
 param aksSubnetId string
 @description('AKS API Server subnet id')
@@ -131,11 +133,19 @@ var aksBaseSpecificProperties = {
   autoUpgradeProfile: {
     nodeOSUpgradeChannel: 'NodeImage'
   }
-  autoScalerProfile: {
+  autoScalerProfile: enableNodeAutoProvisioning ? null : {
     'daemonset-eviction-for-occupied-nodes': true
     'max-node-provision-time': '15m'
     'scale-down-delay-after-add': '10m'
   }
+  nodeProvisioningProfile: enableNodeAutoProvisioning
+    ? {
+        mode: 'Auto'
+        defaultNodePools: 'None'
+      }
+    : {
+        mode: 'Manual'
+      }
   networkProfile: {
     // Azure CNI overlay with Cilium dataplane
     networkPlugin: 'azure'
@@ -168,9 +178,10 @@ var aksBaseSpecificProperties = {
       ]
       vnetSubnetID: aksSubnetId
       orchestratorVersion: kubernetesVersion
-      enableAutoScaling: true
-      minCount: 1
-      maxCount: 3
+      enableAutoScaling: !enableNodeAutoProvisioning
+      count: enableNodeAutoProvisioning ? 2 : null
+      minCount: enableNodeAutoProvisioning ? null : 1
+      maxCount: enableNodeAutoProvisioning ? null : 3
       // Blue-green upgrade strategy for safer node OS auto-upgrades.
       upgradeStrategy: 'BlueGreen'
       upgradeSettingsBlueGreen: {

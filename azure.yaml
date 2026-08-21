@@ -111,6 +111,14 @@ services:
       namespace: kube-system
       kustomize:
         dir: k8s/observability
+  node-provisioning:
+    project: .
+    host: aks
+    resourceName: ${AZURE_AKS_CLUSTER_NAME}
+    k8s:
+      namespace: kube-system
+      kustomize:
+        dir: k8s/node-provisioning
   external-sli-publisher:
     project: src/external-sli-publisher
     language: python

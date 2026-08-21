@@ -19,3 +19,4 @@
 | 015 | [Azure リソース名への resourceToken サフィックス付与ルール](015-resource-token-suffix-naming.md) | Accepted | 2026-06-28 |
 | 016 | [Azure Chaos Studio Workspace の採用](016-azure-chaos-studio-workspace-adoption.md) | Rejected | 2026-07-16 |
 | 017 | [管理対象環境向け approved-index 変換フロー (ADR-013 の一部を amend)](017-approved-index-conversion-for-managed-environments.md) | Accepted | 2026-08-08 |
+| 018 | [NAPをArm64 workloadの追加capacityに採用する](018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md) | Accepted | 2026-08-21 |

@@ -14,6 +14,9 @@
     "nodeVmSize": {
       "value": "${AZURE_AKS_NODE_VM_SIZE:Standard_D4pds_v6}"
     },
+    "enableNodeAutoProvisioning": {
+      "value": "${AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING:false}"
+    },
     "vnetAddressPrefix": {
       "value": "10.10.0.0/16"
     },
