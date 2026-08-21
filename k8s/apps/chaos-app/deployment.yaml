@@ -107,4 +107,5 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 5
       nodeSelector:
+        kubernetes.io/arch: arm64
         kubernetes.io/os: linux

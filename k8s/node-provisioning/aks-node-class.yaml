@@ -1,0 +1,7 @@
+apiVersion: karpenter.azure.com/v1beta1
+kind: AKSNodeClass
+metadata:
+  name: chaos-arm64
+spec:
+  imageFamily: Ubuntu
+  osDiskSizeGB: 100

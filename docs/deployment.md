@@ -141,6 +141,62 @@ azd env set AZURE_LOCATION japaneast -e eval
 azd env set AZURE_AKS_NODE_VM_SIZE Standard_D4pds_v6 -e eval
 ```
 
+### Node Auto Provisioning
+
+Node Auto Provisioning（NAP）は既定で無効です。設計判断と採用条件は[ADR-018](adr/018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md)を参照してください。
+
+NAPを有効にする場合は、対象環境へ明示的に設定してからbase layerの差分を確認します。NAP有効時はSystem AgentPoolがArm64 2台固定となり、Cluster Autoscalerは無効になります。
+
+```bash
+azd env refresh -e eval --no-prompt
+azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING true -e eval
+azd provision base --preview -e eval
+```
+
+既存環境のpreviewにAKS以外の意図しない変更、またはSystem AgentPoolの削除や置換が含まれる場合は、base layerを適用しません。Azure PolicyがsubnetへBicep管理外のNSGを関連付ける環境では、previewにNSG関連付けの削除が表示されます。対象NSGがポリシー管理であり、subnetの名前、address prefix、delegationに変更がないことを確認した場合は、期待されたdriftとして扱います。
+
+既存AKSだけを移行するときは、System AgentPoolのCluster Autoscalerを無効化してから、AKSのnode provisioning profileだけを更新します。
+
+```bash
+RESOURCE_GROUP="$(azd env get-value AZURE_RESOURCE_GROUP -e eval)"
+AKS_NAME="$(azd env get-value AZURE_AKS_CLUSTER_NAME -e eval)"
+
+az aks nodepool update \
+  --resource-group "$RESOURCE_GROUP" \
+  --cluster-name "$AKS_NAME" \
+  --name default \
+  --disable-cluster-autoscaler
+
+az aks update \
+  --resource-group "$RESOURCE_GROUP" \
+  --name "$AKS_NAME" \
+  --node-provisioning-mode Auto \
+  --node-provisioning-default-pools None
+```
+
+System AgentPoolが2台Readyで、既存workloadが健全であることを確認します。NAP resourceは既定の`azd up` workflowへ含めていません。AKS側にNAPのCRDが作成されたことを確認してから、User workload用のAKSNodeClassとNodePoolを明示的に適用します。
+
+```bash
+kubectl wait \
+  --for=condition=Established \
+  crd/nodepools.karpenter.sh \
+  crd/aksnodeclasses.karpenter.azure.com \
+  --timeout=10m
+
+azd deploy node-provisioning -e eval
+```
+
+無効化するときは、次の順序で操作します。System AgentPoolは全工程で2台を維持します。
+
+1. NAP capacityを必要とするUser workloadを停止する。
+2. User NodeClaimが0台になったことを確認する。
+3. `kubectl delete -k k8s/node-provisioning`でNodePoolとAKSNodeClassを削除する。
+4. `az aks update --node-provisioning-mode Manual`でNAPを無効化する。
+5. `az aks nodepool update --enable-cluster-autoscaler --min-count 1 --max-count 3`でSystem AgentPoolのCluster Autoscalerを復元する。
+6. System AgentPool、既存workload、外部health endpointを確認する。
+7. `AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING`を`false`へ戻す。
+8. `azd provision base --preview -e eval`を実行し、NAPに関する差分が解消したことを確認する。ポリシー管理のNSG関連付けは期待されたdriftとして残る場合がある。
+
 ## ローカル開発
 
 リポジトリは uv workspace 構成です。hostはルート`pyproject.toml`の互換範囲に従います。CI、Docker、lock更新workflowは、再現性を維持するため互換範囲の下限へ固定します。`check-uv-version`はこの関係を検査します。ルートで一度同期すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest / locust) が揃います。
@@ -185,7 +241,9 @@ PowerShellでは `$env:UV_NO_SYNC = "1"` を設定します。
 docker build -f src/api/Dockerfile -t aks-chaos-lab:local .
 ```
 
-組織承認済みpackage indexが必要な管理対象環境では、ローカルbuildに限りuser-level `uv.toml` をBuildKit secretとして渡します。このsecretを公開CIへ渡してはいけません。
+組織承認済みpackage indexが必要な管理対象環境では、ローカルbuildに限りuser-level `uv.toml`をBuildKit secretとして渡します。このsecretを公開CIへ渡してはいけません。
+
+次のPOSIX shell例は、API imageをローカルに作成します。
 
 ```bash
 UV_CONFIG_PATH="$HOME/.config/uv/uv.toml"
@@ -199,6 +257,39 @@ docker build \
   -f src/api/Dockerfile \
   -t aks-chaos-lab:local .
 ```
+
+PowerShellでは、次を実行します。
+
+```powershell
+$UvConfigPath = Join-Path $env:APPDATA "uv\uv.toml"
+$ApprovedIndexConfigScript = Join-Path $PWD "scripts\approved_index_config.py"
+$UvIndexConfigSha256 = uv run --no-project `
+  $ApprovedIndexConfigScript digest $UvConfigPath
+docker build `
+  --build-arg "UV_INDEX_MODE=approved-index" `
+  --build-arg "UV_INDEX_CONFIG_SHA256=$UvIndexConfigSha256" `
+  --secret "id=uv-config,src=$UvConfigPath" `
+  -f src/api/Dockerfile `
+  -t aks-chaos-lab:local .
+```
+
+管理対象環境からAKSへdeployする場合は、対象のazd environmentを選択し、OpenTelemetry instrumentationを適用してから、作成済みimageを`--from-package`へ渡します。
+
+```bash
+azd env select <environment>
+azd deploy api-instrumentation --no-prompt
+azd deploy api --from-package aks-chaos-lab:local --no-prompt
+```
+
+PowerShellでは、次を実行します。
+
+```powershell
+azd env select <environment>
+azd deploy api-instrumentation --no-prompt
+azd deploy api --from-package aks-chaos-lab:local --no-prompt
+```
+
+`azd deploy api`を`--from-package`なしで実行すると、azdはDocker imageを再buildします。現在の`azure.yaml`はBuildKit secretをazdのbuildへ渡さないため、そのbuildはpublic PyPIを使用します。管理対象環境では、approved indexで作成したローカルimageを`--from-package`で指定してください。
 
 configのSHA-256はdependency layerとcache mountのkeyになります。Dockerfileはmountしたconfigのhashを照合するため、configを変更すると古いlayerを再利用しません。build logを共有する前に、index URLや認証情報が含まれていないことを確認してください。
 

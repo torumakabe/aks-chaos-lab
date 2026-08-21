@@ -84,6 +84,8 @@ docs/features/    # Feature Document（作業途中の状態保存）
 - セッションの区切りでは `wrap-up` エージェントで ADR 候補の洗い出し・Feature Document の要否判断・リトマステストを行う
 - 複雑な機能は実装前に段階的な設計会話を行う（要件確認 → コンポーネント設計 → データフロー → インターフェース定義 → 実装）。コードは設計合意後
 - ユーザーから見える振る舞いが変わる変更（機能追加、API 変更、デプロイ手順変更、アーキテクチャ変更）では README.md または該当する `docs/*.md` の更新要否を確認し、必要なら同一 PR 内で更新する
+- buildまたはdeployの失敗を理由に新しい経路を実装する前に、`docs/deployment.md`、関連ADR、対象CLIの`--help`を確認する。既存のbuild済みartifactを渡す経路を含め、現在の機能を組み合わせて解決できるか再現してから、リポジトリ変更の要否を判断する
+- 組織承認済みpackage indexを使うAPI imageのbuildとAKSへのdeployは、`docs/deployment.md`の「Docker build のpackage index」を正本とする。手順を重複記載せず、別のpackage index連携を追加する場合は既存手順では解決できない条件を先に記録する
 - ドキュメントは `docs/` に配置。一時ファイルは `tmp/` に配置し、完了後に削除
 
 ## 事実検証
