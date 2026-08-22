@@ -28,4 +28,5 @@ AKS App Monitoring は、OTLP/HTTP で受け取った traces、metrics、logs �
 - App Insights 直接 egress ルールは不要になり、CiliumNetworkPolicy は AKS OTel Collector Pod 宛に整理できる。
 - AKS App Monitoring の OTLP 経路は preview のため、破壊的変更の可能性をラボ環境の制約として受け入れる。
 - OTLP 対応 App Insights と Azure Monitor Workspace は Azure 管理の resource group を作る。命名や削除順序の制約は [docs/workarounds.md](../workarounds.md#b-otlp--application-insights-関連-adr-006) と [docs/deployment.md](../deployment.md) に記録する。
+- chaos-app の request telemetry の保存先と診断方法は [docs/observability.md](../observability.md#アプリケーション-trace-と-request-telemetry) に置く。
 - OTLP logs の対象、Python OpenTelemetry Logs SDK の成熟度、ContainerLogV2 との使い分けは [docs/observability.md](../observability.md#otlp-logs) に置く。

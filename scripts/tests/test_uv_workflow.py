@@ -263,6 +263,54 @@ def test_child_environment_removes_unsafe_uv_overrides(
     assert environment["UV_INDEX_APPROVED_INDEX_USERNAME"] == "username"
 
 
+def test_package_api_approved_index_uses_buildkit_secret(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config_path = tmp_path / "uv.toml"
+    write_approved_config(
+        config_path, "https://packagefeedproxy.microsoft.io/pypi/simple"
+    )
+    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        tasks,
+        "run",
+        lambda command, **_kwargs: commands.append(command),
+    )
+
+    tasks.target_package_api_approved_index()
+
+    command = commands[0]
+    assert command[:3] == ["docker", "build", "--platform"]
+    assert f"id=uv-config,src={config_path}" in command
+    assert "UV_INDEX_MODE=approved-index" in command
+    assert tasks.API_LOCAL_IMAGE in command
+
+
+def test_deploy_api_approved_index_uses_prebuilt_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands: list[list[str]] = []
+    monkeypatch.setattr(
+        tasks,
+        "run",
+        lambda command, **_kwargs: commands.append(command),
+    )
+
+    tasks.target_deploy_api_approved_index()
+
+    assert commands == [
+        [
+            "azd",
+            "deploy",
+            "api",
+            "--from-package",
+            tasks.API_LOCAL_IMAGE,
+            "--no-prompt",
+        ]
+    ]
+
+
 def test_run_uv_binds_root_project_and_environment(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -21,6 +21,7 @@ from pathlib import Path
 from approved_index_config import (
     UNSAFE_UV_ENVIRONMENT_VARIABLES,
     ApprovedIndexConfigError,
+    config_sha256,
     user_uv_config_path,
     validate_approved_index_config,
 )
@@ -42,6 +43,7 @@ KUBECONFORM_SKIP = "VerticalPodAutoscaler,CiliumNetworkPolicy,Kustomization,Gate
 APPROVED_INDEX_STATE_DIRECTORY = ".uv-state"
 APPROVED_INDEX_ENVIRONMENT_STATE_FILENAME = ".approved-index-sync.json"
 APPROVED_INDEX_STATE_VERSION = 3
+API_LOCAL_IMAGE = "aks-chaos-lab:local"
 
 
 def print_step(message: str) -> None:
@@ -931,6 +933,53 @@ def target_build() -> None:
     print_success("Docker image built")
 
 
+def target_package_api_approved_index() -> None:
+    print_step("Building the API image with the approved package index")
+    config_path = user_uv_config_path()
+    try:
+        validate_approved_index_config(config_path)
+    except ApprovedIndexConfigError as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+
+    run(
+        [
+            "docker",
+            "build",
+            "--platform",
+            "linux/arm64",
+            "--build-arg",
+            "UV_INDEX_MODE=approved-index",
+            "--build-arg",
+            f"UV_INDEX_CONFIG_SHA256={config_sha256(config_path)}",
+            "--secret",
+            f"id=uv-config,src={config_path}",
+            "--file",
+            "src/api/Dockerfile",
+            "--tag",
+            API_LOCAL_IMAGE,
+            ".",
+        ],
+        cwd=ROOT,
+    )
+    print_success("API image built")
+
+
+def target_deploy_api_approved_index() -> None:
+    print_step("Deploying the prebuilt API image through azd")
+    run(
+        [
+            "azd",
+            "deploy",
+            "api",
+            "--from-package",
+            API_LOCAL_IMAGE,
+            "--no-prompt",
+        ],
+    )
+    print_success("API deployed")
+
+
 def target_run() -> None:
     print_step("Starting app on http://localhost:8000")
     run_uv_in(
@@ -1090,6 +1139,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "check-uv-version": target_check_uv_version,
     "clean": target_clean,
     "compile-aw": target_compile_aw,
+    "deploy-api-approved-index": target_deploy_api_approved_index,
     "format": target_format,
     "format-check": target_format_check,
     "help": target_help,
@@ -1103,6 +1153,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "load-smoke": target_load_smoke,
     "load-spike": target_load_spike,
     "load-stress": target_load_stress,
+    "package-api-approved-index": target_package_api_approved_index,
     "qa": target_qa,
     "qa-app": target_qa_app,
     "qa-platform": target_qa_platform,

@@ -16,6 +16,34 @@
 
 Grafana ダッシュボードは Azure Portal の対象 AKS > Monitoring > Dashboards with Grafana から参照できます。
 
+## AKS control plane metrics
+
+AKS control plane metrics は `azureMonitorProfile.metrics.controlPlane.enabled` で有効化し、Managed Prometheus へ API server と etcd の metric を収集します。minimal ingestion profile の収集対象は Microsoft Learn の [Minimal ingestion profile for control plane Metrics in Managed Prometheus](https://learn.microsoft.com/azure/aks/monitor-aks-reference#minimal-ingestion-profile-for-control-plane-metrics-in-managed-prometheus) を参照してください。
+
+## DNS と network observability
+
+クラスタ全体の DNS 量には CoreDNS の `coredns_dns_requests_total` を使います。`ama-metrics-settings-configmap` は schema v2 で cluster metrics と control-plane metrics を分離し、CoreDNS default target を 30 秒間隔、minimal ingestion 有効で収集します。
+
+ACNS の DNS dashboard は `hubble_dns_queries_total` と `hubble_dns_responses_total` を使います。Cilium cluster では DNS rule を持つ CiliumNetworkPolicy の対象だけが DNS visibility に含まれるため、Hubble DNS metric をクラスタ全体の DNS 量として扱いません。
+
+Drops (Workload) dashboard は `rate(hubble_drop_total[...])` と `> 0` を使います。drop がない期間は No data となり、Heatmap は TypeError を表示する場合があります。counter が最初の drop 発生時に作られ、事前の 0 sample がない場合、その初回増分は後から `rate()` で復元できません。収集停止の確認には、対象 workload の表示だけでなく、`networkobservability-hubble` target とクラスタ全体の `hubble_drop_total` の増加を確認してください。
+
+## アプリケーション trace と request telemetry
+
+chaos-appのHTTP requestは、[ADR-006](adr/006-otlp-vendor-neutral-otel.md)のvendor-neutral OTLP経路により`OTelSpans`へ保存されます。診断には`ServiceName == "chaos-app"`かつ`Kind == "Server"`のspanを使います。
+
+```kusto
+OTelSpans
+| where TimeGenerated > ago(30m)
+| where ServiceName == "chaos-app" and Kind == "Server"
+| project TimeGenerated, Name, ResultCode, Success, DurationMs, TraceId, SpanId, ParentSpanId
+| order by TimeGenerated desc
+```
+
+external-sli-publisherはclassic ingestionを使用するため、`AppRequests`と`AppDependencies`を使います。両経路の相関にはKQLと`TraceId`を使用します。`AppRequests`が必須になった場合はADR-006を再検討します。
+
+native OTLP ingestionはpreviewです。制約は[OpenTelemetry configuration options](https://learn.microsoft.com/azure/azure-monitor/containers/opentelemetry-options)を確認します。
+
 ## アプリ信頼性 signal
 
 Azure Monitor SLI の Availability / Latency は、AKS 外で動作する Azure Functions external SLI publisher の `GET /` probe を正本にします。
@@ -62,7 +90,7 @@ Cilium L7 policy で許可する path は以下に限定します。
 | `GET /readyz` | readiness | あり | Kubernetes probe |
 | `GET /metrics` | Prometheus scrape | なし | Managed Prometheus |
 
-外部 Gateway 経由では component が `GET /` を許可し、`chaos-app` 固有 patch が `GET /health` を追加します。Azure Functions external SLI publisher は通常 API の `GET /` を probe し、trace context を伝搬して Application Map で Function App から chaos-app への依存関係を表示します。`/livez`、`/readyz`、`/metrics` は内部 source のみに許可します。probe を追加する場合は、アプリ route、Kubernetes probe、CNP テンプレートまたは app 固有 patch を同時に更新してください。
+外部 Gateway 経由では component が `GET /` を許可し、`chaos-app` 固有 patch が `GET /health` を追加します。Azure Functions external SLI publisher は通常 API の `GET /` を probe し、trace context を伝搬します。Function dependency と chaos-app Server span は `TraceId` で KQL 相関できますが、Application Map が classic table と OTel table を跨いで表示することは保証しません。`/livez`、`/readyz`、`/metrics` は内部 source のみに許可します。probe を追加する場合は、アプリ route、Kubernetes probe、CNP テンプレートまたは app 固有 patch を同時に更新してください。
 
 ## 外形 SLI publisher
 
