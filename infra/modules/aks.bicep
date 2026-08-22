@@ -60,6 +60,9 @@ var aksCommonProperties = {
     }
     metrics: {
       enabled: true
+      controlPlane: {
+        enabled: true
+      }
       kubeStateMetrics: {
         metricAnnotationsAllowList: ''
         metricLabelsAllowlist: ''

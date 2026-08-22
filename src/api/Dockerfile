@@ -30,18 +30,25 @@ ARG UV_INDEX_MODE=public
 ARG UV_INDEX_CONFIG_SHA256=public
 RUN --mount=type=cache,id=uv-${UV_INDEX_MODE}-${UV_INDEX_CONFIG_SHA256},target=/root/.cache/uv \
     --mount=type=secret,id=uv-config,target=/root/.config/uv/uv.toml,required=false \
+    approved_index_path=; \
     case "$UV_INDEX_MODE" in \
       public) \
         test "$UV_INDEX_CONFIG_SHA256" = public \
         && test ! -e /root/.config/uv/uv.toml \
         ;; \
       approved-index) \
-        printf '%s  %s\n' "$UV_INDEX_CONFIG_SHA256" /root/.config/uv/uv.toml \
+        test -e /root/.config/uv/uv.toml \
+        && printf '%s  %s\n' "$UV_INDEX_CONFIG_SHA256" /root/.config/uv/uv.toml \
           | sha256sum -c - \
         && python scripts/approved_index_config.py /root/.config/uv/uv.toml \
+        && approved_index_path=/root/.config/uv/uv.toml \
         ;; \
-      *) echo "error: UV_INDEX_MODE must be public or approved-index" >&2; exit 1 ;; \
+      *) \
+        echo "error: UV_INDEX_MODE must be public or approved-index" >&2; \
+        exit 1 \
+        ;; \
     esac \
+    && if [ -n "$approved_index_path" ]; then export UV_CONFIG_FILE="$approved_index_path"; fi \
     && python scripts/public_lock.py lock pyproject.toml uv.lock \
     && uv export --quiet --frozen --package aks-chaos-lab-api --no-dev \
       --no-emit-workspace --no-emit-index-url \
@@ -50,7 +57,7 @@ RUN --mount=type=cache,id=uv-${UV_INDEX_MODE}-${UV_INDEX_CONFIG_SHA256},target=/
     && uv venv /app/.venv \
     && uv pip sync --require-hashes /tmp/requirements.txt \
       --python /app/.venv/bin/python --compile-bytecode \
-    && rm /tmp/requirements.txt
+    && rm -f /tmp/requirements.txt /tmp/uv.toml
 
 # Copy application code
 COPY src/api/app ./app
