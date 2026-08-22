@@ -241,57 +241,16 @@ PowerShellでは `$env:UV_NO_SYNC = "1"` を設定します。
 docker build -f src/api/Dockerfile -t aks-chaos-lab:local .
 ```
 
-組織承認済みpackage indexが必要な管理対象環境では、ローカルbuildに限りuser-level `uv.toml`をBuildKit secretとして渡します。このsecretを公開CIへ渡してはいけません。
-
-次のPOSIX shell例は、API imageをローカルに作成します。
-
-```bash
-UV_CONFIG_PATH="$HOME/.config/uv/uv.toml"
-UV_INDEX_CONFIG_SHA256="$(
-  uv run --no-project "${PWD}/scripts/approved_index_config.py" digest "$UV_CONFIG_PATH"
-)"
-docker build \
-  --build-arg UV_INDEX_MODE=approved-index \
-  --build-arg UV_INDEX_CONFIG_SHA256="$UV_INDEX_CONFIG_SHA256" \
-  --secret id=uv-config,src="$UV_CONFIG_PATH" \
-  -f src/api/Dockerfile \
-  -t aks-chaos-lab:local .
-```
-
-PowerShellでは、次を実行します。
-
-```powershell
-$UvConfigPath = Join-Path $env:APPDATA "uv\uv.toml"
-$ApprovedIndexConfigScript = Join-Path $PWD "scripts\approved_index_config.py"
-$UvIndexConfigSha256 = uv run --no-project `
-  $ApprovedIndexConfigScript digest $UvConfigPath
-docker build `
-  --build-arg "UV_INDEX_MODE=approved-index" `
-  --build-arg "UV_INDEX_CONFIG_SHA256=$UvIndexConfigSha256" `
-  --secret "id=uv-config,src=$UvConfigPath" `
-  -f src/api/Dockerfile `
-  -t aks-chaos-lab:local .
-```
-
-管理対象環境からAKSへdeployする場合は、対象のazd environmentを選択し、OpenTelemetry instrumentationを適用してから、作成済みimageを`--from-package`へ渡します。
+組織承認済みpackage indexが必要な環境では、専用taskでAPI imageをbuildし、そのimageを`azd deploy --from-package`へ渡します。taskはuser-level `uv.toml`を検証し、BuildKit secretとしてbuildへ渡します。
 
 ```bash
 azd env select <environment>
+uv run --no-project "${PWD}/scripts/tasks.py" package-api-approved-index
 azd deploy api-instrumentation --no-prompt
-azd deploy api --from-package aks-chaos-lab:local --no-prompt
+uv run --no-project "${PWD}/scripts/tasks.py" deploy-api-approved-index
 ```
 
-PowerShellでは、次を実行します。
-
-```powershell
-azd env select <environment>
-azd deploy api-instrumentation --no-prompt
-azd deploy api --from-package aks-chaos-lab:local --no-prompt
-```
-
-`azd deploy api`を`--from-package`なしで実行すると、azdはDocker imageを再buildします。現在の`azure.yaml`はBuildKit secretをazdのbuildへ渡さないため、そのbuildはpublic PyPIを使用します。管理対象環境では、approved indexで作成したローカルimageを`--from-package`で指定してください。
-
-configのSHA-256はdependency layerとcache mountのkeyになります。Dockerfileはmountしたconfigのhashを照合するため、configを変更すると古いlayerを再利用しません。build logを共有する前に、index URLや認証情報が含まれていないことを確認してください。
+通常の`azd package api`と`azd deploy api`はpublic PyPIを使用します。認証が必要なindexは専用taskの対象外です。`uv.lock`はpublic PyPIのURLを維持します。
 
 ### public lockfile の更新
 
