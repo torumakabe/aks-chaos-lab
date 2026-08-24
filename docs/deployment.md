@@ -199,7 +199,7 @@ azd deploy node-provisioning -e eval
 
 ## ローカル開発
 
-リポジトリは uv workspace 構成です。hostはルート`pyproject.toml`の互換範囲に従います。CI、Docker、lock更新workflowは、再現性を維持するため互換範囲の下限へ固定します。`check-uv-version`はこの関係を検査します。ルートで一度同期すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest / locust) が揃います。
+リポジトリはuv workspace構成です。hostはルート`pyproject.toml`の互換範囲に従います。GitHub Actionsとlock更新workflowはsetup-uvで互換範囲の下限を選択します。Dockerのuv versionは`azd package api`との互換性のためDockerfileに明記し、`check-uv-version`がルートの下限との一致を検査します。ルートで一度同期すれば、`src/api`と`src/external-sli-publisher`の両方の依存と開発ツール（ruff、ty、pytest、locust）が揃います。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" check-uv-version
@@ -215,15 +215,16 @@ uv run --no-project "${PWD}/scripts/tasks.py" run
 public package registry へ直接接続できない環境では、user-level の uv 設定に組織承認済みの Python package index を一つ構成します。`[[index]]`には`default = true`を指定し、public PyPIへのfallbackを無効にします。index URLや認証情報はリポジトリへ保存しません。
 
 ```bash
-uv run --no-project "${PWD}/scripts/tasks.py" sync-dev-approved-index
 uv run --no-project "${PWD}/scripts/tasks.py" qa-app
 ```
 
-このタスクはuser-level設定とpublic lockのsourceを検査してから、public `uv.lock`を一時requirementsへ変換し、構成済みのpackage indexから`.venv`を作成します。変換後のrequirementsも検査し、direct URL、find-links、hash検証やTLS検証を無効にする設定、projectやdependency groupを変更する環境変数を拒否します。exportと後続の`uv run`はroot projectと対象venvの絶対pathへ固定します。registry packageには`--require-hashes`を適用し、workspace sourceはindexを介さず`.pth`で参照します。通常環境と分離した`.uv-state/cache/`を使い、一時requirementsは処理後に削除します。`.uv-state/`配下のstateは同期した`uv.lock`のSHA-256を記録し、後続のtaskは検証済み環境へ`--no-sync`を適用します。stateを`.venv`の外へ置くため、環境の再作成が中断しても未完了状態が残ります。
+task runnerは有効なapproved-index設定を検出すると、各task processの最初のworkspaceコマンドを実行する前に`.venv`を再構築します。同期開始からtask processの終了までは、対象venvの正規化pathから導出したprocess間lockをOSの一時領域で保持するため、同じvenvを使うworkspace taskは直列に実行されます。明示的に環境だけを準備する場合は`sync-dev-approved-index`を実行します。
+
+同期処理はuser-level設定とpublic lockのsourceを検査してから、public `uv.lock`を一時requirementsへ変換し、構成済みのpackage indexから`.venv`を作成します。変換後のrequirementsも検査し、direct URL、find-links、hash検証やTLS検証を無効にする設定、projectやdependency groupを変更する環境変数を拒否します。exportと後続の`uv run`はroot projectと対象venvの絶対pathへ固定します。registry packageには`--require-hashes`を適用し、workspace sourceはindexを介さず`.pth`で参照します。通常環境と分離した`.uv-state/cache/`を使い、一時requirementsは処理後に削除します。index固有のusernameとpassword環境変数は同期processだけへ渡し、ruff、ty、pytest、アプリなどの後続processから除去します。同じtask process内の後続コマンドだけは、直前に構築した環境へ`--no-sync`を適用します。
 
 post-edit hookは依存関係の整合性を判定しません。Python編集時はprojectの`.venv`にある`ruff`を直接実行し、ruffがない場合は同期を要求します。lockと仮想環境の整合性は同期taskとCIで検証します。
 
-`uv.lock`が変わった場合や同期が中断した場合、taskは古い環境を使わず再同期を要求します。同じコマンドを再実行してください。通常の同期へ戻す場合は`.venv`を削除し、`uv run --no-project "${PWD}/scripts/tasks.py" reset-approved-index-state`を実行してから`sync-dev`を実行します。
+`uv.lock`が同期中に変わった場合や同期が中断した場合、taskは対象コマンドを実行しません。同じコマンドを再実行してください。通常の同期へ戻す場合はuser-levelのapproved-index設定を無効にしてから`sync-dev`を実行します。
 
 task runnerを介さない `uv run` では、projectの自動同期を明示的に止めます。
 
@@ -261,13 +262,13 @@ gh run list --workflow refresh-uv-lock.yml --branch <branch>
 gh run download <run-id> --name uv-lock-public --dir tmp/refresh-uv-lock
 ```
 
-workflowは`pyproject.toml`、`uv.lock`、workflow定義自身を変更したpull requestで実行されます。既定branchへmergeした後は`workflow_dispatch`でも実行できます。取得した`uv.lock`の差分を確認して変更branchへ追加した後、組織承認済みpackage indexを使う環境で`sync-dev-approved-index`を再実行します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
+workflowは`pyproject.toml`、`uv.lock`、workflow定義自身を変更したpull requestで実行されます。既定branchへmergeした後は`workflow_dispatch`でも実行できます。取得した`uv.lock`の差分を確認して変更branchへ追加すると、組織承認済みpackage indexを使う環境では次のworkspace task実行時に再同期します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
 
 ## テストと品質確認
 
 アプリケーション:
 
-クリーン環境や新しいworktreeでは、先に通常環境で`uv run --no-project "${PWD}/scripts/tasks.py" sync-dev`、組織承認済みpackage indexを使う環境で`uv run --no-project "${PWD}/scripts/tasks.py" sync-dev-approved-index`を実行してください。絶対pathと`--no-project`は、task runnerの起動前にuvが別のprojectを探索または同期することを防ぎます。`qa-app`は同期済みのworkspace venvを前提にruff、ty、pytestを実行します。
+クリーン環境や新しいworktreeでは、通常環境で`uv run --no-project "${PWD}/scripts/tasks.py" sync-dev`を実行してください。組織承認済みpackage indexを使う環境では、workspaceコマンドを含むtaskが実行前に環境を同期します。絶対pathと`--no-project`は、task runnerの起動前にuvが別のprojectを探索または同期することを防ぎます。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" test
