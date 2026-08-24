@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -39,9 +38,11 @@ post_edit = load_module(
 def configure_root(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, lock_content: str = "version = 1\n"
 ) -> None:
+    tasks.release_approved_index_lock()
     (tmp_path / "uv.lock").write_text(lock_content, encoding="utf-8")
     monkeypatch.setattr(tasks, "ROOT", tmp_path)
     monkeypatch.setattr(post_edit, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(tasks, "_approved_index_environment_prepared", False)
     monkeypatch.setattr(
         tasks,
         "user_uv_config_path",
@@ -59,65 +60,42 @@ def write_approved_config(
     )
 
 
-def test_ready_state_adds_no_sync(
+def test_approved_index_run_flags_sync_once_per_process(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
-    (tmp_path / ".venv").mkdir()
+    config_path = tmp_path / "uv.toml"
+    write_approved_config(config_path)
+    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    sync_calls = 0
+
+    def sync_approved_index() -> None:
+        nonlocal sync_calls
+        sync_calls += 1
+        monkeypatch.setattr(tasks, "_approved_index_environment_prepared", True)
+
     monkeypatch.setattr(
         tasks,
-        "user_uv_config_path",
-        lambda: pytest.fail("ready state must not inspect user config"),
+        "target_sync_dev_approved_index",
+        sync_approved_index,
     )
-
-    tasks.write_approved_index_state("ready")
 
     assert tasks.approved_index_run_flags() == ["--no-sync"]
+    assert tasks.approved_index_run_flags() == ["--no-sync"]
+    assert sync_calls == 1
 
 
-def test_changed_lock_fails_closed(
+def test_approved_index_run_flags_defer_missing_config_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
-    (tmp_path / ".venv").mkdir()
-    tasks.write_approved_index_state("ready")
-    (tmp_path / "uv.lock").write_text("version = 2\n", encoding="utf-8")
 
-    with pytest.raises(SystemExit):
-        tasks.approved_index_run_flags()
+    def missing_config_path() -> Path:
+        raise approved_config.ApprovedIndexConfigError("missing config root")
 
+    monkeypatch.setattr(tasks, "user_uv_config_path", missing_config_path)
 
-def test_missing_environment_provenance_fails_closed(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    configure_root(monkeypatch, tmp_path)
-    (tmp_path / ".venv").mkdir()
-    tasks.write_approved_index_state("ready")
-    tasks.approved_index_environment_state_path().unlink()
-
-    with pytest.raises(SystemExit):
-        tasks.approved_index_run_flags()
-
-
-def test_incomplete_state_fails_closed(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    configure_root(monkeypatch, tmp_path)
-    state_path = tasks.approved_index_state_path()
-    state_path.parent.mkdir()
-    state_path.write_text(
-        json.dumps(
-            {
-                "schema": tasks.APPROVED_INDEX_STATE_VERSION,
-                "status": "in-progress",
-                "lock_sha256": tasks.lock_sha256(),
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(SystemExit):
-        tasks.approved_index_run_flags()
+    assert tasks.approved_index_run_flags() == []
 
 
 def test_project_environment_honors_relative_override(
@@ -129,15 +107,17 @@ def test_project_environment_honors_relative_override(
     assert tasks.project_environment_path() == tmp_path / "build" / "venv"
 
 
-def test_state_is_stored_outside_virtual_environment(
+def test_approved_index_lock_is_keyed_by_absolute_environment(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
+    shared_environment = tmp_path / "shared" / ".venv"
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", str(shared_environment))
 
-    state_path = tasks.approved_index_state_path()
+    first_lock = tasks.approved_index_lock_path()
+    monkeypatch.setattr(tasks, "ROOT", tmp_path / "other-worktree")
 
-    assert state_path.parent == tmp_path / tasks.APPROVED_INDEX_STATE_DIRECTORY
-    assert tmp_path / ".venv" not in state_path.parents
+    assert tasks.approved_index_lock_path() == first_lock
 
 
 @pytest.mark.parametrize(
@@ -161,19 +141,6 @@ def test_standard_sync_targets_reject_approved_index(
 
     with pytest.raises(SystemExit):
         getattr(tasks, target_name)()
-
-
-def test_state_free_run_flags_reject_approved_index(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    configure_root(monkeypatch, tmp_path)
-    config_path = tmp_path / "uv.toml"
-    write_approved_config(config_path)
-    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
-
-    with pytest.raises(SystemExit):
-        tasks.approved_index_run_flags()
 
 
 @pytest.mark.parametrize(
@@ -249,7 +216,7 @@ def test_approved_index_config_rejects_source_environment_override(
             )
 
 
-def test_child_environment_removes_unsafe_uv_overrides(
+def test_child_environment_removes_unsafe_uv_overrides_and_credentials(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("UV_PROJECT", "/not-a-project")
@@ -260,7 +227,7 @@ def test_child_environment_removes_unsafe_uv_overrides(
 
     assert "UV_PROJECT" not in environment
     assert "UV_NO_DEV" not in environment
-    assert environment["UV_INDEX_APPROVED_INDEX_USERNAME"] == "username"
+    assert "UV_INDEX_APPROVED_INDEX_USERNAME" not in environment
 
 
 def test_package_api_approved_index_uses_buildkit_secret(
@@ -416,13 +383,17 @@ def test_approved_index_config_rejects_pip_table(tmp_path: Path) -> None:
         approved_config.validate_approved_index_config(config_path, {})
 
 
-def test_lock_change_during_sync_keeps_in_progress_state(
+def test_lock_change_during_sync_fails_before_environment_is_reused(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     config_path = tmp_path / "uv.toml"
     write_approved_config(config_path)
     monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    monkeypatch.setattr(tasks, "acquire_approved_index_lock", lambda: None)
+    monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_USERNAME", "username")
+    monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_PASSWORD", "password")
+    monkeypatch.setenv("UV_INDEX_OTHER_PASSWORD", "other-password")
     monkeypatch.setattr(tasks, "validate_public_lock", lambda *_args: None)
     monkeypatch.setattr(
         tasks,
@@ -445,21 +416,23 @@ def test_lock_change_during_sync_keeps_in_progress_state(
     with pytest.raises(SystemExit):
         tasks.target_sync_dev_approved_index()
 
-    state = json.loads(tasks.approved_index_state_path().read_text(encoding="utf-8"))
-    assert state["status"] == "in-progress"
+    assert tasks.__dict__["_approved_index_environment_prepared"] is False
     assert pip_environment == {
         "UV_CACHE_DIR": str(tasks.approved_index_cache_path()),
         "UV_CONFIG_FILE": str(config_path),
+        "UV_INDEX_APPROVED_INDEX_USERNAME": "username",
+        "UV_INDEX_APPROVED_INDEX_PASSWORD": "password",
     }
 
 
-def test_environment_creation_failure_keeps_in_progress_state(
+def test_environment_creation_failure_does_not_mark_process_prepared(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     config_path = tmp_path / "uv.toml"
     write_approved_config(config_path)
     monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    monkeypatch.setattr(tasks, "acquire_approved_index_lock", lambda: None)
     monkeypatch.setattr(tasks, "validate_public_lock", lambda *_args: None)
 
     def fail_environment_creation(_args: list[str], **_kwargs: object) -> None:
@@ -470,8 +443,7 @@ def test_environment_creation_failure_keeps_in_progress_state(
     with pytest.raises(RuntimeError, match="simulated interruption"):
         tasks.target_sync_dev_approved_index()
 
-    state = json.loads(tasks.approved_index_state_path().read_text(encoding="utf-8"))
-    assert state["status"] == "in-progress"
+    assert tasks.__dict__["_approved_index_environment_prepared"] is False
 
 
 def test_public_lock_rejects_direct_url_source(
@@ -540,7 +512,7 @@ def test_check_uv_version_allows_compatible_host_patch(
         "steps:\n"
         "  - uses: astral-sh/setup-uv@sha\n"
         "    with:\n"
-        '      version: "0.12.2"\n',
+        '      resolution-strategy: "lowest"\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(tasks, "API_DIR", api_dir)
@@ -582,7 +554,7 @@ def test_check_uv_version_requires_pinned_docker_version(
         "steps:\n"
         "  - uses: astral-sh/setup-uv@sha\n"
         "    with:\n"
-        '      version: "0.12.2"\n',
+        '      resolution-strategy: "lowest"\n',
         encoding="utf-8",
     )
     monkeypatch.setattr(tasks, "API_DIR", api_dir)
@@ -593,8 +565,21 @@ def test_check_uv_version_requires_pinned_docker_version(
         tasks.target_check_uv_version()
 
 
-def test_check_uv_version_requires_pinned_workflow_version(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+@pytest.mark.parametrize(
+    "workflow_settings",
+    (
+        '      version: "0.12.2"\n      resolution-strategy: "lowest"\n',
+        '      version: "0.12.2" # explicit pin\n      resolution-strategy: "lowest"\n',
+        '      version-file: "pyproject.toml"\n      resolution-strategy: "lowest"\n',
+        '      resolution-strategy: "highest"\n',
+        '      resolution-strategy: "lowest"\n      working-directory: "src/api"\n',
+        "",
+    ),
+)
+def test_check_uv_version_requires_workflow_to_resolve_pyproject_lower_bound(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    workflow_settings: str,
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     (tmp_path / "pyproject.toml").write_text(
@@ -610,28 +595,13 @@ def test_check_uv_version_requires_pinned_workflow_version(
     workflow_path = tmp_path / ".github" / "workflows" / "ci.yml"
     workflow_path.parent.mkdir(parents=True)
     workflow_path.write_text(
-        "steps:\n"
-        "  - uses: astral-sh/setup-uv@sha\n"
-        "    with:\n"
-        '      version: "0.12.3"\n',
+        f"steps:\n  - uses: astral-sh/setup-uv@sha\n    with:\n{workflow_settings}",
         encoding="utf-8",
     )
     monkeypatch.setattr(tasks, "API_DIR", api_dir)
     monkeypatch.setattr(tasks, "WORKFLOWS_DIR", workflow_path.parent)
     monkeypatch.setattr(tasks, "command_output", lambda *args, **kwargs: "uv 0.12.3")
 
-    with pytest.raises(SystemExit):
-        tasks.target_check_uv_version()
-
-    workflow_path.write_text(
-        "steps:\n"
-        "  - uses: astral-sh/setup-uv@sha\n"
-        "    env:\n"
-        '      version: "0.12.2"\n'
-        "    with:\n"
-        '      version-file: "pyproject.toml"\n',
-        encoding="utf-8",
-    )
     with pytest.raises(SystemExit):
         tasks.target_check_uv_version()
 
@@ -642,6 +612,23 @@ def test_check_uv_version_requires_one_minor_compatibility_range(
     configure_root(monkeypatch, tmp_path)
     (tmp_path / "pyproject.toml").write_text(
         '[tool.uv]\nrequired-version = "==0.12.2"\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit):
+        tasks.target_check_uv_version()
+
+
+def test_check_uv_version_rejects_root_uv_toml_version_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    configure_root(monkeypatch, tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.uv]\nrequired-version = ">=0.12.2,<0.13.0"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "uv.toml").write_text(
+        'required-version = ">=0.12.3,<0.13.0"\n',
         encoding="utf-8",
     )
 

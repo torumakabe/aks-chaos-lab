@@ -18,7 +18,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version: "0.12.2"
+          resolution-strategy: "lowest"
           python-version: "3.14"
       - name: Check lock consistency
         run: uv lock --check
@@ -34,7 +34,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version: "0.12.2"
+          resolution-strategy: "lowest"
           python-version: "3.14"
       - name: Sync deps (dev)
         run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" sync-dev
@@ -49,7 +49,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version: "0.12.2"
+          resolution-strategy: "lowest"
           python-version: "3.14"
       - name: Sync deps (dev)
         run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" sync-dev
@@ -65,7 +65,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version: "0.12.2"
+          resolution-strategy: "lowest"
           python-version: "3.14"
       - name: Sync deps (dev)
         run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" sync-dev
@@ -80,7 +80,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version: "0.12.2"
+          resolution-strategy: "lowest"
           python-version: "3.14"
       - name: Sync deps (dev)
         run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" sync-dev

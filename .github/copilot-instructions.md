@@ -11,7 +11,7 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 - **K8s**: Kustomize (`k8s/`)
 - **依存**: Redis (Managed, Entra ID auth), Application Insights, Prometheus
 - **パッケージ管理**: uv workspace (hostはルート`pyproject.toml`の互換範囲、CIとDockerはその下限に固定、ルート `pyproject.toml` + public PyPI source の `uv.lock`、`python`/`pip` 直接実行禁止)
-- **品質検証**: ruff + ty + pytest → クリーン環境では通常は `uv run --no-project "${PWD}/scripts/tasks.py" sync-dev`、組織承認済み package index を必須とする環境では `uv run --no-project "${PWD}/scripts/tasks.py" sync-dev-approved-index` の後に `uv run --no-project "${PWD}/scripts/tasks.py" qa-app`
+- **品質検証**: ruff + ty + pytest → クリーン環境では通常は `uv run --no-project "${PWD}/scripts/tasks.py" sync-dev` の後に `uv run --no-project "${PWD}/scripts/tasks.py" qa-app`、組織承認済み package index を必須とする環境では `qa-app` が実行前に依存関係を同期する
 - **Bicep 検証**: `uv run --no-project "${PWD}/scripts/tasks.py" build-bicep`。Lefthook の pre-commit は、ステージされた Bicep 変更がある場合に実行する
 - **編集時自動検証**: `.github/hooks/hooks.json` に postToolUse hook を登録。`.py` 編集では project `.venv` の ruff を直接実行し、`.bicep` 編集では `az bicep format` を実行する。変更/失敗時はエージェントへ `additionalContext` でフィードバックする。依存関係の整合性は同期taskとCIが検証する
 

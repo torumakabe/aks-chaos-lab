@@ -91,10 +91,9 @@ uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
 uv run --no-project "${PWD}/scripts/tasks.py" qa
 ```
 
-public package registry へ直接接続できず、組織承認済みの Python package index を使う環境では、代わりに次の同期タスクを実行します。
+public package registryへ直接接続できず、組織承認済みのPython package indexを使う環境では、task runnerが検証前に依存関係を同期します。
 
 ```bash
-uv run --no-project "${PWD}/scripts/tasks.py" sync-dev-approved-index
 uv run --no-project "${PWD}/scripts/tasks.py" qa
 ```
 
