@@ -1,140 +1,81 @@
 ---
 name: review-repo
-description: リポジトリ全体の衛生チェック。instructions とツールの鮮度、ADR/Feature Doc の健全性、追跡衛生、規約整合性を確認する。「リポジトリを点検」「衛生チェック」「hygiene」「priming をレビュー」「instructions を見直して」「review-repo」と言われたら使う。
+description: リポジトリの衛生状態を非編集で点検する。標準はfastで、「full」「全検査」「鮮度確認」を指定された場合だけfullを実行する。「リポジトリを点検」「衛生チェック」「hygiene」「primingをレビュー」「instructionsを見直して」「review-repo」と言われたら使う。
 ---
 
-リポジトリの衛生状態を包括的にチェックし、問題を報告・修正する。
+# Review Repo
 
-## 原則
+追跡ファイルから得たinventory、既存の検査、専門スキルの結果を集約し、今回の走査範囲におけるリポジトリの衛生状態と修正計画を報告する。
 
-- `copilot-instructions.md` はコンパクトに保つ（肥大化を防ぐ）
-- 詳細知識はスキル（`.github/skills/`）に分離し、instructions には参照だけ書く
-- 不要になった記述の削除も提案する（追加だけでなく）
-- 問題の修正は**ユーザーの承認後**に行う
+## 実行モード
 
-## チェック項目
+- 指定がない場合は`review-repo-fast`を実行する。
+- ユーザーが`full`、全検査、鮮度確認のいずれかを明示した場合だけ`review-repo-full`を実行する。
+- fullでは、`repository-freshness-checker`へrepo health inventory JSONを渡す。公開情報を取得できない項目は`unverified`とする。
 
-### 1. copilot-instructions.md の整合性
+## 非編集契約
 
-#### 1a. ディレクトリ構造
+レビュー中は追跡ファイルを編集しない。実行前後に次の内容指紋を取得し、完全一致を確認する。
 
-リポジトリの top-level ディレクトリを走査し、「プロジェクト構造」セクションと照合する。
+- tracked/indexは、追跡パス、ファイルモード、indexのstageとblob OID、worktreeにある通常ファイルまたはsymlinkのSHA-256で構成する。削除済みパスも記録する。
+- 未追跡ファイル一覧は`git ls-files --others --exclude-standard -z`から取得し、各パスと通常ファイルまたはsymlinkのSHA-256を記録する。
+- pathはNUL区切りのまま扱い、path traversalを拒否する。内容やsymlinkの参照先自体は出力しない。
 
-- 記載されているが存在しないディレクトリはないか
-- 存在するが記載されていないディレクトリはないか
-- 説明文が実態と一致しているか
+内容指紋はtimestampを入力にしない。実行前後のpath、mode、stage、OID、SHA-256だけを比較するため、レビュー開始前から変更されていたファイルへの追加編集も検出できる。差が生じた場合は検査を中止し、`fail`として報告する。内容指紋を取得できない対象は`unverified`とする。ユーザーの未コミット変更をrestoreまたはresetしてはならない。
 
-#### 1b. 知識ソースの参照先
+`review-repo-full`は、書き換え得るQAと生成物検査を現在のworktreeから複製した隔離ディレクトリで実行する。複製には追跡ファイルと、ignoreされていない未追跡ファイルを含める。隔離できない検査は実行せず、対象と理由を`unverified`へ記録する。隔離ディレクトリは検査の成否にかかわらず削除する。
 
-「知識ソース」セクションに列挙されたパスを検証する。
+レビューは検出、評価、修正計画の提示までを担当する。修正はユーザーの承認後に、対象を所有するagentまたはskillへ委譲する。
 
-- 参照先が実在するか（`docs/adr/`, `.github/skills/` 等）
-- 新しいスキルやナレッジソースが追加されていないか
+## 禁止事項
 
-#### 1c. エージェント一覧
+- Azure subscription、AKS cluster、Fleetなど、認証が必要なAzure実環境を照会しない。
+- Azure feature登録状態やresource provider登録状態を照会しない。
+- ファイルの自動更新、コミット、push、PR作成を行わない。
+- inventoryの抽出ロジックや製品別の公開情報取得手順をこのagentへ記載しない。
 
-`.github/agents/` 内のエージェント一覧を確認する。
+認証不要のローカルBicep buildは実行してよい。
 
-- 各エージェントの `description` がプロジェクトの実態に即しているか
-- `copilot-instructions.md` 内でエージェント名を参照している箇所があれば、実在するか
+## 実行手順
 
-### 2. git 追跡の衛生
+1. 対象commit、実行モード、実行前の内容指紋を記録する。
+2. 各検査が必要とするツールを事前分類する。ツール不足の検査を`unverified`とし、実行可能な検査は継続する。
+3. `inventory-repo`と`check-repo-health`の結果からinventory、coverage、内部整合性を確認する。
+4. 選択した`review-repo-fast`または`review-repo-full`を実行し、既存taskの結果を集約する。
+5. instructions、agent、skill、ADR、Feature Document、workaround、文書参照の健全性をinventoryと既存文書から評価する。
+6. fullの場合だけ、freshness skillと既存の専門経路の結果を集約する。
+7. 実行後の内容指紋を取得し、実行前との差を確認する。
+8. 状態分類、coverage、環境制約、修正計画を報告する。
 
-git で追跡されているファイルに、追跡すべきでないものが含まれていないか確認する。
+## 既存経路との責務境界
 
-`git ls-files --cached` の結果を確認し、`.whl` / `.pyc` / `.pyo` / `__pycache__` / `.ruff_cache` / `.DS_Store` / `.env` が追跡対象に入っていないか調べる。
+- Bicep CLIの鮮度は`bicep-version-check.yml`の責務とし、このagentはworkflowの存在と利用可能な結果だけを確認する。
+- AKSの公開更新情報は`aks-updates-analyzer`の責務とし、同じ公開情報を再取得しない。
+- Bicep resource API versionは`bicep-api-version-updater`のcheck-onlyモードへ委譲する。
+- gh-aw、Lefthook、actionlint、kubeconform、azd、Chaos Mesh Helm chart、Docker base imageのEOLとdigestは`repository-freshness-checker`へ委譲する。
+- Python依存、GitHub Actions、Docker更新候補はDependabotの対象範囲を優先し、同じ更新候補を重複して提案しない。
 
-検出されたファイルがあれば `git rm --cached` を提案する。
+既存経路の結果を取得できない場合、その領域を`pass`にせず`unverified`とする。
 
-### 3. 品質ゲートの確認
+## 状態分類
 
-品質ゲートが通るか確認する:
+- `pass`: 検査を実行し、定義済みの規則を満たした。
+- `fail`: リポジトリまたは検査設定に修正が必要である。
+- `unverified`: ネットワーク、ツール不足、隔離不能、正本未決定などにより結論を出せない。
+- `excluded`: 意図的に対象外とし、理由を記録している。
 
-- Python: クリーン環境では `uv run --no-project "${PWD}/scripts/tasks.py" sync-dev` 後に `uv run --no-project "${PWD}/scripts/tasks.py" qa-app`（ruff + ty + pytest）
-- Bicep: `az bicep build --file infra/main.bicep`
-
-### 4. ADR 健全性
-
-`docs/adr/INDEX.md` を読み、Accepted な ADR の一覧を確認する。
-
-- 各 ADR ファイルが実在するか
-- ADR が参照しているコードパス（`infra/`, `src/`, `k8s/` 等）が存在するか
-- 詳細なコード照合が必要な場合は `manage-adr`（パス E）の実行を提案する
-
-### 5. Feature Document 健全性
-
-`docs/features/` を走査する。
-
-- 各 Feature Document の最終更新日を `git log -1 --format=%ci -- <file>` で確認する
-- 長期未更新（目安: 30 日以上）のものがあれば、卒業（`manage-adr`）か破棄かを提案する
-
-### 6. スキル整合性
-
-`.github/skills/` 内の各ディレクトリに `SKILL.md` が存在するか確認する。
-
-- `SKILL.md` がないスキルディレクトリ → 作成を提案
-
-### 7. プレビュー機能 / リソースプロバイダー登録の鮮度
-
-`docs/deployment.md` の「プレビュー機能とリソースプロバイダー登録」セクションに記載されている `az feature register` 対象が、まだプレビュー扱いで明示登録が必要か確認する。GA すると `az feature register` は不要（または no-op）になり、手順が陳腐化する。
-
-対象 feature の現状を確認する:
-
-```console
-az feature show --namespace Microsoft.ContainerService --name AKS-AddonAutoscalingPreview --query "{state:properties.state}" -o tsv
-az feature show --namespace Microsoft.ContainerService --name AzureMonitorAppMonitoringPreview --query "{state:properties.state}" -o tsv
-```
-
-判定基準:
-
-- `Registered` のまま → プレビューが続いている、記載を維持
-- `NotRegistered` でも feature 自体は存在 → プレビュー継続中、記載を維持
-- feature が見つからない（`az feature show` がエラー） → GA して feature flag が削除された可能性が高い。Microsoft Learn / Azure Updates で GA 状況を確認し、確認できたら `docs/deployment.md` から該当行を削除する提案を出す
-- ADR に対応する記述（例: ADR-006 の OTLP プレビュー機能）がある場合は、ADR 側にも GA 反映の更新を提案する
-
-迷ったら Microsoft Learn の該当ページ（例: AKS の "What's new" / OTLP for Application Insights ドキュメント）で GA 表記を一次確認する。
-
-### 8. ワークアラウンドの棚卸し
-
-`docs/workarounds.md` は本リポジトリで継続中のワークアラウンドと、それぞれの **解消条件** をまとめた棚卸しドキュメント。GA や仕様改善で不要になったものを剥がすため、`review-repo` 実行時にレビューする。
-
-走査手順:
-
-1. `docs/workarounds.md` を読み、各エントリの **解消条件** と **確認方法** を確認する。
-2. プレビュー機能 GA / API バージョン GA 系（C-1, C-2）は §7 のチェックと連動して状況を確認する。
-3. upstream issue 系（D-7 など）は GitHub issue や Microsoft 側の修正状況を確認する。
-4. 自前で運用ワークアラウンドにしているもの（A-1〜A-5, B-2）は、Microsoft Learn / Azure Updates で当該機能の改善 announcement が出ていないか確認する。
-5. リポジトリ側の状況とドキュメントが食い違っていないか確認する:
-   - `docs/workarounds.md` に書いてある **場所** のファイル / 行が実在するか
-   - すでに剥がされたワークアラウンドが残っていないか
-   - 新たに追加されたワークアラウンドが棚卸しに記載されているか
-
-剥がせる候補が見つかったら、ユーザーに以下を提案する:
-
-- `docs/workarounds.md` から該当エントリを削除
-- 関連コード / ADR / README / `docs/deployment.md` / `docs/observability.md` の該当箇所を更新
-- 必要なら ADR を Superseded / 新規 ADR で置き換え（`manage-adr` 経由）
-
-新しいワークアラウンドを追加する場合は、棚卸しの構造（概要 / 理由 / 場所 / 解消条件 / 確認方法）に揃えて記載する。
-
-### 9. Bicep CLI 固定バージョンの鮮度
-
-`.github/workflows/ci.yml` の `BICEP_VERSION` と、`Azure/bicep` の最新安定リリースを比較する。
-
-```console
-gh api repos/Azure/bicep/releases/latest --jq .tag_name
-```
-
-判定基準:
-
-- CI 固定版が最新安定版と一致 → 問題なし
-- CI 固定版が古い → リリースノートを確認し、Bicep buildとintegration testへの影響を添えて更新を提案する
-- CI 固定版を取得できない、またはGitHub APIに失敗 → バージョン検出処理の問題として報告する
-
-定期検出とIssue通知は `.github/workflows/bicep-version-check.yml` が担う。`review-repo` は固定版を自動更新せず、workflowの存在と検出結果を手動レビュー時に確認する。
+コマンド失敗は原因を確認する。ツール不足やネットワーク障害をリポジトリの`fail`へ分類しない。
 
 ## 出力
 
-1. 各チェック項目の結果を一覧で報告する（✅ / ⚠️ / ❌）
-2. 問題がある項目について具体的な修正案を提示する
-3. ユーザーの承認を得てから編集を適用する
+次の情報を含む。
+
+1. 実行モード、対象commit、走査時点
+2. 状態別の検査結果と根拠
+3. coverageとして、走査ファイル数、認識座標数、検査済み座標数、除外数、未対応数
+4. `unverified`と`excluded`の対象、理由、環境制約
+5. 問題の正本、影響、修正担当、利用するagentまたはskill
+6. 承認後に実行する修正計画
+7. 実行前後の内容指紋の比較結果。報告にはpathとhashだけを含め、機密になり得る内容を表示しない
+
+結論は「今回の走査範囲では」と表現する。「すべて確認済み」と断定しない。

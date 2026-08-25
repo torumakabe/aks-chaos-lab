@@ -5,19 +5,24 @@
 # ///
 from __future__ import annotations
 
+import codecs
 import hashlib
 import importlib
 import os
 import re
 import shutil
+import signal
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import tomllib
 from collections.abc import Callable, Sequence
-from pathlib import Path
-from typing import BinaryIO
+from contextlib import suppress
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import BinaryIO, TextIO, cast
 
 from approved_index_config import (
     UNSAFE_UV_ENVIRONMENT_VARIABLES,
@@ -43,6 +48,20 @@ K8S_VERSION = "1.33.0"
 KUBECONFORM_SKIP = "VerticalPodAutoscaler,CiliumNetworkPolicy,Kustomization,Gateway,HTTPRoute,Instrumentation"
 APPROVED_INDEX_CACHE_DIRECTORY = Path(".uv-state") / "cache"
 API_LOCAL_IMAGE = "aks-chaos-lab:local"
+REVIEW_MAX_UNTRACKED_FILE_BYTES = 10 * 1024 * 1024
+REVIEW_CHECK_TIMEOUT_SECONDS = 300
+REVIEW_TOOL_PREFLIGHT_TIMEOUT_SECONDS = 10
+REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS = 10
+REVIEW_LOG_TAIL_BYTES = 64 * 1024
+REVIEW_LOG_STREAM_CHUNK_BYTES = 64 * 1024
+REVIEW_TOOL_VERSION_COMMANDS: dict[str, tuple[str, ...]] = {
+    "uv": ("uv", "--version"),
+    "git": ("git", "--version"),
+    "docker": ("docker", "--version"),
+    "az": ("az", "version"),
+    "gh": ("gh", "--version"),
+    "lefthook": ("lefthook", "version"),
+}
 _approved_index_environment_prepared = False
 _approved_index_lock_file: BinaryIO | None = None
 
@@ -258,6 +277,29 @@ def command_output(
             print(completed.stderr, file=sys.stderr, end="")
         raise SystemExit(completed.returncode)
     return completed.stdout.strip()
+
+
+def command_nul_output(
+    args: Sequence[str],
+    *,
+    cwd: Path = ROOT,
+) -> list[str]:
+    completed = subprocess.run(
+        resolve_command(args),
+        cwd=cwd,
+        check=False,
+        capture_output=True,
+        env=child_env(),
+    )
+    if completed.returncode != 0:
+        if completed.stderr:
+            print(os.fsdecode(completed.stderr), file=sys.stderr, end="")
+        raise SystemExit(completed.returncode)
+
+    fields = completed.stdout.split(b"\0")
+    if fields and fields[-1] == b"":
+        fields.pop()
+    return [os.fsdecode(field) for field in fields]
 
 
 def run_uv(args: Sequence[str], *, env: dict[str, str] | None = None) -> None:
@@ -571,9 +613,7 @@ def target_inventory_repo() -> None:
     print_step("Inventorying tracked repository health coordinates")
     run(
         [
-            "uv",
-            "run",
-            "--no-project",
+            sys.executable,
             str(ROOT / "scripts" / "repo_health.py"),
             "inventory",
             "--format",
@@ -587,9 +627,7 @@ def target_check_repo_health() -> None:
     print_step("Checking repository health consistency")
     run(
         [
-            "uv",
-            "run",
-            "--no-project",
+            sys.executable,
             str(ROOT / "scripts" / "repo_health.py"),
             "check",
             "--format",
@@ -597,6 +635,648 @@ def target_check_repo_health() -> None:
         ]
     )
     print_success("Repository health checks passed")
+
+
+@dataclass(frozen=True)
+class ReviewCheck:
+    name: str
+    target_name: str
+    required_tools: tuple[str, ...]
+    timeout_seconds: int = REVIEW_CHECK_TIMEOUT_SECONDS
+
+
+@dataclass(frozen=True)
+class ReviewResult:
+    name: str
+    status: str
+    detail: str
+
+
+class ReviewSnapshotError(RuntimeError):
+    pass
+
+
+FAST_REVIEW_CHECKS = (
+    ReviewCheck("repo-health", "target_check_repo_health", ("git",)),
+    ReviewCheck("uv-version", "target_check_uv_version", ("uv",)),
+    ReviewCheck("public-lock", "target_check_public_lock", ()),
+    ReviewCheck(
+        "publisher-requirements",
+        "target_check_publisher_requirements",
+        (),
+    ),
+)
+
+FULL_REVIEW_CHECKS = (
+    ReviewCheck("qa-app", "qa-app", ("git", "uv")),
+    ReviewCheck("test-hooks", "test-hooks", ("git", "uv", "lefthook")),
+    ReviewCheck("build-bicep", "build-bicep", ("git", "az")),
+    ReviewCheck("lint-k8s", "lint-k8s", ("git", "docker")),
+    ReviewCheck("lint-workflows", "lint-workflows", ("git", "docker")),
+    ReviewCheck("compile-aw", "compile-aw", ("git", "gh"), 60),
+)
+
+
+def print_review_result(result: ReviewResult) -> None:
+    stream = sys.stderr if result.status in {"fail", "unverified"} else sys.stdout
+    print(f"[{result.status}] {result.name}: {result.detail}", file=stream)
+
+
+def probe_review_tool(tool: str) -> str | None:
+    if shutil.which(tool) is None:
+        return f"{tool} was not found"
+    command = REVIEW_TOOL_VERSION_COMMANDS.get(tool)
+    if command is None:
+        return f"{tool} has no configured non-interactive version probe"
+    try:
+        completed = run_isolated_review_command(
+            command,
+            cwd=ROOT,
+            env={},
+            timeout=REVIEW_TOOL_PREFLIGHT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        return f"{' '.join(command)} timed out during preflight"
+    except OSError as error:
+        return f"{tool} could not be started during preflight: {error}"
+    if completed.returncode != 0:
+        return (
+            f"{' '.join(command)} exited with code {completed.returncode} "
+            "during preflight"
+        )
+    return None
+
+
+def classify_review_tools(
+    checks: Sequence[ReviewCheck],
+) -> tuple[list[ReviewCheck], list[ReviewResult]]:
+    runnable: list[ReviewCheck] = []
+    results: list[ReviewResult] = []
+    probe_failures: dict[str, str | None] = {}
+    for check in checks:
+        unavailable: list[str] = []
+        for tool in check.required_tools:
+            if tool not in probe_failures:
+                probe_failures[tool] = probe_review_tool(tool)
+            failure = probe_failures[tool]
+            if failure is not None:
+                unavailable.append(failure)
+        if unavailable:
+            result = ReviewResult(
+                check.name,
+                "unverified",
+                "required tool preflight failed: " + "; ".join(unavailable),
+            )
+            print_review_result(result)
+            results.append(result)
+            continue
+        if check.name == "compile-aw":
+            try:
+                completed = run_isolated_review_command(
+                    ["gh", "aw", "--version"],
+                    cwd=ROOT,
+                    env={},
+                    timeout=REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired:
+                result = ReviewResult(
+                    check.name,
+                    "unverified",
+                    "gh aw --version timed out during preflight",
+                )
+            except OSError as error:
+                result = ReviewResult(
+                    check.name,
+                    "unverified",
+                    f"gh aw is unavailable: {error}",
+                )
+            else:
+                if completed.returncode == 0:
+                    runnable.append(check)
+                    continue
+                result = ReviewResult(
+                    check.name,
+                    "unverified",
+                    f"gh aw is unavailable (preflight exited with code "
+                    f"{completed.returncode})",
+                )
+            print_review_result(result)
+            results.append(result)
+            continue
+        runnable.append(check)
+    return runnable, results
+
+
+def run_fast_review_checks() -> list[ReviewResult]:
+    runnable, results = classify_review_tools(FAST_REVIEW_CHECKS)
+    for check in runnable:
+        action = globals().get(check.target_name)
+        if not callable(action):
+            result = ReviewResult(
+                check.name,
+                "unverified",
+                f"review target is unavailable: {check.target_name}",
+            )
+        else:
+            try:
+                action()
+            except KeyboardInterrupt:
+                raise
+            except SystemExit as error:
+                result = ReviewResult(
+                    check.name,
+                    "fail",
+                    f"check exited with code {error.code}",
+                )
+            except Exception as error:
+                result = ReviewResult(
+                    check.name,
+                    "fail",
+                    f"check raised {type(error).__name__}: {error}",
+                )
+            else:
+                result = ReviewResult(check.name, "pass", "check passed")
+        print_review_result(result)
+        results.append(result)
+    return results
+
+
+def finish_review(results: Sequence[ReviewResult], success_message: str) -> None:
+    if any(result.status == "fail" for result in results):
+        raise SystemExit(1)
+    if any(result.status == "unverified" for result in results):
+        print("Repository review completed with unverified checks")
+        return
+    print_success(success_message)
+
+
+def stop_review_process_tree(process: subprocess.Popen[bytes]) -> None:
+    if os.name != "nt":
+        os.killpg(process.pid, signal.SIGKILL)
+        process.wait()
+        return
+
+    powershell = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
+    if powershell is not None:
+        script = (
+            f"$rootPid = {process.pid}; "
+            "$all = [System.Collections.Generic.List[int]]::new(); "
+            "$frontier = @($rootPid); "
+            "while ($frontier.Count -gt 0) { "
+            "$parents = $frontier; "
+            "$frontier = @(Get-CimInstance Win32_Process | "
+            "Where-Object { $parents -contains [int]$_.ParentProcessId } | "
+            "ForEach-Object { [int]$_.ProcessId }); "
+            "foreach ($childPid in $frontier) { $all.Add($childPid) } "
+            "}; "
+            "$items = $all.ToArray(); [array]::Reverse($items); "
+            "foreach ($childPid in $items) { "
+            "Stop-Process -Id $childPid -Force -ErrorAction SilentlyContinue "
+            "}; "
+            "Stop-Process -Id $rootPid -Force -ErrorAction SilentlyContinue"
+        )
+        with suppress(OSError, subprocess.TimeoutExpired):
+            subprocess.run(
+                [powershell, "-NoProfile", "-NonInteractive", "-Command", script],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=30,
+            )
+    if process.poll() is None:
+        process.kill()
+    process.wait()
+
+
+def run_isolated_review_command(
+    args: Sequence[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    timeout: float,
+) -> subprocess.CompletedProcess[bytes]:
+    with (
+        tempfile.TemporaryFile() as stdout_log,
+        tempfile.TemporaryFile() as stderr_log,
+    ):
+        stdout_file = cast(BinaryIO, stdout_log)
+        stderr_file = cast(BinaryIO, stderr_log)
+        process = subprocess.Popen(
+            resolve_command(args),
+            cwd=cwd,
+            env=child_env(env),
+            stdout=stdout_file,
+            stderr=stderr_file,
+            start_new_session=os.name != "nt",
+            creationflags=(
+                subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+            ),
+        )
+        timed_out = False
+        try:
+            return_code = process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            stop_review_process_tree(process)
+            timed_out = True
+            return_code = process.returncode
+
+        stdout_tail = read_review_log_tail(stdout_file)
+        stderr_tail = read_review_log_tail(stderr_file)
+        stream_review_log(stdout_file, sys.stdout)
+        stream_review_log(stderr_file, sys.stderr)
+
+    if timed_out:
+        raise subprocess.TimeoutExpired(
+            args,
+            timeout,
+            output=stdout_tail,
+            stderr=stderr_tail,
+        )
+    return subprocess.CompletedProcess(
+        args,
+        return_code,
+        stdout=stdout_tail,
+        stderr=stderr_tail,
+    )
+
+
+def read_review_log_tail(
+    log: BinaryIO,
+    limit: int = REVIEW_LOG_TAIL_BYTES,
+) -> bytes:
+    log.flush()
+    size = log.seek(0, os.SEEK_END)
+    log.seek(max(0, size - limit))
+    return log.read(limit)
+
+
+def stream_review_log(log: BinaryIO, stream: TextIO) -> None:
+    log.seek(0)
+    decoder = codecs.getincrementaldecoder(stream.encoding or "utf-8")(errors="replace")
+    while chunk := log.read(REVIEW_LOG_STREAM_CHUNK_BYTES):
+        stream.write(decoder.decode(chunk))
+    stream.write(decoder.decode(b"", final=True))
+    stream.flush()
+
+
+def generated_gh_aw_artifact_hashes(root: Path) -> dict[str, str]:
+    generated = set((root / ".github" / "workflows").glob("*.lock.yml"))
+    actions_lock = root / ".github" / "aw" / "actions-lock.json"
+    if actions_lock.is_file():
+        generated.add(actions_lock)
+    hashes: dict[str, str] = {}
+    for path in sorted(generated):
+        if not path.is_file():
+            continue
+        digest = hashlib.sha256()
+        with path.open("rb") as generated_file:
+            for chunk in iter(lambda: generated_file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        hashes[path.relative_to(root).as_posix()] = digest.hexdigest()
+    return hashes
+
+
+def describe_generated_artifact_changes(
+    before: dict[str, str],
+    after: dict[str, str],
+) -> str | None:
+    added = sorted(after.keys() - before.keys())
+    removed = sorted(before.keys() - after.keys())
+    changed = sorted(
+        path for path in before.keys() & after.keys() if before[path] != after[path]
+    )
+    changes = [
+        *(f"added {path}" for path in added),
+        *(f"removed {path}" for path in removed),
+        *(f"changed {path}" for path in changed),
+    ]
+    if not changes:
+        return None
+    return "gh-aw generated artifacts changed: " + "; ".join(changes)
+
+
+REVIEW_REPOSITORY_FAILURE_PATTERNS = (
+    r"\bassertionerror\b",
+    r"(?m)^e\s+assert\b",
+    r"(?m)^failed\s+.+::",
+    r"short test summary info",
+    r"\bsyntaxerror\b",
+    r"\binvalid syntax\b",
+    r"\bwould reformat\b",
+    r"\bfound \d+ errors?\b",
+    r"\berror bcp\d{3}\b",
+    r"generated artifacts changed",
+    r"lock(?:file| file|\.yml).*(?:changed|out of date)",
+)
+
+REVIEW_ENVIRONMENT_FAILURE_PATTERNS = (
+    (
+        "Docker daemon is unavailable",
+        (
+            r"cannot connect to the docker daemon",
+            r"is the docker daemon running",
+            r"error during connect:.*(?:docker_engine|docker daemon)",
+            r"open //\./pipe/docker_engine",
+        ),
+    ),
+    (
+        "container image pull failed",
+        (
+            r"failed to pull image",
+            r"image pull (?:failed|error)",
+            r"error pulling image",
+        ),
+    ),
+    (
+        "DNS resolution failed",
+        (
+            r"temporary failure in name resolution",
+            r"could not resolve host",
+            r"name or service not known",
+            r"\bno such host\b",
+            r"getaddrinfo (?:failed|error)",
+            r"dial tcp: lookup .+?:",
+        ),
+    ),
+    (
+        "TLS or certificate validation failed",
+        (
+            r"certificate verify failed",
+            r"ssl certificate problem",
+            r"unable to get local issuer certificate",
+            r"\bx509: certificate",
+            r"tls handshake (?:timeout|error|failed)",
+        ),
+    ),
+    (
+        "package index is unreachable",
+        (
+            r"(?:package|python) index.*(?:unreachable|unavailable|timed out)",
+            r"failed to (?:fetch|query).*(?:package|python) index",
+            r"failed to fetch.*(?:pypi|simple/)",
+        ),
+    ),
+    (
+        "network connection timed out or was refused",
+        (
+            r"\bconnection (?:timed out|timeout|refused)\b",
+            r"\bconnect(?:ion)? timeout\b",
+            r"\betimedout\b",
+            r"\beconnrefused\b",
+        ),
+    ),
+    (
+        "Azure CLI could not acquire Bicep",
+        (
+            r"(?:failed|unable) to (?:download|install|retrieve).*\bbicep\b",
+            r"error while (?:downloading|installing|retrieving).*\bbicep\b",
+            r"\bbicep\b.*(?:download|install|retrieval) failed",
+        ),
+    ),
+)
+
+
+def classify_review_failure(
+    _check: ReviewCheck,
+    completed: subprocess.CompletedProcess[bytes],
+) -> tuple[str, str]:
+    stdout = completed.stdout or b""
+    stderr = completed.stderr or b""
+    log_tail = (stdout + b"\n" + stderr).decode(errors="replace").lower()
+    if any(
+        re.search(pattern, log_tail) for pattern in REVIEW_REPOSITORY_FAILURE_PATTERNS
+    ):
+        return (
+            "fail",
+            f"check exited with code {completed.returncode}; "
+            "repository-related test, lint, build, or generated-file failure detected",
+        )
+    for reason, patterns in REVIEW_ENVIRONMENT_FAILURE_PATTERNS:
+        if any(re.search(pattern, log_tail) for pattern in patterns):
+            return (
+                "unverified",
+                f"check exited with code {completed.returncode}; {reason}",
+            )
+    return (
+        "fail",
+        f"check exited with code {completed.returncode}; "
+        "no explicit environment or network failure was detected",
+    )
+
+
+def target_review_repo_fast() -> None:
+    print_step("Running fast repository review")
+    finish_review(run_fast_review_checks(), "Fast repository review passed")
+
+
+def safe_snapshot_path(relative_text: str) -> Path:
+    posix_path = PurePosixPath(relative_text)
+    windows_path = PureWindowsPath(relative_text)
+    if (
+        relative_text in {"", "."}
+        or posix_path.is_absolute()
+        or windows_path.is_absolute()
+        or windows_path.drive
+        or ".." in posix_path.parts
+        or ".." in windows_path.parts
+    ):
+        raise ReviewSnapshotError(f"unsafe repository path rejected: {relative_text!r}")
+    return Path(relative_text)
+
+
+def snapshot_file_paths() -> tuple[list[str], set[str]]:
+    tracked = command_nul_output(["git", "ls-files", "-z"], cwd=ROOT)
+    untracked = set(
+        command_nul_output(
+            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=ROOT,
+        )
+    )
+    return sorted(set(tracked) | untracked), untracked
+
+
+def copy_worktree_snapshot(destination: Path) -> list[str]:
+    relative_texts, untracked = snapshot_file_paths()
+    root_resolved = ROOT.resolve()
+    destination_resolved = destination.resolve()
+    issues: list[str] = []
+    for relative_text in relative_texts:
+        relative_path = safe_snapshot_path(relative_text)
+        source = ROOT / relative_path
+        if source.is_symlink():
+            issues.append(
+                f"symlink cannot be safely isolated and was skipped: {relative_text}"
+            )
+            continue
+        if not source.exists():
+            continue
+        source_resolved = source.resolve()
+        if not source_resolved.is_relative_to(root_resolved):
+            raise ReviewSnapshotError(
+                f"repository path resolves outside the worktree: {relative_text!r}"
+            )
+        source_stat = source.stat(follow_symlinks=False)
+        if not stat.S_ISREG(source_stat.st_mode):
+            issues.append(
+                f"non-regular file cannot be safely isolated and was skipped: "
+                f"{relative_text}"
+            )
+            continue
+        if (
+            relative_text in untracked
+            and source_stat.st_size > REVIEW_MAX_UNTRACKED_FILE_BYTES
+        ):
+            issues.append(
+                f"untracked file exceeds the "
+                f"{REVIEW_MAX_UNTRACKED_FILE_BYTES}-byte snapshot limit and was "
+                f"skipped: {relative_text}"
+            )
+            continue
+        target = destination / relative_path
+        target_resolved = target.resolve()
+        if not target_resolved.is_relative_to(destination_resolved):
+            raise ReviewSnapshotError(
+                f"snapshot destination escapes isolation: {relative_text!r}"
+            )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target, follow_symlinks=False)
+    return issues
+
+
+def run_review_targets_isolated(
+    checks: Sequence[ReviewCheck],
+) -> list[ReviewResult]:
+    runnable, results = classify_review_tools(checks)
+    if not runnable:
+        return results
+
+    with tempfile.TemporaryDirectory(prefix="review-repo-") as temporary_directory:
+        isolated_root = Path(temporary_directory).resolve()
+        root_resolved = ROOT.resolve()
+        if isolated_root.is_relative_to(root_resolved):
+            result = ReviewResult(
+                "snapshot",
+                "unverified",
+                "operating-system temporary directory is inside the repository",
+            )
+            print_review_result(result)
+            results.append(result)
+            for check in runnable:
+                result = ReviewResult(
+                    check.name,
+                    "unverified",
+                    "check skipped because isolation was unavailable",
+                )
+                print_review_result(result)
+                results.append(result)
+            return results
+
+        print_step(f"Preparing isolated review copy at {isolated_root}")
+        try:
+            snapshot_issues = copy_worktree_snapshot(isolated_root)
+        except (OSError, ReviewSnapshotError, SystemExit) as error:
+            result = ReviewResult(
+                "snapshot",
+                "unverified",
+                f"isolated worktree could not be prepared: {error}",
+            )
+            print_review_result(result)
+            results.append(result)
+            for check in runnable:
+                result = ReviewResult(
+                    check.name,
+                    "unverified",
+                    "check skipped because isolation was unavailable",
+                )
+                print_review_result(result)
+                results.append(result)
+            return results
+
+        for issue in snapshot_issues:
+            result = ReviewResult("snapshot", "unverified", issue)
+            print_review_result(result)
+            results.append(result)
+        if snapshot_issues:
+            for check in runnable:
+                result = ReviewResult(
+                    check.name,
+                    "unverified",
+                    "check skipped because the isolated snapshot was incomplete",
+                )
+                print_review_result(result)
+                results.append(result)
+            return results
+        try:
+            # Staging the snapshot makes Lefthook include unrelated files in --file runs.
+            run(["git", "init", "--quiet"], cwd=isolated_root)
+        except (OSError, SystemExit) as error:
+            result = ReviewResult(
+                "snapshot",
+                "unverified",
+                f"isolated worktree could not be prepared: {error}",
+            )
+            print_review_result(result)
+            results.append(result)
+            for check in runnable:
+                result = ReviewResult(
+                    check.name,
+                    "unverified",
+                    "check skipped because isolation was unavailable",
+                )
+                print_review_result(result)
+                results.append(result)
+            return results
+
+        isolated_environment = {
+            "PYTHONUNBUFFERED": "1",
+            "UV_PROJECT_ENVIRONMENT": str(isolated_root / ".venv"),
+        }
+        for check in runnable:
+            generated_before: dict[str, str] | None = None
+            if check.name == "compile-aw":
+                generated_before = generated_gh_aw_artifact_hashes(isolated_root)
+            try:
+                completed = run_isolated_review_command(
+                    [
+                        sys.executable,
+                        str(isolated_root / "scripts" / "tasks.py"),
+                        check.target_name,
+                    ],
+                    cwd=isolated_root,
+                    env=isolated_environment,
+                    timeout=check.timeout_seconds,
+                )
+            except subprocess.TimeoutExpired:
+                status = "unverified"
+                detail = (
+                    f"check exceeded the {check.timeout_seconds}-second isolation limit"
+                )
+            else:
+                if completed.returncode != 0:
+                    status, detail = classify_review_failure(check, completed)
+                elif generated_before is not None:
+                    generated_after = generated_gh_aw_artifact_hashes(isolated_root)
+                    generated_changes = describe_generated_artifact_changes(
+                        generated_before,
+                        generated_after,
+                    )
+                    if generated_changes is None:
+                        status, detail = "pass", "check passed"
+                    else:
+                        status, detail = "fail", generated_changes
+                else:
+                    status, detail = "pass", "check passed"
+            result = ReviewResult(check.name, status, detail)
+            print_review_result(result)
+            results.append(result)
+    return results
+
+
+def target_review_repo_full() -> None:
+    print_step("Running full repository review")
+    results = run_fast_review_checks()
+    results.extend(run_review_targets_isolated(FULL_REVIEW_CHECKS))
+    finish_review(results, "Full repository review passed")
 
 
 def target_build_bicep() -> None:
@@ -1219,6 +1899,8 @@ TARGETS: dict[str, Callable[[], None]] = {
     "qa-platform": target_qa_platform,
     "qa-scripts": target_qa_scripts,
     "qa-workflows": target_qa_workflows,
+    "review-repo-fast": target_review_repo_fast,
+    "review-repo-full": target_review_repo_full,
     "run": target_run,
     "sync": target_sync,
     "sync-dev": target_sync_dev,
