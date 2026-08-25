@@ -567,6 +567,38 @@ def target_qa_scripts() -> None:
     print_success("Scripts QA passed")
 
 
+def target_inventory_repo() -> None:
+    print_step("Inventorying tracked repository health coordinates")
+    run(
+        [
+            "uv",
+            "run",
+            "--no-project",
+            str(ROOT / "scripts" / "repo_health.py"),
+            "inventory",
+            "--format",
+            "text",
+        ]
+    )
+    print_success("Repository inventory completed")
+
+
+def target_check_repo_health() -> None:
+    print_step("Checking repository health consistency")
+    run(
+        [
+            "uv",
+            "run",
+            "--no-project",
+            str(ROOT / "scripts" / "repo_health.py"),
+            "check",
+            "--format",
+            "text",
+        ]
+    )
+    print_success("Repository health checks passed")
+
+
 def target_build_bicep() -> None:
     target_check_az()
     print_step("Building Bicep template infra/main.bicep")
@@ -1162,6 +1194,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "check-lefthook": target_check_lefthook,
     "check-publisher-requirements": target_check_publisher_requirements,
     "check-public-lock": target_check_public_lock,
+    "check-repo-health": target_check_repo_health,
     "check-uv-version": target_check_uv_version,
     "clean": target_clean,
     "compile-aw": target_compile_aw,
@@ -1171,6 +1204,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "help": target_help,
     "install": target_install,
     "install-tools": target_install_tools,
+    "inventory-repo": target_inventory_repo,
     "lint": target_lint,
     "lint-check": target_lint_check,
     "lint-k8s": target_lint_k8s,

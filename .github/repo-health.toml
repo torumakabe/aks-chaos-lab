@@ -1,0 +1,76 @@
+schema_version = 1
+
+[[rules]]
+id = "kubernetes-version"
+enforce = false
+
+[rules.canonical]
+path = "infra/main.bicep"
+selector = "bicep-parameter:kubernetesVersion"
+
+[[rules.targets]]
+path = ".github/workflows/ci.yml"
+selector = "workflow-kubernetes-version"
+
+[[rules.targets]]
+path = "scripts/tasks.py"
+selector = "python-constant:K8S_VERSION"
+
+[rules.exception]
+reason = "The IaC, CI validation, and local validation versions predate this checker and differ."
+owner = "platform"
+tracking = "plan:separate-baseline-fixes"
+review_by = 2026-11-30
+resolution = "Select one supported Kubernetes version and update the IaC, CI, and local validation coordinates together."
+canonical_values = ["1.35"]
+target_fingerprint = [
+  { path = ".github/workflows/ci.yml", selector = "workflow-kubernetes-version", location = "line:137:kubernetes-version", value = "1.34.0" },
+  { path = "scripts/tasks.py", selector = "python-constant:K8S_VERSION", location = "line:42:constant:K8S_VERSION", value = "1.33.0" },
+]
+
+[[rules]]
+id = "gh-aw-compiler-version"
+enforce = false
+
+[rules.canonical]
+path = ".github/workflows/copilot-setup-steps.yml"
+selector = "gh-aw-setup-version"
+
+[[rules.targets]]
+path = ".github/workflows/aks-updates-analyzer.lock.yml"
+selector = "gh-aw-compiler-version"
+
+[rules.exception]
+reason = "The Copilot setup workflow and generated agentic workflow were produced with different gh-aw releases."
+owner = "developer-experience"
+tracking = "plan:separate-baseline-fixes"
+review_by = 2026-11-30
+resolution = "Upgrade the setup workflow and regenerate all gh-aw locks with the same compiler release."
+canonical_values = ["v0.71.1"]
+target_fingerprint = [
+  { path = ".github/workflows/aks-updates-analyzer.lock.yml", selector = "gh-aw-compiler-version", location = "line:1:compiler-version", value = "v0.79.6" },
+]
+
+[[rules]]
+id = "docker-base-digest"
+enforce = false
+
+[rules.canonical]
+path = "src/api/Dockerfile"
+selector = "docker-from"
+
+[[rules.targets]]
+path = "src/api/Dockerfile"
+selector = "docker-from"
+
+[rules.exception]
+reason = "The existing API image uses tagged base images without immutable digests."
+owner = "application-platform"
+tracking = "plan:separate-baseline-fixes"
+review_by = 2026-11-30
+resolution = "Pin every Dockerfile base image to a reviewed sha256 digest and enable enforcement."
+canonical_values = ["ghcr.io/astral-sh/uv:0.12.2", "python:3.14-slim"]
+target_fingerprint = [
+  { path = "src/api/Dockerfile", selector = "docker-from", location = "line:10:from", value = "python:3.14-slim" },
+  { path = "src/api/Dockerfile", selector = "docker-from", location = "line:8:from", value = "ghcr.io/astral-sh/uv:0.12.2" },
+]
