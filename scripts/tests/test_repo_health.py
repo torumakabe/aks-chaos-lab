@@ -50,7 +50,7 @@ review_by = {review_by}
 resolution = "Update all fixture coordinates."
 canonical_values = ["1.35"]
 target_fingerprint = [
-  {{ path = ".github/workflows/ci.yml", selector = "workflow-kubernetes-version", location = "line:3:kubernetes-version", value = "1.34.0" }},
+  {{ path = ".github/workflows/ci.yml", selector = "workflow-kubernetes-version", value = "1.34.0" }},
 ]
 """
         if exception
@@ -58,7 +58,7 @@ target_fingerprint = [
     )
     write(
         root / ".github" / "repo-health.toml",
-        f"""schema_version = 1
+        f"""schema_version = 2
 
 [[rules]]
 id = "kubernetes-version"
@@ -277,6 +277,13 @@ def test_exception_is_valid_until_review_date(repository: Path) -> None:
     assert checks[0].status == "excluded"
     assert checks[0].exception is not None
     assert checks[0].exception["tracking"] == "plan:test-baseline-fix"
+    assert checks[0].exception["target_fingerprint"] == [
+        {
+            "path": ".github/workflows/ci.yml",
+            "selector": "workflow-kubernetes-version",
+            "value": "1.34.0",
+        }
+    ]
 
 
 def test_exception_rejects_a_different_mismatch(repository: Path) -> None:
@@ -292,7 +299,7 @@ def test_exception_rejects_a_different_mismatch(repository: Path) -> None:
     assert "differs from the exception snapshot" in checks[0].message
 
 
-def test_exception_fingerprint_preserves_target_value_positions(
+def test_exception_fingerprint_preserves_target_path_selector_associations(
     repository: Path,
 ) -> None:
     policy = repo_health.ExceptionPolicy(
@@ -306,13 +313,11 @@ def test_exception_fingerprint_preserves_target_value_positions(
             repo_health.TargetFingerprint(
                 ".github/workflows/ci.yml",
                 "workflow-kubernetes-version",
-                "line:3:kubernetes-version",
                 "1.34.0",
             ),
             repo_health.TargetFingerprint(
                 "scripts/tasks.py",
                 "python-constant:K8S_VERSION",
-                "line:1:constant:K8S_VERSION",
                 "1.33.0",
             ),
         ),
@@ -332,6 +337,11 @@ def test_exception_fingerprint_preserves_target_value_positions(
 
     original = repo_health.run_checks(repository, [rule], date(2026, 8, 25))
     write(
+        repository / "scripts/tasks.py",
+        '# Unrelated line that moves the target coordinate.\nK8S_VERSION = "1.33.0"\n',
+    )
+    moved = repo_health.run_checks(repository, [rule], date(2026, 8, 25))
+    write(
         repository / ".github/workflows/ci.yml",
         "steps:\n  - uses: actions/checkout@v4\n"
         "  - run: kubeconform -kubernetes-version 1.33.0\n",
@@ -340,8 +350,72 @@ def test_exception_fingerprint_preserves_target_value_positions(
     swapped = repo_health.run_checks(repository, [rule], date(2026, 8, 25))
 
     assert original[0].status == "excluded"
+    assert moved[0].status == "excluded"
     assert swapped[0].status == "fail"
     assert "differs from the exception snapshot" in swapped[0].message
+
+
+def test_exception_fingerprint_compares_repeated_targets_as_a_multiset(
+    repository: Path,
+) -> None:
+    dockerfile = repository / "src/api/Dockerfile"
+    write(
+        dockerfile,
+        "FROM python:3.14-slim\n"
+        "FROM ghcr.io/astral-sh/uv:0.12.2\n"
+        "FROM python:3.14-slim\n",
+    )
+    policy = repo_health.ExceptionPolicy(
+        reason="Known fixture mismatch.",
+        owner="test",
+        tracking="plan:test-baseline-fix",
+        review_by=date(2026, 11, 30),
+        resolution="Pin every base image.",
+        canonical_values=(
+            "ghcr.io/astral-sh/uv:0.12.2",
+            "python:3.14-slim",
+            "python:3.14-slim",
+        ),
+        target_fingerprint=(
+            repo_health.TargetFingerprint(
+                "src/api/Dockerfile", "docker-from", "ghcr.io/astral-sh/uv:0.12.2"
+            ),
+            repo_health.TargetFingerprint(
+                "src/api/Dockerfile", "docker-from", "python:3.14-slim"
+            ),
+            repo_health.TargetFingerprint(
+                "src/api/Dockerfile", "docker-from", "python:3.14-slim"
+            ),
+        ),
+    )
+    rule = repo_health.Rule(
+        "docker-base-digest",
+        repo_health.Location("src/api/Dockerfile", "docker-from"),
+        (repo_health.Location("src/api/Dockerfile", "docker-from"),),
+        False,
+        policy,
+    )
+
+    original = repo_health.run_checks(repository, [rule], date(2026, 8, 25))
+    write(
+        dockerfile,
+        "FROM python:3.14-slim\n"
+        "FROM python:3.14-slim\n"
+        "FROM ghcr.io/astral-sh/uv:0.12.2\n",
+    )
+    reordered = repo_health.run_checks(repository, [rule], date(2026, 8, 25))
+    write(
+        dockerfile,
+        "FROM python:3.14-slim\n"
+        "FROM ghcr.io/astral-sh/uv:0.12.2\n"
+        "FROM ghcr.io/astral-sh/uv:0.12.2\n",
+    )
+    changed_multiplicity = repo_health.run_checks(repository, [rule], date(2026, 8, 25))
+
+    assert original[0].status == "excluded"
+    assert reordered[0].status == "excluded"
+    assert changed_multiplicity[0].status == "fail"
+    assert "differs from the exception snapshot" in changed_multiplicity[0].message
 
 
 def test_expired_exception_fails(repository: Path) -> None:
@@ -405,6 +479,36 @@ def test_configuration_rejects_embedded_regex(repository: Path) -> None:
     )
 
     with pytest.raises(repo_health.RepoHealthError, match="unknown keys: regex"):
+        repo_health.load_rules(config_path)
+
+
+def test_configuration_rejects_legacy_schema_version(repository: Path) -> None:
+    config_path = repository / ".github/repo-health.toml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            "schema_version = 2", "schema_version = 1"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        repo_health.RepoHealthError, match="configuration schema_version must be 2"
+    ):
+        repo_health.load_rules(config_path)
+
+
+def test_configuration_rejects_fingerprint_location(repository: Path) -> None:
+    config_path = repository / ".github/repo-health.toml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8").replace(
+            'selector = "workflow-kubernetes-version", value = "1.34.0"',
+            'selector = "workflow-kubernetes-version", '
+            'location = "line:3:kubernetes-version", value = "1.34.0"',
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(repo_health.RepoHealthError, match="unknown keys: location"):
         repo_health.load_rules(config_path)
 
 
@@ -508,6 +612,7 @@ def test_json_is_deterministic_and_scan_does_not_modify_files(
     assert before == after
     parsed = json.loads(first)
     assert list(parsed) == sorted(parsed)
+    assert parsed["schema_version"] == "2.0"
     assert {
         "schema_version",
         "repository_root",
@@ -614,7 +719,7 @@ def test_report_reads_saved_json_without_scanning(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     report: dict[str, object] = {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "repository_root": str(tmp_path),
         "inventory": [],
         "checks": [],
@@ -642,6 +747,28 @@ def test_report_reads_saved_json_without_scanning(
     assert "error: report input is missing keys" in capsys.readouterr().err
 
 
+def test_report_rejects_legacy_schema_version(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    report: dict[str, object] = {
+        "schema_version": "1.0",
+        "repository_root": str(tmp_path),
+        "inventory": [],
+        "checks": [],
+        "coverage": {"tracked_files": 0, "recognized_files": 0},
+        "findings": [],
+        "environment_limitations": [],
+    }
+    report_path = tmp_path / "legacy-report.json"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    assert repo_health.main(["report", str(report_path)]) == 1
+    error = capsys.readouterr().err
+    assert "report input schema_version must be 2.0" in error
+    assert "Traceback" not in error
+
+
 @pytest.mark.parametrize(
     ("section", "value", "message"),
     [
@@ -666,7 +793,7 @@ def test_report_rejects_invalid_nested_schema_without_traceback(
     message: str,
 ) -> None:
     report: dict[str, object] = {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "repository_root": str(tmp_path),
         "inventory": [],
         "checks": [],

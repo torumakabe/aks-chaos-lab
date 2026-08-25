@@ -19,8 +19,8 @@ from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, cast
 
-SCHEMA_VERSION = "1.0"
-CONFIG_SCHEMA_VERSION = 1
+SCHEMA_VERSION = "2.0"
+CONFIG_SCHEMA_VERSION = 2
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = Path(".github/repo-health.toml")
 Status = Literal["pass", "fail", "unverified", "excluded"]
@@ -94,7 +94,6 @@ class Location:
 class TargetFingerprint:
     path: str
     selector: str
-    location: str
     value: str
 
 
@@ -674,17 +673,12 @@ def _parse_target_fingerprint(value: Any, field: str) -> tuple[TargetFingerprint
         if not isinstance(raw_item, dict):
             raise RepoHealthError(f"{item_field} must be a table")
         item = cast(dict[str, Any], raw_item)
-        _reject_unknown_keys(
-            item, {"path", "selector", "location", "value"}, item_field
-        )
+        _reject_unknown_keys(item, {"path", "selector", "value"}, item_field)
         items.append(
             TargetFingerprint(
                 path=_required_string(item.get("path"), f"{item_field}.path"),
                 selector=_required_string(
                     item.get("selector"), f"{item_field}.selector"
-                ),
-                location=_required_string(
-                    item.get("location"), f"{item_field}.location"
                 ),
                 value=_required_string(item.get("value"), f"{item_field}.value"),
             )
@@ -782,7 +776,6 @@ def _target_fingerprint(
             TargetFingerprint(
                 path=target.path,
                 selector=target.selector,
-                location=coordinate.location,
                 value=coordinate.value,
             )
             for target, coordinates in target_groups
