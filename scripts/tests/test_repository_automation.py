@@ -1,68 +1,57 @@
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def dependabot_update_blocks() -> dict[str, str]:
-    text = (REPO_ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
-    matches = list(
-        re.finditer(
-            r'^  - package-ecosystem: "([^"]+)"$',
-            text,
-            flags=re.MULTILINE,
-        )
+def dependabot_update_blocks() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    config = yaml.safe_load(
+        (REPO_ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
     )
-    return {
-        match.group(1): text[
-            match.start() : matches[index + 1].start()
-            if index + 1 < len(matches)
-            else len(text)
-        ]
-        for index, match in enumerate(matches)
-    }
+    return config, {update["package-ecosystem"]: update for update in config["updates"]}
 
 
 def test_dependabot_contract() -> None:
-    path = REPO_ROOT / ".github" / "dependabot.yml"
-    text = path.read_text(encoding="utf-8")
-    blocks = dependabot_update_blocks()
+    config, blocks = dependabot_update_blocks()
 
-    assert text.startswith("version: 2\nupdates:\n")
+    assert config["version"] == 2
     assert set(blocks) == {"github-actions", "docker"}
-    assert 'package-ecosystem: "uv"' not in text
 
     for ecosystem, limit in (("github-actions", 5), ("docker", 3)):
         block = blocks[ecosystem]
-        assert 'interval: "weekly"' in block
-        assert f"open-pull-requests-limit: {limit}" in block
-        assert "groups:" in block
-        assert '          - "*"' in block
-        assert '          - "minor"' in block
-        assert '          - "patch"' in block
+        assert block["schedule"]["interval"] == "weekly"
+        assert block["open-pull-requests-limit"] == limit
+        group = next(iter(block["groups"].values()))
+        assert group["patterns"] == ["*"]
+        assert group["update-types"] == ["minor", "patch"]
 
 
 def test_dependabot_excludes_generated_and_uv_managed_inputs() -> None:
-    text = (REPO_ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
-    blocks = dependabot_update_blocks()
+    _, blocks = dependabot_update_blocks()
 
     actions = blocks["github-actions"]
-    assert 'directory: "/"' in actions
-    assert "exclude-paths:" in actions
-    assert '".github/workflows/*.lock.yml"' in actions
-    assert ".github/aw/actions-lock.json" in text
-    assert "`gh aw compile`" in text
+    assert actions["directory"] == "/"
+    assert actions["exclude-paths"] == [".github/workflows/*.lock.yml"]
+    action_ignores = {item["dependency-name"] for item in actions["ignore"]}
+    assert "github/gh-aw-actions/*" in action_ignores
 
     docker = blocks["docker"]
-    assert 'directory: "/src/api"' in docker
-    assert "ignore:" in docker
-    assert 'dependency-name: "astral-sh/uv"' in docker
-    assert "check-uv-version" in docker
+    assert docker["directory"] == "/src/api"
+    docker_ignores = {item["dependency-name"] for item in docker["ignore"]}
+    assert docker_ignores == {"ghcr.io/astral-sh/uv"}
+
+
+def test_ci_runs_repository_health_check() -> None:
+    ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert 'scripts/tasks.py" check-repo-health' in ci
 
 
 def test_freshness_workflow_contract() -> None:

@@ -20,6 +20,8 @@ jobs:
         with:
           resolution-strategy: "lowest"
           python-version: "3.14"
+      - name: Check repository health
+        run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" check-repo-health
       - name: Check lock consistency
         run: uv lock --check
       - name: Check lock package sources

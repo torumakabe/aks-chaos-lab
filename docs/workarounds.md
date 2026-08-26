@@ -183,3 +183,12 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: SDK 側で全 span を Collector へ送り、Collector 側で `status=ERROR` を条件にした tail-based sampling を構成して、キーワードに依存せず ERROR trace を保持できるようになる。または OpenTelemetry SDK が span 終了時の状態に基づく sampling を提供する。
 - **確認方法**: `uv run pytest src/api/tests/unit/test_telemetry.py -k error_aware_sampler` でキーワード判定と ratio-based 判定を確認する。tail-based sampling を導入する場合は、キーワードを含まないエンドポイントでエラーを発生させ、Collector と Application Insights で該当 trace が保持されることを確認する。
 - **最終確認**: 2026-08-10、リポジトリ内に tail-based sampling 構成はなく、`ErrorAwareSampler` の単体テストはキーワード判定と ratio-based 判定を対象としている。
+
+### D-10. gh-aw maintenance workflowの空choiceをactionlintで限定除外
+
+- **概要**: gh-awが生成する`.github/workflows/agentics-maintenance.yml`だけは、actionlintの`string should not be empty`を除外する。その他のactionlint検査と、他のworkflowに対する同エラーは除外しない。
+- **理由**: gh-aw v0.79.6は`workflow_dispatch.inputs.operation`の未指定状態を表すため、choiceの先頭へ空文字列を生成する。GitHub Actions向けの生成処理は成功するが、actionlint v1.7.12は空のchoiceを構文エラーと判定する。
+- **場所**: `scripts/tasks.py`の`target_lint_workflows`、`.github/workflows/agentics-maintenance.yml`
+- **解消条件**: gh-awが空文字列を使わないmaintenance workflowを生成するか、actionlintがこの生成形式を受理する。
+- **確認方法**: gh-awとactionlintの更新後に限定除外を外して`uv run --no-project "${PWD}/scripts/tasks.py" lint-workflows`を実行する。
+- **最終確認**: 2026-08-26、gh-aw v0.79.6の生成結果に対し、actionlint v1.7.12で該当エラーを確認した。

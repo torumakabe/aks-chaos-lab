@@ -48,9 +48,7 @@ _WORKFLOW_TOOL_VERSION = re.compile(
     r"['\"]?(?P<value>v?[0-9][^'\"\s#]*)",
     re.MULTILINE,
 )
-_ACTIONLINT_IMAGE = re.compile(
-    r"\brhysd/actionlint:(?P<value>v?[0-9][A-Za-z0-9._-]*)"
-)
+_ACTIONLINT_IMAGE = re.compile(r"\brhysd/actionlint:(?P<value>v?[0-9][A-Za-z0-9._-]*)")
 _AZD_REQUIRED_VERSION = re.compile(
     r"^[ \t]+azd:[ \t]*['\"]?>=[ \t]*(?P<value>[0-9][^'\"\s#]*)",
     re.MULTILINE,

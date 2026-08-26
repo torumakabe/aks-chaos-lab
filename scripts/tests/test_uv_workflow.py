@@ -315,7 +315,7 @@ def test_post_edit_invokes_project_ruff_directly(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
-    ruff = tmp_path / ".venv" / "bin" / "ruff"
+    ruff = post_edit.project_ruff_path()
     ruff.parent.mkdir(parents=True)
     ruff.touch()
     source_path = tmp_path / "example.py"

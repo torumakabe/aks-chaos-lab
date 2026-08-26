@@ -33,6 +33,13 @@ def _fake_uv(tmp_path: Path) -> None:
         )
 
 
+def _assert_build_bicep_call(calls: list[str]) -> None:
+    assert len(calls) == 1
+    normalized = calls[0].replace("\\", "/")
+    assert normalized.startswith("run --no-project ")
+    assert normalized.endswith("/scripts/tasks.py build-bicep")
+
+
 @pytest.mark.parametrize(
     ("file_path", "should_run"),
     [
@@ -76,10 +83,10 @@ def test_bicep_pre_commit_selection(
     calls = (
         log_path.read_text(encoding="utf-8").splitlines() if log_path.exists() else []
     )
-    expected = (
-        [f"run --no-project {ROOT}/scripts/tasks.py build-bicep"] if should_run else []
-    )
-    assert calls == expected
+    if should_run:
+        _assert_build_bicep_call(calls)
+    else:
+        assert calls == []
 
 
 def test_bicep_pre_commit_uses_staged_files(tmp_path: Path) -> None:
@@ -145,6 +152,4 @@ def test_bicep_pre_commit_uses_staged_files(tmp_path: Path) -> None:
         errors="replace",
     )
     assert staged_result.returncode == 0, staged_result.stderr
-    assert log_path.read_text(encoding="utf-8").splitlines() == [
-        f"run --no-project {repository}/scripts/tasks.py build-bicep"
-    ]
+    _assert_build_bicep_call(log_path.read_text(encoding="utf-8").splitlines())

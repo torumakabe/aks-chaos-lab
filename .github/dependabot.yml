@@ -1,39 +1,33 @@
-version: 2
 updates:
-  # gh-aw owns generated *.lock.yml workflows and .github/aw/actions-lock.json.
-  # Update their action pins only through `gh aw compile`, not Dependabot.
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    exclude-paths:
-      - ".github/workflows/*.lock.yml"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    groups:
-      github-actions-compatible:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-    ignore:
-      # Managed by gh aw compile and version-locked to the compiler.
-      - dependency-name: "github/gh-aw-actions"
-
-  - package-ecosystem: "docker"
-    directory: "/src/api"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 3
-    groups:
-      docker-compatible:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-    ignore:
-      # check-uv-version keeps this image equal to the workspace uv lower bound.
-      - dependency-name: "astral-sh/uv"
-
-# uv updates remain on the refresh-uv-lock workflow; see docs/deployment.md.
+- directory: /
+  exclude-paths:
+  - .github/workflows/*.lock.yml
+  groups:
+    github-actions-compatible:
+      patterns:
+      - "*"
+      update-types:
+      - minor
+      - patch
+  ignore:
+  - dependency-name: "github/gh-aw-actions/*"
+  - dependency-name: "github/gh-aw-actions" # Managed by gh aw compile. Version-locked to the gh-aw compiler; do not bump.
+  open-pull-requests-limit: 5
+  package-ecosystem: github-actions
+  schedule:
+    interval: weekly
+- directory: /src/api
+  groups:
+    docker-compatible:
+      patterns:
+      - "*"
+      update-types:
+      - minor
+      - patch
+  ignore:
+  - dependency-name: "ghcr.io/astral-sh/uv"
+  open-pull-requests-limit: 3
+  package-ecosystem: docker
+  schedule:
+    interval: weekly
+version: 2

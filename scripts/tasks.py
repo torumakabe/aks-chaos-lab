@@ -50,10 +50,12 @@ APPROVED_INDEX_CACHE_DIRECTORY = Path(".uv-state") / "cache"
 API_LOCAL_IMAGE = "aks-chaos-lab:local"
 REVIEW_MAX_UNTRACKED_FILE_BYTES = 10 * 1024 * 1024
 REVIEW_CHECK_TIMEOUT_SECONDS = 300
+REVIEW_PYTHON_CHECK_TIMEOUT_SECONDS = 900
 REVIEW_TOOL_PREFLIGHT_TIMEOUT_SECONDS = 10
 REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS = 10
 REVIEW_LOG_TAIL_BYTES = 64 * 1024
 REVIEW_LOG_STREAM_CHUNK_BYTES = 64 * 1024
+REVIEW_GH_AW_LIST_COMMAND = ("gh", "extension", "list")
 REVIEW_TOOL_VERSION_COMMANDS: dict[str, tuple[str, ...]] = {
     "uv": ("uv", "--version"),
     "git": ("git", "--version"),
@@ -596,6 +598,12 @@ def target_qa_app() -> None:
     print_success("Application QA passed")
 
 
+def target_review_repo_python_checks() -> None:
+    target_qa_app()
+    target_test_hooks()
+    print_success("Application and repository hook QA passed")
+
+
 def target_qa_scripts() -> None:
     """Backward-compatible alias.
 
@@ -668,8 +676,12 @@ FAST_REVIEW_CHECKS = (
 )
 
 FULL_REVIEW_CHECKS = (
-    ReviewCheck("qa-app", "qa-app", ("git", "uv")),
-    ReviewCheck("test-hooks", "test-hooks", ("git", "uv", "lefthook")),
+    ReviewCheck(
+        "qa-app-and-hooks",
+        "review-repo-python-checks",
+        ("git", "uv", "lefthook"),
+        REVIEW_PYTHON_CHECK_TIMEOUT_SECONDS,
+    ),
     ReviewCheck("build-bicep", "build-bicep", ("git", "az")),
     ReviewCheck("lint-k8s", "lint-k8s", ("git", "docker")),
     ReviewCheck("lint-workflows", "lint-workflows", ("git", "docker")),
@@ -707,6 +719,11 @@ def probe_review_tool(tool: str) -> str | None:
     return None
 
 
+def gh_aw_extension_listed(output: str | bytes) -> bool:
+    text = output.decode(errors="replace") if isinstance(output, bytes) else output
+    return any(line.split()[:2] == ["gh", "aw"] for line in text.splitlines())
+
+
 def classify_review_tools(
     checks: Sequence[ReviewCheck],
 ) -> tuple[list[ReviewCheck], list[ReviewResult]]:
@@ -733,7 +750,7 @@ def classify_review_tools(
         if check.name == "compile-aw":
             try:
                 completed = run_isolated_review_command(
-                    ["gh", "aw", "--version"],
+                    REVIEW_GH_AW_LIST_COMMAND,
                     cwd=ROOT,
                     env={},
                     timeout=REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS,
@@ -742,7 +759,7 @@ def classify_review_tools(
                 result = ReviewResult(
                     check.name,
                     "unverified",
-                    "gh aw --version timed out during preflight",
+                    "gh extension list timed out while checking gh aw",
                 )
             except OSError as error:
                 result = ReviewResult(
@@ -751,15 +768,19 @@ def classify_review_tools(
                     f"gh aw is unavailable: {error}",
                 )
             else:
-                if completed.returncode == 0:
+                if completed.returncode == 0 and gh_aw_extension_listed(
+                    completed.stdout
+                ):
                     runnable.append(check)
                     continue
-                result = ReviewResult(
-                    check.name,
-                    "unverified",
-                    f"gh aw is unavailable (preflight exited with code "
-                    f"{completed.returncode})",
-                )
+                if completed.returncode == 0:
+                    detail = "gh aw extension is not installed"
+                else:
+                    detail = (
+                        "gh aw is unavailable (preflight exited with code "
+                        f"{completed.returncode})"
+                    )
+                result = ReviewResult(check.name, "unverified", detail)
             print_review_result(result)
             results.append(result)
             continue
@@ -921,9 +942,14 @@ def stream_review_log(log: BinaryIO, stream: TextIO) -> None:
 
 def generated_gh_aw_artifact_hashes(root: Path) -> dict[str, str]:
     generated = set((root / ".github" / "workflows").glob("*.lock.yml"))
-    actions_lock = root / ".github" / "aw" / "actions-lock.json"
-    if actions_lock.is_file():
-        generated.add(actions_lock)
+    for relative_path in (
+        ".github/aw/actions-lock.json",
+        ".github/dependabot.yml",
+        ".github/workflows/agentics-maintenance.yml",
+    ):
+        generated_path = root / relative_path
+        if generated_path.is_file():
+            generated.add(generated_path)
     hashes: dict[str, str] = {}
     for path in sorted(generated):
         if not path.is_file():
@@ -1207,8 +1233,38 @@ def run_review_targets_isolated(
                 results.append(result)
             return results
         try:
-            # Staging the snapshot makes Lefthook include unrelated files in --file runs.
             run(["git", "init", "--quiet"], cwd=isolated_root)
+            try:
+                origin_url = command_output(
+                    ["git", "remote", "get-url", "origin"],
+                    cwd=ROOT,
+                    allow_failure=True,
+                    quiet_stderr=True,
+                )
+            except OSError:
+                origin_url = ""
+            if origin_url:
+                run(
+                    ["git", "remote", "add", "origin", origin_url],
+                    cwd=isolated_root,
+                )
+            run(["git", "add", "--force", "--all"], cwd=isolated_root)
+            run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=Repository Review",
+                    "-c",
+                    "user.email=repository-review@localhost",
+                    "commit",
+                    "--quiet",
+                    "--no-verify",
+                    "--no-gpg-sign",
+                    "-m",
+                    "Isolated review snapshot",
+                ],
+                cwd=isolated_root,
+            )
         except (OSError, SystemExit) as error:
             result = ReviewResult(
                 "snapshot",
@@ -1326,45 +1382,52 @@ def target_qa_platform() -> None:
 def target_lint_workflows() -> None:
     target_check_docker()
     print_step("Linting GitHub Actions workflows")
-    run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--mount",
-            docker_mount(ROOT, "/repo"),
-            "-w",
-            "/repo",
-            ACTIONLINT_IMAGE,
-            "-color",
-        ]
+    workflow_paths = sorted(
+        path.relative_to(ROOT).as_posix()
+        for pattern in ("*.yml", "*.yaml")
+        for path in WORKFLOWS_DIR.glob(pattern)
     )
+    maintenance_path = ".github/workflows/agentics-maintenance.yml"
+    standard_paths = [path for path in workflow_paths if path != maintenance_path]
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        "--mount",
+        docker_mount(ROOT, "/repo"),
+        "-w",
+        "/repo",
+        ACTIONLINT_IMAGE,
+        "-color",
+    ]
+    if standard_paths:
+        run([*command, *standard_paths])
+    if maintenance_path in workflow_paths:
+        run(
+            [
+                *command,
+                "-ignore",
+                "string should not be empty",
+                maintenance_path,
+            ]
+        )
     print_success("Workflow lint passed")
 
 
 def target_compile_aw() -> None:
     target_check_gh_aw()
     print_step("Compiling agentic workflows")
+    generated_before = generated_gh_aw_artifact_hashes(ROOT)
     run(["gh", "aw", "compile"])
-    lock_files = sorted(
-        path.relative_to(ROOT).as_posix()
-        for path in (ROOT / ".github" / "workflows").glob("*.lock.yml")
+    generated_changes = describe_generated_artifact_changes(
+        generated_before,
+        generated_gh_aw_artifact_hashes(ROOT),
     )
-    if not lock_files:
-        print_success("No workflow lock files found")
-        return
-    diff = run(["git", "diff", "--quiet", "--", *lock_files], check=False)
-    if diff.returncode == 0:
+    if generated_changes is None:
         print_success("gh-aw compile is clean")
         return
-    if diff.returncode == 1:
-        print(
-            "error: gh-aw lock.yml is out of date. Commit the regenerated file.",
-            file=sys.stderr,
-        )
-        run(["git", "--no-pager", "diff", "--stat", "--", *lock_files], check=False)
-        raise SystemExit(1)
-    raise SystemExit(diff.returncode)
+    print(f"error: {generated_changes}", file=sys.stderr)
+    raise SystemExit(1)
 
 
 def target_qa_workflows() -> None:
@@ -1395,7 +1458,9 @@ def target_check_az() -> None:
 
 def target_check_gh_aw() -> None:
     require_command("gh")
-    run(["gh", "aw", "--version"], check=True)
+    if not gh_aw_extension_listed(command_output(REVIEW_GH_AW_LIST_COMMAND)):
+        print("error: gh aw extension is not installed", file=sys.stderr)
+        raise SystemExit(1)
 
 
 def target_check_lefthook() -> None:
@@ -1901,6 +1966,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "qa-workflows": target_qa_workflows,
     "review-repo-fast": target_review_repo_fast,
     "review-repo-full": target_review_repo_full,
+    "review-repo-python-checks": target_review_repo_python_checks,
     "run": target_run,
     "sync": target_sync,
     "sync-dev": target_sync_dev,

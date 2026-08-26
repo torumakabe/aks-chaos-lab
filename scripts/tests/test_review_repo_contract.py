@@ -211,13 +211,15 @@ def test_review_checks_preclassify_each_required_tool() -> None:
         "publisher-requirements": (),
     }
     assert full_tools == {
-        "qa-app": ("git", "uv"),
-        "test-hooks": ("git", "uv", "lefthook"),
+        "qa-app-and-hooks": ("git", "uv", "lefthook"),
         "build-bicep": ("git", "az"),
         "lint-k8s": ("git", "docker"),
         "lint-workflows": ("git", "docker"),
         "compile-aw": ("git", "gh"),
     }
+    assert {check.name: check.timeout_seconds for check in tasks.FULL_REVIEW_CHECKS}[
+        "qa-app-and-hooks"
+    ] == tasks.REVIEW_PYTHON_CHECK_TIMEOUT_SECONDS
 
 
 def test_repository_health_targets_use_current_python(
@@ -358,7 +360,7 @@ def test_compile_aw_is_unverified_when_extension_is_unavailable(
     ]
     assert calls == [
         (
-            ("gh", "aw", "--version"),
+            tasks.REVIEW_GH_AW_LIST_COMMAND,
             tasks.REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS,
         )
     ]
@@ -387,7 +389,7 @@ def test_compile_aw_preflight_timeout_is_unverified_and_does_not_block_next_chec
     original_resolve_command = tasks.resolve_command
 
     def resolve_preflight(args: list[str] | tuple[str, ...]) -> list[str]:
-        if tuple(args) == ("gh", "aw", "--version"):
+        if tuple(args) == tasks.REVIEW_GH_AW_LIST_COMMAND:
             return [sys.executable, "-c", child_code]
         return original_resolve_command(args)
 
@@ -429,8 +431,7 @@ def test_review_repo_full_runs_available_checks_after_fast_failure(
     assert error.value.code == 1
     assert calls == [
         (
-            "qa-app",
-            "test-hooks",
+            "qa-app-and-hooks",
             "build-bicep",
             "lint-k8s",
             "lint-workflows",
@@ -477,6 +478,15 @@ def test_isolated_review_copies_current_tracked_and_untracked_files_for_tests(
         "command_nul_output",
         lambda args, **_kwargs: git_outputs[tuple(args)],
     )
+    monkeypatch.setattr(
+        tasks,
+        "command_output",
+        lambda args, **_kwargs: (
+            "https://github.com/example/repository.git"
+            if tuple(args) == ("git", "remote", "get-url", "origin")
+            else pytest.fail(f"unexpected command: {args}")
+        ),
+    )
     calls: list[tuple[tuple[str, ...], Path, dict[str, str] | None]] = []
     isolated_root: Path | None = None
 
@@ -519,13 +529,22 @@ def test_isolated_review_copies_current_tracked_and_untracked_files_for_tests(
         (tasks.ReviewCheck("test-hooks", "test-hooks", ("git", "uv", "lefthook")),)
     )
 
-    assert len(calls) == 2
+    assert len(calls) == 5
     assert calls[0][0][:2] == ("git", "init")
-    assert calls[1][0][-1] == "test-hooks"
+    assert calls[1][0] == (
+        "git",
+        "remote",
+        "add",
+        "origin",
+        "https://github.com/example/repository.git",
+    )
+    assert calls[2][0] == ("git", "add", "--force", "--all")
+    assert "commit" in calls[3][0]
+    assert calls[4][0][-1] == "test-hooks"
     assert all(call[1] != repository for call in calls)
-    assert calls[1][2] is not None
-    assert "UV_PROJECT_ENVIRONMENT" in calls[1][2]
-    assert Path(calls[1][2]["UV_PROJECT_ENVIRONMENT"]).is_relative_to(calls[1][1])
+    assert calls[4][2] is not None
+    assert "UV_PROJECT_ENVIRONMENT" in calls[4][2]
+    assert Path(calls[4][2]["UV_PROJECT_ENVIRONMENT"]).is_relative_to(calls[4][1])
     assert results[-1].status == "pass"
     assert isolated_root is not None
     assert not isolated_root.exists()
@@ -772,8 +791,13 @@ def test_compile_aw_detects_generated_artifact_changes(
         timeout: float,
     ) -> subprocess.CompletedProcess[bytes]:
         del env, timeout
-        if tuple(args) == ("gh", "aw", "--version"):
-            return subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
+        if tuple(args) == tasks.REVIEW_GH_AW_LIST_COMMAND:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout=b"gh aw\tgithub/gh-aw\tv0.79.6\n",
+                stderr=b"",
+            )
         existing = cwd / ".github" / "workflows" / "existing.lock.yml"
         if mutation == "changed":
             existing.write_text("new\n", encoding="utf-8")
@@ -801,6 +825,23 @@ def test_compile_aw_detects_generated_artifact_changes(
     assert results[-1].status == expected_status
     if mutation != "unchanged":
         assert mutation in results[-1].detail
+
+
+def test_generated_gh_aw_artifacts_include_support_files(tmp_path: Path) -> None:
+    generated_paths = (
+        ".github/aw/actions-lock.json",
+        ".github/dependabot.yml",
+        ".github/workflows/agentics-maintenance.yml",
+        ".github/workflows/example.lock.yml",
+    )
+    for relative_path in generated_paths:
+        path = tmp_path / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{relative_path}\n", encoding="utf-8")
+
+    hashes = tasks.generated_gh_aw_artifact_hashes(tmp_path)
+
+    assert set(hashes) == set(generated_paths)
 
 
 def test_command_nul_output_preserves_git_path_whitespace(
