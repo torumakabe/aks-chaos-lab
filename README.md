@@ -114,6 +114,12 @@ azd down --force --purge
 | 継続中のワークアラウンドと解消条件 | [docs/workarounds.md](docs/workarounds.md) |
 | AI / コーディングエージェント向けのプロジェクト文脈 | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
+## リポジトリ保守
+
+日常のオフライン点検には`uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast`を使います。公開情報による鮮度確認と全QAを含む点検には`review-repo-full`を使います。実行範囲と状態の解釈は[review-repoエージェント](.github/agents/review-repo.agent.md)を参照してください。
+
+更新通知の責務は分割しています。[Dependabot](.github/dependabot.yml)はGitHub ActionsとDockerを、[Bicep version check](.github/workflows/bicep-version-check.yml)はBicep CLIを、[AKS updates analyzer](.github/workflows/aks-updates-analyzer.md)はAKS更新情報を扱います。[Repository freshness check](.github/workflows/repository-freshness-check.md)はgh-aw、Lefthook、actionlint、kubeconform、azd、Chaos Mesh Helm chartを週次Issueで通知します。各自動化は更新を直接適用しません。
+
 ## リポジトリ構造
 
 ```text
