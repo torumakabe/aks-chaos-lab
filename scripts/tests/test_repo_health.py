@@ -122,7 +122,11 @@ def repository(tmp_path: Path) -> Path:
     write(
         tmp_path / ".github/workflows/ci.yml",
         "steps:\n  - uses: actions/checkout@v4\n"
-        "  - run: kubeconform -kubernetes-version 1.34.0\n",
+        "  - run: |\n"
+        "      LEFTHOOK_VERSION=2.1.10\n"
+        "      KUBECONFORM_VERSION=v0.7.0\n"
+        "      kubeconform -kubernetes-version 1.34.0\n"
+        "  - run: docker run rhysd/actionlint:1.7.12 -color\n",
     )
     write(
         tmp_path / ".github/workflows/copilot-setup-steps.yml",
@@ -147,13 +151,19 @@ def repository(tmp_path: Path) -> Path:
         "param kubernetesVersion string = '1.35'\n"
         "resource cluster 'Microsoft.ContainerService/managedClusters@2025-07-01' = {}\n",
     )
-    write(tmp_path / "scripts/tasks.py", 'K8S_VERSION = "1.33.0"\n')
+    write(
+        tmp_path / "scripts/tasks.py",
+        'ACTIONLINT_IMAGE = "rhysd/actionlint:1.7.12"\n'
+        'KUBECONFORM_IMAGE = "ghcr.io/yannh/kubeconform:v0.7.0"\n'
+        'K8S_VERSION = "1.33.0"\n',
+    )
     write(
         tmp_path / "src/api/Dockerfile",
         "FROM python:3.14-slim\nFROM example.test/runtime@sha256:abc\n",
     )
     write(
         tmp_path / "azure.yaml",
+        "requiredVersions:\n  azd: '>= 1.28.1'\n"
         "helm:\n  releases:\n    - chart: chaos-mesh/chaos-mesh\n"
         "      version: 2.8.3\n",
     )
@@ -196,11 +206,23 @@ def test_inventory_extracts_supported_coordinates(repository: Path) -> None:
         "python-workspace-member",
         "repository-health-config",
         "skill-source",
+        "tool-version",
         "version-constant",
         "workflow-action",
         "workflow-lock",
         "workflow-source",
     } <= categories
+    tool_versions = {
+        (coordinate.location.rpartition(":")[2], coordinate.value)
+        for coordinate in scan.coordinates
+        if coordinate.category == "tool-version"
+    }
+    assert {
+        ("actionlint", "1.7.12"),
+        ("azd", "1.28.1"),
+        ("kubeconform", "v0.7.0"),
+        ("lefthook", "2.1.10"),
+    } <= tool_versions
     assert not scan.extraction_failures
 
 

@@ -43,6 +43,18 @@ _BICEP_PARAMETER = re.compile(
 _WORKFLOW_KUBERNETES_VERSION = re.compile(
     r"-kubernetes-version\s+(?P<value>[0-9]+(?:\.[0-9]+){1,2})"
 )
+_WORKFLOW_TOOL_VERSION = re.compile(
+    r"^[ \t]*(?P<name>LEFTHOOK_VERSION|KUBECONFORM_VERSION)="
+    r"['\"]?(?P<value>v?[0-9][^'\"\s#]*)",
+    re.MULTILINE,
+)
+_ACTIONLINT_IMAGE = re.compile(
+    r"\brhysd/actionlint:(?P<value>v?[0-9][A-Za-z0-9._-]*)"
+)
+_AZD_REQUIRED_VERSION = re.compile(
+    r"^[ \t]+azd:[ \t]*['\"]?>=[ \t]*(?P<value>[0-9][^'\"\s#]*)",
+    re.MULTILINE,
+)
 _GH_AW_VERSION = re.compile(r"^[ \t]*version:[ \t]*['\"]?(?P<value>v[0-9][^'\"\s#]*)")
 _GH_AW_METADATA = re.compile(r"^# gh-aw-metadata:\s*(?P<metadata>\{.*\})$")
 _YAML_API_VERSION = re.compile(r"^apiVersion:\s*(?P<value>\S+)", re.MULTILINE)
@@ -374,6 +386,28 @@ def _inventory_workflow(root: Path, path: str, scan: Scan) -> None:
         )
         for match in _WORKFLOW_KUBERNETES_VERSION.finditer(text)
     )
+    tool_names = {
+        "LEFTHOOK_VERSION": "lefthook",
+        "KUBECONFORM_VERSION": "kubeconform",
+    }
+    scan.coordinates.extend(
+        _coordinate(
+            "tool-version",
+            path,
+            f"line:{_line_number(text, match.start())}:tool:{tool_names[match.group('name')]}",
+            match.group("value"),
+        )
+        for match in _WORKFLOW_TOOL_VERSION.finditer(text)
+    )
+    scan.coordinates.extend(
+        _coordinate(
+            "tool-version",
+            path,
+            f"line:{_line_number(text, match.start())}:tool:actionlint",
+            match.group("value"),
+        )
+        for match in _ACTIONLINT_IMAGE.finditer(text)
+    )
     if path.endswith(".lock.yml"):
         try:
             scan.coordinates.extend(
@@ -443,6 +477,21 @@ def _inventory_python_constants(root: Path, path: str, scan: Scan) -> None:
                     node.value.value,
                 )
             )
+            tool_name = {
+                "ACTIONLINT_IMAGE": "actionlint",
+                "KUBECONFORM_IMAGE": "kubeconform",
+            }.get(target.id)
+            if tool_name is not None:
+                _, separator, version = node.value.value.rpartition(":")
+                if separator and version:
+                    scan.coordinates.append(
+                        _coordinate(
+                            "tool-version",
+                            path,
+                            f"line:{node.lineno}:tool:{tool_name}",
+                            version,
+                        )
+                    )
     if len(scan.coordinates) > coordinate_count:
         scan.recognized.add(path)
 
@@ -475,6 +524,16 @@ def _yaml_documents(text: str) -> list[str]:
 
 def _inventory_yaml(root: Path, path: str, scan: Scan) -> None:
     text = (root / path).read_text(encoding="utf-8")
+    if path == "azure.yaml":
+        scan.coordinates.extend(
+            _coordinate(
+                "tool-version",
+                path,
+                f"line:{_line_number(text, match.start())}:tool:azd",
+                match.group("value"),
+            )
+            for match in _AZD_REQUIRED_VERSION.finditer(text)
+        )
     charts = list(_HELM_CHART.finditer(text))
     for index, chart in enumerate(charts):
         scan.coordinates.append(
