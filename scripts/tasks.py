@@ -53,7 +53,7 @@ WORKFLOWS_DIR = ROOT / ".github" / "workflows"
 ACTIONLINT_IMAGE = "rhysd/actionlint:1.7.12"
 KUBECONFORM_IMAGE = "ghcr.io/yannh/kubeconform:v0.7.0"
 HELM_VERSION = "v4.2.4"
-K8S_VERSION = "1.33.0"
+K8S_VERSION = "1.35.0"
 KUBECONFORM_SKIP_KINDS = load_kubernetes_schema_excluded_kinds(
     ROOT / ".github" / "repo-health.toml"
 )
