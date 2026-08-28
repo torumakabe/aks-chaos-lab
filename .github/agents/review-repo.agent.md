@@ -1,6 +1,6 @@
 ---
 name: review-repo
-description: リポジトリの衛生状態を非編集で点検する。標準はfastで、「full」「全検査」「鮮度確認」を指定された場合だけfullを実行する。「リポジトリを点検」「衛生チェック」「hygiene」「primingをレビュー」「instructionsを見直して」「review-repo」と言われたら使う。
+description: リポジトリの衛生状態を非編集で点検する。標準はfast（taskのみ）で、「full」「全検査」「鮮度確認」を指定された場合だけfullを実行する。「リポジトリを点検」「衛生チェック」「hygiene」「primingをレビュー」「instructionsを見直して」「review-repo」と言われたら使う。
 ---
 
 # Review Repo
@@ -11,8 +11,9 @@ description: リポジトリの衛生状態を非編集で点検する。標準�
 
 - この文書でtask targetと呼ぶ名前は、すべて`scripts/tasks.py`の実行対象である。
 - 指定がない場合は`review-repo-fast` task targetを実行する。
+- `fast`では、`review-repo-fast`と内容指紋のtask targetだけを実行し、構造化inventoryに記録されたcoverageと検査結果を報告する。「fullモードの文書とAI運用資産の評価基準」は適用せず、専門skillを呼び出さない。
 - ユーザーが`full`、全検査、鮮度確認のいずれかを明示した場合だけ`review-repo-full` task targetを実行する。
-- fullでは、task targetが生成したrepo health inventory JSONを`repository-freshness-checker`へ渡す。公開情報を取得できない項目は`unverified`とする。
+- `full`では、`review-repo-full`の全検査に加えて、文書とAI運用資産の意味評価を実行する。同じrepo health inventory JSONを`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyモードへ渡し、既存の専門経路の結果を集約する。公開情報を取得できない項目は`unverified`とする。
 
 ## 実行インターフェース
 
@@ -32,12 +33,13 @@ description: リポジトリの衛生状態を非編集で点検する。標準�
 | 層 | 内包する検査 | 次の層で追加する検査 |
 |---|---|---|
 | `review-repo-fast` task target | repo health JSON生成と整合性、Bicep parameter JSON、uv version、public lock、publisher requirements | なし |
+| review-repo agentのfastモード | 内容指紋の取得と比較、`review-repo-fast` task targetの全検査 | 構造化inventoryのcoverageとtask結果の報告だけを行う。文書とAI運用資産の意味評価および専門skillは実行しない |
 | `review-repo-full` task target | `review-repo-fast`の全検査 | 隔離したapplication QA、hook test、Bicep build、全Kubernetes YAMLのlint、固定versionのChaos Mesh chartによるvalues render、workflow lint、gh-aw compile。Kubernetes schemaを取得できないkindは`.github/repo-health.toml`の一覧とinventoryの`kubernetes-schema-exclusion`座標で`excluded`として数える。application QAではfastで完了したpublisher requirementsを再実行しない |
-| review-repo agentのfullモード | `review-repo-full` task targetの全検査 | 文書とagentなどの内容評価、同じinventory JSONを入力にしたfreshness skillによる製品鮮度と公開Markdownリンク到達性、`bicep-api-version-updater`のcheck-onlyモード、既存の専門経路 |
+| review-repo agentのfullモード | 内容指紋の取得と比較、`review-repo-full` task targetの全検査 | 文書とAI運用資産の意味評価、同じinventory JSONを入力にしたfreshness skillによる製品鮮度と公開Markdownリンク到達性、`bicep-api-version-updater`のcheck-onlyモード、既存の専門経路 |
 
-## 文書とAI運用資産の評価基準
+## fullモードの文書とAI運用資産の評価基準
 
-inventoryへの出現は、ファイルの存在を確認したことだけを意味する。構造、参照先、現在の実装との一致を次の基準で評価する。自動検査が構造や参照先を検証済みの場合は結果を再利用し、agentは同じ検査を組み立て直さない。
+この節はfullモードだけで適用する。inventoryへの出現は、ファイルの存在を確認したことだけを意味する。構造、参照先、現在の実装との一致を次の基準で評価する。自動検査が構造や参照先を検証済みの場合は結果を再利用し、agentは同じ検査を組み立て直さない。
 
 | 種類 | 健全性を確認する項目 | 専門経路 |
 |---|---|---|
@@ -80,10 +82,9 @@ inventoryへの出現は、ファイルの存在を確認したことだけを�
 1. 対象commitと実行モードを記録し、`review-fingerprint capture`で実行前の内容指紋を取得する。
 2. 選択した`review-repo-fast`または`review-repo-full`を、リポジトリ外の`--inventory-json`出力先を指定して一度だけ実行する。task targetがツールを事前分類し、実行可能な検査を継続する。
 3. task targetが生成したinventory JSONからcoverageと内部整合性を確認する。file coverageは`covered_by_other_check`、`intentionally_excluded`、`true_gap`を区別し、`true_gap`を未対応数として扱う。`inventory-repo`や`check-repo-health`を重複実行しない。
-4. 「文書とAI運用資産の評価基準」を種類ごとに適用し、inventoryへの出現だけで`pass`にしない。
-5. fullの場合だけ、手順2と同じinventory JSONを`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyモードへ渡し、既存の専門経路の結果と集約する。freshness skillは`documentation-external-link`座標を全件処理し、取得不能を`unverified`とする。Bicep resource APIの結果が返らない場合、その領域を`unverified`とする。
-6. `review-fingerprint capture`で実行後の内容指紋を取得し、`review-fingerprint compare`で実行前との差を確認する。
-7. 状態分類、coverage、環境制約、修正計画を報告する。
+4. fullの場合だけ、「fullモードの文書とAI運用資産の評価基準」を種類ごとに適用し、inventoryへの出現だけで`pass`にしない。手順2と同じinventory JSONを`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyモードへ渡し、既存の専門経路の結果と集約する。freshness skillは`documentation-external-link`座標を全件処理し、取得不能を`unverified`とする。Bicep resource APIの結果が返らない場合、その領域を`unverified`とする。
+5. `review-fingerprint capture`で実行後の内容指紋を取得し、`review-fingerprint compare`で実行前との差を確認する。
+6. 状態分類、coverage、環境制約、修正計画を報告する。fastではfull専用検査を個別の`unverified`として列挙せず、実行モードの対象外であることを示す。
 
 ## 既存経路との責務境界
 

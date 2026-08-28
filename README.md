@@ -116,7 +116,7 @@ azd down --force --purge
 
 ## リポジトリ保守
 
-日常のオフライン点検には`review-repo`エージェントのfastモードを使います。エージェントは`scripts/tasks.py`の`review-repo-fast` task targetを唯一の上位実行入口として呼びます。公開情報による鮮度確認と全QAを含む点検ではfullモードを指定し、エージェントが`review-repo-full` task targetの構造化inventoryをfreshness skillへ渡します。完全な呼び出し、出力、副作用、検査の包含関係は[review-repoエージェント](.github/agents/review-repo.agent.md)を参照してください。
+日常のオフライン点検には`review-repo`エージェントのfastモードを使います。fastモードは`scripts/tasks.py`の`review-repo-fast` task targetを唯一の上位実行入口として呼び、内容指紋taskと決定論的な検査だけを実行します。文書とAI運用資産の意味評価や専門skillは実行しません。全検査ではfullモードを指定します。fullモードは`review-repo-full` task targetの全検査に加えて、構造化inventoryを使った公開鮮度とBicep APIの確認、文書とAI運用資産の意味評価を実行します。完全な呼び出し、出力、副作用、検査の包含関係は[review-repoエージェント](.github/agents/review-repo.agent.md)を参照してください。
 
 更新通知の責務は分割しています。[Dependabot](.github/dependabot.yml)はGitHub Actionsのversion更新とDocker image tag更新を、[Bicep version check](.github/workflows/bicep-version-check.yml)はBicep CLIを、[Bicep API version check](.github/workflows/bicep-api-version-check.md)はBicep resource APIを、[AKS updates analyzer](.github/workflows/aks-updates-analyzer.md)はAKS更新情報を扱います。[Repository freshness check](.github/workflows/repository-freshness-check.md)はgh-aw、Lefthook、actionlint、kubeconform、azd、Chaos Mesh Helm chart、Docker base imageのEOLとdigest固定状況、Azure Functions extension bundleのsupport範囲を週次Issueで通知します。fullレビューでは、同じfreshness skillがinventoryにある公開Markdownリンクの到達性も確認します。各自動化は更新を直接適用しません。
 

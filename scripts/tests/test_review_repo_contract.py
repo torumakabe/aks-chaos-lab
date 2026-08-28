@@ -1595,7 +1595,7 @@ def test_review_repo_agent_contract() -> None:
     )
 
     assert frontmatter["name"] == "review-repo"
-    assert "標準はfast" in frontmatter["description"]
+    assert "標準はfast（taskのみ）" in frontmatter["description"]
     assert "review-repo-fast" in body
     assert "review-repo-full" in body
     assert "scripts/tasks.py" in body
@@ -1612,7 +1612,9 @@ def test_review_repo_agent_contract() -> None:
     assert "全Kubernetes YAML" in body
     assert "Chaos Mesh chart" in body
     assert "`kubernetes-schema-exclusion`座標で`excluded`" in body
-    assert "## 文書とAI運用資産の評価基準" in body
+    assert "## fullモードの文書とAI運用資産の評価基準" in body
+    assert "文書とAI運用資産の意味評価および専門skillは実行しない" in body
+    assert "文書とAI運用資産の意味評価を実行する" in body
     for document_type in (
         "`.github/copilot-instructions.md`",
         "| agent |",
@@ -1632,6 +1634,8 @@ def test_review_repo_agent_contract() -> None:
     )[0]
     assert "`inventory-repo`や`check-repo-health`を重複実行しない" in execution_steps
     assert "repo_health.py" not in execution_steps
+    assert "fullの場合だけ" in execution_steps
+    assert "fastではfull専用検査を個別の`unverified`として列挙せず" in execution_steps
     assert "`repository-freshness-checker`" in execution_steps
     assert "`bicep-api-version-updater`のcheck-onlyモード" in execution_steps
     assert "手順2と同じinventory JSON" in execution_steps

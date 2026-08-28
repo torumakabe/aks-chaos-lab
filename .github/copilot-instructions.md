@@ -82,7 +82,7 @@ docs/features/    # Feature Document（作業途中の状態保存）
 
 - セッション開始時、`docs/features/` に関連する Feature Document があれば `resume` エージェントで作業を再開する
 - セッションの区切りでは `wrap-up` エージェントで ADR 候補の洗い出し・Feature Document の要否判断・リトマステストを行う
-- リポジトリ点検は`review-repo`エージェントを使う。標準は非編集のfastとし、fullまたは鮮度確認を指定した場合だけ`repository-freshness-checker`を併用する
+- リポジトリ点検は`review-repo`エージェントを使う。標準のfastはtaskによる非編集検査だけを実行する。fullまたは鮮度確認を指定した場合は、全task、公開鮮度とBicep APIの確認、文書とAI運用資産の意味評価を実行する
 - 複雑な機能は実装前に段階的な設計会話を行う（要件確認 → コンポーネント設計 → データフロー → インターフェース定義 → 実装）。コードは設計合意後
 - ユーザーから見える振る舞いが変わる変更（機能追加、API 変更、デプロイ手順変更、アーキテクチャ変更）では README.md または該当する `docs/*.md` の更新要否を確認し、必要なら同一 PR 内で更新する
 - buildまたはdeployの失敗を理由に新しい経路を実装する前に、`docs/deployment.md`、関連ADR、対象CLIの`--help`を確認する。既存のbuild済みartifactを渡す経路を含め、現在の機能を組み合わせて解決できるか再現してから、リポジトリ変更の要否を判断する

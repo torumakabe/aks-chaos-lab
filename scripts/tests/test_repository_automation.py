@@ -263,10 +263,17 @@ def test_bicep_api_version_workflow_is_compiled() -> None:
 
 def test_documentation_exposes_maintenance_entry_points() -> None:
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    instructions = (REPO_ROOT / ".github" / "copilot-instructions.md").read_text(
+        encoding="utf-8"
+    )
     deployment = (REPO_ROOT / "docs" / "deployment.md").read_text(encoding="utf-8")
 
     assert "review-repo-fast" in readme
     assert "review-repo-full" in readme
+    assert "fastモードは" in readme
+    assert "意味評価や専門skillは実行しません" in readme
+    assert "fullモードは" in readme
+    assert "文書とAI運用資産の意味評価を実行します" in readme
     assert ".github/dependabot.yml" in readme
     assert "bicep-version-check.yml" in readme
     assert "bicep-api-version-check.md" in readme
@@ -274,6 +281,10 @@ def test_documentation_exposes_maintenance_entry_points() -> None:
     assert "repository-freshness-check.md" in readme
     assert "唯一の上位実行入口" in readme
     assert "構造化inventory" in readme
+
+    assert "標準のfastはtaskによる非編集検査だけを実行する" in instructions
+    assert "全task、公開鮮度とBicep APIの確認" in instructions
+    assert "文書とAI運用資産の意味評価を実行する" in instructions
 
     assert "Dependabotのuv ecosystemは現時点では有効にしません" in deployment
     assert 'resolution-strategy = "lowest"' in deployment
