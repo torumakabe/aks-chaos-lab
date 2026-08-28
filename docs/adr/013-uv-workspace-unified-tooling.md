@@ -1,6 +1,9 @@
 # ADR-013: uv workspace でツーリングを統一しつつデプロイ単位は分離維持
 
-- Status: Accepted
+## Status
+
+Accepted
+
 - Date: 2026-05-21
 
 ## Context

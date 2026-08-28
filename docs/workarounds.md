@@ -183,3 +183,21 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: SDK 側で全 span を Collector へ送り、Collector 側で `status=ERROR` を条件にした tail-based sampling を構成して、キーワードに依存せず ERROR trace を保持できるようになる。または OpenTelemetry SDK が span 終了時の状態に基づく sampling を提供する。
 - **確認方法**: `uv run pytest src/api/tests/unit/test_telemetry.py -k error_aware_sampler` でキーワード判定と ratio-based 判定を確認する。tail-based sampling を導入する場合は、キーワードを含まないエンドポイントでエラーを発生させ、Collector と Application Insights で該当 trace が保持されることを確認する。
 - **最終確認**: 2026-08-10、リポジトリ内に tail-based sampling 構成はなく、`ErrorAwareSampler` の単体テストはキーワード判定と ratio-based 判定を対象としている。
+
+### D-10. gh-aw v0.79.6の暗黙noop Issue報告を無効化
+
+- **概要**: Agentic Workflowの`safe-outputs`へ`noop: false`を明示し、暗黙のnoop Issue報告と`agentics-maintenance.yml`の生成を無効化する。
+- **理由**: gh-aw v0.79.6は`safe-outputs`に`noop`がない場合、noop Issue報告を暗黙に有効化する。この設定は30日の有効期限を持つため、明示的な`expires`がない場合も日次maintenance workflowを生成する。週次workflowは実行結果をcreate-issueで必ず記録するため、追加のnoop Issue報告を使用しない。
+- **場所**: `.github/workflows/aks-updates-analyzer.md`、`.github/workflows/repository-freshness-check.md`
+- **解消条件**: gh-awを、暗黙noopの`report-as-issue`が既定で無効なバージョンへ更新し、`noop: false`を外してもmaintenance workflowが生成されないことを確認する。
+- **確認方法**: 一時コピーで`noop: false`を外して`gh aw compile`を実行し、`agentics-maintenance.yml`が生成されないことを確認する。
+- **最終確認**: 2026-08-26、gh-aw v0.79.6の公式ソースで暗黙noop Issue報告と30日の既定期限を確認した。
+
+### D-11. Windowsでgh-awをPowerShellの子プロセスとして実行
+
+- **概要**: `scripts/tasks.py`から`gh aw compile`を実行するときは、Windowsに限りPowerShellの`Start-Process`を介して標準入力、標準出力、標準エラーを一時ファイルへ分離する。実行時間は60秒に制限し、超過時は既存のプロセスツリー停止処理を使う。
+- **理由**: Windowsでgh-aw v0.79.6をPythonの`subprocess`から直接起動すると、`--version`を含むコマンドが待機したまま終了しない。PowerShellの`Start-Process`で入出力を分離した同じ実行ファイルは約1秒で終了し、`compile`も正常に完了する。
+- **場所**: `scripts/tasks.py`の`run_gh_aw_compile`
+- **解消条件**: gh-awを更新し、WindowsでPythonの`subprocess`から直接実行した`gh aw --version`と`gh aw compile`が待機せず終了することを確認する。
+- **確認方法**: Pythonの`subprocess`による直接起動とPowerShellの子プロセス起動の両方でgh-awを実行し、両方が同じ終了コードと生成結果になることを確認する。
+- **最終確認**: 2026-08-27、gh-aw v0.79.6はPythonの`subprocess`による直接起動で60秒を超えて待機し、PowerShellの子プロセス起動では`--version`が1.141秒で終了して`compile`も成功した。

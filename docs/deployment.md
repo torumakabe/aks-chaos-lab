@@ -264,6 +264,10 @@ gh run download <run-id> --name uv-lock-public --dir tmp/refresh-uv-lock
 
 workflowは`pyproject.toml`、`uv.lock`、workflow定義自身を変更したpull requestで実行されます。既定branchへmergeした後は`workflow_dispatch`でも実行できます。取得した`uv.lock`の差分を確認して変更branchへ追加すると、組織承認済みpackage indexを使う環境では次のworkspace task実行時に再同期します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
 
+Dependabotのuv ecosystemは現時点では有効にしません。Dependabotがworkspace member、`resolution-strategy = "lowest"`、public PyPIを参照する`uv.lock`、external SLI publisherのrequirements同期を一度の更新で維持することを、設定のmerge前に保証できないためです。代表的なDependabot更新でこれらを確認でき、`check-uv-version`、`check-public-lock`、`check-publisher-requirements`、既存QAがすべて成功する検証経路を用意できた時点で採用を再評価します。それまでは`refresh-uv-lock.yml`を更新経路とします。
+
+`.github/dependabot.yml`の構成、グループ、説明コメントは開発者が管理します。`gh aw compile`が管理する範囲は、GitHub Actions ecosystemの`github/gh-aw-actions`に対する完全一致のignore entryと、その行の管理コメントだけです。ワイルドカードの`github/gh-aw-actions/*`、生成済みlock workflowの除外、Docker imageのignoreはリポジトリ側で管理します。
+
 ## テストと品質確認
 
 アプリケーション:

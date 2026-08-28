@@ -126,4 +126,4 @@ uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 | `gateway:chaos_app:http_request_duration:p95` | P95 レイテンシ (秒) |
 | `gateway:chaos_app:http_error_rate:ratio` | 5xx エラー率 |
 
-SLI 用 metrics は `chaos_app_external_availability_*` / `chaos_app_external_latency_*` です。詳細は [docs/observability.md](../../../docs/observability.md) を参照してください。
+SLI 用 metrics は `chaos_app_external_availability_*` / `chaos_app_external_latency_*` です。詳細は [docs/observability.md](../../../../docs/observability.md) を参照してください。
