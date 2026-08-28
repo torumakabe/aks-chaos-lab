@@ -9,12 +9,12 @@ BicepファイルのAzureリソースAPIバージョンを確認し、更新モ�
 
 ## check-onlyモード
 
-`review-repo`から呼び出された場合は、この節だけを実行する。入力はrepo health inventory JSONのBicep resource API座標である。worktreeは読み取り専用として扱い、Azure認証を行わない。subscriptionを照会しない。
+`review-repo`または`bicep-api-version-check` workflowから呼び出された場合は、この節だけを実行する。入力はrepo health inventory JSONのBicep resource API座標である。worktreeは読み取り専用として扱い、Azure認証を行わない。subscriptionを照会しない。
 
 1. inventoryのschema version、対象commit、Bicep resource API座標を記録する。解釈できないschemaまたは座標は`unverified`とする。
-2. `microsoft_docs_fetch`または`microsoft_docs_search`で、Microsoft Learnの公開APIリファレンスとbreaking changesを確認する。
+2. `microsoft_docs_fetch`または`microsoft_docs_search`で、Microsoft Learnの公開APIリファレンスとbreaking changesを最初に確認する。現在versionがMicrosoft Learnにまだ掲載されていない場合は、Azure公式`Azure/azure-rest-api-specs` repositoryの対応するstableまたはpreview仕様を確認する。定期workflowでは、許可された`learn.microsoft.com`とGitHub APIをPython標準ライブラリで取得する。
 3. 現在のversion、公開されている安定版、プレビュー版からGAへ移行できるかを比較する。
-4. 結果を`pass`、`fail`、`unverified`、`excluded`へ分類する。公開情報を取得できない対象は`unverified`とする。
+4. 結果を`pass`、`fail`、`unverified`、`excluded`へ分類する。Microsoft Learnと`Azure/azure-rest-api-specs`のどちらからも公開情報を取得できない対象は`unverified`とする。両者のversion一覧が異なる場合は、各情報源の確認結果と反映時刻の差を示す。
 5. inventory座標数、確認済み座標数、未検証座標数、除外座標数からcoverageを計算し、根拠URLとともに返す。
 6. 結果を返して終了する。後続のupdateモードへ進まない。
 

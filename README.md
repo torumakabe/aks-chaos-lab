@@ -116,9 +116,9 @@ azd down --force --purge
 
 ## リポジトリ保守
 
-日常のオフライン点検には`uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast`を使います。公開情報による鮮度確認と全QAを含む点検には`review-repo-full`を使います。実行範囲と状態の解釈は[review-repoエージェント](.github/agents/review-repo.agent.md)を参照してください。
+日常のオフライン点検には`review-repo`エージェントのfastモードを使います。エージェントは`scripts/tasks.py`の`review-repo-fast` task targetを唯一の上位実行入口として呼びます。公開情報による鮮度確認と全QAを含む点検ではfullモードを指定し、エージェントが`review-repo-full` task targetの構造化inventoryをfreshness skillへ渡します。完全な呼び出し、出力、副作用、検査の包含関係は[review-repoエージェント](.github/agents/review-repo.agent.md)を参照してください。
 
-更新通知の責務は分割しています。[Dependabot](.github/dependabot.yml)はGitHub ActionsとDockerを、[Bicep version check](.github/workflows/bicep-version-check.yml)はBicep CLIを、[AKS updates analyzer](.github/workflows/aks-updates-analyzer.md)はAKS更新情報を扱います。[Repository freshness check](.github/workflows/repository-freshness-check.md)はgh-aw、Lefthook、actionlint、kubeconform、azd、Chaos Mesh Helm chartを週次Issueで通知します。各自動化は更新を直接適用しません。
+更新通知の責務は分割しています。[Dependabot](.github/dependabot.yml)はGitHub Actionsのversion更新とDocker image tag更新を、[Bicep version check](.github/workflows/bicep-version-check.yml)はBicep CLIを、[Bicep API version check](.github/workflows/bicep-api-version-check.md)はBicep resource APIを、[AKS updates analyzer](.github/workflows/aks-updates-analyzer.md)はAKS更新情報を扱います。[Repository freshness check](.github/workflows/repository-freshness-check.md)はgh-aw、Lefthook、actionlint、kubeconform、azd、Chaos Mesh Helm chart、Docker base imageのEOLとdigest固定状況、Azure Functions extension bundleのsupport範囲を週次Issueで通知します。fullレビューでは、同じfreshness skillがinventoryにある公開Markdownリンクの到達性も確認します。各自動化は更新を直接適用しません。
 
 ## リポジトリ構造
 

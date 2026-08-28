@@ -59,6 +59,7 @@ target_fingerprint = [
     write(
         root / ".github" / "repo-health.toml",
         f"""schema_version = 2
+kubernetes_schema_excluded_kinds = ["Kustomization"]
 
 [[rules]]
 id = "kubernetes-version"
@@ -152,6 +153,22 @@ def repository(tmp_path: Path) -> Path:
         "resource cluster 'Microsoft.ContainerService/managedClusters@2025-07-01' = {}\n",
     )
     write(
+        tmp_path / "infra/main.parameters.json",
+        '{"parameters":{"kubernetesVersion":{"value":"1.35"}}}\n',
+    )
+    write(
+        tmp_path / "infra/sli/main.bicep",
+        "param environment string\nparam enabled bool = true\n",
+    )
+    write(
+        tmp_path / "infra/sli/main.parameters.json",
+        '{"parameters":{"environment":{"value":"test"}}}\n',
+    )
+    write(
+        tmp_path / "infra/helm/chaos-mesh-values.yaml",
+        "chaosDaemon:\n  runtime: containerd\n",
+    )
+    write(
         tmp_path / "scripts/tasks.py",
         'ACTIONLINT_IMAGE = "rhysd/actionlint:1.7.12"\n'
         'KUBECONFORM_IMAGE = "ghcr.io/yannh/kubeconform:v0.7.0"\n'
@@ -165,7 +182,8 @@ def repository(tmp_path: Path) -> Path:
         tmp_path / "azure.yaml",
         "requiredVersions:\n  azd: '>= 1.28.1'\n"
         "helm:\n  releases:\n    - chart: chaos-mesh/chaos-mesh\n"
-        "      version: 2.8.3\n",
+        "      version: 2.8.3\n"
+        "      values: infra/helm/chaos-mesh-values.yaml\n",
     )
     write(
         tmp_path / "k8s/apps/app/deployment.yaml",
@@ -176,9 +194,17 @@ def repository(tmp_path: Path) -> Path:
         "apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\n",
     )
     write(tmp_path / "README.md", "See ADR-001 and docs/workarounds.md.\n")
-    write(tmp_path / "docs/adr/ADR-001-test.md", "# ADR\n")
+    write(
+        tmp_path / "docs/adr/001-test.md",
+        "# ADR-001: Test\n\n## Status\n\nAccepted\n",
+    )
     write(tmp_path / "docs/features/current.md", "# Feature\n")
     write(tmp_path / "docs/workarounds.md", "# Workarounds\n")
+    write(
+        tmp_path / "src/external-sli-publisher/host.json",
+        '{"extensionBundle":{"id":"Microsoft.Azure.Functions.ExtensionBundle",'
+        '"version":"[4.*, 5.0.0)"}}\n',
+    )
     write_config(tmp_path, enforce=False, exception=True)
     initialize_repository(tmp_path)
     return tmp_path
@@ -193,12 +219,16 @@ def test_inventory_extracts_supported_coordinates(repository: Path) -> None:
         "agent-source",
         "bicep-resource-api",
         "docker-base-image",
+        "function-extension-bundle",
         "documentation-reference",
         "documentation-source",
         "helm-chart",
+        "helm-values",
+        "helm-values-reference",
         "helm-version",
         "hook-source",
         "kubernetes-manifest",
+        "kubernetes-schema-exclusion",
         "kustomize",
         "python-lock",
         "python-manifest",
@@ -608,7 +638,16 @@ def test_python_version_coordinate_marks_file_as_recognized(repository: Path) ->
     result = repo_health.build_result(repository, include_checks=False)
 
     assert "scripts/tasks.py" in scan.recognized
-    assert "scripts/tasks.py" not in result["coverage"]["unsupported_files"]["paths"]
+    file_coverage = result["coverage"]["file_coverage"]
+    assert all(
+        entry["path"] != "scripts/tasks.py"
+        for category in (
+            "covered_by_other_check",
+            "intentionally_excluded",
+            "true_gap",
+        )
+        for entry in file_coverage[category]
+    )
 
 
 def test_json_is_deterministic_and_scan_does_not_modify_files(
@@ -634,7 +673,7 @@ def test_json_is_deterministic_and_scan_does_not_modify_files(
     assert before == after
     parsed = json.loads(first)
     assert list(parsed) == sorted(parsed)
-    assert parsed["schema_version"] == "2.0"
+    assert parsed["schema_version"] == "2.1"
     assert {
         "schema_version",
         "repository_root",
@@ -698,7 +737,238 @@ def test_extraction_failure_is_explicit_and_fails_check(
     assert check_output["coverage"]["extraction_failures"]
 
 
-def test_deleted_tracked_file_is_an_explicit_extraction_failure(
+def test_document_health_detects_broken_links_and_legacy_adr_status(
+    repository: Path,
+) -> None:
+    write(
+        repository / "README.md",
+        "Valid: [workarounds](docs/workarounds.md)\n"
+        "Broken: [missing](docs/missing.md)\n"
+        "External: [example](https://example.com/docs)\n"
+        "Anchor: [section](#section)\n"
+        "Outside: [parent](../README.md)\n"
+        "Repository: [root](.)\n"
+        "Inline code: `[ignored](docs/ignored.md)`\n"
+        "```\n[fenced](docs/fenced.md)\n```\n"
+        "<!-- [comment](docs/comment.md) -->\n"
+        "\n"
+        "    [indented](docs/indented.md)\n",
+    )
+    write(
+        repository / "docs/adr/001-test.md",
+        "# ADR-001: Test\n\n- Status: Accepted\n",
+    )
+
+    result = repo_health.build_result(repository, include_checks=True)
+
+    document_findings = [
+        finding
+        for finding in result["findings"]
+        if finding["rule_id"] == "document-health"
+    ]
+    assert [
+        (finding["path"], finding["location"], finding["message"])
+        for finding in document_findings
+    ] == [
+        (
+            "README.md",
+            "line:2:link",
+            "relative Markdown link target is not a tracked repository path: "
+            "docs/missing.md",
+        ),
+        (
+            "docs/adr/001-test.md",
+            "line:3:status",
+            "ADR uses legacy '- Status:' metadata; use a '## Status' section",
+        ),
+    ]
+    assert result["coverage"]["validation_issues"] == [
+        {
+            "location": "line:2:link",
+            "message": "relative Markdown link target is not a tracked repository "
+            "path: docs/missing.md",
+            "path": "README.md",
+        },
+        {
+            "location": "line:3:status",
+            "message": "ADR uses legacy '- Status:' metadata; use a '## Status' "
+            "section",
+            "path": "docs/adr/001-test.md",
+        },
+    ]
+
+
+def test_document_health_accepts_nested_readme_and_current_adr_format(
+    repository: Path,
+) -> None:
+    tracked = repo_health.list_tracked_files(repository)
+    write(
+        repository / "docs/workarounds.md",
+        "# Workarounds\n\nSee [ADR](adr/001-test.md#decision) and [repository](.).\n",
+    )
+    write(
+        repository / "docs/adr/001-test.md",
+        "# ADR-001: Test\n\n"
+        "## Status\n\n"
+        "Accepted\n\n"
+        "## Consequences\n\n"
+        "- Status: implementation remains observable\n",
+    )
+
+    scan = repo_health.scan_inventory(repository, tracked)
+
+    assert not scan.validation_issues
+    assert any(
+        coordinate.category == "documentation-link"
+        and coordinate.path == "docs/workarounds.md"
+        and coordinate.value == "docs/adr/001-test.md"
+        for coordinate in scan.coordinates
+    )
+
+
+def test_inventory_records_public_markdown_links_without_fragments(
+    repository: Path,
+) -> None:
+    write(
+        repository / "README.md",
+        "[Docs](https://learn.microsoft.com/azure/aks/?view=current#section)\n",
+    )
+
+    scan = repo_health.scan_inventory(
+        repository, repo_health.list_tracked_files(repository)
+    )
+
+    assert any(
+        coordinate.category == "documentation-external-link"
+        and coordinate.value == "https://learn.microsoft.com/azure/aks/"
+        for coordinate in scan.coordinates
+    )
+
+
+def test_document_health_rejects_url_credentials_without_inventory_leak(
+    repository: Path,
+) -> None:
+    write(
+        repository / "README.md",
+        "[Secret](https://user:password@example.com/path?token=secret)\n",
+    )
+
+    result = repo_health.build_result(repository, include_checks=True)
+
+    assert any(
+        finding["rule_id"] == "document-health"
+        and finding["message"]
+        == "public Markdown link must not contain URL credentials"
+        for finding in result["findings"]
+    )
+    serialized = repo_health.json_output(result)
+    assert "password" not in serialized
+    assert "token=secret" not in serialized
+
+
+def test_inventory_extracts_functions_extension_bundle(repository: Path) -> None:
+    scan = repo_health.scan_inventory(
+        repository, repo_health.list_tracked_files(repository)
+    )
+
+    assert any(
+        coordinate.category == "function-extension-bundle"
+        and coordinate.path == "src/external-sli-publisher/host.json"
+        and coordinate.value == "[4.*, 5.0.0)"
+        for coordinate in scan.coordinates
+    )
+
+
+def test_bicep_parameter_validation_rejects_unknown_and_missing_names(
+    repository: Path,
+) -> None:
+    write(
+        repository / "infra/main.bicep",
+        "param required string\nparam optional string = 'default'\n",
+    )
+    write(
+        repository / "infra/main.parameters.json",
+        '{"parameters":{"unknown":{"value":"value"}}}\n',
+    )
+
+    issues = repo_health.validate_bicep_parameter_files(repository)
+
+    assert (
+        repo_health.ValidationIssue(
+            "infra/main.parameters.json",
+            "parameters:unknown",
+            "parameter is not declared by infra/main.bicep: unknown",
+        )
+        in issues
+    )
+    assert (
+        repo_health.ValidationIssue(
+            "infra/main.bicep",
+            "param:required",
+            "required parameter is missing from infra/main.parameters.json: required",
+        )
+        in issues
+    )
+    assert all("optional" not in issue.message for issue in issues)
+
+
+def test_malformed_host_json_is_an_extraction_failure(repository: Path) -> None:
+    write(repository / "src/external-sli-publisher/host.json", "{invalid\n")
+
+    scan = repo_health.scan_inventory(
+        repository, repo_health.list_tracked_files(repository)
+    )
+
+    assert scan.extraction_failures[0]["path"] == (
+        "src/external-sli-publisher/host.json"
+    )
+
+
+def test_file_coverage_has_explicit_categories() -> None:
+    coverage = repo_health.classify_file_coverage(
+        [
+            ".dockerignore",
+            ".github/actionlint.yaml",
+            "unassigned.config",
+        ],
+        set(),
+    )
+
+    assert coverage == {
+        "count": 3,
+        "covered_by_other_check": [
+            {
+                "path": ".github/actionlint.yaml",
+                "owner": "lint-workflows",
+                "reason": (
+                    "actionlint loads this configuration while validating workflows"
+                ),
+            }
+        ],
+        "intentionally_excluded": [
+            {
+                "path": ".dockerignore",
+                "owner": "repository-policy",
+                "reason": (
+                    "container build exclusion patterns are data, not a freshness "
+                    "coordinate"
+                ),
+            }
+        ],
+        "true_gap": [
+            {
+                "path": "unassigned.config",
+                "owner": "unassigned",
+                "reason": (
+                    "no deterministic repository health or specialized check is "
+                    "assigned"
+                ),
+            }
+        ],
+    }
+
+
+def test_deleted_tracked_file_is_excluded_from_current_worktree_inventory(
     repository: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     (repository / "scripts/tasks.py").unlink()
@@ -708,31 +978,42 @@ def test_deleted_tracked_file_is_an_explicit_extraction_failure(
         == 0
     )
     inventory_output = json.loads(capsys.readouterr().out)
-    assert inventory_output["coverage"]["extraction_failures"] == [
-        {
-            "path": "scripts/tasks.py",
-            "reason": "tracked file does not exist: scripts/tasks.py",
-        }
-    ]
-    inventory_findings = [
-        finding
-        for finding in inventory_output["findings"]
-        if finding["rule_id"] == "inventory-extraction"
-    ]
-    assert inventory_findings[0]["status"] == "unverified"
+    assert inventory_output["coverage"]["extraction_failures"] == []
+    assert all(
+        coordinate["path"] != "scripts/tasks.py"
+        for coordinate in inventory_output["inventory"]
+    )
 
     assert (
-        repo_health.main(["--root", str(repository), "check", "--format", "json"]) == 1
+        repo_health.main(["--root", str(repository), "check", "--format", "json"]) == 0
     )
-    captured = capsys.readouterr()
-    check_output = json.loads(captured.out)
-    extraction_findings = [
-        finding
+    check_output = json.loads(capsys.readouterr().out)
+    assert all(
+        finding["rule_id"] != "inventory-extraction"
         for finding in check_output["findings"]
-        if finding["rule_id"] == "inventory-extraction"
-    ]
-    assert extraction_findings[0]["status"] == "fail"
-    assert "Traceback" not in captured.err
+    )
+
+
+def test_untracked_files_are_included_in_current_worktree_inventory(
+    repository: Path,
+) -> None:
+    write(repository / "docs/new-document.md", "# New document\n")
+    write(repository / "README.md", "[New](docs/new-document.md)\n")
+
+    result = repo_health.build_result(repository, include_checks=True)
+
+    assert result["coverage"]["untracked_files"] == 1
+    assert result["coverage"]["repository_files"] == (
+        result["coverage"]["tracked_files"] + 1
+    )
+    assert any(
+        coordinate["path"] == "docs/new-document.md"
+        and coordinate["category"] == "documentation-source"
+        for coordinate in result["inventory"]
+    )
+    assert all(
+        finding["rule_id"] != "document-health" for finding in result["findings"]
+    )
 
 
 def test_report_reads_saved_json_without_scanning(
@@ -741,14 +1022,22 @@ def test_report_reads_saved_json_without_scanning(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     report: dict[str, object] = {
-        "schema_version": "2.0",
+        "schema_version": "2.1",
         "repository_root": str(tmp_path),
         "inventory": [],
         "checks": [],
         "coverage": {
             "tracked_files": 0,
+            "untracked_files": 0,
+            "repository_files": 0,
             "recognized_files": 0,
             "inventory_coordinates": 0,
+            "file_coverage": {
+                "count": 0,
+                "covered_by_other_check": [],
+                "intentionally_excluded": [],
+                "true_gap": [],
+            },
         },
         "findings": [],
         "environment_limitations": [],
@@ -787,7 +1076,7 @@ def test_report_rejects_legacy_schema_version(
 
     assert repo_health.main(["report", str(report_path)]) == 1
     error = capsys.readouterr().err
-    assert "report input schema_version must be 2.0" in error
+    assert "report input schema_version must be 2.1" in error
     assert "Traceback" not in error
 
 
@@ -815,11 +1104,22 @@ def test_report_rejects_invalid_nested_schema_without_traceback(
     message: str,
 ) -> None:
     report: dict[str, object] = {
-        "schema_version": "2.0",
+        "schema_version": "2.1",
         "repository_root": str(tmp_path),
         "inventory": [],
         "checks": [],
-        "coverage": {"tracked_files": 0, "recognized_files": 0},
+        "coverage": {
+            "tracked_files": 0,
+            "untracked_files": 0,
+            "repository_files": 0,
+            "recognized_files": 0,
+            "file_coverage": {
+                "count": 0,
+                "covered_by_other_check": [],
+                "intentionally_excluded": [],
+                "true_gap": [],
+            },
+        },
         "findings": [],
         "environment_limitations": [],
     }
@@ -835,4 +1135,21 @@ def test_report_rejects_invalid_nested_schema_without_traceback(
 
 def test_git_failure_has_clear_diagnostic(tmp_path: Path) -> None:
     with pytest.raises(repo_health.RepoHealthError, match="git ls-files"):
+        repo_health.list_tracked_files(tmp_path)
+
+
+def test_git_timeout_has_clear_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(repo_health.shutil, "which", lambda _command: "git")
+    monkeypatch.setattr(
+        repo_health.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            subprocess.TimeoutExpired(("git", "ls-files"), 30)
+        ),
+    )
+
+    with pytest.raises(repo_health.RepoHealthError, match="30-second limit"):
         repo_health.list_tracked_files(tmp_path)

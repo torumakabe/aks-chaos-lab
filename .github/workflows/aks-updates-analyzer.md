@@ -26,6 +26,7 @@ safe-outputs:
     labels: [aks-updates, automation]
     close-older-issues: true
     max: 1
+  noop: false
 timeout-minutes: 15
 ---
 

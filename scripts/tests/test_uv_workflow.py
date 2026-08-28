@@ -222,12 +222,19 @@ def test_child_environment_removes_unsafe_uv_overrides_and_credentials(
     monkeypatch.setenv("UV_PROJECT", "/not-a-project")
     monkeypatch.setenv("UV_NO_DEV", "1")
     monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_USERNAME", "username")
+    monkeypatch.setenv(tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE, "1")
 
     environment = tasks.child_env()
 
     assert "UV_PROJECT" not in environment
     assert "UV_NO_DEV" not in environment
     assert "UV_INDEX_APPROVED_INDEX_USERNAME" not in environment
+    assert tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE not in environment
+
+    review_environment = tasks.child_env(
+        {tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE: "1"}
+    )
+    assert review_environment[tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE] == "1"
 
 
 def test_package_api_approved_index_uses_buildkit_secret(

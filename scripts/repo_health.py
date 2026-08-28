@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import posixpath
 import re
 import shutil
 import subprocess
@@ -18,13 +19,19 @@ from dataclasses import asdict, dataclass
 from datetime import date
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, cast
+from urllib.parse import unquote, urlsplit, urlunsplit
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "2.1"
 CONFIG_SCHEMA_VERSION = 2
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = Path(".github/repo-health.toml")
+GIT_TIMEOUT_SECONDS = 30
 Status = Literal["pass", "fail", "unverified", "excluded"]
 VALID_STATUSES = {"pass", "fail", "unverified", "excluded"}
+BICEP_PARAMETER_ENTRYPOINTS = {
+    "infra/main.parameters.json": "infra/main.bicep",
+    "infra/sli/main.parameters.json": "infra/sli/main.bicep",
+}
 
 _WORKFLOW_USES = re.compile(r"^[ \t]*(?:-[ \t]*)?uses:[ \t]*([^\s#]+)", re.MULTILINE)
 _DOCKER_FROM = re.compile(
@@ -40,11 +47,16 @@ _BICEP_PARAMETER = re.compile(
     r"['\"](?P<value>[^'\"]+)",
     re.MULTILINE,
 )
+_BICEP_PARAMETER_DECLARATION = re.compile(
+    r"^[ \t]*param[ \t]+(?P<name>[A-Za-z_]\w*)[ \t]+"
+    r"(?P<type>[^=\r\n]+?)(?P<default>[ \t]*=.*)?$",
+    re.MULTILINE,
+)
 _WORKFLOW_KUBERNETES_VERSION = re.compile(
     r"-kubernetes-version\s+(?P<value>[0-9]+(?:\.[0-9]+){1,2})"
 )
 _WORKFLOW_TOOL_VERSION = re.compile(
-    r"^[ \t]*(?P<name>LEFTHOOK_VERSION|KUBECONFORM_VERSION)="
+    r"^[ \t]*(?P<name>LEFTHOOK_VERSION|KUBECONFORM_VERSION|HELM_VERSION)="
     r"['\"]?(?P<value>v?[0-9][^'\"\s#]*)",
     re.MULTILINE,
 )
@@ -67,8 +79,25 @@ _HELM_VERSION = re.compile(
     r"^[ \t]+(?:-[ \t]*)?version:[ \t]*['\"]?(?P<value>[^\s'\"]+)",
     re.MULTILINE,
 )
+_HELM_VALUES = re.compile(
+    r"^[ \t]+(?:-[ \t]*)?values:[ \t]*['\"]?(?P<value>[^\s'\"]+)",
+    re.MULTILINE,
+)
 _DOC_REFERENCE = re.compile(
     r"(?:ADR-\d{3}|docs/(?:adr|features)/[A-Za-z0-9_./-]+\.md|docs/workarounds\.md)"
+)
+_MARKDOWN_FENCE = re.compile(r"^[ \t]*(?P<marker>`{3,}|~{3,})")
+_MARKDOWN_INLINE_CODE = re.compile(r"`+[^`\n]*`+")
+_MARKDOWN_INLINE_LINK = re.compile(r"\[[^\]\n]*\]\((?P<target><[^>\n]+>|[^)\n]+)\)")
+_MARKDOWN_REFERENCE_LINK = re.compile(
+    r"^[ \t]*\[[^\]\n]+\]:[ \t]*(?P<target><[^>\n]+>|\S+)"
+)
+_URI_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+_ADR_DOCUMENT = re.compile(r"^docs/adr/\d{3}-[^/]+\.md$")
+_ADR_STATUS_HEADING = re.compile(r"^## Status[ \t]*$")
+_ADR_LEGACY_STATUS = re.compile(r"^-[ \t]*Status:")
+_ADR_STATUS_VALUE = re.compile(
+    r"^(?:Accepted|Rejected|Deprecated|Superseded by)(?:\b|[ \t])"
 )
 
 
@@ -89,6 +118,13 @@ class Coordinate:
 class Finding:
     rule_id: str
     status: Status
+    path: str
+    location: str
+    message: str
+
+
+@dataclass(frozen=True, order=True)
+class ValidationIssue:
     path: str
     location: str
     message: str
@@ -143,6 +179,7 @@ class Scan:
     coordinates: list[Coordinate]
     recognized: set[str]
     extraction_failures: list[dict[str, str]]
+    validation_issues: list[ValidationIssue]
 
 
 Extractor = Callable[[Path, str, str], list[Coordinate]]
@@ -158,7 +195,12 @@ def _git(root: Path, *args: str) -> str:
             cwd=root,
             check=False,
             capture_output=True,
+            timeout=GIT_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as error:
+        raise RepoHealthError(
+            f"git {' '.join(args)} exceeded the {GIT_TIMEOUT_SECONDS}-second limit"
+        ) from error
     except OSError as error:
         raise RepoHealthError(f"git could not be executed: {error}") from error
     if completed.returncode != 0:
@@ -172,7 +214,20 @@ def _git(root: Path, *args: str) -> str:
 
 def list_tracked_files(root: Path) -> list[str]:
     output = _git(root, "ls-files", "-z")
-    return sorted(path for path in output.split("\0") if path)
+    return sorted(
+        path
+        for path in output.split("\0")
+        if path and (root / PurePosixPath(path)).is_file()
+    )
+
+
+def list_untracked_files(root: Path) -> list[str]:
+    output = _git(root, "ls-files", "--others", "--exclude-standard", "-z")
+    return sorted(
+        path
+        for path in output.split("\0")
+        if path and (root / PurePosixPath(path)).is_file()
+    )
 
 
 def repository_commit(root: Path) -> str:
@@ -387,6 +442,7 @@ def _inventory_workflow(root: Path, path: str, scan: Scan) -> None:
     tool_names = {
         "LEFTHOOK_VERSION": "lefthook",
         "KUBECONFORM_VERSION": "kubeconform",
+        "HELM_VERSION": "helm",
     }
     scan.coordinates.extend(
         _coordinate(
@@ -461,12 +517,13 @@ def _inventory_python_constants(root: Path, path: str, scan: Scan) -> None:
         if not isinstance(node, ast.Assign) or len(node.targets) != 1:
             continue
         target = node.targets[0]
-        if (
+        if not (
             isinstance(target, ast.Name)
-            and target.id.endswith("VERSION")
             and isinstance(node.value, ast.Constant)
             and isinstance(node.value.value, str)
         ):
+            continue
+        if target.id.endswith("VERSION"):
             scan.coordinates.append(
                 _coordinate(
                     "version-constant",
@@ -475,21 +532,25 @@ def _inventory_python_constants(root: Path, path: str, scan: Scan) -> None:
                     node.value.value,
                 )
             )
-            tool_name = {
-                "ACTIONLINT_IMAGE": "actionlint",
-                "KUBECONFORM_IMAGE": "kubeconform",
-            }.get(target.id)
-            if tool_name is not None:
-                _, separator, version = node.value.value.rpartition(":")
-                if separator and version:
-                    scan.coordinates.append(
-                        _coordinate(
-                            "tool-version",
-                            path,
-                            f"line:{node.lineno}:tool:{tool_name}",
-                            version,
-                        )
-                    )
+        tool_name = {
+            "ACTIONLINT_IMAGE": "actionlint",
+            "KUBECONFORM_IMAGE": "kubeconform",
+            "HELM_VERSION": "helm",
+        }.get(target.id)
+        if tool_name is not None:
+            version = node.value.value
+            if target.id != "HELM_VERSION":
+                _, separator, version = version.rpartition(":")
+                if not separator:
+                    continue
+            scan.coordinates.append(
+                _coordinate(
+                    "tool-version",
+                    path,
+                    f"line:{node.lineno}:tool:{tool_name}",
+                    version,
+                )
+            )
     if len(scan.coordinates) > coordinate_count:
         scan.recognized.add(path)
 
@@ -520,7 +581,12 @@ def _yaml_documents(text: str) -> list[str]:
     return rendered
 
 
-def _inventory_yaml(root: Path, path: str, scan: Scan) -> None:
+def _inventory_yaml(
+    root: Path,
+    path: str,
+    scan: Scan,
+    kubernetes_schema_excluded_kinds: set[str],
+) -> None:
     text = (root / path).read_text(encoding="utf-8")
     if path == "azure.yaml":
         scan.coordinates.extend(
@@ -553,6 +619,16 @@ def _inventory_yaml(root: Path, path: str, scan: Scan) -> None:
                     version.group("value"),
                 )
             )
+        values = _HELM_VALUES.search(text, chart.end(), end)
+        if values is not None:
+            scan.coordinates.append(
+                _coordinate(
+                    "helm-values-reference",
+                    path,
+                    f"line:{_line_number(text, values.start())}:values",
+                    values.group("value"),
+                )
+            )
     if charts:
         scan.recognized.add(path)
     if path.startswith("k8s/"):
@@ -576,10 +652,274 @@ def _inventory_yaml(root: Path, path: str, scan: Scan) -> None:
                     f"{api_version.group('value')}/{kind.group('value')}",
                 )
             )
+            if kind.group("value") in kubernetes_schema_excluded_kinds:
+                scan.coordinates.append(
+                    _coordinate(
+                        "kubernetes-schema-exclusion",
+                        path,
+                        f"document:{document_index}",
+                        f"{api_version.group('value')}/{kind.group('value')}",
+                        "excluded",
+                    )
+                )
             scan.recognized.add(path)
 
 
-def _inventory_repository_sources(root: Path, path: str, scan: Scan) -> None:
+def _markdown_content_lines(text: str) -> list[str]:
+    content_lines: list[str] = []
+    fence_character: str | None = None
+    fence_length = 0
+    html_comment = False
+    indented_code = False
+    previous_line_blank = True
+    for line in text.splitlines():
+        marker_match = _MARKDOWN_FENCE.match(line)
+        if fence_character is not None:
+            if marker_match is not None:
+                marker = marker_match.group("marker")
+                if marker[0] == fence_character and len(marker) >= fence_length:
+                    fence_character = None
+                    fence_length = 0
+            content_lines.append("")
+            continue
+        if marker_match is not None:
+            marker = marker_match.group("marker")
+            fence_character = marker[0]
+            fence_length = len(marker)
+            content_lines.append("")
+            continue
+        if indented_code:
+            if not line.strip() or line.startswith(("    ", "\t")):
+                content_lines.append("")
+                previous_line_blank = not line.strip()
+                continue
+            indented_code = False
+        if previous_line_blank and line.startswith(("    ", "\t")):
+            indented_code = True
+            content_lines.append("")
+            previous_line_blank = False
+            continue
+        visible_parts: list[str] = []
+        remaining = line
+        while remaining:
+            if html_comment:
+                closing = remaining.find("-->")
+                if closing < 0:
+                    remaining = ""
+                    break
+                remaining = remaining[closing + 3 :]
+                html_comment = False
+                continue
+            opening = remaining.find("<!--")
+            if opening < 0:
+                visible_parts.append(remaining)
+                break
+            visible_parts.append(remaining[:opening])
+            remaining = remaining[opening + 4 :]
+            html_comment = True
+        visible_line = "".join(visible_parts)
+        content_lines.append(_MARKDOWN_INLINE_CODE.sub("", visible_line))
+        previous_line_blank = not line.strip()
+    return content_lines
+
+
+def _markdown_target_text(raw_target: str) -> str | None:
+    target = raw_target.strip()
+    if target.startswith("<"):
+        closing = target.find(">")
+        if closing < 0:
+            return None
+        target = target[1:closing]
+    else:
+        target = target.split(maxsplit=1)[0]
+    return unquote(target) or None
+
+
+def _markdown_target(raw_target: str) -> str | None:
+    target = _markdown_target_text(raw_target)
+    if (
+        not target
+        or target.startswith(("#", "/"))
+        or _URI_SCHEME.match(target) is not None
+    ):
+        return None
+    return re.split(r"[?#]", target, maxsplit=1)[0] or None
+
+
+def _markdown_external_target(raw_target: str) -> tuple[str | None, bool]:
+    target = _markdown_target_text(raw_target)
+    if target is None:
+        return None, False
+    parsed = urlsplit(target)
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        return None, False
+    if parsed.username is not None or parsed.password is not None:
+        return None, True
+    return urlunsplit(
+        (
+            parsed.scheme.lower(),
+            parsed.netloc,
+            parsed.path,
+            "",
+            "",
+        )
+    ), False
+
+
+def _tracked_markdown_target(
+    source_path: str,
+    raw_target: str,
+    tracked_files: set[str],
+) -> str | None:
+    target = _markdown_target(raw_target)
+    if target is None:
+        return None
+    source_directory = PurePosixPath(source_path).parent.as_posix()
+    normalized = posixpath.normpath(posixpath.join(source_directory, target))
+    if normalized == ".." or normalized.startswith("../"):
+        return None
+    if normalized == "." and tracked_files:
+        return normalized
+    if normalized in tracked_files:
+        return normalized
+    directory_prefix = normalized.rstrip("/") + "/"
+    if any(path.startswith(directory_prefix) for path in tracked_files):
+        return normalized
+    return ""
+
+
+def _inventory_markdown_document(
+    root: Path,
+    path: str,
+    scan: Scan,
+    tracked_files: set[str],
+) -> None:
+    text = (root / PurePosixPath(path)).read_text(encoding="utf-8")
+    scan.coordinates.append(
+        _coordinate("documentation-source", path, "file", PurePosixPath(path).name)
+    )
+    scan.recognized.add(path)
+    for line_number, line in enumerate(_markdown_content_lines(text), start=1):
+        matches = list(_MARKDOWN_INLINE_LINK.finditer(line))
+        reference_match = _MARKDOWN_REFERENCE_LINK.match(line)
+        if reference_match is not None:
+            matches.append(reference_match)
+        for match in matches:
+            raw_target = match.group("target")
+            external_target, contains_credentials = _markdown_external_target(
+                raw_target
+            )
+            if contains_credentials:
+                scan.validation_issues.append(
+                    ValidationIssue(
+                        path,
+                        f"line:{line_number}:link",
+                        "public Markdown link must not contain URL credentials",
+                    )
+                )
+                continue
+            if external_target is not None:
+                scan.coordinates.append(
+                    _coordinate(
+                        "documentation-external-link",
+                        path,
+                        f"line:{line_number}:link",
+                        external_target,
+                    )
+                )
+                continue
+            normalized = _tracked_markdown_target(path, raw_target, tracked_files)
+            if normalized is None:
+                continue
+            location = f"line:{line_number}:link"
+            scan.coordinates.append(
+                _coordinate(
+                    "documentation-link",
+                    path,
+                    location,
+                    normalized or raw_target,
+                )
+            )
+            if not normalized:
+                scan.validation_issues.append(
+                    ValidationIssue(
+                        path,
+                        location,
+                        "relative Markdown link target is not a tracked repository "
+                        f"path: {raw_target}",
+                    )
+                )
+
+    if _ADR_DOCUMENT.fullmatch(path) is None:
+        return
+    lines = text.splitlines()
+    heading_index = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if _ADR_STATUS_HEADING.fullmatch(line)
+        ),
+        None,
+    )
+    legacy_status = next(
+        (
+            (line_number, line)
+            for line_number, line in enumerate(
+                lines if heading_index is None else lines[:heading_index],
+                start=1,
+            )
+            if _ADR_LEGACY_STATUS.match(line)
+        ),
+        None,
+    )
+    if legacy_status is not None:
+        scan.validation_issues.append(
+            ValidationIssue(
+                path,
+                f"line:{legacy_status[0]}:status",
+                "ADR uses legacy '- Status:' metadata; use a '## Status' section",
+            )
+        )
+        return
+    if heading_index is None:
+        scan.validation_issues.append(
+            ValidationIssue(
+                path,
+                "document:status",
+                "ADR is missing the required '## Status' section",
+            )
+        )
+        return
+    status_line = next(
+        (
+            (index, line.strip())
+            for index, line in enumerate(lines[heading_index + 1 :], heading_index + 1)
+            if line.strip()
+        ),
+        None,
+    )
+    if status_line is None or _ADR_STATUS_VALUE.match(status_line[1]) is None:
+        location = (
+            "document:status"
+            if status_line is None
+            else f"line:{status_line[0] + 1}:status"
+        )
+        scan.validation_issues.append(
+            ValidationIssue(
+                path,
+                location,
+                "ADR Status must start with Accepted, Rejected, Deprecated, "
+                "or Superseded by",
+            )
+        )
+
+
+def _inventory_repository_sources(
+    root: Path,
+    path: str,
+    scan: Scan,
+    tracked_files: set[str],
+) -> None:
     source_category: str | None = None
     if path.startswith(".github/agents/") and path.endswith(".agent.md"):
         source_category = "agent-source"
@@ -597,20 +937,9 @@ def _inventory_repository_sources(root: Path, path: str, scan: Scan) -> None:
         )
         scan.recognized.add(path)
 
-    is_document = (
-        path == "README.md"
-        or path == "docs/workarounds.md"
-        or path.startswith("docs/adr/")
-        or path.startswith("docs/features/")
-    )
-    if not is_document:
-        return
-    category = "documentation-source"
-    scan.coordinates.append(
-        _coordinate(category, path, "file", PurePosixPath(path).name)
-    )
     if path.endswith(".md"):
-        text = (root / path).read_text(encoding="utf-8")
+        _inventory_markdown_document(root, path, scan, tracked_files)
+        text = (root / PurePosixPath(path)).read_text(encoding="utf-8")
         scan.coordinates.extend(
             _coordinate(
                 "documentation-reference",
@@ -620,13 +949,131 @@ def _inventory_repository_sources(root: Path, path: str, scan: Scan) -> None:
             )
             for match in _DOC_REFERENCE.finditer(text)
         )
+
+
+def _inventory_json(root: Path, path: str, scan: Scan) -> None:
+    if path == "src/external-sli-publisher/host.json":
+        document = json.loads((root / PurePosixPath(path)).read_text(encoding="utf-8"))
+        extension_bundle = document.get("extensionBundle")
+        version = (
+            extension_bundle.get("version")
+            if isinstance(extension_bundle, dict)
+            else None
+        )
+        if not isinstance(version, str) or not version.strip():
+            scan.validation_issues.append(
+                ValidationIssue(
+                    path,
+                    "extensionBundle.version",
+                    "Functions host configuration must define extensionBundle.version",
+                )
+            )
+        else:
+            scan.coordinates.append(
+                _coordinate(
+                    "function-extension-bundle",
+                    path,
+                    "extensionBundle.version",
+                    version,
+                )
+            )
+        scan.recognized.add(path)
+        return
+
+    entrypoint = BICEP_PARAMETER_ENTRYPOINTS.get(path)
+    if entrypoint is None:
+        return
+    document = json.loads((root / PurePosixPath(path)).read_text(encoding="utf-8"))
+    parameters = document.get("parameters")
+    if not isinstance(parameters, dict):
+        scan.validation_issues.append(
+            ValidationIssue(
+                path,
+                "parameters",
+                "Bicep parameter file must contain a parameters object",
+            )
+        )
+        scan.recognized.add(path)
+        return
+    declaration_text = (root / PurePosixPath(entrypoint)).read_text(encoding="utf-8")
+    declarations = {
+        match.group("name"): match.group("default") is not None
+        for match in _BICEP_PARAMETER_DECLARATION.finditer(declaration_text)
+    }
+    parameter_names = {name for name in parameters if isinstance(name, str)}
+    for name in sorted(parameter_names):
+        scan.coordinates.append(
+            _coordinate(
+                "bicep-parameter",
+                path,
+                f"parameters:{name}",
+                name,
+            )
+        )
+        value = parameters[name]
+        if not isinstance(value, dict) or "value" not in value:
+            scan.validation_issues.append(
+                ValidationIssue(
+                    path,
+                    f"parameters:{name}",
+                    "Bicep parameter entry must be an object containing value",
+                )
+            )
+    for name in sorted(parameter_names - declarations.keys()):
+        scan.validation_issues.append(
+            ValidationIssue(
+                path,
+                f"parameters:{name}",
+                f"parameter is not declared by {entrypoint}: {name}",
+            )
+        )
+    required = {name for name, has_default in declarations.items() if not has_default}
+    for name in sorted(required - parameter_names):
+        scan.validation_issues.append(
+            ValidationIssue(
+                entrypoint,
+                f"param:{name}",
+                f"required parameter is missing from {path}: {name}",
+            )
+        )
+    scan.recognized.add(path)
+
+
+def validate_bicep_parameter_files(root: Path) -> list[ValidationIssue]:
+    scan = Scan([], set(), [], [])
+    for path in BICEP_PARAMETER_ENTRYPOINTS:
+        parameter_path = root / PurePosixPath(path)
+        if not parameter_path.is_file():
+            scan.validation_issues.append(
+                ValidationIssue(path, "file", "Bicep parameter file does not exist")
+            )
+            continue
+        try:
+            _inventory_json(root, path, scan)
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            scan.validation_issues.append(
+                ValidationIssue(path, "file", f"parameter validation failed: {error}")
+            )
+    return sorted(set(scan.validation_issues))
+
+
+def _inventory_helm_values(path: str, scan: Scan) -> None:
+    if path != "infra/helm/chaos-mesh-values.yaml":
+        return
+    scan.coordinates.append(
+        _coordinate("helm-values", path, "file", "chaos-mesh/chaos-mesh")
+    )
     scan.recognized.add(path)
 
 
 def scan_inventory(root: Path, tracked_files: Sequence[str]) -> Scan:
-    scan = Scan([], set(), [])
+    tracked_file_set = set(tracked_files)
+    kubernetes_schema_excluded_kinds = set(
+        load_kubernetes_schema_excluded_kinds(root / CONFIG_PATH)
+    )
+    scan = Scan([], set(), [], [])
     for path in tracked_files:
-        file_scan = Scan([], set(), [])
+        file_scan = Scan([], set(), [], [])
         try:
             if not (root / PurePosixPath(path)).is_file():
                 raise FileNotFoundError(f"tracked file does not exist: {path}")
@@ -643,17 +1090,125 @@ def scan_inventory(root: Path, tracked_files: Sequence[str]) -> Scan:
             if path.endswith(".py"):
                 _inventory_python_constants(root, path, file_scan)
             if path.endswith((".yml", ".yaml")):
-                _inventory_yaml(root, path, file_scan)
-            _inventory_repository_sources(root, path, file_scan)
-        except (OSError, UnicodeError, RepoHealthError, SyntaxError) as error:
+                _inventory_yaml(
+                    root,
+                    path,
+                    file_scan,
+                    kubernetes_schema_excluded_kinds,
+                )
+                _inventory_helm_values(path, file_scan)
+            if path.endswith(".json"):
+                _inventory_json(root, path, file_scan)
+            _inventory_repository_sources(root, path, file_scan, tracked_file_set)
+        except (
+            OSError,
+            UnicodeError,
+            json.JSONDecodeError,
+            RepoHealthError,
+            SyntaxError,
+        ) as error:
             scan.extraction_failures.append({"path": path, "reason": str(error)})
             continue
         scan.coordinates.extend(file_scan.coordinates)
         scan.recognized.update(file_scan.recognized)
         scan.extraction_failures.extend(file_scan.extraction_failures)
+        scan.validation_issues.extend(file_scan.validation_issues)
     scan.coordinates = sorted(set(scan.coordinates))
     scan.extraction_failures.sort(key=lambda item: (item["path"], item["reason"]))
+    scan.validation_issues = sorted(set(scan.validation_issues))
     return scan
+
+
+def _file_coverage_entry(
+    path: str,
+    owner: str,
+    reason: str,
+) -> dict[str, str]:
+    return {"path": path, "owner": owner, "reason": reason}
+
+
+def classify_file_coverage(
+    tracked_files: Sequence[str],
+    recognized_files: set[str],
+) -> dict[str, object]:
+    covered: list[dict[str, str]] = []
+    excluded: list[dict[str, str]] = []
+    gaps: list[dict[str, str]] = []
+    explicit_covered = {
+        ".github/actionlint.yaml": (
+            "lint-workflows",
+            "actionlint loads this configuration while validating workflows",
+        ),
+        ".github/dependabot.yml": (
+            "repository-automation-contract",
+            "repository automation tests validate the Dependabot configuration",
+        ),
+        ".vscode/tasks.json": (
+            "repository-automation-contract",
+            "repository automation tests validate referenced task targets",
+        ),
+        "infra/abbreviations.json": (
+            "build-bicep",
+            "the Bicep entrypoint loads this resource abbreviation data",
+        ),
+        "lefthook.yml": (
+            "test-hooks",
+            "hook contract tests validate the Lefthook configuration",
+        ),
+    }
+    explicit_excluded = {
+        ".dockerignore": "container build exclusion patterns are data, not a freshness coordinate",
+        ".gitattributes": "Git attribute patterns are data, not a freshness coordinate",
+        ".gitignore": "Git ignore patterns are data, not a freshness coordinate",
+        "LICENSE": "license text is outside repository health automation",
+        "docs/features/.gitkeep": "placeholder file has no executable or document content",
+        "src/external-sli-publisher/.funcignore": (
+            "Functions package exclusion patterns are deployment data"
+        ),
+        "this.code-workspace": "editor workspace layout is developer-local configuration",
+    }
+    for path in sorted(set(tracked_files) - recognized_files):
+        covered_rule = explicit_covered.get(path)
+        if covered_rule is not None:
+            covered.append(_file_coverage_entry(path, *covered_rule))
+        elif path.startswith("infra/modules/templates/") and path.endswith(".kql"):
+            covered.append(
+                _file_coverage_entry(
+                    path,
+                    "build-bicep",
+                    "the Bicep entrypoint loads this query template",
+                )
+            )
+        elif path.startswith(("scripts/", "src/")) and path.endswith(".py"):
+            covered.append(
+                _file_coverage_entry(
+                    path,
+                    "qa-app",
+                    "workspace lint, type checking, and tests cover Python sources",
+                )
+            )
+        elif path in explicit_excluded:
+            excluded.append(
+                _file_coverage_entry(
+                    path,
+                    "repository-policy",
+                    explicit_excluded[path],
+                )
+            )
+        else:
+            gaps.append(
+                _file_coverage_entry(
+                    path,
+                    "unassigned",
+                    "no deterministic repository health or specialized check is assigned",
+                )
+            )
+    return {
+        "count": len(covered) + len(excluded) + len(gaps),
+        "covered_by_other_check": covered,
+        "intentionally_excluded": excluded,
+        "true_gap": gaps,
+    }
 
 
 def _required_string(value: Any, field: str) -> str:
@@ -743,7 +1298,7 @@ def _parse_target_fingerprint(value: Any, field: str) -> tuple[TargetFingerprint
     return tuple(sorted(items))
 
 
-def load_rules(path: Path) -> list[Rule]:
+def _load_config(path: Path) -> dict[str, Any]:
     try:
         with path.open("rb") as config_file:
             config = tomllib.load(config_file)
@@ -751,11 +1306,41 @@ def load_rules(path: Path) -> list[Rule]:
         raise RepoHealthError(
             f"could not load configuration {path}: {error}"
         ) from error
-    _reject_unknown_keys(config, {"schema_version", "rules"}, "configuration")
+    _reject_unknown_keys(
+        config,
+        {"schema_version", "kubernetes_schema_excluded_kinds", "rules"},
+        "configuration",
+    )
     if config.get("schema_version") != CONFIG_SCHEMA_VERSION:
         raise RepoHealthError(
             f"configuration schema_version must be {CONFIG_SCHEMA_VERSION}"
         )
+    return config
+
+
+def load_kubernetes_schema_excluded_kinds(path: Path) -> tuple[str, ...]:
+    config = _load_config(path)
+    raw_kinds = config.get("kubernetes_schema_excluded_kinds", [])
+    if not isinstance(raw_kinds, list):
+        raise RepoHealthError(
+            "configuration kubernetes_schema_excluded_kinds must be an array"
+        )
+    kinds = tuple(
+        _required_string(
+            kind,
+            f"configuration kubernetes_schema_excluded_kinds[{index}]",
+        )
+        for index, kind in enumerate(raw_kinds)
+    )
+    if len(set(kinds)) != len(kinds):
+        raise RepoHealthError(
+            "configuration kubernetes_schema_excluded_kinds contains duplicates"
+        )
+    return tuple(sorted(kinds))
+
+
+def load_rules(path: Path) -> list[Rule]:
+    config = _load_config(path)
     raw_rules = config.get("rules")
     if not isinstance(raw_rules, list) or not raw_rules:
         raise RepoHealthError("configuration rules must be a non-empty array")
@@ -1028,13 +1613,15 @@ def _check_findings(checks: Sequence[Check]) -> list[Finding]:
 
 def build_result(root: Path, *, include_checks: bool) -> dict[str, Any]:
     tracked_files = list_tracked_files(root)
+    untracked_files = list_untracked_files(root)
+    repository_files = sorted(set(tracked_files) | set(untracked_files))
     commit = repository_commit(root)
-    scan = scan_inventory(root, tracked_files)
+    scan = scan_inventory(root, repository_files)
     checks: list[Check] = []
     if include_checks:
         rules = load_rules(root / CONFIG_PATH)
         checks = run_checks(root, rules)
-    unsupported = sorted(set(tracked_files) - scan.recognized)
+    file_coverage = classify_file_coverage(repository_files, scan.recognized)
     findings = _check_findings(checks)
     findings.extend(
         Finding(
@@ -1046,6 +1633,26 @@ def build_result(root: Path, *, include_checks: bool) -> dict[str, Any]:
         )
         for failure in scan.extraction_failures
     )
+    findings.extend(
+        Finding(
+            "document-health",
+            "fail" if include_checks else "unverified",
+            issue.path,
+            issue.location,
+            issue.message,
+        )
+        for issue in scan.validation_issues
+    )
+    findings.extend(
+        Finding(
+            "file-coverage",
+            "fail" if include_checks else "unverified",
+            entry["path"],
+            "file",
+            entry["reason"],
+        )
+        for entry in cast(list[dict[str, str]], file_coverage["true_gap"])
+    )
     findings.sort()
     return {
         "schema_version": SCHEMA_VERSION,
@@ -1055,6 +1662,8 @@ def build_result(root: Path, *, include_checks: bool) -> dict[str, Any]:
         "checks": [asdict(item) for item in checks],
         "coverage": {
             "tracked_files": len(tracked_files),
+            "untracked_files": len(untracked_files),
+            "repository_files": len(repository_files),
             "recognized_files": len(scan.recognized),
             "inventory_coordinates": len(scan.coordinates),
             "checked_coordinates": sum(
@@ -1069,11 +1678,19 @@ def build_result(root: Path, *, include_checks: bool) -> dict[str, Any]:
                 }
                 for check in checks
                 if check.status == "excluded"
+            ]
+            + [
+                {
+                    "rule_id": coordinate.category,
+                    "path": coordinate.path,
+                    "location": coordinate.location,
+                    "reason": "schema validation is explicitly excluded by repository configuration",
+                }
+                for coordinate in scan.coordinates
+                if coordinate.status == "excluded"
             ],
-            "unsupported_files": {
-                "count": len(unsupported),
-                "paths": unsupported,
-            },
+            "validation_issues": [asdict(issue) for issue in scan.validation_issues],
+            "file_coverage": file_coverage,
             "extraction_failures": scan.extraction_failures,
         },
         "findings": [asdict(item) for item in findings],
@@ -1082,7 +1699,12 @@ def build_result(root: Path, *, include_checks: bool) -> dict[str, Any]:
                 "area": "external-freshness",
                 "status": "excluded",
                 "reason": "This offline scanner does not query networks or authenticated environments.",
-            }
+            },
+            {
+                "area": "public-link-reachability",
+                "status": "unverified",
+                "reason": "Public Markdown links require the network-enabled freshness check.",
+            },
         ],
     }
 
@@ -1113,12 +1735,53 @@ def _validate_report(result: Any) -> dict[str, Any]:
     coverage = result.get("coverage")
     if not isinstance(coverage, dict):
         raise RepoHealthError("report input coverage must be an object")
-    for field in ("tracked_files", "recognized_files"):
+    for field in (
+        "tracked_files",
+        "untracked_files",
+        "repository_files",
+        "recognized_files",
+    ):
         value = coverage.get(field)
         if type(value) is not int or value < 0:
             raise RepoHealthError(
                 f"report input coverage.{field} must be a non-negative integer"
             )
+    file_coverage = coverage.get("file_coverage")
+    if not isinstance(file_coverage, dict):
+        raise RepoHealthError("report input coverage.file_coverage must be an object")
+    allowed_file_coverage_keys = {
+        "count",
+        "covered_by_other_check",
+        "intentionally_excluded",
+        "true_gap",
+    }
+    unknown_file_coverage_keys = sorted(set(file_coverage) - allowed_file_coverage_keys)
+    if unknown_file_coverage_keys:
+        raise RepoHealthError(
+            "report input coverage.file_coverage contains unknown keys: "
+            + ", ".join(unknown_file_coverage_keys)
+        )
+    count = file_coverage.get("count")
+    if type(count) is not int or count < 0:
+        raise RepoHealthError(
+            "report input coverage.file_coverage.count must be a non-negative integer"
+        )
+    classified_count = 0
+    for category in (
+        "covered_by_other_check",
+        "intentionally_excluded",
+        "true_gap",
+    ):
+        entries = _validate_report_items(
+            file_coverage.get(category),
+            f"coverage.file_coverage.{category}",
+            {"path": str, "owner": str, "reason": str},
+        )
+        classified_count += len(entries)
+    if classified_count != count:
+        raise RepoHealthError(
+            "report input coverage.file_coverage.count does not match its categories"
+        )
     _validate_report_items(
         result.get("inventory"),
         "inventory",
@@ -1221,9 +1884,18 @@ def text_output(result: dict[str, Any]) -> str:
         (
             "ok: inventory "
             f"{len(inventory)} coordinates from {coverage['recognized_files']} "
-            f"of {coverage['tracked_files']} tracked files"
+            f"of {coverage['repository_files']} repository files "
+            f"({coverage['tracked_files']} tracked, "
+            f"{coverage['untracked_files']} untracked)"
         ),
     ]
+    file_coverage = coverage["file_coverage"]
+    lines.append(
+        "-> File coverage: "
+        f"{len(file_coverage['covered_by_other_check'])} covered by other checks, "
+        f"{len(file_coverage['intentionally_excluded'])} intentionally excluded, "
+        f"{len(file_coverage['true_gap'])} true gaps"
+    )
     for check in checks:
         prefix = {
             "pass": "ok:",
@@ -1265,6 +1937,7 @@ def _parser() -> argparse.ArgumentParser:
         )
     report_parser = subparsers.add_parser("report")
     report_parser.add_argument("input", type=Path)
+    subparsers.add_parser("validate-bicep-parameters")
     return parser
 
 
@@ -1282,6 +1955,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write_result(result, "text")
             return 0
         root = args.root.resolve()
+        if args.command == "validate-bicep-parameters":
+            issues = validate_bicep_parameter_files(root)
+            for issue in issues:
+                print(
+                    f"error: {issue.path} ({issue.location}): {issue.message}",
+                    file=sys.stderr,
+                )
+            return 1 if issues else 0
         result = build_result(root, include_checks=args.command == "check")
         _write_result(result, args.format)
         if args.command == "check" and (

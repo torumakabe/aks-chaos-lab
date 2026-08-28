@@ -14,14 +14,16 @@ network:
   allowed:
     - defaults
     - github
+    - "learn.microsoft.com"
 tools:
-  bash: ["uv", "git", "gh"]
+  bash: ["uv", "python3", "git", "gh"]
 safe-outputs:
   create-issue:
     title-prefix: "[Repository Freshness] "
     labels: [repository-health, automation]
     close-older-issues: true
     max: 1
+  noop: false
 timeout-minutes: 15
 ---
 
@@ -33,9 +35,9 @@ timeout-minutes: 15
 
 ## 実行範囲
 
-1. `uv run --no-project "${GITHUB_WORKSPACE}/scripts/repo_health.py" inventory --format json`で、追跡済みファイルからinventory JSONを生成してください。
-2. 今回の対象は、gh-aw、Lefthook、actionlint、kubeconform、azd、Chaos Mesh Helm chartの6つだけです。
-3. Bicep CLIは`bicep-version-check.yml`、AKS更新情報は`aks-updates-analyzer`が担当します。GitHub ActionsとDockerのversion更新はDependabotが担当します。これらの更新候補をIssueへ含めないでください。
+1. `uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py" inventory-repo --format json`で、追跡済みファイルからinventory JSONを生成してください。
+2. 今回の対象は、gh-aw、Lefthook、actionlint、kubeconform、azd、Chaos Mesh Helm chart、Docker base imageのEOLとdigest固定状況、Azure Functions extension bundleのsupport範囲の8つだけです。
+3. Bicep CLIは`bicep-version-check.yml`、AKS更新情報は`aks-updates-analyzer`が担当します。GitHub Actionsのversion更新とDocker image tag更新はDependabotが担当します。Docker base imageのEOLとdigest固定状況はこのworkflowで確認します。Dependabotが扱う更新候補をIssueへ重複して含めないでください。
 4. Azure認証を行わず、subscription、AKS cluster、Fleetなどの実環境を照会しないでください。
 5. ファイルの編集、commit、push、pull requestの作成を行わないでください。
 
@@ -46,7 +48,7 @@ timeout-minutes: 15
 日本語でIssueを1件だけ作成してください。Issueには次の情報を含めます。
 
 - 確認日時と対象commit
-- 6対象それぞれの現在値、公開値、`pass`、`fail`、`unverified`、`excluded`のいずれかの状態
+- 8対象それぞれの現在値、公開値、`pass`、`fail`、`unverified`、`excluded`のいずれかの状態
 - inventory座標数、確認済み座標数、未検証座標数、除外座標数
 - 公式情報のURLと、更新前に確認する互換性または移行条件
 - 実行環境の制約

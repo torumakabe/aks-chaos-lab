@@ -1,6 +1,9 @@
 # ADR-017: 管理対象環境向け approved-index 変換フロー (ADR-013 の一部を amend)
 
-- Status: Accepted
+## Status
+
+Accepted
+
 - Date: 2026-08-08
 
 ## Context

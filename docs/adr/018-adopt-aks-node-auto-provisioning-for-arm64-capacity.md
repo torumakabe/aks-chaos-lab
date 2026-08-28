@@ -1,6 +1,9 @@
 # ADR-018: NAPをArm64 workloadの追加capacityに採用する
 
-- Status: Accepted
+## Status
+
+Accepted
+
 - Date: 2026-08-21
 
 ## Context
