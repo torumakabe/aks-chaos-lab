@@ -61,7 +61,7 @@ def test_dependabot_excludes_generated_and_uv_managed_inputs() -> None:
     docker = blocks["docker"]
     assert docker["directory"] == "/src/api"
     docker_ignores = {item["dependency-name"] for item in docker["ignore"]}
-    assert docker_ignores == {"ghcr.io/astral-sh/uv"}
+    assert docker_ignores == {"astral-sh/uv"}
 
 
 def test_ci_runs_repository_health_check() -> None:
@@ -189,7 +189,11 @@ def test_freshness_targets_exist_in_repository_inventory() -> None:
     assert {"lefthook", "actionlint", "kubeconform", "azd"} <= tool_versions
     assert "chaos-mesh/chaos-mesh" in helm_charts
     assert gh_aw_versions
-    assert {"python:3.14-slim", "ghcr.io/astral-sh/uv:0.12.2"} <= docker_images
+    assert any(image.startswith("python:3.14-slim@sha256:") for image in docker_images)
+    assert any(
+        image.startswith("ghcr.io/astral-sh/uv:0.12.2@sha256:")
+        for image in docker_images
+    )
     assert "[4.*, 5.0.0)" in extension_bundles
     assert "https://learn.microsoft.com/azure/chaos-studio/" in external_links
 

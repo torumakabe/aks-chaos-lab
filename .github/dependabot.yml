@@ -33,6 +33,6 @@ updates:
           - "patch"
     ignore:
       # check-uv-version keeps this image equal to the workspace uv lower bound.
-      - dependency-name: "ghcr.io/astral-sh/uv"
+      - dependency-name: "astral-sh/uv"
 
 # uv updates remain on the refresh-uv-lock workflow; see docs/deployment.md.
