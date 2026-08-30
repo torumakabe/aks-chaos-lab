@@ -8,6 +8,7 @@ import stat
 import subprocess
 import sys
 import tomllib
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -800,13 +801,13 @@ def test_isolated_review_rejects_os_temporary_directory_inside_repository(
 ) -> None:
     repository = tmp_path / "repository"
     repository.mkdir()
-    real_temporary_directory = tasks.tempfile.TemporaryDirectory
+    real_mkdtemp = tasks.tempfile.mkdtemp
     monkeypatch.setattr(tasks, "ROOT", repository)
     monkeypatch.setattr(tasks.shutil, "which", lambda command: f"mock-{command}")
     monkeypatch.setattr(
         tasks.tempfile,
-        "TemporaryDirectory",
-        lambda *, prefix: real_temporary_directory(prefix=prefix, dir=repository),
+        "mkdtemp",
+        lambda *, prefix: real_mkdtemp(prefix=prefix, dir=repository),
     )
     monkeypatch.setattr(
         tasks,
@@ -1578,6 +1579,773 @@ def test_incomplete_snapshot_marks_all_full_checks_unverified(
     assert not (repository / "tmp").exists()
 
 
+@pytest.fixture
+def repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A fresh, empty directory monkeypatched in as ``tasks.ROOT``, for
+    review-workspace tests that only need a stand-in repository root rather
+    than a real git checkout."""
+    repository_path = tmp_path / "repository"
+    repository_path.mkdir()
+    monkeypatch.setattr(tasks, "ROOT", repository_path)
+    return repository_path
+
+
+@pytest.fixture
+def confined_mkdtemp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make ``tempfile.mkdtemp`` create its directory under ``tmp_path``
+    instead of the real OS temp dir, so tests can scope their cleanup
+    assertions (``tmp_path.glob(...)``) to files they actually created."""
+    real_mkdtemp = tasks.tempfile.mkdtemp
+    monkeypatch.setattr(
+        tasks.tempfile,
+        "mkdtemp",
+        lambda prefix: real_mkdtemp(prefix=prefix, dir=tmp_path),
+    )
+
+
+def _write_review_workspace_manifest(
+    workspace_path: Path, *, repository_root: Path, token: object
+) -> None:
+    """Write a manifest for a hand-built workspace fixture, as a sibling of
+    ``workspace_path`` -- matching where ``create_review_workspace`` writes
+    it (never inside the workspace; see ``_review_workspace_manifest_path``)
+    -- so ``cleanup_review_workspace`` finds it at the same path it would
+    for a real workspace."""
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "schema": tasks.REVIEW_WORKSPACE_SCHEMA_VERSION,
+        "token": token,
+        "repository_root": str(repository_root),
+        "workspace_path": str(workspace_path),
+    }
+    (workspace_path.parent / tasks.REVIEW_WORKSPACE_MANIFEST_FILENAME).write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+
+
+def test_review_workspace_create_writes_a_correct_manifest_and_leaves_repository_intact(
+    repository: Path, confined_mkdtemp: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """create_review_workspace delegates the actual tracked/untracked copy
+    behavior to copy_worktree_snapshot (already exhaustively covered by
+    test_isolated_review_copies_current_tracked_and_untracked_files_for_tests
+    and proven to be the exact same function via
+    test_review_workspace_create_reuses_shared_snapshot_and_git_bootstrap_helpers),
+    so this only has to prove the parts unique to create_review_workspace: a
+    single copied file lands correctly, git bootstrap runs, the manifest is
+    correct, and the original repository is left untouched."""
+    scripts_directory = repository / "scripts"
+    scripts_directory.mkdir(parents=True)
+    (scripts_directory / "tasks.py").write_text("# task runner\n", encoding="utf-8")
+    monkeypatch.setattr(
+        tasks,
+        "command_nul_output",
+        lambda args, **_kwargs: (
+            ["scripts/tasks.py"] if tuple(args) == ("git", "ls-files", "-z") else []
+        ),
+    )
+    monkeypatch.setattr(tasks, "command_output", lambda *_a, **_k: "")
+    run_calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        tasks,
+        "run",
+        lambda args, **_kwargs: (
+            run_calls.append(tuple(args)) or subprocess.CompletedProcess(args, 0)
+        ),
+    )
+
+    workspace = tasks.create_review_workspace()
+    workspace_path = Path(workspace["workspace_path"])
+    try:
+        assert workspace_path.is_absolute()
+        assert not workspace_path.is_relative_to(repository.resolve())
+        assert (workspace_path / "scripts" / "tasks.py").read_text(
+            encoding="utf-8"
+        ) == "# task runner\n"
+        assert workspace["snapshot_issues"] == []
+        assert run_calls[0][:2] == ("git", "init")
+        assert "commit" in run_calls[-1]
+
+        manifest_path = Path(workspace["manifest_path"])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["schema"] == tasks.REVIEW_WORKSPACE_SCHEMA_VERSION
+        assert manifest["token"] == workspace["token"]
+        assert manifest["repository_root"] == str(repository.resolve())
+        assert manifest["workspace_path"] == str(workspace_path)
+    finally:
+        tasks.cleanup_review_workspace(workspace_path, workspace["token"])
+
+    assert not workspace_path.exists()
+    assert (scripts_directory / "tasks.py").read_text(encoding="utf-8") == (
+        "# task runner\n"
+    )
+
+
+def test_review_workspace_create_produces_a_real_isolated_workspace() -> None:
+    """Real, unpatched create_review_workspace against this repository:
+    the manifest must sit beside, not inside, the workspace (else it's an
+    untracked true_gap that fails check-repo-health from inside the
+    workspace), and ROOT must resolve to the copied workspace rather than
+    back to this repository, so nested isolation is safe by construction."""
+    workspace = tasks.create_review_workspace()
+    workspace_path = Path(workspace["workspace_path"])
+    try:
+        assert not (workspace_path / tasks.REVIEW_WORKSPACE_MANIFEST_FILENAME).exists()
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(workspace_path / "scripts" / "tasks.py"),
+                "check-repo-health",
+            ],
+            cwd=workspace_path,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        assert completed.returncode == 0, (
+            "check-repo-health failed inside the isolated review workspace:\n"
+            f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
+        )
+        assert "0 true gaps" in completed.stdout, (
+            "expected zero true gaps (the manifest must not be an untracked, "
+            f"unrecognized file inside the workspace); got:\n{completed.stdout}"
+        )
+
+        copied_tasks_path = workspace_path / "scripts" / "tasks.py"
+        spec = importlib.util.spec_from_file_location(
+            "review_repository_tasks_isolated_workspace_copy", copied_tasks_path
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            del sys.modules[spec.name]
+
+        assert workspace_path == module.ROOT
+        assert REPO_ROOT.resolve() != module.ROOT
+    finally:
+        tasks.cleanup_review_workspace(workspace_path, workspace["token"])
+
+
+def test_review_workspace_create_reuses_shared_snapshot_and_git_bootstrap_helpers(
+    repository: Path, confined_mkdtemp: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """create_review_workspace must call the same copy_worktree_snapshot and
+    initialize_isolated_git_repository helpers review-repo-full already uses
+    internally, rather than duplicating copy/path-traversal/symlink or git
+    bootstrap logic."""
+    monkeypatch.setattr(tasks, "command_nul_output", lambda *_a, **_k: [])
+    snapshot_calls: list[Path] = []
+    real_snapshot = tasks.copy_worktree_snapshot
+
+    def spy_snapshot(destination: Path) -> list[str]:
+        snapshot_calls.append(destination)
+        return real_snapshot(destination)
+
+    monkeypatch.setattr(tasks, "copy_worktree_snapshot", spy_snapshot)
+    git_init_calls: list[Path] = []
+
+    def spy_git_init(isolated_root: Path) -> str:
+        git_init_calls.append(isolated_root)
+        return ""
+
+    monkeypatch.setattr(tasks, "initialize_isolated_git_repository", spy_git_init)
+
+    workspace = tasks.create_review_workspace()
+    workspace_path = Path(workspace["workspace_path"])
+    try:
+        assert snapshot_calls == [workspace_path]
+        assert git_init_calls == [workspace_path]
+    finally:
+        tasks.cleanup_review_workspace(workspace_path, workspace["token"])
+
+
+def test_review_workspace_create_rejects_workspace_inside_repository(
+    repository: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_mkdtemp = tasks.tempfile.mkdtemp
+    monkeypatch.setattr(
+        tasks.tempfile,
+        "mkdtemp",
+        lambda prefix: real_mkdtemp(prefix=prefix, dir=repository),
+    )
+    monkeypatch.setattr(
+        tasks,
+        "copy_worktree_snapshot",
+        lambda _destination: pytest.fail("snapshot copy must not run"),
+    )
+    monkeypatch.setattr(
+        tasks,
+        "initialize_isolated_git_repository",
+        lambda _isolated_root: pytest.fail("git setup must not run"),
+    )
+
+    with pytest.raises(
+        tasks.ReviewSnapshotError,
+        match="operating-system temporary directory is inside the repository",
+    ):
+        tasks.create_review_workspace()
+
+    assert not any(repository.iterdir())
+
+
+def _snapshot_raises(destination: Path) -> list[str]:
+    (destination / "partial.txt").write_text("partial\n", encoding="utf-8")
+    raise tasks.ReviewSnapshotError("boom")
+
+
+def _snapshot_reports_issues(destination: Path) -> list[str]:
+    (destination / "partial.txt").write_text("partial\n", encoding="utf-8")
+    return ["skipped a broken symlink: dangling"]
+
+
+@pytest.mark.parametrize(
+    ("snapshot_fn", "expected_match"),
+    [
+        (_snapshot_raises, "boom"),
+        (_snapshot_reports_issues, "skipped a broken symlink: dangling"),
+    ],
+    ids=["snapshot-raises", "snapshot-reports-non-empty-issues"],
+)
+def test_review_workspace_create_fails_and_cleans_up_when_snapshot_is_incomplete(
+    repository: Path,
+    confined_mkdtemp: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    snapshot_fn: object,
+    expected_match: str,
+) -> None:
+    """copy_worktree_snapshot can fail either by raising or by returning a
+    non-empty ``issues`` list without raising; create_review_workspace must
+    treat both the same way -- a partially built workspace is not a partial
+    success, so creation fails with ReviewSnapshotError and removes the
+    temporary parent either way, and git bootstrap must not run."""
+    monkeypatch.setattr(tasks, "copy_worktree_snapshot", snapshot_fn)
+    monkeypatch.setattr(
+        tasks,
+        "initialize_isolated_git_repository",
+        lambda _isolated_root: pytest.fail(
+            "git setup must not run after an incomplete snapshot"
+        ),
+    )
+
+    with pytest.raises(tasks.ReviewSnapshotError, match=expected_match):
+        tasks.create_review_workspace()
+
+    assert not any(tmp_path.glob("review-repo-workspace-*"))
+
+
+_BOOTSTRAP_TIMEOUT = subprocess.TimeoutExpired(cmd=["git", "commit"], timeout=30)
+_BOOTSTRAP_UNEXPECTED = ValueError("unexpected git bootstrap failure")
+
+
+def _fails_manifest_path(workspace_root: Path) -> Path:
+    return workspace_root.parent / "missing-subdirectory" / "manifest.json"
+
+
+@pytest.mark.parametrize(
+    ("bootstrap_error", "manifest_path_override", "expected_exception", "match"),
+    [
+        (
+            _BOOTSTRAP_TIMEOUT,
+            None,
+            tasks.ReviewSnapshotError,
+            "timed out after 30 seconds",
+        ),
+        (KeyboardInterrupt(), None, KeyboardInterrupt, None),
+        (
+            _BOOTSTRAP_UNEXPECTED,
+            None,
+            tasks.ReviewSnapshotError,
+            "unexpected git bootstrap failure",
+        ),
+        (
+            None,
+            _fails_manifest_path,
+            tasks.ReviewSnapshotError,
+            "failed to prepare the isolated review workspace",
+        ),
+    ],
+    ids=[
+        "subprocess-timeout",
+        "keyboard-interrupt",
+        "unexpected-exception",
+        "manifest-write-failure",
+    ],
+)
+def test_review_workspace_create_cleans_up_on_any_preparation_failure(
+    repository: Path,
+    confined_mkdtemp: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bootstrap_error: BaseException | None,
+    manifest_path_override: object,
+    expected_exception: type[BaseException],
+    match: str | None,
+) -> None:
+    """Every preparation failure (subprocess timeout, interrupt, unexpected
+    exception, or manifest-write failure) must remove the temporary parent
+    before propagating. KeyboardInterrupt propagates unchanged; every other
+    failure is translated into a ReviewSnapshotError chained via
+    __cause__, so callers only need to handle one failure type."""
+    monkeypatch.setattr(tasks, "copy_worktree_snapshot", lambda _destination: [])
+    if bootstrap_error is not None:
+
+        def _raiser(
+            _isolated_root: Path, _error: BaseException = bootstrap_error
+        ) -> str:
+            raise _error
+
+        monkeypatch.setattr(tasks, "initialize_isolated_git_repository", _raiser)
+    else:
+        monkeypatch.setattr(tasks, "initialize_isolated_git_repository", lambda _r: "")
+        monkeypatch.setattr(
+            tasks, "_review_workspace_manifest_path", manifest_path_override
+        )
+
+    with pytest.raises(expected_exception, match=match) as excinfo:
+        tasks.create_review_workspace()
+
+    if bootstrap_error is not None:
+        if expected_exception is not KeyboardInterrupt:
+            assert excinfo.value.__cause__ is bootstrap_error
+    else:
+        assert isinstance(excinfo.value.__cause__, OSError)
+    assert not any(tmp_path.glob("review-repo-workspace-*"))
+
+
+def test_review_workspace_cleanup_removes_workspace_and_is_not_idempotent(
+    repository: Path, tmp_path: Path
+) -> None:
+    workspace_path = tmp_path / "review-workspace-parent" / "workspace"
+    token = "a" * 32
+    _write_review_workspace_manifest(
+        workspace_path, repository_root=repository.resolve(), token=token
+    )
+    (workspace_path / "extra.txt").write_text("copied file\n", encoding="utf-8")
+
+    removed = tasks.cleanup_review_workspace(workspace_path, token)
+
+    assert removed == str(workspace_path.resolve())
+    assert not workspace_path.exists()
+    assert not workspace_path.parent.exists()
+
+    # Repeating cleanup on an already-removed workspace must fail explicitly
+    # rather than silently succeed a second time.
+    with pytest.raises(tasks.ReviewSnapshotError, match="does not exist"):
+        tasks.cleanup_review_workspace(workspace_path, token)
+
+
+@pytest.mark.parametrize(
+    ("build_candidate", "expected_match"),
+    [
+        (lambda repository: repository, "repository root or one of its ancestors"),
+        (
+            lambda repository: repository.parent,
+            "repository root or one of its ancestors",
+        ),
+        (
+            lambda repository: repository / "subdir",
+            "path inside the repository worktree",
+        ),
+        (
+            lambda repository: repository / "subdir" / ".." / "subdir",
+            "path inside the repository worktree",
+        ),
+    ],
+    ids=[
+        "repository-root",
+        "ancestor-of-repository-root",
+        "inside-repository",
+        "traversal-that-resolves-inside-repository",
+    ],
+)
+def test_review_workspace_cleanup_rejects_paths_not_disjoint_from_repository(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    build_candidate: Callable[[Path], Path],
+    expected_match: str,
+) -> None:
+    """A workspace_path that equals, contains (is an ancestor of), or is
+    contained by (including via a ``..`` traversal that resolve(strict=True)
+    normalizes before any check runs) the repository root must always be
+    rejected before cleanup ever looks for a manifest, and the repository
+    must be left untouched."""
+    nested = tmp_path / "nested"
+    repository = nested / "repository"
+    (repository / "subdir").mkdir(parents=True)
+    monkeypatch.setattr(tasks, "ROOT", repository)
+
+    with pytest.raises(tasks.ReviewSnapshotError, match=expected_match):
+        tasks.cleanup_review_workspace(build_candidate(repository), "irrelevant-token")
+
+    assert (repository / "subdir").exists()
+
+
+def test_review_workspace_cleanup_rejects_arbitrary_path_without_manifest(
+    repository: Path, tmp_path: Path
+) -> None:
+    arbitrary = tmp_path / "not-a-review-workspace"
+    arbitrary.mkdir()
+    (arbitrary / "innocuous.txt").write_text("data\n", encoding="utf-8")
+
+    with pytest.raises(
+        tasks.ReviewSnapshotError, match="manifest is missing or unreadable"
+    ):
+        tasks.cleanup_review_workspace(arbitrary, "irrelevant-token")
+
+    assert arbitrary.exists()
+    assert (arbitrary / "innocuous.txt").exists()
+
+
+@pytest.mark.parametrize(
+    ("manifest_token", "supplied_token", "expected_match"),
+    [
+        ("f" * 32, "e" * 32, "token does not match"),  # correctly shaped, wrong value
+        ("f" * 32, "caf\u00e9" + "a" * 28, "token does not match"),  # non-ASCII
+        (123456, "f" * 32, "token does not match"),  # tampered: not a string
+        (None, "f" * 32, "token does not match"),  # tampered: missing field
+    ],
+    ids=[
+        "value-mismatch",
+        "non-ascii-supplied-token",
+        "non-string-manifest-token",
+        "missing-manifest-token",
+    ],
+)
+def test_review_workspace_cleanup_rejects_token_mismatch_without_raising(
+    repository: Path,
+    tmp_path: Path,
+    manifest_token: object,
+    supplied_token: str,
+    expected_match: str,
+) -> None:
+    """The manifest token is a plaintext equality check, not authentication:
+    it only has to fail closed -- with a clean ReviewSnapshotError, never a
+    raw TypeError/AttributeError -- whether the mismatch is an ordinary
+    wrong value, a non-ASCII supplied token, or a manifest token corrupted
+    into a non-string (or missing) JSON value."""
+    workspace_path = tmp_path / "workspace"
+    _write_review_workspace_manifest(
+        workspace_path, repository_root=repository.resolve(), token=manifest_token
+    )
+
+    with pytest.raises(tasks.ReviewSnapshotError, match=expected_match):
+        tasks.cleanup_review_workspace(workspace_path, supplied_token)
+
+    assert workspace_path.exists()
+
+
+def _valid_manifest(repository_root: Path, workspace_path: Path) -> dict[str, object]:
+    return {
+        "schema": tasks.REVIEW_WORKSPACE_SCHEMA_VERSION,
+        "token": "f" * 32,
+        "repository_root": str(repository_root),
+        "workspace_path": str(workspace_path),
+    }
+
+
+@pytest.mark.parametrize(
+    ("manifest_content", "expected_match"),
+    [
+        ("not json at all", "not valid JSON"),
+        ('"just a string"', "not a JSON object"),
+        ("[1, 2, 3]", "not a JSON object"),
+        ("42", "not a JSON object"),
+        ("true", "not a JSON object"),
+        ("null", "not a JSON object"),
+        (
+            lambda repository_root, workspace_path: {
+                **_valid_manifest(repository_root, workspace_path),
+                "schema": "unrecognized-schema/0",
+            },
+            "schema is not recognized",
+        ),
+        (
+            lambda repository_root, workspace_path: {
+                **_valid_manifest(repository_root, workspace_path),
+                "repository_root": str(repository_root.parent),
+            },
+            "not created for this repository",
+        ),
+        (
+            lambda repository_root, workspace_path: {
+                **_valid_manifest(repository_root, workspace_path),
+                "workspace_path": str(workspace_path.parent),
+            },
+            "does not match the requested path",
+        ),
+    ],
+    ids=[
+        "invalid-json",
+        "json-string",
+        "json-array",
+        "json-number",
+        "json-boolean",
+        "json-null",
+        "unrecognized-schema",
+        "wrong-repository",
+        "wrong-workspace-path",
+    ],
+)
+def test_review_workspace_cleanup_rejects_malformed_manifest_content(
+    repository: Path,
+    tmp_path: Path,
+    manifest_content: str | Callable[[Path, Path], dict[str, object]],
+    expected_match: str,
+) -> None:
+    """A manifest that is not valid JSON, not a JSON object, from an
+    unrecognized schema version, written for a different repository, or
+    bound to a different workspace path must all be rejected with a clean
+    ReviewSnapshotError instead of proceeding to delete anything."""
+    workspace_path = tmp_path / "workspace"
+    workspace_path.mkdir(parents=True)
+    manifest_path = workspace_path.parent / tasks.REVIEW_WORKSPACE_MANIFEST_FILENAME
+    if isinstance(manifest_content, str):
+        manifest_path.write_text(manifest_content, encoding="utf-8")
+    else:
+        manifest_path.write_text(
+            json.dumps(manifest_content(repository.resolve(), workspace_path)),
+            encoding="utf-8",
+        )
+
+    with pytest.raises(tasks.ReviewSnapshotError, match=expected_match):
+        tasks.cleanup_review_workspace(workspace_path, "f" * 32)
+
+    assert workspace_path.exists()
+
+
+def test_review_workspace_cleanup_rejects_workspace_path_replaced_by_a_symlink(
+    repository: Path, tmp_path: Path
+) -> None:
+    """If the workspace_path directory is replaced by a symlink to an
+    unrelated victim directory after creation (a classic TOCTOU
+    substitution attempt), cleanup resolves that symlink and then looks for
+    the manifest beside *its* resolved target, not beside the original
+    workspace_path. Without a manifest proving that resolved location was
+    ours, cleanup must refuse to touch it, and the victim directory must
+    survive untouched."""
+    victim = tmp_path / "victim-parent" / "victim"
+    victim.mkdir(parents=True)
+    (victim / "precious.txt").write_text("do not delete me\n", encoding="utf-8")
+    workspace_path = tmp_path / "workspace"
+    workspace_path.symlink_to(victim, target_is_directory=True)
+
+    with pytest.raises(
+        tasks.ReviewSnapshotError, match="manifest is missing or unreadable"
+    ):
+        tasks.cleanup_review_workspace(workspace_path, "irrelevant-token")
+
+    assert victim.exists()
+    assert (victim / "precious.txt").read_text(encoding="utf-8") == (
+        "do not delete me\n"
+    )
+
+
+def test_review_workspace_cleanup_does_not_follow_a_symlink_planted_inside_workspace(
+    repository: Path, tmp_path: Path
+) -> None:
+    """A symlink planted inside an otherwise legitimately created workspace,
+    pointing at an external victim directory, must not cause that victim's
+    contents to be deleted when the real workspace is cleaned up:
+    shutil.rmtree unlinks symlinks it encounters rather than recursing
+    through them."""
+    victim = tmp_path / "victim-parent" / "victim"
+    victim.mkdir(parents=True)
+    (victim / "precious.txt").write_text("do not delete me\n", encoding="utf-8")
+    workspace_path = tmp_path / "review-workspace-parent" / "workspace"
+    token = "e" * 32
+    _write_review_workspace_manifest(
+        workspace_path, repository_root=repository.resolve(), token=token
+    )
+    (workspace_path / "escape-link").symlink_to(victim, target_is_directory=True)
+
+    removed = tasks.cleanup_review_workspace(workspace_path, token)
+
+    assert removed == str(workspace_path.resolve())
+    assert not workspace_path.exists()
+    assert victim.exists()
+    assert (victim / "precious.txt").read_text(encoding="utf-8") == (
+        "do not delete me\n"
+    )
+
+
+def test_review_workspace_rmtree_onexc_clears_read_only_bit_and_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The onexc handler must clear the read-only attribute Git can leave on
+    packed object files (blocking deletion on Windows) and retry the failed
+    operation, widening the mode (``current_mode | S_IWRITE``) rather than
+    replacing it outright, so unrelated bits (e.g. S_IROTH) survive.
+    ``os.unlink`` is monkeypatched to a stub gated on write access, since
+    POSIX unlink is governed by the containing directory's permissions, not
+    the file's own mode -- a purely filesystem-driven version of this test
+    would not reliably fail before the fix on non-Windows platforms."""
+    target = tmp_path / "read-only-file.txt"
+    target.write_text("payload\n", encoding="utf-8")
+    initial_mode = stat.S_IREAD | stat.S_IROTH
+    target.chmod(initial_mode)
+    calls: list[str] = []
+    modes_seen: list[int] = []
+    real_unlink = os.unlink
+
+    def fake_unlink(path: str) -> None:
+        calls.append(path)
+        modes_seen.append(stat.S_IMODE(os.stat(path).st_mode))
+        if not os.access(path, os.W_OK):
+            raise PermissionError(f"simulated permission error for {path}")
+        real_unlink(path)
+
+    monkeypatch.setattr(os, "unlink", fake_unlink)
+
+    tasks._review_workspace_rmtree_onexc(os.unlink, str(target), PermissionError())
+
+    assert calls == [str(target)]
+    assert not target.exists()
+    # The retry must observe read/write for the owner and the original
+    # other-read bit still set -- proof the fix widens the mode rather than
+    # replacing it with just S_IWRITE (which would strip S_IROTH).
+    assert modes_seen == [stat.S_IMODE(initial_mode | stat.S_IWRITE)]
+
+
+def test_review_workspace_rmtree_onexc_propagates_when_retry_still_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If clearing the read-only bit does not resolve the failure (for
+    example a permission problem unrelated to the read-only attribute), the
+    handler must let the retry's exception propagate rather than swallow
+    it, so shutil.rmtree fails loudly instead of silently leaving files
+    behind."""
+    target = tmp_path / "still-locked-file.txt"
+    target.write_text("payload\n", encoding="utf-8")
+
+    def always_fails(path: str) -> None:
+        raise PermissionError(f"still cannot remove {path}")
+
+    monkeypatch.setattr(os, "unlink", always_fails)
+
+    with pytest.raises(PermissionError, match="still cannot remove"):
+        tasks._review_workspace_rmtree_onexc(os.unlink, str(target), PermissionError())
+
+
+@pytest.mark.parametrize("non_removal_callback", [os.open, os.close, os.scandir])
+def test_review_workspace_rmtree_onexc_preserves_original_exception_for_non_removal_callback(
+    non_removal_callback: object,
+) -> None:
+    """shutil.rmtree can invoke onexc with function=os.open/os.close/
+    os.scandir while walking with fd-based APIs -- none accept a bare path,
+    so calling ``function(path)`` for them would raise a spurious TypeError
+    that hides the real failure. The handler must recognize this is not a
+    retryable removal call, never invoke the callback, and re-raise the
+    original exception object unchanged."""
+    original_error = PermissionError("original failure reading the directory")
+
+    with pytest.raises(PermissionError) as excinfo:
+        tasks._review_workspace_rmtree_onexc(
+            non_removal_callback, "irrelevant-path", original_error
+        )
+
+    assert excinfo.value is original_error
+
+
+def test_review_workspace_removal_passes_onexc_handler_to_shutil_rmtree(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """_remove_review_workspace_tree (used by create_review_workspace's
+    failure cleanup, cleanup_review_workspace's normal removal, and
+    run_review_targets_isolated's inner isolation teardown) must route
+    through shutil.rmtree's onexc= handler so the read-only-file retry logic
+    actually applies to every workspace removal, not just to a hand-picked
+    call site."""
+    captured: dict[str, object] = {}
+    real_rmtree = tasks.shutil.rmtree
+
+    def spy_rmtree(path: Path, **kwargs: object) -> None:
+        captured.update(kwargs)
+        real_rmtree(path, **kwargs)
+
+    monkeypatch.setattr(tasks.shutil, "rmtree", spy_rmtree)
+    target = tmp_path / "parent-to-remove"
+    target.mkdir()
+    (target / "file.txt").write_text("data\n", encoding="utf-8")
+
+    tasks._remove_review_workspace_tree(target)
+
+    assert captured.get("onexc") is tasks._review_workspace_rmtree_onexc
+    assert not target.exists()
+
+
+def test_review_workspace_cleanup_succeeds_after_a_simulated_failed_full_check(
+    repository: Path, confined_mkdtemp: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The task-runner contract can only prove that cleanup does not depend
+    on check outcome: it must remove a proven workspace regardless of what a
+    (simulated) failed full check left behind inside it."""
+    monkeypatch.setattr(tasks, "command_nul_output", lambda *_a, **_k: [])
+    monkeypatch.setattr(tasks, "command_output", lambda *_a, **_k: "")
+    monkeypatch.setattr(
+        tasks,
+        "run",
+        lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
+    )
+
+    workspace = tasks.create_review_workspace()
+    workspace_path = Path(workspace["workspace_path"])
+    (workspace_path / "qa-failure-artifact.log").write_text(
+        "simulated failed check output\n", encoding="utf-8"
+    )
+
+    removed = tasks.cleanup_review_workspace(workspace_path, workspace["token"])
+
+    assert removed == str(workspace_path)
+    assert not workspace_path.exists()
+
+
+def test_review_workspace_cli_dispatches_create(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def fake_create() -> None:
+        nonlocal calls
+        calls += 1
+
+    monkeypatch.setattr(tasks, "target_review_workspace_create", fake_create)
+
+    assert tasks.main(["review-workspace", "create"]) == 0
+    assert calls == 1
+
+
+def test_review_workspace_cli_dispatches_cleanup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    workspace_path = tmp_path / "workspace"
+    calls: list[tuple[Path, str]] = []
+
+    def fake_cleanup(path: Path, token: str) -> None:
+        calls.append((path, token))
+
+    monkeypatch.setattr(tasks, "target_review_workspace_cleanup", fake_cleanup)
+
+    assert (
+        tasks.main(
+            [
+                "review-workspace",
+                "cleanup",
+                "--workspace-path",
+                str(workspace_path),
+                "--token",
+                "deadbeef",
+            ]
+        )
+        == 0
+    )
+    assert calls == [(workspace_path, "deadbeef")]
+
+
 def frontmatter_and_body(path: Path) -> tuple[dict[str, str], str]:
     text = path.read_text(encoding="utf-8")
     assert text.startswith("---\n")
@@ -1607,6 +2375,21 @@ def test_review_repo_agent_contract() -> None:
     assert "review-fingerprint capture --output" in body
     assert "review-fingerprint compare --before" in body
     assert "inventory-repo --format json" in body
+    assert (
+        '`review-workspace create` | `uv run --no-project "${PWD}/scripts/tasks.py" '
+        "review-workspace create`" in body
+    )
+    assert (
+        '`review-repo-full` | `uv run --no-project "<workspace>/scripts/tasks.py" '
+        'review-repo-full --inventory-json "<temp>/inventory.json"`' in body
+    )
+    assert (
+        '`review-workspace cleanup` | `uv run --no-project "${PWD}/scripts/tasks.py" '
+        'review-workspace cleanup --workspace-path "<workspace>" --token "<token>"`'
+        in body
+    )
+    assert "検査の成否にかかわらず実行する" in body
+    assert "（finally相当）" in body
     assert "`review-repo-fast`の全検査" in body
     assert "Bicep parameter JSON" in body
     assert "全Kubernetes YAML" in body

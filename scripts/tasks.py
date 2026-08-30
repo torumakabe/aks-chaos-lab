@@ -12,6 +12,7 @@ import importlib
 import json
 import os
 import re
+import secrets
 import shutil
 import signal
 import stat
@@ -410,7 +411,7 @@ def target_help() -> None:
     print('Usage: uv run --no-project "${PWD}/scripts/tasks.py" <target>')
     print()
     print("Targets:")
-    for name in sorted({*TARGETS, "review-fingerprint"}):
+    for name in sorted({*TARGETS, "review-fingerprint", "review-workspace"}):
         print(f"  {name}")
 
 
@@ -1634,6 +1635,343 @@ def copy_worktree_snapshot(destination: Path) -> list[str]:
     return issues
 
 
+def initialize_isolated_git_repository(isolated_root: Path) -> str:
+    """Turn a copied worktree snapshot into a throwaway git repository.
+
+    Checks that run inside an isolated copy (for example ``lint-workflows``
+    and ``compile-aw``) shell out to ``git`` to enumerate files, so the copy
+    must itself be a repository. The temporary commit makes HEAD represent
+    the exact tracked and untracked files that ``copy_worktree_snapshot``
+    copied; ``origin`` is read from the real repository (``ROOT``) so gh-aw
+    can resolve the workflow schedule from inside the copy. Raises
+    ``OSError``/``SystemExit`` on failure, matching ``run``/``command_output``.
+    """
+    run(
+        ["git", "init", "--quiet"],
+        cwd=isolated_root,
+        timeout=REVIEW_GIT_TIMEOUT_SECONDS,
+    )
+    try:
+        origin_url = command_output(
+            ["git", "remote", "get-url", "origin"],
+            cwd=ROOT,
+            allow_failure=True,
+            quiet_stderr=True,
+            timeout=REVIEW_GIT_TIMEOUT_SECONDS,
+        )
+    except OSError:
+        origin_url = ""
+    if origin_url:
+        run(
+            ["git", "remote", "add", "origin", origin_url],
+            cwd=isolated_root,
+            timeout=REVIEW_GIT_TIMEOUT_SECONDS,
+        )
+    # The temporary commit makes HEAD represent the exact tracked and
+    # untracked files under review. --force includes copied files that
+    # are ignored only because the snapshot started as a new repository.
+    run(
+        ["git", "add", "--force", "--all"],
+        cwd=isolated_root,
+        timeout=REVIEW_GIT_TIMEOUT_SECONDS,
+    )
+    run(
+        [
+            "git",
+            "-c",
+            "user.name=Repository Review",
+            "-c",
+            "user.email=repository-review@localhost",
+            "commit",
+            "--quiet",
+            "--no-verify",
+            "--no-gpg-sign",
+            "-m",
+            "Isolated review snapshot",
+        ],
+        cwd=isolated_root,
+        timeout=REVIEW_GIT_TIMEOUT_SECONDS,
+    )
+    return origin_url
+
+
+REVIEW_WORKSPACE_MANIFEST_FILENAME = ".review-workspace-manifest.json"
+REVIEW_WORKSPACE_SCHEMA_VERSION = "aks-chaos-lab-review-workspace/1"
+# The isolated worktree copy lives one level below the directory
+# review-workspace create hands out as its parent, so the manifest can sit
+# beside it instead of inside it. See _review_workspace_manifest_path.
+REVIEW_WORKSPACE_DIRECTORY_NAME = "workspace"
+
+
+def _review_workspace_manifest_path(workspace_root: Path) -> Path:
+    """Manifest path for a workspace directory, deliberately a sibling of it.
+
+    ``workspace_root`` is copied into a throwaway git repository so that
+    checks run from inside it (for example this project's own
+    ``review-repo-full``, when it is itself run from inside an outer
+    isolated workspace) can inspect it with ``git``. A manifest file placed
+    *inside* that copy would be committed as, or left behind as, an
+    untracked file with no ``repo-health.toml`` coverage entry, which the
+    repo-health inventory classifies as a ``true_gap`` and fails the review
+    it is supposed to be isolating. Keeping the manifest beside
+    ``workspace_root`` instead removes it from that scan entirely.
+    """
+    return workspace_root.parent / REVIEW_WORKSPACE_MANIFEST_FILENAME
+
+
+# The only two shutil.rmtree onexc callbacks the stdlib ever invokes with
+# nothing but the failing path (see cpython's shutil._rmtree_unsafe and
+# _rmtree_safe_fd_step). Every other callback it can pass -- os.lstat,
+# os.path.islink, os.scandir, os.open, os.close -- expects different
+# arguments (a file descriptor, flags, and so on), so calling it as
+# function(path) would raise an unrelated TypeError instead of retrying
+# the operation that actually failed. Checked as `os.unlink`/`os.rmdir`
+# (a live module attribute lookup) rather than a tuple captured once at
+# import time, matching how shutil.rmtree itself resolves those names
+# freshly at every call.
+def _review_workspace_rmtree_onexc(
+    function: Callable[[str], object], path: str, exc: BaseException
+) -> None:
+    """``shutil.rmtree`` ``onexc`` handler for read-only Git files on Windows.
+
+    Git leaves packed object files (and sometimes the ``.git`` directory
+    itself) read-only there, which makes the ``os.unlink``/``os.rmdir``
+    calls ``shutil.rmtree`` performs internally fail with
+    ``PermissionError``. Clearing the read-only bit and retrying the exact
+    failing operation once resolves that without weakening cleanup
+    elsewhere -- but only when ``function`` is ``os.unlink`` or
+    ``os.rmdir``: any other callback is never invoked, and the original
+    exception ``exc`` (not a new one) is re-raised unchanged, so a callback
+    this handler does not understand cannot be mis-called with the wrong
+    arguments. When retrying, the read-only bit is cleared by OR-ing
+    ``stat.S_IWRITE`` into the path's *existing* mode rather than replacing
+    the mode outright, so directory execute/read bits needed to keep
+    traversing the rest of a POSIX tree are never stripped. If the retry
+    itself still fails, that new exception (not swallowed) propagates out
+    of ``shutil.rmtree`` so cleanup fails loudly instead of silently
+    leaving files behind.
+    """
+    if function is not os.unlink and function is not os.rmdir:
+        raise exc
+    os.chmod(path, stat.S_IMODE(os.stat(path).st_mode) | stat.S_IWRITE)
+    function(path)
+
+
+def _remove_review_workspace_tree(parent_root: Path) -> None:
+    shutil.rmtree(parent_root, onexc=_review_workspace_rmtree_onexc)
+
+
+def create_review_workspace() -> dict[str, object]:
+    """Create an isolated, git-initialized copy of the worktree outside the repository.
+
+    This is the standalone lifecycle counterpart of the isolation
+    ``run_review_targets_isolated`` already performs internally for
+    write-risky checks: it reuses the same ``copy_worktree_snapshot`` (safe
+    copy, path-traversal and symlink rejection) and
+    ``initialize_isolated_git_repository`` (git bootstrap) helpers, but keeps
+    the resulting directory alive after this call returns so a caller such as
+    the review-repo agent can run several tools against it before explicitly
+    removing it with ``cleanup_review_workspace``.
+
+    The returned ``workspace_path`` is a ``workspace`` subdirectory of a
+    private temporary parent; the manifest binding that workspace to a
+    single-use token is written as a sibling of it inside that same parent
+    (see ``_review_workspace_manifest_path``), never inside the workspace
+    itself. ``cleanup_review_workspace`` removes the whole parent, so the
+    workspace and its manifest are always deleted together.
+
+    Preparation runs entirely inside a ``try``/``except BaseException`` so
+    that a timeout (``subprocess.TimeoutExpired``), an interactive
+    interrupt (``KeyboardInterrupt``), or any other failure while the
+    workspace is only partially built -- including a failure while writing
+    the manifest itself -- still removes the temporary parent before
+    propagating: there is no manifest until preparation has fully
+    succeeded, so nothing is left behind that ``cleanup_review_workspace``
+    could later be pointed at. Token generation and the manifest write are
+    therefore inside the same guarded block as the snapshot copy and git
+    bootstrap, not after it. ``KeyboardInterrupt`` and ``SystemExit`` are
+    re-raised unchanged after cleanup so their existing control-flow meaning
+    (interactive interrupt, subprocess exit code) is preserved; every other
+    exception is translated into ``ReviewSnapshotError`` so callers only
+    need to handle one failure type.
+    """
+    root_resolved = ROOT.resolve()
+    parent_root = Path(tempfile.mkdtemp(prefix="review-repo-workspace-")).resolve()
+    if parent_root.is_relative_to(root_resolved) or root_resolved.is_relative_to(
+        parent_root
+    ):
+        with suppress(OSError):
+            _remove_review_workspace_tree(parent_root)
+        raise ReviewSnapshotError(
+            "operating-system temporary directory is inside the repository"
+        )
+    workspace_root = parent_root / REVIEW_WORKSPACE_DIRECTORY_NAME
+    try:
+        workspace_root.mkdir()
+        snapshot_issues = copy_worktree_snapshot(workspace_root)
+        if snapshot_issues:
+            raise ReviewSnapshotError(
+                "worktree snapshot copy reported issues that would leave the "
+                "isolated review workspace incomplete: " + "; ".join(snapshot_issues)
+            )
+        initialize_isolated_git_repository(workspace_root)
+        token = secrets.token_hex(16)
+        manifest = {
+            "schema": REVIEW_WORKSPACE_SCHEMA_VERSION,
+            "token": token,
+            "repository_root": str(root_resolved),
+            "workspace_path": str(workspace_root),
+        }
+        manifest_path = _review_workspace_manifest_path(workspace_root)
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=True, sort_keys=True),
+            encoding="utf-8",
+        )
+    except BaseException as error:
+        with suppress(OSError):
+            _remove_review_workspace_tree(parent_root)
+        if isinstance(error, (KeyboardInterrupt, SystemExit, ReviewSnapshotError)):
+            raise
+        raise ReviewSnapshotError(
+            f"failed to prepare the isolated review workspace: {error}"
+        ) from error
+    return {
+        "workspace_path": str(workspace_root),
+        "token": token,
+        "manifest_path": str(manifest_path),
+        "snapshot_issues": [],
+    }
+
+
+def _reject_unsafe_removal_target(candidate: Path, root_resolved: Path) -> None:
+    """Raise unless ``candidate`` is safely disjoint from the repository root.
+
+    Shared by ``cleanup_review_workspace`` for both the workspace directory
+    it is asked to remove and, separately, that workspace's parent (the
+    private temporary directory that actually gets deleted): ``candidate``
+    may not equal, contain (be an ancestor of), or be contained by (be a
+    descendant of) ``root_resolved``.
+    """
+    if candidate == root_resolved or root_resolved.is_relative_to(candidate):
+        raise ReviewSnapshotError(
+            "refusing to remove the repository root or one of its ancestors"
+        )
+    if candidate.is_relative_to(root_resolved):
+        raise ReviewSnapshotError(
+            "refusing to remove a path inside the repository worktree"
+        )
+
+
+def cleanup_review_workspace(workspace_path: Path, token: str) -> str:
+    """Remove a workspace created by ``create_review_workspace``.
+
+    Deletion proceeds only when the manifest beside ``workspace_path`` (its
+    sibling inside the private temporary parent ``create_review_workspace``
+    allocated, never inside ``workspace_path`` itself) proves the directory
+    was created for this repository with the given token. A missing
+    directory, a missing or mismatched manifest, a token mismatch, or a
+    workspace that equals, contains, or is contained by the repository root
+    are all rejected instead of silently succeeding. In particular, cleaning
+    up an already-removed workspace fails explicitly (the manifest is gone
+    with the directory) rather than being treated as an idempotent no-op,
+    because a missing directory cannot prove it was ever ours to remove.
+
+    ``workspace_path`` is resolved (following any symlink) before any of
+    these checks run, and every check and the final removal operate on that
+    resolved path, so substituting a symlink for the workspace directory
+    between creation and cleanup cannot redirect cleanup onto an unrelated,
+    unproven directory: the manifest lookup and its content checks below are
+    performed against wherever the resolved path actually points, and fail
+    unless that location was the one this function's own token and
+    ``workspace_path``/``repository_root`` fields describe.
+    """
+    root_resolved = ROOT.resolve()
+    try:
+        workspace_resolved = workspace_path.resolve(strict=True)
+    except OSError as error:
+        raise ReviewSnapshotError(
+            f"review workspace path does not exist: {workspace_path}"
+        ) from error
+    _reject_unsafe_removal_target(workspace_resolved, root_resolved)
+    manifest_path = _review_workspace_manifest_path(workspace_resolved)
+    try:
+        manifest_text = manifest_path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ReviewSnapshotError(
+            "review workspace manifest is missing or unreadable (already "
+            f"removed, or not created by review-workspace create): {manifest_path}"
+        ) from error
+    try:
+        manifest = json.loads(manifest_text)
+    except json.JSONDecodeError as error:
+        raise ReviewSnapshotError(
+            f"review workspace manifest is not valid JSON: {manifest_path}"
+        ) from error
+    if not isinstance(manifest, dict):
+        raise ReviewSnapshotError(
+            f"review workspace manifest is not a JSON object: {manifest_path}"
+        )
+    if manifest.get("schema") != REVIEW_WORKSPACE_SCHEMA_VERSION:
+        raise ReviewSnapshotError("review workspace manifest schema is not recognized")
+    # The manifest is a plaintext file inside a directory this function
+    # already proved (via the checks above and below) was created by
+    # ``create_review_workspace`` for this exact repository and workspace
+    # path; the token only distinguishes that call from a concurrent one; it
+    # is not a secret and does not authenticate anything, so ordinary string
+    # equality is sufficient. ``manifest_token`` still has to be checked
+    # with ``isinstance`` first: it is attacker/corruption-controlled JSON
+    # content, and comparing a non-``str`` (``None``, a number, a list, ...)
+    # to ``token`` must fail closed rather than raise ``TypeError``.
+    manifest_token = manifest.get("token")
+    if not isinstance(manifest_token, str) or manifest_token != token:
+        raise ReviewSnapshotError("review workspace token does not match the manifest")
+    if manifest.get("repository_root") != str(root_resolved):
+        raise ReviewSnapshotError(
+            "review workspace was not created for this repository"
+        )
+    if manifest.get("workspace_path") != str(workspace_resolved):
+        raise ReviewSnapshotError(
+            "review workspace manifest does not match the requested path"
+        )
+    # Defense in depth: re-check the parent we are about to remove (which
+    # holds both the workspace and its manifest) against the same
+    # repository-root boundaries as workspace_resolved above. The checks on
+    # workspace_resolved only prove that workspace_resolved itself is
+    # disjoint from root_resolved; they do not prove the same for its
+    # parent, which could still equal root_resolved, contain it, or be
+    # contained by it -- for example if this workspace and the repository
+    # happen to be separate children of the same enclosing directory (such
+    # as a shared operating-system temporary directory).
+    parent_resolved = workspace_resolved.parent
+    _reject_unsafe_removal_target(parent_resolved, root_resolved)
+    _remove_review_workspace_tree(parent_resolved)
+    return str(workspace_resolved)
+
+
+def target_review_workspace_create() -> None:
+    try:
+        workspace = create_review_workspace()
+    except (ReviewSnapshotError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    print(json.dumps(workspace, ensure_ascii=True, sort_keys=True))
+
+
+def target_review_workspace_cleanup(workspace_path: Path, token: str) -> None:
+    try:
+        removed_path = cleanup_review_workspace(workspace_path, token)
+    except (ReviewSnapshotError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    print(
+        json.dumps(
+            {"status": "removed", "workspace_path": removed_path},
+            ensure_ascii=True,
+            sort_keys=True,
+        )
+    )
+
+
 def run_review_targets_isolated(
     checks: Sequence[ReviewCheck],
 ) -> list[ReviewResult]:
@@ -1641,8 +1979,8 @@ def run_review_targets_isolated(
     if not runnable:
         return results
 
-    with tempfile.TemporaryDirectory(prefix="review-repo-") as temporary_directory:
-        isolated_root = Path(temporary_directory).resolve()
+    isolated_root = Path(tempfile.mkdtemp(prefix="review-repo-")).resolve()
+    try:
         root_resolved = ROOT.resolve()
         if isolated_root.is_relative_to(root_resolved):
             result = ReviewResult(
@@ -1697,54 +2035,8 @@ def run_review_targets_isolated(
                 print_review_result(result)
                 results.append(result)
             return results
-        origin_url = ""
         try:
-            run(
-                ["git", "init", "--quiet"],
-                cwd=isolated_root,
-                timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-            )
-            try:
-                origin_url = command_output(
-                    ["git", "remote", "get-url", "origin"],
-                    cwd=ROOT,
-                    allow_failure=True,
-                    quiet_stderr=True,
-                    timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-                )
-            except OSError:
-                origin_url = ""
-            if origin_url:
-                run(
-                    ["git", "remote", "add", "origin", origin_url],
-                    cwd=isolated_root,
-                    timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-                )
-            # The temporary commit makes HEAD represent the exact tracked and
-            # untracked files under review. --force includes copied files that
-            # are ignored only because the snapshot started as a new repository.
-            run(
-                ["git", "add", "--force", "--all"],
-                cwd=isolated_root,
-                timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-            )
-            run(
-                [
-                    "git",
-                    "-c",
-                    "user.name=Repository Review",
-                    "-c",
-                    "user.email=repository-review@localhost",
-                    "commit",
-                    "--quiet",
-                    "--no-verify",
-                    "--no-gpg-sign",
-                    "-m",
-                    "Isolated review snapshot",
-                ],
-                cwd=isolated_root,
-                timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-            )
+            origin_url = initialize_isolated_git_repository(isolated_root)
         except (OSError, SystemExit) as error:
             result = ReviewResult(
                 "snapshot",
@@ -1850,6 +2142,8 @@ def run_review_targets_isolated(
             result = ReviewResult(check.name, status, detail)
             print_review_result(result)
             results.append(result)
+    finally:
+        _remove_review_workspace_tree(isolated_root)
     return results
 
 
@@ -2686,6 +2980,19 @@ def main(argv: Sequence[str]) -> int:
             target_review_fingerprint_capture(args.output)
         else:
             target_review_fingerprint_compare(args.before, args.after)
+        return 0
+    if target == "review-workspace":
+        parser = argparse.ArgumentParser(prog="tasks.py review-workspace")
+        subparsers = parser.add_subparsers(dest="operation", required=True)
+        subparsers.add_parser("create")
+        cleanup_parser = subparsers.add_parser("cleanup")
+        cleanup_parser.add_argument("--workspace-path", type=Path, required=True)
+        cleanup_parser.add_argument("--token", required=True)
+        args = parser.parse_args(argv[1:])
+        if args.operation == "create":
+            target_review_workspace_create()
+        else:
+            target_review_workspace_cleanup(args.workspace_path, args.token)
         return 0
 
     handler = TARGETS.get(target)
