@@ -11,9 +11,9 @@ description: リポジトリの衛生状態を非編集で点検する。標準�
 
 - この文書でtask targetと呼ぶ名前は、すべて`scripts/tasks.py`の実行対象である。
 - 指定がない場合は`review-repo-fast` task targetを実行する。
-- `fast`では、`review-repo-fast`と内容指紋のtask targetだけを実行し、構造化inventoryに記録されたcoverageと検査結果を報告する。「fullモードの文書とAI運用資産の評価基準」は適用せず、専門skillを呼び出さない。
+- `fast`では、`review-repo-fast`と内容指紋のtask targetだけを実行し、構造化inventoryに記録されたcoverageと検査結果を報告する。`review-repo-fast`はオフラインで完結し、外部APIもDockerも使わない。version関連では、リポジトリ内で完結する不変条件（Renovateの座標とmatch数、Dependabot version updateの停止、uv pinの内部整合、Lefthookの座標とchecksum形式、azdとFunctions bundleのrange構文、gh-aw pinとlockの整合）だけを検査する。最新版候補の検出はscheduledな仕組みへ委譲済みであり、fastでは実行しない。「fullモードの文書とAI運用資産の評価基準」は適用せず、専門skillを呼び出さない。
 - ユーザーが`full`、全検査、鮮度確認のいずれかを明示した場合だけ`review-repo-full` task targetを実行する。
-- `full`では、`review-repo-full`の全検査に加えて、文書とAI運用資産の意味評価を実行する。同じrepo health inventory JSONを`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyモードへ渡し、既存の専門経路の結果を集約する。公開情報を取得できない項目は`unverified`とする。
+- `full`では、`review-repo-full`の全検査に加えて、文書とAI運用資産の意味評価を実行する。`review-repo-full`は`review-repo-fast`を唯一の基礎入口として内包し、同じ決定論的検査を再実行しない。同じrepo health inventory JSONと`--results-json`が出力した検査結果JSONを`repository-freshness-checker`の公開Markdownリンク確認と`bicep-api-version-updater`のcheck-onlyモードへ渡す。scheduled workflowが担当するversion候補、EOL、support範囲、互換性は再評価しない。決定論的検査が出した`status`と`reason_code`をそのまま採用し、標準出力の自然言語から再解釈しない。公開情報を取得できない項目は`unverified`とする。
 - `full`では、現在のworktreeを直接検査しない。`review-workspace create` task targetが作成した隔離workspaceへ`review-repo-full`と両専門skillの実行をすべて委譲し、現在のworktreeは実行前後の内容指紋の取得だけに用いる。
 
 ## 実行インターフェース
@@ -23,9 +23,9 @@ description: リポジトリの衛生状態を非編集で点検する。標準�
 | task target | 完全な呼び出し | 入力 | 出力と副作用 | 利用先 |
 |---|---|---|---|---|
 | `review-fingerprint capture` | `uv run --no-project "${PWD}/scripts/tasks.py" review-fingerprint capture --output "<temp>/before.json"` | 現在のtracked、index、worktree、未追跡ファイル | 指定したリポジトリ外のJSONファイルを作成し、集約SHA-256を標準出力へ返す | レビュー開始前と終了後 |
-| `review-repo-fast` | `uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast --inventory-json "<temp>/inventory.json"` | 現在のworktree | repo health inventory JSONを一度だけ生成し、fast検査結果を表示する。指定したJSON以外はworktreeを変更しない | 標準レビュー |
+| `review-repo-fast` | `uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast --inventory-json "<temp>/inventory.json" --results-json "<temp>/review-fast.json"` | 現在のworktree | repo health inventory JSONを一度だけ生成し、決定論的検査の結果を表示して`--results-json`へ機械可読JSONで書き出す。指定したJSON以外はworktreeを変更しない | 標準レビュー |
 | `review-workspace create` | `uv run --no-project "${PWD}/scripts/tasks.py" review-workspace create` | 現在のtracked filesとignoreされていない未追跡ファイル | `review-repo-full`が内部で使う隔離コピー生成と同じ複製ロジックでrepository外に隔離workspaceを作成し、絶対pathとcleanup用tokenを含むJSONを標準出力へ返す。現在のworktreeは変更しない | fullレビューの前段 |
-| `review-repo-full` | `uv run --no-project "<workspace>/scripts/tasks.py" review-repo-full --inventory-json "<temp>/inventory.json"` | `review-workspace create`が作成した隔離workspace | fastを内包し、書き換え得るQAを隔離workspace内部でさらに複製した隔離ディレクトリで実行する。同じinventory JSONをfreshness skillへ渡せる形で残す。この`<temp>`は現在のリポジトリと隔離workspaceの両方の外に置く | fullレビュー |
+| `review-repo-full` | `uv run --no-project "<workspace>/scripts/tasks.py" review-repo-full --inventory-json "<temp>/inventory.json" --results-json "<temp>/review-full.json"` | `review-workspace create`が作成した隔離workspace | fastを内包し、書き換え得るQAを隔離workspace内部でさらに複製した隔離ディレクトリで実行する。同じinventory JSONと検査結果JSONをfreshness skillへ渡せる形で残す。この`<temp>`は現在のリポジトリと隔離workspaceの両方の外に置く | fullレビュー |
 | `review-workspace cleanup` | `uv run --no-project "${PWD}/scripts/tasks.py" review-workspace cleanup --workspace-path "<workspace>" --token "<token>"` | `review-workspace create`が返したworkspace pathとtoken | manifestとtokenの一致を確認できた場合だけ隔離workspaceを削除する。検査の成否にかかわらず実行する | fullレビューの後段（finally相当） |
 | `review-fingerprint compare` | `uv run --no-project "${PWD}/scripts/tasks.py" review-fingerprint compare --before "<temp>/before.json" --after "<temp>/after.json"` | 実行前後の内容指紋JSON | 一致時は`pass`、差分時はpathと前後のSHA-256だけを出力してexit 1 | 非編集契約の最終判定 |
 | `inventory-repo` | `uv run --no-project "${PWD}/scripts/tasks.py" inventory-repo --format json` | 現在のtracked filesとignoreされていない未追跡ファイル | inventory JSONを標準出力へ返す。review-repo agentは直接呼ばず、週次freshness workflowが利用する | 自動化と診断 |
@@ -35,10 +35,10 @@ description: リポジトリの衛生状態を非編集で点検する。標準�
 
 | 層 | 内包する検査 | 次の層で追加する検査 |
 |---|---|---|
-| `review-repo-fast` task target | repo health JSON生成と整合性、Bicep parameter JSON、uv version、public lock、publisher requirements | なし |
+| `review-repo-fast` task target | repo health JSON生成と整合性、Bicep parameter JSON、uv version、public lock、publisher requirements、リポジトリ内で完結するversion契約（`check-version-pins`） | なし |
 | review-repo agentのfastモード | 内容指紋の取得と比較、`review-repo-fast` task targetの全検査 | 構造化inventoryのcoverageとtask結果の報告だけを行う。文書とAI運用資産の意味評価および専門skillは実行しない |
-| `review-repo-full` task target | `review-repo-fast`の全検査 | 隔離したapplication QA、hook test、Bicep build、全Kubernetes YAMLのlint、固定versionのChaos Mesh chartによるvalues render、workflow lint、gh-aw compile。Kubernetes schemaを取得できないkindは`.github/repo-health.toml`の一覧とinventoryの`kubernetes-schema-exclusion`座標で`excluded`として数える。application QAではfastで完了したpublisher requirementsを再実行しない |
-| review-repo agentのfullモード | 内容指紋の取得と比較、`review-workspace create`による隔離workspace作成、隔離workspace内から呼び出した`review-repo-full` task targetの全検査、`review-workspace cleanup`によるworkspace削除 | 文書とAI運用資産の意味評価、同じinventory JSONを入力にしたfreshness skillによる製品鮮度と公開Markdownリンク到達性、`bicep-api-version-updater`のcheck-onlyモード、既存の専門経路 |
+| `review-repo-full` task target | `review-repo-fast`の全検査 | 隔離copyでしか実行できない検査だけを追加する。隔離したapplication QA、hook test、Bicep build、全Kubernetes YAMLのlint、固定versionのChaos Mesh chartによるvalues render、workflow lint、gh-aw compile。Kubernetes schemaを取得できないkindは`.github/repo-health.toml`の一覧とinventoryの`kubernetes-schema-exclusion`座標で`excluded`として数える。application QAではfastで完了したpublisher requirementsを再実行せず、fastが判定済みのversion契約も再実行しない |
+| review-repo agentのfullモード | 内容指紋の取得と比較、`review-workspace create`による隔離workspace作成、隔離workspace内から呼び出した`review-repo-full` task targetの全検査、`review-workspace cleanup`によるworkspace削除 | 文書とAI運用資産の意味評価、同じinventory JSONと検査結果JSONを入力にしたfreshness skillによる公開Markdownリンク到達性、`bicep-api-version-updater`のcheck-onlyモード |
 
 ## fullモードの文書とAI運用資産の評価基準
 
@@ -83,20 +83,22 @@ fullモードでは、`review-workspace create` task targetが現在のworktree�
 ## 実行手順
 
 1. 対象commitと実行モードを記録し、`review-fingerprint capture`で実行前の内容指紋を取得する。
-2. fastの場合は`review-repo-fast`を、リポジトリ外の`--inventory-json`出力先を指定して現在のworktreeへ一度だけ実行する。fullの場合は`review-workspace create`で隔離workspaceを作成し、`uv run --no-project "<workspace>/scripts/tasks.py" review-repo-full`を、現在のリポジトリと隔離workspaceの両方の外にある`--inventory-json`出力先を指定して一度だけ実行する。task targetがツールを事前分類し、実行可能な検査を継続する。
+2. fastの場合は`review-repo-fast`を、リポジトリ外の`--inventory-json`出力先と`--results-json`出力先を指定して現在のworktreeへ一度だけ実行する。fullの場合は`review-workspace create`で隔離workspaceを作成し、`uv run --no-project "<workspace>/scripts/tasks.py" review-repo-full`を、現在のリポジトリと隔離workspaceの両方の外にある`--inventory-json`出力先と`--results-json`出力先を指定して一度だけ実行する。task targetがツールを事前分類し、実行可能な検査を継続する。
 3. task targetが生成したinventory JSONからcoverageと内部整合性を確認する。file coverageは`covered_by_other_check`、`intentionally_excluded`、`true_gap`を区別し、`true_gap`を未対応数として扱う。`inventory-repo`や`check-repo-health`を重複実行しない。
-4. fullの場合だけ、「fullモードの文書とAI運用資産の評価基準」を種類ごとに適用し、inventoryへの出現だけで`pass`にしない。手順2と同じinventory JSON（隔離workspace内のpathを指す）を`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyモードへ渡し、既存の専門経路の結果と集約する。freshness skillは`documentation-external-link`座標を全件処理し、取得不能を`unverified`とする。Bicep resource APIの結果が返らない場合、その領域を`unverified`とする。
+4. fullの場合だけ、「fullモードの文書とAI運用資産の評価基準」を種類ごとに適用し、inventoryへの出現だけで`pass`にしない。手順2と同じinventory JSON（隔離workspace内のpathを指す）と手順2が出力した検査結果JSONを`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyモードへ渡し、既存の専門経路の結果と集約する。決定論的検査が出した`status`と`reason_code`を再解釈しない。freshness skillは`documentation-external-link`座標だけを全件処理し、取得不能を`unverified`とする。scheduled workflowが担当するversion関連の意味評価は実行しない。Bicep resource APIの結果が返らない場合、その領域を`unverified`とする。
 5. fullの場合だけ、手順4までの検査結果にかかわらず`review-workspace cleanup`を実行し、手順2で作成した隔離workspaceを削除する。削除に失敗した場合はその旨を報告に含め、現在のworktreeへの影響がないことを確認する。
 6. `review-fingerprint capture`で実行後の内容指紋を取得し、`review-fingerprint compare`で実行前との差を確認する。
-7. 状態分類、coverage、環境制約、修正計画を報告する。fastではfull専用検査を個別の`unverified`として列挙せず、実行モードの対象外であることを示す。
+7. 状態分類、coverage、環境制約、修正計画を報告する。fastでは、決定論的検査の結果を`status`と`reason_code`とともに列挙し、full専用検査を個別の`unverified`として列挙せず実行モードの対象外であることを示す。
 
 ## 既存経路との責務境界
 
-- Bicep CLIの鮮度は`bicep-version-check.yml`の責務とし、このagentはworkflowの存在と利用可能な結果だけを確認する。
+- 通常のversion更新候補はすべてRenovate（`.github/renovate.json`）が検出する。Python依存、GitHub Actions、Docker image、actionlint、kubeconform、Chaos Mesh Helm chart、Renovate validator image、Bicep CLI、uvが対象である。このagentもfreshness skillも同じ最新版検出を繰り返さない。Renovate appの公開活動と、活動を確認できない場合のRenovate担当対象の状態分類はscheduled workflowが担当する。
+- gh-awとLefthookの最新版候補はscheduled checker（`freshness-checks`）が検出し、週次Issueへ集約する。fastはこの比較を行わない。gh-aw pinとlock file compiler_versionの内部整合は`gh-aw-compiler-version`ルールが、Lefthookの座標とchecksum形式は`check-version-pins`が検査する。Lefthookの更新は`update-lefthook-pin`がversionとchecksumを一体で書き換える。
+- Renovate configの静的契約（enabledManagers、ignorePaths、packageRules、custom managerの座標とmatch数、automerge禁止、Dependabot version updateの停止）は`check-version-pins`が検査する。公式`renovate-config-validator`によるschema検証とRenovate自身のRE2抽出照合はDocker imageを必要とするため`check-renovate-config`が担当し、CIの専用jobで実行する。fastはDockerに依存しない。
+- azdのminimum version rangeとAzure Functions extension bundleのsupport rangeは、`check-version-pins`が構文と座標数だけを検査する。どちらもexact pinのlatest比較対象にせず、azdのrangeが現行schemaに従っているか、Functions bundleのrangeがサポート対象かの意味評価はscheduled workflowが担当する。
+- Docker base imageのdigest固定座標とcoverageは`docker-base-digest`ルールが検証し、EOLの意味評価はscheduled workflowが担当する。
 - AKSの公開更新情報は`aks-updates-analyzer`の責務とし、同じ公開情報を再取得しない。
 - Bicep resource API versionは`bicep-api-version-updater`のcheck-onlyモードへ委譲する。定期通知は`bicep-api-version-check.md`が同じcheck-only契約で実行する。
-- gh-aw、Lefthook、actionlint、kubeconform、azd、Chaos Mesh Helm chart、Docker base imageのEOLとdigestは`repository-freshness-checker`へ委譲する。
-- Python依存、GitHub Actions、Docker更新候補はDependabotの対象範囲を優先し、同じ更新候補を重複して提案しない。
 
 既存経路の結果を取得できない場合、その領域を`pass`にせず`unverified`とする。
 

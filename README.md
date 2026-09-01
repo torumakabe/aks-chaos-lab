@@ -110,15 +110,16 @@ azd down --force --purge
 | 環境構築、権限、feature flag、`azd up/down`、ローカル開発、負荷テスト | [docs/deployment.md](docs/deployment.md) |
 | 可観測性のシグナル、SLI、アラート、OTLP logs、運用上の注意 | [docs/observability.md](docs/observability.md) |
 | Chaos 実験の種類と実行方法 | [docs/chaos-experiments.md](docs/chaos-experiments.md) |
+| 依存パッケージとツールの更新責務、検査結果の解釈 | [docs/dependency-management.md](docs/dependency-management.md) |
 | なぜその構成にしたか | [docs/adr/INDEX.md](docs/adr/INDEX.md) |
 | 継続中のワークアラウンドと解消条件 | [docs/workarounds.md](docs/workarounds.md) |
 | AI / コーディングエージェント向けのプロジェクト文脈 | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
 ## リポジトリ保守
 
-日常のオフライン点検には`review-repo`エージェントのfastモードを使います。fastモードは`scripts/tasks.py`の`review-repo-fast` task targetを唯一の上位実行入口として呼び、内容指紋taskと決定論的な検査だけを実行します。文書とAI運用資産の意味評価や専門skillは実行しません。全検査ではfullモードを指定します。fullモードは`review-repo-full` task targetの全検査に加えて、構造化inventoryを使った公開鮮度とBicep APIの確認、文書とAI運用資産の意味評価を実行します。完全な呼び出し、出力、副作用、検査の包含関係は[review-repoエージェント](.github/agents/review-repo.agent.md)を参照してください。
+日常の点検には`review-repo`エージェントのfastモードを使います。fastモードは`scripts/tasks.py`の`review-repo-fast` task targetを唯一の上位実行入口として呼び、内容指紋taskとオフラインで完結する検査だけを実行します。文書とAI運用資産の意味評価や専門skillは実行しません。全検査ではfullモードを指定します。fullモードは`review-repo-full` task targetの全検査に加えて、構造化inventoryを使った公開MarkdownリンクとBicep APIのcheck-only確認、文書とAI運用資産の意味評価を実行します。scheduled workflowが担当するversion候補、EOL、support範囲、互換性は再評価しません。完全な呼び出し、出力、副作用、検査の包含関係は[review-repoエージェント](.github/agents/review-repo.agent.md)を参照してください。
 
-更新通知の責務は分割しています。[Dependabot](.github/dependabot.yml)はGitHub Actionsのversion更新とDocker image tag更新を、[Bicep version check](.github/workflows/bicep-version-check.yml)はBicep CLIを、[Bicep API version check](.github/workflows/bicep-api-version-check.md)はBicep resource APIを、[AKS updates analyzer](.github/workflows/aks-updates-analyzer.md)はAKS更新情報を扱います。[Repository freshness check](.github/workflows/repository-freshness-check.md)はgh-aw、Lefthook、actionlint、kubeconform、azd、Chaos Mesh Helm chart、Docker base imageのEOLとdigest固定状況、Azure Functions extension bundleのsupport範囲を週次Issueで通知します。fullレビューでは、同じfreshness skillがinventoryにある公開Markdownリンクの到達性も確認します。各自動化は更新を直接適用しません。
+通常のversion更新候補は[Renovate](.github/renovate.json)が検出し、Renovateが扱えないgh-aw、Lefthook、Renovate app自体の稼働は週次の[Repository freshness check](.github/workflows/repository-freshness-check.md)が検出します。責務の境界、機械検査の対象、fast / fullレビューとの関係は[依存パッケージとツールの更新管理](docs/dependency-management.md)を参照してください。
 
 ## リポジトリ構造
 
