@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import email.message
 import hashlib
 import importlib.util
 import json
@@ -8,11 +9,14 @@ import stat
 import subprocess
 import sys
 import tomllib
+import urllib.error
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from typing import Any, cast
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
@@ -38,6 +42,35 @@ real_probe_review_tool = tasks.probe_review_tool
 @pytest.fixture(autouse=True)
 def assume_review_tools_pass_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(tasks, "probe_review_tool", lambda _tool: None)
+
+
+FAST_CHECK_NAMES = tuple(check.name for check in tasks.FAST_REVIEW_CHECKS)
+FAST_TARGET_CALLS = tuple(check.target_name for check in tasks.FAST_REVIEW_CHECKS)
+
+
+def review_command_stub(
+    calls: list[str],
+    handler: Callable[
+        [list[str] | tuple[str, ...], str],
+        subprocess.CompletedProcess[bytes] | None,
+    ]
+    | None = None,
+) -> Callable[..., subprocess.CompletedProcess[bytes]]:
+    """Build a run_isolated_review_command stub that records each target."""
+
+    def run_check(
+        args: list[str] | tuple[str, ...],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[bytes]:
+        target = args[2]
+        calls.append(target)
+        if handler is not None:
+            outcome = handler(args, target)
+            if outcome is not None:
+                return outcome
+        return subprocess.CompletedProcess(args, 0)
+
+    return run_check
 
 
 def test_review_targets_are_registered() -> None:
@@ -123,31 +156,1389 @@ def test_helm_values_validation_uses_pinned_chart(
     assert render_options["env"] == calls[0][1]["env"]
 
 
+def test_chaos_mesh_chart_version_is_read_from_azure_yaml(tmp_path: Path) -> None:
+    azure_yaml = tmp_path / "azure.yaml"
+    azure_yaml.write_text(
+        "releases:\n"
+        "  - name: chaos-mesh\n"
+        "    chart: chaos-mesh/chaos-mesh\n"
+        "    version: 9.9.9\n"
+        "    values: infra/helm/chaos-mesh-values.yaml\n",
+        encoding="utf-8",
+    )
+
+    assert tasks.read_chaos_mesh_chart_version(azure_yaml) == "9.9.9"
+
+
+def test_chaos_mesh_chart_version_rejects_ambiguous_azure_yaml(tmp_path: Path) -> None:
+    azure_yaml = tmp_path / "azure.yaml"
+    azure_yaml.write_text(
+        "releases:\n"
+        "  - name: chaos-mesh\n"
+        "    chart: chaos-mesh/chaos-mesh\n"
+        "    version: 1.0.0\n"
+        "  - name: chaos-mesh-second\n"
+        "    chart: chaos-mesh/chaos-mesh\n"
+        "    version: 2.0.0\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as error:
+        tasks.read_chaos_mesh_chart_version(azure_yaml)
+
+    assert error.value.code == 1
+
+
+class _FakeChecksumResponse:
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    def __enter__(self) -> _FakeChecksumResponse:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return self._payload
+
+
+def test_fetch_lefthook_checksum_returns_the_matching_asset_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    other_checksum = "a" * 64
+    expected_checksum = "b" * 64
+    payload = (
+        f"{other_checksum}  lefthook_9.9.9_Freebsd_arm64.gz\n"
+        f"{expected_checksum}  lefthook_9.9.9_Linux_x86_64.gz\n"
+    ).encode()
+    monkeypatch.setattr(
+        tasks.urllib.request,
+        "urlopen",
+        lambda _url, timeout=None: _FakeChecksumResponse(payload),
+    )
+
+    checksum = tasks.fetch_lefthook_checksum("9.9.9")
+
+    assert checksum == expected_checksum
+
+
+def test_fetch_lefthook_checksum_rejects_ambiguous_asset_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = (
+        f"{'a' * 64}  lefthook_9.9.9_Linux_x86_64.gz\n"
+        f"{'c' * 64}  lefthook_9.9.9_Linux_x86_64.gz\n"
+    ).encode()
+    monkeypatch.setattr(
+        tasks.urllib.request,
+        "urlopen",
+        lambda _url, timeout=None: _FakeChecksumResponse(payload),
+    )
+
+    with pytest.raises(tasks.LefthookChecksumUnavailableError):
+        tasks.fetch_lefthook_checksum("9.9.9")
+
+
+def test_fetch_lefthook_checksum_raises_on_network_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_network_error(_url: str, timeout: float | None = None) -> None:
+        raise tasks.urllib.error.URLError("simulated DNS failure")
+
+    monkeypatch.setattr(tasks.urllib.request, "urlopen", raise_network_error)
+
+    with pytest.raises(tasks.LefthookChecksumUnavailableError, match="network"):
+        tasks.fetch_lefthook_checksum("9.9.9")
+
+
+def _write_ci_workflow(repository: Path, version: str, checksum: str) -> Path:
+    workflow_path = repository / tasks.LEFTHOOK_CI_WORKFLOW
+    workflow_path.parent.mkdir(parents=True, exist_ok=True)
+    workflow_path.write_text(
+        "      - name: Install Lefthook\n"
+        "        run: |\n"
+        f"          LEFTHOOK_VERSION={version}\n"
+        f"          LEFTHOOK_SHA256={checksum}\n",
+        encoding="utf-8",
+    )
+    return workflow_path
+
+
+def test_evaluate_lefthook_pin_reports_update_available_when_release_is_newer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    _write_ci_workflow(repository, "2.1.10", "a" * 64)
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
+    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", lambda: "2.1.12")
+
+    finding = tasks.evaluate_lefthook_pin()
+
+    assert finding.status == "unverified"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_UPDATE_AVAILABLE
+    assert finding.current == "2.1.10"
+    assert finding.published == "2.1.12"
+    assert "requires maintainer review before updating" in finding.detail
+
+
+def test_evaluate_lefthook_pin_fails_on_checksum_mismatch_before_release_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    _write_ci_workflow(repository, "2.1.10", "a" * 64)
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "b" * 64)
+
+    def _fail_release() -> str:
+        raise AssertionError("must not query the latest release on a mismatch")
+
+    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", _fail_release)
+
+    finding = tasks.evaluate_lefthook_pin()
+
+    assert finding.status == "fail"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_CHECKSUM_MISMATCH
+
+
+def test_evaluate_lefthook_pin_marks_missing_checksum_evidence_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    _write_ci_workflow(repository, "2.1.10", "a" * 64)
+    monkeypatch.setattr(tasks, "ROOT", repository)
+
+    def _raise(_version: str) -> str:
+        raise tasks.LefthookChecksumUnavailableError("network down")
+
+    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", _raise)
+
+    finding = tasks.evaluate_lefthook_pin()
+
+    assert finding.status == "unverified"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE
+    assert "official Lefthook freshness evidence was unavailable" in finding.detail
+
+
+def test_evaluate_lefthook_pin_marks_missing_release_evidence_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    _write_ci_workflow(repository, "2.1.10", "a" * 64)
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
+
+    def _raise() -> str:
+        raise tasks.LefthookReleaseUnavailableError("network down")
+
+    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", _raise)
+
+    finding = tasks.evaluate_lefthook_pin()
+
+    assert finding.status == "unverified"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE
+
+
+def test_evaluate_lefthook_pin_passes_when_current_and_checksum_match(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    _write_ci_workflow(repository, "2.1.12", "a" * 64)
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
+    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", lambda: "2.1.12")
+
+    finding = tasks.evaluate_lefthook_pin()
+
+    assert finding.status == "pass"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_CURRENT
+
+
+def test_fetch_lefthook_latest_release_strips_v_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tasks,
+        "open_github_url",
+        lambda _url, _timeout: _FakeChecksumResponse(b'{"tag_name": "v2.1.12"}'),
+    )
+
+    assert tasks.fetch_lefthook_latest_release() == "2.1.12"
+
+
+def test_update_lefthook_pin_rewrites_version_and_checksum_together(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    workflow_path = _write_ci_workflow(repository, "1.0.0", "a" * 64)
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "c" * 64)
+
+    tasks.target_update_lefthook_pin("2.0.0")
+
+    updated = workflow_path.read_text(encoding="utf-8")
+    assert "          LEFTHOOK_VERSION=2.0.0\n" in updated
+    assert f"          LEFTHOOK_SHA256={'c' * 64}\n" in updated
+    assert "LEFTHOOK_VERSION=1.0.0" not in updated
+    assert f"LEFTHOOK_SHA256={'a' * 64}" not in updated
+
+
+def test_update_lefthook_pin_preserves_original_when_replace_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    workflow_path = _write_ci_workflow(repository, "1.0.0", "a" * 64)
+    original = workflow_path.read_bytes()
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "c" * 64)
+
+    def fail_replace(_source: Path, _destination: Path) -> None:
+        raise OSError("replace failed")
+
+    monkeypatch.setattr(tasks.os, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="replace failed"):
+        tasks.target_update_lefthook_pin("2.0.0")
+
+    assert workflow_path.read_bytes() == original
+    assert list(workflow_path.parent.glob(f".{workflow_path.name}.*.tmp")) == []
+
+
+def test_update_lefthook_pin_keeps_the_real_workflow_parseable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Apply the update to a copy of the real ci.yml and re-parse the result.
+
+    The pin patterns anchor on the whole line, so a whole-match substitution
+    silently deleted the run-step indentation and produced a workflow YAML
+    parsers reject. Asserting only on the rewritten line would not have caught
+    that, so this drives the real target file through the real target and then
+    parses it with the same YAML parser the repository's other workflow tests
+    use.
+    """
+    repository = tmp_path / "repository"
+    workflow_path = repository / tasks.LEFTHOOK_CI_WORKFLOW
+    workflow_path.parent.mkdir(parents=True, exist_ok=True)
+    original_bytes = (REPO_ROOT / tasks.LEFTHOOK_CI_WORKFLOW).read_bytes()
+    workflow_path.write_bytes(original_bytes)
+    original = workflow_path.read_text(encoding="utf-8")
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "d" * 64)
+
+    tasks.target_update_lefthook_pin("9.8.7")
+
+    updated_bytes = workflow_path.read_bytes()
+    updated = workflow_path.read_text(encoding="utf-8")
+    document = yaml.safe_load(updated)
+    assert isinstance(document, dict)
+    assert "jobs" in document
+    version_line = next(
+        line for line in updated.splitlines() if "LEFTHOOK_VERSION=" in line
+    )
+    checksum_line = next(
+        line for line in updated.splitlines() if "LEFTHOOK_SHA256=" in line
+    )
+    original_version_line = next(
+        line for line in original.splitlines() if "LEFTHOOK_VERSION=" in line
+    )
+    original_checksum_line = next(
+        line for line in original.splitlines() if "LEFTHOOK_SHA256=" in line
+    )
+    indent = len(original_version_line) - len(original_version_line.lstrip())
+    assert indent > 0
+    assert version_line == " " * indent + "LEFTHOOK_VERSION=9.8.7"
+    assert checksum_line == " " * indent + f"LEFTHOOK_SHA256={'d' * 64}"
+    # Only the two pinned values may change; every other byte, including the
+    # file's line endings, has to survive the rewrite untouched.
+    assert updated_bytes.count(b"\r\n") == original_bytes.count(b"\r\n")
+    assert len(updated.splitlines()) == len(original.splitlines())
+    assert [
+        line
+        for line in updated.splitlines()
+        if line not in {version_line, checksum_line}
+    ] == [
+        line
+        for line in original.splitlines()
+        if line not in {original_version_line, original_checksum_line}
+    ]
+
+
+def test_update_lefthook_pin_rejects_malformed_version_without_network_call(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    _write_ci_workflow(repository, "1.0.0", "a" * 64)
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    fetch_calls: list[str] = []
+    monkeypatch.setattr(
+        tasks,
+        "fetch_lefthook_checksum",
+        lambda version: fetch_calls.append(version) or "c" * 64,
+    )
+
+    with pytest.raises(SystemExit) as error:
+        tasks.target_update_lefthook_pin("v2.0.0")
+
+    assert error.value.code == 1
+    assert fetch_calls == []
+
+
+def test_renovate_config_matches_its_own_declared_contract() -> None:
+    assert tasks.renovate_contract_violations(tasks.load_renovate_config()) == []
+
+
+def _mutated_renovate_config(**overrides: object) -> dict[str, Any]:
+    mutated = cast(dict[str, Any], json.loads(json.dumps(tasks.load_renovate_config())))
+    mutated.update(overrides)
+    return mutated
+
+
+def test_renovate_covers_every_scheduled_version_update_ecosystem() -> None:
+    """Renovate is the only scheduled version update mechanism.
+
+    The built-in managers own the Python workspace, GitHub Actions, and
+    Dockerfiles; the custom managers own every coordinate a built-in manager
+    cannot read. Together they must cover the whole agreed target list.
+    """
+    config = tasks.load_renovate_config()
+
+    assert config["enabledManagers"] == [
+        "pep621",
+        "github-actions",
+        "dockerfile",
+        "custom.regex",
+    ]
+    assert {item.dep_name_template for item in tasks.RENOVATE_MANAGER_EXPECTATIONS} == {
+        "chaos-mesh",
+        "rhysd/actionlint",
+        "ghcr.io/yannh/kubeconform",
+        "renovate/renovate",
+        "Azure/bicep",
+        "uv",
+    }
+
+
+def test_renovate_config_contract_rejects_automerge() -> None:
+    violations = tasks.renovate_contract_violations(
+        _mutated_renovate_config(automerge=True)
+    )
+
+    assert any("automerge" in violation for violation in violations)
+
+
+def test_renovate_config_contract_rejects_a_disabled_manager() -> None:
+    violations = tasks.renovate_contract_violations(
+        _mutated_renovate_config(enabledManagers=["custom.regex"])
+    )
+
+    assert any("enabledManagers" in violation for violation in violations)
+
+
+def test_renovate_config_contract_requires_the_dependency_dashboard() -> None:
+    violations = tasks.renovate_contract_violations(
+        _mutated_renovate_config(dependencyDashboard=False)
+    )
+
+    assert any("dependencyDashboard" in violation for violation in violations)
+
+
+def test_renovate_config_contract_requires_gh_aw_generated_paths_to_be_ignored() -> (
+    None
+):
+    violations = tasks.renovate_contract_violations(
+        _mutated_renovate_config(ignorePaths=[".github/aw/**"])
+    )
+
+    assert any("ignorePaths" in violation for violation in violations)
+
+
+def test_renovate_config_contract_rejects_a_missing_package_rule() -> None:
+    config = tasks.load_renovate_config()
+    rules = [
+        rule
+        for rule in config["packageRules"]
+        if rule["description"] != "uv-single-pull-request"
+    ]
+
+    violations = tasks.renovate_contract_violations(
+        _mutated_renovate_config(packageRules=rules)
+    )
+
+    assert any("uv-single-pull-request" in violation for violation in violations)
+
+
+def test_renovate_config_contract_rejects_a_corrupted_custom_manager() -> None:
+    config = cast(dict[str, Any], json.loads(json.dumps(tasks.load_renovate_config())))
+    for manager in config["customManagers"]:
+        if manager["description"] == "bicep-cli-version":
+            manager["datasourceTemplate"] = "docker"
+
+    violations = tasks.renovate_contract_violations(config)
+
+    assert any("bicep-cli-version" in violation for violation in violations)
+
+
+def test_renovate_custom_managers_never_duplicate_a_builtin_manager() -> None:
+    """No custom manager may re-extract a file a built-in manager reads."""
+    for expectation in tasks.RENOVATE_MANAGER_EXPECTATIONS:
+        assert not expectation.target_path.endswith("Dockerfile")
+        assert not expectation.target_path.startswith("src/")
+    assert tasks._renovate_manager_overlap_violations() == []
+
+
+def test_uv_pin_coordinates_move_in_one_pull_request() -> None:
+    """The uv lower bound and the Docker uv image must land together.
+
+    Renovate groups both coordinates, and CI runs check-uv-version so a pull
+    request that moved only one of them fails instead of merging a half-applied
+    pin.
+    """
+    config = tasks.load_renovate_config()
+    group = next(
+        rule
+        for rule in config["packageRules"]
+        if rule["description"] == "uv-single-pull-request"
+    )
+
+    assert group["groupName"] == "uv"
+    assert set(group["matchPackageNames"]) == {"uv", "ghcr.io/astral-sh/uv"}
+    ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert 'scripts/tasks.py" check-uv-version' in ci
+    assert 'scripts/tasks.py" check-version-pins' in ci
+
+
+def test_python_dependency_updates_stay_candidate_detection_only() -> None:
+    """Renovate must not regenerate uv.lock; refresh-uv-lock.yml owns that."""
+    config = tasks.load_renovate_config()
+    rule = next(
+        item
+        for item in config["packageRules"]
+        if item["description"] == "python-workspace-candidate-detection-only"
+    )
+
+    assert rule["matchManagers"] == ["pep621"]
+    assert rule["dependencyDashboardApproval"] is True
+    assert (REPO_ROOT / ".github" / "workflows" / "refresh-uv-lock.yml").exists()
+
+
+def test_renovate_manager_expectations_match_exactly_one_coordinate_each() -> None:
+    for expectation in tasks.RENOVATE_MANAGER_EXPECTATIONS:
+        text = (tasks.ROOT / expectation.target_path).read_text(encoding="utf-8")
+        matches = list(tasks.re.finditer(expectation.pattern, text))
+        assert len(matches) == expectation.expected_match_count, expectation.description
+
+
+def test_renovate_does_not_manage_lefthook_or_gh_aw() -> None:
+    """Both pins are deliberately excluded from Renovate.
+
+    Renovate cannot regenerate LEFTHOOK_SHA256 in the same change (workarounds
+    D-12), and the gh-aw compiler pin is decided together with the workflow
+    locks that ``gh aw compile`` generates. The scheduled checker detects both
+    update candidates instead.
+    """
+    config = tasks.load_renovate_config()
+    serialized = json.dumps(config)
+
+    assert "LEFTHOOK_VERSION" not in serialized
+    assert "gh-aw" not in {
+        item.description for item in tasks.RENOVATE_MANAGER_EXPECTATIONS
+    }
+    assert "gh_aw_setup" not in serialized
+    assert config["packageRules"][0]["enabled"] is False
+    assert "github/gh-aw-actions" in config["packageRules"][0]["matchPackageNames"]
+    assert set(tasks.FRESHNESS_CHECK_SUBJECTS) == {
+        tasks.FRESHNESS_SUBJECT_GH_AW,
+        tasks.FRESHNESS_SUBJECT_LEFTHOOK,
+        tasks.FRESHNESS_SUBJECT_RENOVATE_ACTIVITY,
+    }
+
+
+# An independent renovate --dry-run=extract JSON fixture, hand-written rather
+# than derived from RENOVATE_MANAGER_EXPECTATIONS, so the parser/validator
+# contract is not just the expectation table agreeing with itself. Renovate
+# emits every custom.regex manager under the "regex" group and can repeat a
+# dependency, so the fixture deliberately duplicates one entry.
+_RENOVATE_EXTRACTION_FIXTURE = (
+    json.dumps(
+        {
+            "msg": "Extracted dependencies",
+            "packageFiles": {
+                "regex": [
+                    {
+                        "packageFile": "azure.yaml",
+                        "deps": [{"depName": "chaos-mesh", "currentValue": "2.8.3"}],
+                    },
+                    {
+                        "packageFile": "azure.yaml",
+                        "deps": [{"depName": "chaos-mesh", "currentValue": "2.8.3"}],
+                    },
+                    {
+                        "packageFile": "scripts/tasks.py",
+                        "deps": [
+                            {"depName": "rhysd/actionlint", "currentValue": "1.7.12"}
+                        ],
+                    },
+                    {
+                        "packageFile": "scripts/tasks.py",
+                        "deps": [
+                            {
+                                "depName": "ghcr.io/yannh/kubeconform",
+                                "currentValue": "v0.7.0",
+                            }
+                        ],
+                    },
+                    {
+                        "packageFile": "scripts/tasks.py",
+                        "deps": [
+                            {"depName": "renovate/renovate", "currentValue": "44.51.2"}
+                        ],
+                    },
+                    {
+                        "packageFile": ".github/workflows/ci.yml",
+                        "deps": [{"depName": "Azure/bicep", "currentValue": "0.46.1"}],
+                    },
+                    {
+                        "packageFile": "pyproject.toml",
+                        "deps": [{"depName": "uv", "currentValue": "0.12.2"}],
+                    },
+                ]
+            },
+        }
+    )
+    + "\n"
+).encode()
+
+_RENOVATE_EXTRACTION_EXPECTED = {
+    ("regex", "azure.yaml", "chaos-mesh", "2.8.3"),
+    ("regex", "scripts/tasks.py", "rhysd/actionlint", "1.7.12"),
+    ("regex", "scripts/tasks.py", "ghcr.io/yannh/kubeconform", "v0.7.0"),
+    ("regex", "scripts/tasks.py", "renovate/renovate", "44.51.2"),
+    ("regex", ".github/workflows/ci.yml", "Azure/bicep", "0.46.1"),
+    ("regex", "pyproject.toml", "uv", "0.12.2"),
+}
+
+
+def test_parse_renovate_extraction_collapses_duplicates() -> None:
+    parsed = tasks.parse_renovate_extraction(_RENOVATE_EXTRACTION_FIXTURE)
+
+    assert parsed == _RENOVATE_EXTRACTION_EXPECTED
+
+
+def test_parse_renovate_extraction_raises_when_no_record_present() -> None:
+    with pytest.raises(tasks.RenovateExtractionError):
+        tasks.parse_renovate_extraction(b'{"msg": "some other log line"}\n')
+
+
+def test_expected_renovate_extractions_covers_the_real_coordinates() -> None:
+    expected = tasks.expected_renovate_extractions()
+
+    dep_names = {dep_name for _manager, _file, dep_name, _value in expected}
+    assert dep_names == {
+        "chaos-mesh",
+        "rhysd/actionlint",
+        "ghcr.io/yannh/kubeconform",
+        "renovate/renovate",
+        "Azure/bicep",
+        "uv",
+    }
+    assert "evilmartians/lefthook" not in dep_names
+    assert all(manager == "regex" for manager, _file, _dep, _value in expected)
+
+
+def test_check_renovate_config_stays_out_of_the_offline_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The official validator needs Docker, so no review target may call it."""
+    assert "check-renovate-config" not in {
+        check.target_name
+        for check in (*tasks.FAST_REVIEW_CHECKS, *tasks.FULL_REVIEW_CHECKS)
+    }
+    monkeypatch.setattr(tasks.shutil, "which", lambda _command: None)
+
+    with pytest.raises(SystemExit) as error:
+        tasks.target_check_renovate_config()
+
+    assert error.value.code == 1
+
+
+def test_check_renovate_config_reports_an_extraction_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        tasks, "run_renovate_config_validator", lambda: "INFO: Config validated"
+    )
+    monkeypatch.setattr(tasks, "run_renovate_extraction", lambda: b"")
+    monkeypatch.setattr(tasks, "parse_renovate_extraction", lambda _stdout: set())
+
+    with pytest.raises(SystemExit) as error:
+        tasks.target_check_renovate_config()
+
+    assert error.value.code == 1
+    assert "--dry-run=extract result does not match" in capsys.readouterr().err
+
+
+def test_check_renovate_activity_reports_only_the_activity_finding(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        tasks,
+        "evaluate_renovate_activity",
+        lambda: tasks.FreshnessFinding(
+            "Renovate app activity",
+            ".github/renovate.json",
+            "unverified",
+            tasks.FRESHNESS_REASON_RENOVATE_NOT_OBSERVED,
+            "owner/repo",
+            None,
+            (),
+            "Renovate app activity could not be confirmed",
+        ),
+    )
+
+    with pytest.raises(SystemExit) as error:
+        tasks.target_check_renovate_activity()
+
+    assert error.value.code == 1
+    output = capsys.readouterr()
+    assert "Renovate app activity: unverified (renovate-not-observed)" in output.out
+    assert "Renovate custom managers" not in output.out + output.err
+
+
+def _dashboard_issue(
+    updated_at: str,
+    *,
+    title: str = tasks.RENOVATE_DASHBOARD_TITLE,
+    login: str = "renovate[bot]",
+    user_type: str = "Bot",
+    pull_request: bool = False,
+) -> dict[str, Any]:
+    issue: dict[str, Any] = {
+        "title": title,
+        "updated_at": updated_at,
+        "html_url": "https://github.com/owner/repo/issues/1",
+        "user": {"login": login, "type": user_type},
+    }
+    if pull_request:
+        issue["pull_request"] = {"url": "https://example.invalid/pull/1"}
+    return issue
+
+
+def _renovate_pull_request(
+    updated_at: str,
+    created_at: str | None = None,
+    *,
+    number: int = 7,
+    login: str = "renovate[bot]",
+    user_type: str = "Bot",
+    is_pull_request: bool = True,
+) -> dict[str, Any]:
+    item: dict[str, Any] = {
+        "title": "Update dependency rhysd/actionlint",
+        "created_at": created_at if created_at is not None else updated_at,
+        "updated_at": updated_at,
+        "html_url": f"https://github.com/owner/repo/pull/{number}",
+        "user": {"login": login, "type": user_type},
+    }
+    if is_pull_request:
+        item["pull_request"] = {
+            "html_url": f"https://github.com/owner/repo/pull/{number}"
+        }
+    return item
+
+
+def _iso_days_ago(days: float) -> str:
+    moment = tasks.datetime.datetime.now(
+        tz=tasks.datetime.UTC
+    ) - tasks.datetime.timedelta(days=days)
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _issues_url(page: int, repository: str = "owner/repo") -> str:
+    return tasks.renovate_dashboard_issues_urls(repository)[page - 1]
+
+
+def _search_url(repository: str = "owner/repo") -> str:
+    return tasks.renovate_pull_requests_search_url(repository)
+
+
+def _search_payload(
+    items: list[dict[str, Any]], *, incomplete: bool = False
+) -> dict[str, Any]:
+    return {
+        "total_count": len(items),
+        "incomplete_results": incomplete,
+        "items": items,
+    }
+
+
+def _stub_github_json(
+    monkeypatch: pytest.MonkeyPatch, responses: dict[str, object]
+) -> list[str]:
+    """Serve one canned JSON payload (or exception) per URL, recording calls."""
+    requested: list[str] = []
+
+    def open_url(url: str, _timeout: int) -> _FakeChecksumResponse:
+        requested.append(url)
+        if url not in responses:
+            pytest.fail(f"unexpected GitHub request: {url}")
+        payload = responses[url]
+        if isinstance(payload, Exception):
+            raise payload
+        return _FakeChecksumResponse(json.dumps(payload).encode())
+
+    monkeypatch.setattr(tasks, "open_github_url", open_url)
+    monkeypatch.setattr(tasks, "resolve_github_repository", lambda: "owner/repo")
+    return requested
+
+
+def test_renovate_activity_passes_on_a_recent_dashboard_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_github_json(
+        monkeypatch,
+        {
+            _issues_url(1): [_dashboard_issue(_iso_days_ago(1))],
+            _search_url(): _search_payload([]),
+        },
+    )
+
+    finding = tasks.evaluate_renovate_activity()
+
+    assert finding.status == "pass"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_OBSERVED
+    assert "https://github.com/owner/repo/issues/1" in finding.evidence
+
+
+def test_renovate_activity_passes_on_a_recent_pull_request_without_a_dashboard(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Renovate only writes the dashboard when it has something to change.
+
+    A repository with no open dashboard can still be actively served by the
+    app, so a recent Renovate-authored pull request is on its own enough.
+    """
+    _stub_github_json(
+        monkeypatch,
+        {
+            _issues_url(1): [],
+            _search_url(): _search_payload(
+                [_renovate_pull_request(_iso_days_ago(2), _iso_days_ago(3))]
+            ),
+        },
+    )
+
+    finding = tasks.evaluate_renovate_activity()
+
+    assert finding.status == "pass"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_OBSERVED
+    assert "Renovate pull request" in finding.detail
+    assert "https://github.com/owner/repo/pull/7" in finding.evidence
+
+
+def test_renovate_activity_takes_the_newest_of_every_observed_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A long-untouched dashboard is not evidence of an inactive app."""
+    _stub_github_json(
+        monkeypatch,
+        {
+            _issues_url(1): [
+                _dashboard_issue(
+                    _iso_days_ago(tasks.RENOVATE_ACTIVITY_WINDOW_DAYS + 90)
+                )
+            ],
+            _search_url(): _search_payload(
+                [_renovate_pull_request(_iso_days_ago(3), _iso_days_ago(400))]
+            ),
+        },
+    )
+
+    finding = tasks.evaluate_renovate_activity()
+
+    assert finding.status == "pass"
+    assert finding.published == _iso_days_ago(3)
+
+
+def test_renovate_activity_is_unverified_when_nothing_was_ever_observed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_github_json(
+        monkeypatch,
+        {_issues_url(1): [], _search_url(): _search_payload([])},
+    )
+
+    finding = tasks.evaluate_renovate_activity()
+
+    assert finding.status == "unverified"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_RENOVATE_NOT_OBSERVED
+    assert "activity could not be confirmed" in finding.detail
+
+
+def test_renovate_activity_outside_the_window_does_not_claim_the_app_stopped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stale = _iso_days_ago(tasks.RENOVATE_ACTIVITY_WINDOW_DAYS + 1)
+    _stub_github_json(
+        monkeypatch,
+        {
+            _issues_url(1): [_dashboard_issue(stale)],
+            _search_url(): _search_payload([_renovate_pull_request(stale)]),
+        },
+    )
+
+    finding = tasks.evaluate_renovate_activity()
+
+    assert tasks.RENOVATE_ACTIVITY_WINDOW_DAYS == 14
+    assert finding.status == "unverified"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_UNOBSERVED
+    assert "could not be confirmed from recent public activity" in finding.detail
+    assert "does not establish that the app was removed or disabled" in finding.detail
+
+
+def test_renovate_activity_accepts_the_boundary_of_the_observation_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fresh = _iso_days_ago(tasks.RENOVATE_ACTIVITY_WINDOW_DAYS - 0.5)
+    _stub_github_json(
+        monkeypatch,
+        {
+            _issues_url(1): [_dashboard_issue(fresh)],
+            _search_url(): _search_payload([]),
+        },
+    )
+
+    finding = tasks.evaluate_renovate_activity()
+
+    assert finding.status == "pass"
+
+
+def test_renovate_activity_is_unverified_when_a_lookup_is_rate_limited(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A throttled API says nothing about Renovate, so it is an evidence gap."""
+    _stub_github_json(
+        monkeypatch,
+        {
+            _issues_url(1): [],
+            _search_url(): urllib.error.HTTPError(
+                _search_url(), 403, "rate limit exceeded", email.message.Message(), None
+            ),
+        },
+    )
+
+    finding = tasks.evaluate_renovate_activity()
+
+    assert finding.status == "unverified"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE
+    assert "rate limit" in finding.detail
+
+
+def test_renovate_activity_prefers_a_fresh_observation_over_a_partial_gap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One failing endpoint cannot erase activity the other one proved."""
+    _stub_github_json(
+        monkeypatch,
+        {
+            _issues_url(1): [_dashboard_issue(_iso_days_ago(1))],
+            _search_url(): urllib.error.HTTPError(
+                _search_url(), 429, "too many requests", email.message.Message(), None
+            ),
+        },
+    )
+
+    finding = tasks.evaluate_renovate_activity()
+
+    assert finding.status == "pass"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_OBSERVED
+
+
+def test_renovate_activity_is_unverified_when_the_repository_is_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable() -> str:
+        raise tasks.RenovateEvidenceUnavailableError("no origin remote")
+
+    monkeypatch.setattr(tasks, "resolve_github_repository", unavailable)
+
+    finding = tasks.evaluate_renovate_activity()
+
+    assert finding.status == "unverified"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE
+    assert "freshness evidence was unavailable" in finding.detail
+
+
+def test_renovate_activity_never_reports_fail_for_configuration_defects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Configuration is check-renovate-config's business, not this target's.
+
+    The activity evaluator must not even read renovate.json: doing so gave one
+    defect two owners and let an external observation return ``fail``.
+    """
+
+    def unreadable() -> dict[str, Any]:
+        pytest.fail("evaluate_renovate_activity must not read renovate.json")
+
+    monkeypatch.setattr(tasks, "load_renovate_config", unreadable)
+    _stub_github_json(
+        monkeypatch,
+        {_issues_url(1): [], _search_url(): _search_payload([])},
+    )
+
+    finding = tasks.evaluate_renovate_activity()
+
+    assert finding.status != "fail"
+
+
+def test_renovate_dashboard_lookup_pages_past_a_full_first_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A busy issue tracker must not make a present dashboard look absent."""
+    filler = [
+        _dashboard_issue(_iso_days_ago(1), title=f"unrelated {index}", login="someone")
+        for index in range(tasks.RENOVATE_ISSUES_PER_PAGE)
+    ]
+    requested = _stub_github_json(
+        monkeypatch,
+        {
+            _issues_url(1): filler,
+            _issues_url(2): [_dashboard_issue(_iso_days_ago(1))],
+        },
+    )
+
+    issue = tasks.fetch_renovate_dashboard_issue("owner/repo")
+
+    assert issue is not None
+    assert requested == [_issues_url(1), _issues_url(2)]
+
+
+def test_renovate_dashboard_lookup_is_unverified_when_pages_run_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    filler = [
+        _dashboard_issue(_iso_days_ago(1), title=f"unrelated {index}", login="someone")
+        for index in range(tasks.RENOVATE_ISSUES_PER_PAGE)
+    ]
+    _stub_github_json(
+        monkeypatch,
+        {
+            _issues_url(page): filler
+            for page in range(1, tasks.RENOVATE_ISSUES_MAX_PAGES + 1)
+        },
+    )
+
+    with pytest.raises(tasks.RenovateEvidenceUnavailableError):
+        tasks.fetch_renovate_dashboard_issue("owner/repo")
+
+
+def test_renovate_dashboard_lookup_rejects_impostor_issues(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only the Renovate app's own dashboard issue counts as an observation."""
+    payload = [
+        _dashboard_issue(_iso_days_ago(1), pull_request=True),
+        _dashboard_issue(_iso_days_ago(1), login="someone", user_type="User"),
+        _dashboard_issue(_iso_days_ago(1), login="other[bot]"),
+        _dashboard_issue(_iso_days_ago(1), title="Dependency Dashboard (draft)"),
+    ]
+    _stub_github_json(monkeypatch, {_issues_url(1): payload})
+
+    assert tasks.fetch_renovate_dashboard_issue("owner/repo") is None
+
+    payload.append(_dashboard_issue(_iso_days_ago(2)))
+
+    issue = tasks.fetch_renovate_dashboard_issue("owner/repo")
+
+    assert issue is not None
+    assert issue["user"]["login"] == "renovate[bot]"
+
+
+def test_renovate_pull_request_lookup_rejects_non_renovate_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Search results are re-checked, so only Renovate-authored PRs count."""
+    _stub_github_json(
+        monkeypatch,
+        {
+            _search_url(): _search_payload(
+                [
+                    _renovate_pull_request(_iso_days_ago(1), is_pull_request=False),
+                    _renovate_pull_request(
+                        _iso_days_ago(1), login="someone", user_type="User"
+                    ),
+                    _renovate_pull_request(_iso_days_ago(1), login="other[bot]"),
+                    _renovate_pull_request(_iso_days_ago(5), number=9),
+                ]
+            )
+        },
+    )
+
+    matched = tasks.fetch_renovate_pull_requests("owner/repo")
+
+    assert [item["html_url"] for item in matched] == [
+        "https://github.com/owner/repo/pull/9"
+    ]
+
+
+def test_renovate_pull_request_lookup_is_unverified_on_incomplete_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A truncated search cannot establish that Renovate never opened a PR."""
+    _stub_github_json(
+        monkeypatch,
+        {_search_url(): _search_payload([], incomplete=True)},
+    )
+
+    with pytest.raises(tasks.RenovateEvidenceUnavailableError):
+        tasks.fetch_renovate_pull_requests("owner/repo")
+
+
+def test_renovate_activity_lookup_never_prints_the_token(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("GITHUB_TOKEN", "secret-token-value")
+    _stub_github_json(
+        monkeypatch,
+        {
+            _issues_url(1): [_dashboard_issue(_iso_days_ago(1))],
+            _search_url(): _search_payload([]),
+        },
+    )
+
+    headers = tasks.github_api_request_headers()
+    finding = tasks.evaluate_renovate_activity()
+
+    assert "secret-token-value" in headers["Authorization"]
+    output = capsys.readouterr()
+    assert "secret-token-value" not in output.out + output.err
+    assert "secret-token-value" not in finding.detail + " ".join(finding.evidence)
+
+
+def test_resolve_github_repository_prefers_the_environment_then_origin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/from-env")
+
+    assert tasks.resolve_github_repository() == "owner/from-env"
+
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.setattr(
+        tasks,
+        "command_output",
+        lambda *_args, **_kwargs: "https://github.com/owner/from-remote.git\n",
+    )
+
+    assert tasks.resolve_github_repository() == "owner/from-remote"
+
+    monkeypatch.setattr(tasks, "command_output", lambda *_args, **_kwargs: "")
+
+    with pytest.raises(tasks.RenovateEvidenceUnavailableError):
+        tasks.resolve_github_repository()
+
+
+def test_freshness_checks_output_stays_exit_zero_for_fail_and_unverified(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The weekly workflow must still receive a JSON document to report on.
+
+    Exiting non-zero here would abort the workflow step before the skill could
+    read the findings, hiding the very failures the run exists to surface.
+    """
+    monkeypatch.setattr(
+        tasks,
+        "collect_freshness_findings",
+        lambda: [
+            tasks.FreshnessFinding(
+                "Renovate app activity",
+                ".github/renovate.json",
+                "unverified",
+                tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_UNOBSERVED,
+                None,
+                None,
+                (),
+                "activity could not be confirmed",
+            ),
+            tasks.FreshnessFinding(
+                "Lefthook",
+                ".github/workflows/ci.yml",
+                "fail",
+                tasks.FRESHNESS_REASON_CHECKSUM_MISMATCH,
+                None,
+                None,
+                (),
+                "checksum mismatch",
+            ),
+        ],
+    )
+    output = tmp_path / "freshness.json"
+
+    tasks.target_freshness_checks(output)
+
+    document = json.loads(output.read_text(encoding="utf-8"))
+    assert document["status"] == "fail"
+    assert {finding["reason_code"] for finding in document["findings"]} == {
+        "renovate-activity-unobserved",
+        "checksum-mismatch",
+    }
+
+
+def test_freshness_document_status_is_fail_first_then_unverified() -> None:
+    def _finding(status: str) -> tasks.FreshnessFinding:
+        return tasks.FreshnessFinding("s", "c", status, "r", None, None, (), "detail")
+
+    fail_doc = tasks.freshness_document(
+        [_finding("pass"), _finding("unverified"), _finding("fail")]
+    )
+    assert fail_doc["status"] == "fail"
+    assert fail_doc["coverage"] == {
+        "total": 3,
+        "pass": 1,
+        "fail": 1,
+        "unverified": 1,
+        "excluded": 0,
+    }
+
+    unverified_doc = tasks.freshness_document(
+        [_finding("pass"), _finding("unverified")]
+    )
+    assert unverified_doc["status"] == "unverified"
+
+    pass_doc = tasks.freshness_document([_finding("pass"), _finding("pass")])
+    assert pass_doc["status"] == "pass"
+
+
+def test_freshness_document_empty_input_is_unverified() -> None:
+    document = tasks.freshness_document([])
+
+    assert document["status"] == "unverified"
+    assert document["coverage"] == {
+        "total": 0,
+        "pass": 0,
+        "fail": 0,
+        "unverified": 0,
+        "excluded": 0,
+    }
+
+
+def test_freshness_finding_rejects_unknown_status() -> None:
+    with pytest.raises(ValueError, match="unsupported freshness status"):
+        tasks.FreshnessFinding(
+            "subject",
+            "coordinate",
+            "unknown",
+            "reason",
+            None,
+            None,
+            (),
+            "detail",
+        )
+
+
+def test_freshness_finding_rejects_empty_reason_code() -> None:
+    with pytest.raises(ValueError, match="reason_code must not be empty"):
+        tasks.FreshnessFinding(
+            "subject",
+            "coordinate",
+            "pass",
+            "",
+            None,
+            None,
+            (),
+            "detail",
+        )
+
+
+def test_freshness_document_serializes_reason_codes_and_evidence() -> None:
+    finding = tasks.FreshnessFinding(
+        "Lefthook",
+        ".github/workflows/ci.yml",
+        "unverified",
+        tasks.FRESHNESS_REASON_UPDATE_AVAILABLE,
+        "2.1.10",
+        "2.1.12",
+        ("https://example.invalid/releases",),
+        "newer release available",
+    )
+    document = tasks.freshness_document([finding])
+    entry = document["findings"][0]
+
+    assert entry["reason_code"] == "update-available"
+    assert entry["current"] == "2.1.10"
+    assert entry["published"] == "2.1.12"
+    assert entry["evidence"] == ["https://example.invalid/releases"]
+    assert document["schema_version"] == tasks.FRESHNESS_SCHEMA_VERSION
+
+
+def test_freshness_checks_target_writes_json(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        tasks,
+        "collect_freshness_findings",
+        lambda: [
+            tasks.FreshnessFinding(
+                "gh-aw", "c", "unverified", "update-available", "a", "b", (), "d"
+            )
+        ],
+    )
+    output = tmp_path / "freshness.json"
+
+    tasks.target_freshness_checks(output)
+
+    document = json.loads(output.read_text(encoding="utf-8"))
+    assert document["status"] == "unverified"
+    assert document["findings"][0]["reason_code"] == "update-available"
+
+
+def test_freshness_checks_target_is_registered() -> None:
+    assert "freshness-checks" in tasks.TARGETS
+
+
+def test_classify_gh_aw_compiler_pin_rejects_known_stale_example() -> None:
+    """Pin the known real-world gap (pinned v0.79.6, latest v0.86.2).
+
+    Confirming *a* current release exists upstream is not evidence the pin
+    is current. This must not report "pass" for a real, confirmed version
+    difference -- it reports "unverified" because bumping the gh-aw compiler
+    pin is a deliberate, human-reviewed maintenance decision in this
+    repository, not an automatic latest-wins update.
+    """
+    status, message = tasks.classify_gh_aw_compiler_pin("v0.79.6", "v0.86.2")
+
+    assert status == "unverified"
+    assert "v0.79.6" in message
+    assert "v0.86.2" in message
+    assert "requires maintainer review of workflow compatibility" in message
+
+
+def test_classify_gh_aw_compiler_pin_passes_when_versions_match() -> None:
+    status, message = tasks.classify_gh_aw_compiler_pin("v0.79.6", "v0.79.6")
+
+    assert status == "pass"
+    assert "matches the latest stable release" in message
+
+
+def test_classify_gh_aw_compiler_pin_fails_on_malformed_version() -> None:
+    status, message = tasks.classify_gh_aw_compiler_pin("not-a-version", "v0.86.2")
+
+    assert status == "fail"
+    assert "not a valid vX.Y.Z version" in message
+
+
+def test_parse_gh_aw_version_accepts_with_or_without_v_prefix() -> None:
+    assert tasks.parse_gh_aw_version("v0.79.6") == (0, 79, 6)
+    assert tasks.parse_gh_aw_version("0.79.6") == (0, 79, 6)
+    assert tasks.parse_gh_aw_version("v0.79") is None
+    assert tasks.parse_gh_aw_version("") is None
+
+
+def test_read_gh_aw_setup_version_matches_the_real_pin() -> None:
+    pinned = tasks.read_gh_aw_setup_version()
+
+    assert tasks.parse_gh_aw_version(pinned) is not None
+
+
+def test_fetch_gh_aw_latest_release_parses_tag_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = json.dumps({"tag_name": "v0.86.2"}).encode("utf-8")
+    monkeypatch.setattr(
+        tasks.urllib.request,
+        "urlopen",
+        lambda _url, timeout=None: _FakeChecksumResponse(payload),
+    )
+
+    assert tasks.fetch_gh_aw_latest_release() == "v0.86.2"
+
+
+def test_fetch_gh_aw_latest_release_raises_on_network_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_network_error(_url: str, timeout: float | None = None) -> None:
+        raise tasks.urllib.error.URLError("simulated DNS failure")
+
+    monkeypatch.setattr(tasks.urllib.request, "urlopen", raise_network_error)
+
+    with pytest.raises(tasks.GhAwReleaseUnavailableError, match="network"):
+        tasks.fetch_gh_aw_latest_release()
+
+
+def test_fetch_gh_aw_latest_release_raises_when_tag_name_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = json.dumps({"name": "no tag_name field"}).encode("utf-8")
+    monkeypatch.setattr(
+        tasks.urllib.request,
+        "urlopen",
+        lambda _url, timeout=None: _FakeChecksumResponse(payload),
+    )
+
+    with pytest.raises(tasks.GhAwReleaseUnavailableError):
+        tasks.fetch_gh_aw_latest_release()
+
+
+def _write_range_fixture(repository: Path, azd_range: str, bundle_version: str) -> None:
+    (repository / tasks.AZURE_YAML_PATH).parent.mkdir(parents=True, exist_ok=True)
+    (repository / tasks.AZURE_YAML_PATH).write_text(
+        f"requiredVersions:\n  azd: '{azd_range}'\n", encoding="utf-8"
+    )
+    host_json_path = repository / tasks.FUNCTIONS_HOST_JSON_PATH
+    host_json_path.parent.mkdir(parents=True, exist_ok=True)
+    host_json_path.write_text(
+        json.dumps(
+            {
+                "extensionBundle": {
+                    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+                    "version": bundle_version,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_fast_review_timeout_is_unverified_and_next_check_runs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
 
-    def run_check(
+    def handler(
         args: list[str] | tuple[str, ...],
-        **_kwargs: object,
-    ) -> subprocess.CompletedProcess[bytes]:
-        target = args[2]
-        calls.append(target)
+        target: str,
+    ) -> subprocess.CompletedProcess[bytes] | None:
         if target == "check-repo-health":
             raise subprocess.TimeoutExpired(args, tasks.REVIEW_CHECK_TIMEOUT_SECONDS)
-        return subprocess.CompletedProcess(args, 0)
+        return None
 
-    monkeypatch.setattr(tasks, "run_isolated_review_command", run_check)
+    monkeypatch.setattr(
+        tasks,
+        "run_isolated_review_command",
+        review_command_stub(calls, handler=handler),
+    )
 
     results = tasks.run_fast_review_checks()
 
-    assert calls == [check.target_name for check in tasks.FAST_REVIEW_CHECKS]
+    assert calls == list(FAST_TARGET_CALLS)
     assert [(result.name, result.status) for result in results] == [
         ("repo-health", "unverified"),
         ("uv-version", "pass"),
         ("public-lock", "pass"),
         ("publisher-requirements", "pass"),
+        ("version-pins", "pass"),
     ]
 
 
@@ -169,22 +1560,18 @@ def test_qa_app_cli_can_skip_publisher_check(
     assert calls == [False]
 
 
-def test_review_repo_fast_reuses_offline_targets(
+def test_review_repo_fast_runs_every_deterministic_target_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
-    target_names = tuple(check.target_name for check in tasks.FAST_REVIEW_CHECKS)
     monkeypatch.setattr(
-        tasks,
-        "run_isolated_review_command",
-        lambda args, **_kwargs: (
-            calls.append(args[2]) or subprocess.CompletedProcess(args, 0)
-        ),
+        tasks, "run_isolated_review_command", review_command_stub(calls)
     )
 
     tasks.target_review_repo_fast()
 
-    assert calls == list(target_names)
+    assert calls == list(FAST_TARGET_CALLS)
+    assert len(calls) == len(set(calls))
 
 
 def test_review_repo_fast_marks_missing_tools_unverified_and_continues(
@@ -198,11 +1585,7 @@ def test_review_repo_fast_marks_missing_tools_unverified_and_continues(
         lambda command: f"{command} was not found" if command == "uv" else None,
     )
     monkeypatch.setattr(
-        tasks,
-        "run_isolated_review_command",
-        lambda args, **_kwargs: (
-            calls.append(args[2]) or subprocess.CompletedProcess(args, 0)
-        ),
+        tasks, "run_isolated_review_command", review_command_stub(calls)
     )
 
     tasks.target_review_repo_fast()
@@ -211,14 +1594,15 @@ def test_review_repo_fast_marks_missing_tools_unverified_and_continues(
         "check-repo-health",
         "check-public-lock",
         "check-publisher-requirements",
+        "check-version-pins",
     ]
     output = capsys.readouterr()
-    assert "[pass] repo-health: check passed" in output.out
+    assert "[pass] (check-passed) repo-health: check passed" in output.out
     assert (
-        "[unverified] uv-version: required tool preflight failed: uv was not found"
-        in output.err
+        "[unverified] (tool-preflight-failed) uv-version: "
+        "required tool preflight failed: uv was not found" in output.err
     )
-    assert "[pass] public-lock: check passed" in output.out
+    assert "[pass] (check-passed) public-lock: check passed" in output.out
     assert "Repository review completed with unverified checks" in output.out
     assert "Fast repository review passed" not in output.out
 
@@ -229,34 +1613,31 @@ def test_review_repo_fast_marks_real_failure_and_continues(
 ) -> None:
     calls: list[str] = []
 
-    def run_check(
+    def handler(
         args: list[str] | tuple[str, ...],
-        **_kwargs: object,
-    ) -> subprocess.CompletedProcess[bytes]:
-        target_name = args[2]
-        calls.append(target_name)
-        if target_name == "check-repo-health":
+        target: str,
+    ) -> subprocess.CompletedProcess[bytes] | None:
+        if target == "check-repo-health":
             return subprocess.CompletedProcess(
                 args,
                 7,
                 stdout=b"",
                 stderr=b"AssertionError: repository health failed",
             )
-        return subprocess.CompletedProcess(args, 0)
+        return None
 
-    monkeypatch.setattr(tasks, "run_isolated_review_command", run_check)
+    monkeypatch.setattr(
+        tasks,
+        "run_isolated_review_command",
+        review_command_stub(calls, handler=handler),
+    )
 
     with pytest.raises(SystemExit) as error:
         tasks.target_review_repo_fast()
 
     assert error.value.code == 1
-    assert calls == [
-        "check-repo-health",
-        "check-uv-version",
-        "check-public-lock",
-        "check-publisher-requirements",
-    ]
-    assert "[fail] repo-health:" in capsys.readouterr().err
+    assert calls == list(FAST_TARGET_CALLS)
+    assert "[fail] (repository-failure) repo-health:" in capsys.readouterr().err
 
 
 def test_review_repo_fast_marks_start_failure_unverified_and_continues(
@@ -265,29 +1646,26 @@ def test_review_repo_fast_marks_start_failure_unverified_and_continues(
 ) -> None:
     calls: list[str] = []
 
-    def run_check(
-        args: list[str] | tuple[str, ...],
-        **_kwargs: object,
-    ) -> subprocess.CompletedProcess[bytes]:
-        target_name = args[2]
-        calls.append(target_name)
-        if target_name == "check-repo-health":
+    def handler(
+        _args: list[str] | tuple[str, ...],
+        target: str,
+    ) -> subprocess.CompletedProcess[bytes] | None:
+        if target == "check-repo-health":
             raise OSError("cannot execute")
-        return subprocess.CompletedProcess(args, 0)
+        return None
 
-    monkeypatch.setattr(tasks, "run_isolated_review_command", run_check)
+    monkeypatch.setattr(
+        tasks,
+        "run_isolated_review_command",
+        review_command_stub(calls, handler=handler),
+    )
 
     tasks.target_review_repo_fast()
 
-    assert calls == [
-        "check-repo-health",
-        "check-uv-version",
-        "check-public-lock",
-        "check-publisher-requirements",
-    ]
+    assert calls == list(FAST_TARGET_CALLS)
     assert (
-        "[unverified] repo-health: check could not be started: cannot execute"
-        in capsys.readouterr().err
+        "[unverified] (check-start-failed) repo-health: "
+        "check could not be started: cannot execute" in capsys.readouterr().err
     )
 
 
@@ -317,6 +1695,7 @@ def test_review_checks_preclassify_each_required_tool() -> None:
         "uv-version": ("uv",),
         "public-lock": (),
         "publisher-requirements": (),
+        "version-pins": (),
     }
     assert full_tools == {
         "qa-app": ("git", "uv"),
@@ -330,6 +1709,99 @@ def test_review_checks_preclassify_each_required_tool() -> None:
     assert tasks.FULL_REVIEW_CHECKS[0].target_arguments == (
         "--skip-publisher-requirements",
     )
+
+
+def test_full_review_never_repeats_a_fast_check() -> None:
+    fast_names = {check.name for check in tasks.FAST_REVIEW_CHECKS}
+    fast_targets = {check.target_name for check in tasks.FAST_REVIEW_CHECKS}
+    full_names = {check.name for check in tasks.FULL_REVIEW_CHECKS}
+    full_targets = {check.target_name for check in tasks.FULL_REVIEW_CHECKS}
+
+    assert fast_names.isdisjoint(full_names)
+    assert fast_targets.isdisjoint(full_targets)
+
+
+def test_review_results_json_hands_structured_status_to_the_next_layer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+
+    def handler(
+        args: list[str] | tuple[str, ...],
+        target: str,
+    ) -> subprocess.CompletedProcess[bytes] | None:
+        if target == "check-version-pins":
+            return subprocess.CompletedProcess(
+                args,
+                1,
+                stdout=b"",
+                stderr=b"error: renovate.json must not enable automerge",
+            )
+        return None
+
+    monkeypatch.setattr(
+        tasks,
+        "run_isolated_review_command",
+        review_command_stub(calls, handler=handler),
+    )
+    results_path = tmp_path / "results.json"
+
+    with pytest.raises(SystemExit):
+        tasks.target_review_repo_fast(None, results_path)
+
+    document = json.loads(results_path.read_text(encoding="utf-8"))
+    assert document["schema_version"] == tasks.REVIEW_RESULTS_SCHEMA_VERSION
+    assert document["mode"] == "fast"
+    assert document["status"] == "fail"
+    assert document["coverage"]["fail"] == 1
+    assert [check["name"] for check in document["checks"]] == list(FAST_CHECK_NAMES)
+    version_pins = next(
+        check for check in document["checks"] if check["name"] == "version-pins"
+    )
+    assert version_pins["status"] == "fail"
+    assert version_pins["reason_code"] == tasks.REVIEW_REASON_CHECK_FAILED
+
+
+def test_review_results_document_empty_input_is_unverified() -> None:
+    document = tasks.review_results_document("fast", [])
+
+    assert document["status"] == "unverified"
+    assert document["coverage"] == {
+        "total": 0,
+        "pass": 0,
+        "fail": 0,
+        "unverified": 0,
+        "excluded": 0,
+    }
+
+
+def test_review_result_rejects_unknown_status() -> None:
+    with pytest.raises(ValueError, match="unknown review status"):
+        tasks.ReviewResult("check", "unknown", "detail", "reason")
+
+
+def test_review_result_rejects_empty_reason_code() -> None:
+    with pytest.raises(ValueError, match="reason_code must not be empty"):
+        tasks.ReviewResult("check", "pass", "detail", "")
+
+
+def test_review_repo_cli_accepts_results_json_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    results_path = tmp_path / "results.json"
+    calls: list[tuple[Path | None, Path | None]] = []
+    monkeypatch.setattr(
+        tasks,
+        "target_review_repo_fast",
+        lambda inventory_json=None, results_json=None: calls.append(
+            (inventory_json, results_json)
+        ),
+    )
+
+    assert tasks.main(["review-repo-fast", "--results-json", str(results_path)]) == 0
+    assert calls == [(None, results_path)]
 
 
 def test_kubernetes_schema_exclusions_have_one_configuration_source() -> None:
@@ -435,7 +1907,7 @@ def test_review_repo_cli_accepts_inventory_json_output(
     monkeypatch.setattr(
         tasks,
         "target_review_repo_full",
-        lambda inventory_json=None: calls.append(inventory_json),
+        lambda inventory_json=None, results_json=None: calls.append(inventory_json),
     )
 
     assert (
@@ -508,13 +1980,15 @@ def test_review_repo_fast_skips_only_uv_version_when_uv_probe_fails(
         "check-repo-health",
         "check-public-lock",
         "check-publisher-requirements",
+        "check-version-pins",
     ]
     output = capsys.readouterr()
-    assert "[pass] repo-health: check passed" in output.out
-    assert "[pass] public-lock: check passed" in output.out
-    assert "[pass] publisher-requirements: check passed" in output.out
+    assert "[pass] (check-passed) repo-health: check passed" in output.out
+    assert "[pass] (check-passed) public-lock: check passed" in output.out
+    assert "[pass] (check-passed) publisher-requirements: check passed" in output.out
     assert (
-        "[unverified] uv-version: required tool preflight failed: "
+        "[unverified] (tool-preflight-failed) uv-version: "
+        "required tool preflight failed: "
         "uv --version exited with code 1 during preflight"
     ) in output.err
     assert "Repository review completed with unverified checks" in output.out
@@ -642,7 +2116,14 @@ def test_review_repo_full_runs_available_checks_after_fast_failure(
     monkeypatch.setattr(
         tasks,
         "run_fast_review_checks",
-        lambda: [tasks.ReviewResult("fast", "fail", "failed")],
+        lambda: [
+            tasks.ReviewResult(
+                "fast",
+                "fail",
+                "failed",
+                tasks.REVIEW_REASON_REPOSITORY_FAILURE,
+            )
+        ],
     )
     monkeypatch.setattr(
         tasks,
@@ -1096,12 +2577,13 @@ def test_explicit_environment_failures_are_unverified(
         stderr=log.encode(),
     )
 
-    status, detail = tasks.classify_review_failure(
+    status, reason_code, detail = tasks.classify_review_failure(
         tasks.ReviewCheck("check", "check", ()),
         completed,
     )
 
     assert status == "unverified"
+    assert reason_code == tasks.REVIEW_REASON_ENVIRONMENT_FAILURE
     assert reason in detail
 
 
@@ -1120,70 +2602,86 @@ def test_baseline_four_pytest_assertion_failures_remain_fail() -> None:
         ),
     )
 
-    status, detail = tasks.classify_review_failure(
+    status, reason_code, detail = tasks.classify_review_failure(
         tasks.ReviewCheck("test-hooks", "test-hooks", ()),
         completed,
     )
 
     assert status == "fail"
+    assert reason_code == tasks.REVIEW_REASON_REPOSITORY_FAILURE
     assert "repository-related" in detail
 
 
-def test_compile_aw_fails_when_managed_files_differ_from_head(
+def test_compile_aw_fails_when_the_compile_run_rewrites_a_managed_file(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    calls: list[str] = []
+    repository = tmp_path / "repository"
+    (repository / ".github/workflows").mkdir(parents=True)
+    lock_file = repository / ".github/workflows/example.lock.yml"
+    lock_file.write_text("stale\n", encoding="utf-8")
+    monkeypatch.setattr(tasks, "ROOT", repository)
     monkeypatch.setattr(tasks, "target_check_gh_aw", lambda: None)
     monkeypatch.setattr(
         tasks,
         "run_gh_aw_compile",
-        lambda: calls.append("compile"),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "command_output",
-        lambda args, **_kwargs: " M .github/workflows/example.lock.yml",
+        lambda: lock_file.write_text("regenerated\n", encoding="utf-8"),
     )
 
     with pytest.raises(SystemExit) as error:
         tasks.target_compile_aw()
 
     assert error.value.code == 1
-    assert calls == ["compile"]
     output = capsys.readouterr()
-    assert "differ from the reviewed repository state" in output.err
+    assert "generated artifacts changed during this compile run" in output.err
+    assert ".github/workflows/example.lock.yml" in output.err
+
+
+def test_compile_aw_ignores_uncommitted_changes_the_compiler_does_not_make(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    (repository / ".github/workflows").mkdir(parents=True)
+    # A managed path can carry an uncommitted edit the compiler never rewrites
+    # (for example a hand-written comment in dependabot.yml). That is not a
+    # stale generated artifact and must not be reported as one.
+    dependabot = repository / ".github/dependabot.yml"
+    dependabot.write_text("version: 2\n# hand-written comment\n", encoding="utf-8")
+    (repository / ".github/workflows/example.lock.yml").write_text(
+        "compiled\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    monkeypatch.setattr(tasks, "target_check_gh_aw", lambda: None)
+    monkeypatch.setattr(tasks, "run_gh_aw_compile", lambda: None)
+
+    tasks.target_compile_aw()
+
+    assert dependabot.read_text(encoding="utf-8").endswith("# hand-written comment\n")
 
 
 def test_compile_aw_checks_all_compiler_managed_paths(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    status_calls: list[tuple[str, ...]] = []
-    monkeypatch.setattr(tasks, "target_check_gh_aw", lambda: None)
-    monkeypatch.setattr(
-        tasks,
-        "run_gh_aw_compile",
-        lambda: None,
-    )
+    repository = tmp_path / "repository"
+    (repository / ".github/aw").mkdir(parents=True)
+    (repository / ".github/workflows").mkdir(parents=True)
+    managed_files = {
+        ".github/aw/actions-lock.json": "{}\n",
+        ".github/dependabot.yml": "version: 2\n",
+        ".github/workflows/agentics-maintenance.yml": "name: maintenance\n",
+        ".github/workflows/example.lock.yml": "compiled\n",
+    }
+    for relative, content in managed_files.items():
+        (repository / relative).write_text(content, encoding="utf-8")
+    (repository / ".github/workflows/ci.yml").write_text("name: ci\n", encoding="utf-8")
+    monkeypatch.setattr(tasks, "ROOT", repository)
 
-    def clean_status(args: list[str] | tuple[str, ...], **_kwargs: object) -> str:
-        status_calls.append(tuple(args))
-        return ""
+    digests = tasks.gh_aw_managed_file_digests()
 
-    monkeypatch.setattr(tasks, "command_output", clean_status)
-
-    tasks.target_compile_aw()
-
-    assert status_calls == [
-        (
-            "git",
-            "status",
-            "--porcelain=v1",
-            "--untracked-files=all",
-            "--",
-            *tasks.GH_AW_MANAGED_PATHS,
-        )
-    ]
+    assert sorted(digests) == sorted(managed_files)
 
 
 def test_review_index_parser_preserves_nul_delimited_paths_and_stages() -> None:
@@ -2370,8 +3868,14 @@ def test_review_repo_agent_contract() -> None:
     assert "task target" in body
     assert "## 実行インターフェース" in body
     assert "## 検査の包含関係" in body
-    assert 'review-repo-fast --inventory-json "<temp>/inventory.json"' in body
-    assert 'review-repo-full --inventory-json "<temp>/inventory.json"' in body
+    assert (
+        'review-repo-fast --inventory-json "<temp>/inventory.json" '
+        '--results-json "<temp>/review-fast.json"' in body
+    )
+    assert (
+        'review-repo-full --inventory-json "<temp>/inventory.json" '
+        '--results-json "<temp>/review-full.json"' in body
+    )
     assert "review-fingerprint capture --output" in body
     assert "review-fingerprint compare --before" in body
     assert "inventory-repo --format json" in body
@@ -2381,7 +3885,8 @@ def test_review_repo_agent_contract() -> None:
     )
     assert (
         '`review-repo-full` | `uv run --no-project "<workspace>/scripts/tasks.py" '
-        'review-repo-full --inventory-json "<temp>/inventory.json"`' in body
+        'review-repo-full --inventory-json "<temp>/inventory.json" '
+        '--results-json "<temp>/review-full.json"`' in body
     )
     assert (
         '`review-workspace cleanup` | `uv run --no-project "${PWD}/scripts/tasks.py" '
@@ -2392,6 +3897,21 @@ def test_review_repo_agent_contract() -> None:
     assert "（finally相当）" in body
     assert "`review-repo-fast`の全検査" in body
     assert "Bicep parameter JSON" in body
+    # Fast is the offline layer. It must not claim any external lookup, and the
+    # scheduled mechanisms must stay named as the owners of update detection.
+    fast_row = body.split("| `review-repo-fast` task target |", 1)[1].split(
+        "| review-repo agentのfastモード |", 1
+    )[0]
+    assert "check-version-pins" in fast_row
+    for external in ("latest release", "RE2", "公開活動"):
+        assert external not in fast_row
+    assert "隔離copyでしか実行できない検査だけを追加する" in body
+    assert "fastが判定済みのversion契約も再実行しない" in body
+    assert "`review-repo-fast`はオフラインで完結し、外部APIもDockerも使わない" in body
+    assert (
+        "最新版候補の検出はscheduledな仕組みへ委譲済みであり、fastでは実行しない"
+        in body
+    )
     assert "全Kubernetes YAML" in body
     assert "Chaos Mesh chart" in body
     assert "`kubernetes-schema-exclusion`座標で`excluded`" in body
@@ -2418,11 +3938,17 @@ def test_review_repo_agent_contract() -> None:
     assert "`inventory-repo`や`check-repo-health`を重複実行しない" in execution_steps
     assert "repo_health.py" not in execution_steps
     assert "fullの場合だけ" in execution_steps
-    assert "fastではfull専用検査を個別の`unverified`として列挙せず" in execution_steps
+    assert "full専用検査を個別の`unverified`として列挙せず" in execution_steps
+    assert "決定論的検査の結果を`status`と`reason_code`とともに列挙" in execution_steps
+    assert "手順2が出力した検査結果JSON" in execution_steps
     assert "`repository-freshness-checker`" in execution_steps
     assert "`bicep-api-version-updater`のcheck-onlyモード" in execution_steps
     assert "手順2と同じinventory JSON" in execution_steps
-    assert "`documentation-external-link`座標を全件処理" in execution_steps
+    assert "`documentation-external-link`座標だけを全件処理" in execution_steps
+    assert "scheduled workflowが担当するversion関連の意味評価は実行しない" in (
+        execution_steps
+    )
+    assert "意味評価はfull" not in body
     assert "Bicep resource APIの結果が返らない場合" in execution_steps
     assert "その領域を`unverified`とする" in execution_steps
     assert "pass" in body
@@ -2446,10 +3972,13 @@ def test_review_repo_agent_contract() -> None:
     assert "Azure subscription" in body
     assert "AKS cluster" in body
     assert "Fleet" in body
-    assert "bicep-version-check.yml" in body
     assert "aks-updates-analyzer" in body
     assert "bicep-api-version-updater" in body
-    assert "bicep-api-version-check.md" in body
+    # Bicep CLI freshness moved to Renovate, so no dedicated workflow remains.
+    assert "bicep-version-check.yml" not in body
+    assert not (
+        REPO_ROOT / ".github" / "workflows" / "bicep-version-check.yml"
+    ).exists()
     for product_command in ("az feature show", "az provider show", "gh api", "curl"):
         assert product_command not in body
 
@@ -2464,9 +3993,13 @@ def test_repository_freshness_skill_contract() -> None:
     assert "review-repo full" in frontmatter["description"]
     assert "check-only" in body
     assert "repo health inventory JSON" in body
-    assert "review-repo-full --inventory-json <absolute-path>" in body
+    assert (
+        "review-repo-full --inventory-json <absolute-path> "
+        "--results-json <absolute-path>" in body
+    )
     assert "inventory-repo --format json" in body
-    assert "別のinventory生成コマンドを実行しない" in body
+    assert "別のinventory生成コマンドを実行せず" in body
+    assert "同じ検出・検証をこのスキルがやり直さない" in body
     for subject in (
         "gh-aw",
         "Lefthook",
@@ -2479,12 +4012,12 @@ def test_repository_freshness_skill_contract() -> None:
     ):
         assert subject in body
     for boundary in (
-        "bicep-version-check.yml",
-        "aks-updates-analyzer",
-        "bicep-api-version-updater",
-        "Dependabot",
+        "check-version-pins",
+        "check-renovate-config",
+        "freshness-checks",
     ):
         assert boundary in body
+    assert "bicep-version-check.yml" not in body
     for status in ("pass", "fail", "unverified", "excluded"):
         assert status in body
     assert "Microsoft Learn MCP" in body
@@ -2524,3 +4057,221 @@ def test_each_skill_directory_contains_skill_document() -> None:
     )
 
     assert missing == []
+
+
+ONLINE_TARGET_NAMES = (
+    "freshness-checks",
+    "check-renovate-config",
+    "check-renovate-activity",
+    "update-lefthook-pin",
+)
+
+
+def test_fast_review_runs_no_online_target() -> None:
+    """Fast is offline by contract, so it may not call an external evaluator."""
+    fast_targets = {check.target_name for check in tasks.FAST_REVIEW_CHECKS}
+
+    assert fast_targets.isdisjoint(ONLINE_TARGET_NAMES)
+    assert fast_targets == {
+        "check-repo-health",
+        "check-uv-version",
+        "check-public-lock",
+        "check-publisher-requirements",
+        "check-version-pins",
+    }
+    assert all(
+        "docker" not in check.required_tools for check in tasks.FAST_REVIEW_CHECKS
+    )
+
+
+def test_check_version_pins_touches_no_network_or_container_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The offline invariant check must reach its verdict from files alone."""
+
+    def forbidden(*_args: object, **_kwargs: object) -> object:
+        pytest.fail("check-version-pins must not perform an external lookup")
+
+    monkeypatch.setattr(tasks.urllib.request, "urlopen", forbidden)
+    monkeypatch.setattr(tasks, "open_github_url", forbidden)
+    monkeypatch.setattr(tasks.subprocess, "run", forbidden)
+    monkeypatch.setattr(tasks.shutil, "which", forbidden)
+
+    tasks.target_check_version_pins()
+
+
+def _version_pin_repository(tmp_path: Path) -> Path:
+    """Copy every coordinate check-version-pins reads into a scratch tree."""
+    repository = tmp_path / "repository"
+    for relative in (
+        ".github/renovate.json",
+        ".github/workflows/ci.yml",
+        "azure.yaml",
+        "src/external-sli-publisher/host.json",
+        "scripts/tasks.py",
+        "pyproject.toml",
+    ):
+        source = REPO_ROOT / relative
+        destination = repository / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(source.read_bytes())
+    return repository
+
+
+def _run_version_pins(
+    monkeypatch: pytest.MonkeyPatch, repository: Path
+) -> int | str | None:
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    with pytest.raises(SystemExit) as error:
+        tasks.target_check_version_pins()
+    return error.value.code
+
+
+def test_check_version_pins_rejects_a_returning_dependabot_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repository = _version_pin_repository(tmp_path)
+    (repository / ".github" / "dependabot.yml").write_text(
+        "version: 2\nupdates: []\n", encoding="utf-8"
+    )
+
+    assert _run_version_pins(monkeypatch, repository) == 1
+    assert "Dependabot version updates must stay disabled" in capsys.readouterr().err
+
+
+def test_check_version_pins_rejects_renovate_automerge(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repository = _version_pin_repository(tmp_path)
+    config_path = repository / ".github" / "renovate.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["automerge"] = True
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    assert _run_version_pins(monkeypatch, repository) == 1
+    assert "must not enable automerge" in capsys.readouterr().err
+
+
+def test_check_version_pins_rejects_an_ambiguous_lefthook_pin(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repository = _version_pin_repository(tmp_path)
+    workflow_path = repository / ".github" / "workflows" / "ci.yml"
+    text = workflow_path.read_text(encoding="utf-8", newline="")
+    workflow_path.write_text(
+        text.replace("LEFTHOOK_SHA256=", "LEFTHOOK_SHA25=", 1),
+        encoding="utf-8",
+        newline="",
+    )
+
+    assert _run_version_pins(monkeypatch, repository) == 1
+    assert "LEFTHOOK_SHA256=" in capsys.readouterr().err
+
+
+def test_check_version_pins_rejects_an_exact_pin_where_a_range_belongs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """azd and the Functions bundle are ranges, never latest-comparable pins."""
+    repository = _version_pin_repository(tmp_path)
+    azure_yaml = repository / "azure.yaml"
+    text = azure_yaml.read_text(encoding="utf-8", newline="")
+    azure_yaml.write_text(
+        tasks.re.sub(r"azd: *['\"]?>= *", "azd: ", text),
+        encoding="utf-8",
+        newline="",
+    )
+
+    assert _run_version_pins(monkeypatch, repository) == 1
+    assert "requiredVersions.azd range" in capsys.readouterr().err
+
+
+def test_check_version_pins_rejects_a_malformed_functions_bundle_range(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repository = _version_pin_repository(tmp_path)
+    host_json = repository / "src" / "external-sli-publisher" / "host.json"
+    document = json.loads(host_json.read_text(encoding="utf-8"))
+    document["extensionBundle"]["version"] = "4.0.0"
+    host_json.write_text(json.dumps(document), encoding="utf-8")
+
+    assert _run_version_pins(monkeypatch, repository) == 1
+    assert "support range" in capsys.readouterr().err
+
+
+def test_version_ranges_are_never_compared_against_a_latest_release() -> None:
+    """No evaluator may treat azd or the Functions bundle as an exact pin."""
+    assert tasks.azd_minimum_version_range().startswith(">= ")
+    assert tasks.functions_bundle_support_range().startswith("[")
+    assert "azd" not in tasks.FRESHNESS_CHECK_SUBJECTS
+    assert "Azure Functions extension bundle" not in tasks.FRESHNESS_CHECK_SUBJECTS
+    assert "scheduled freshness workflow" in (
+        tasks.azd_minimum_version_range.__doc__ or ""
+    )
+    renovate_targets = {
+        item.target_path for item in tasks.RENOVATE_MANAGER_EXPECTATIONS
+    }
+    assert "azure.yaml" in renovate_targets
+    assert "src/external-sli-publisher/host.json" not in renovate_targets
+
+
+def test_scheduled_checker_reports_exactly_the_non_renovate_subjects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The scheduled JSON carries gh-aw, Lefthook, and Renovate app activity."""
+    monkeypatch.setattr(
+        tasks,
+        "evaluate_gh_aw_pin",
+        lambda: tasks.FreshnessFinding(
+            tasks.FRESHNESS_SUBJECT_GH_AW, "c", "pass", "current", None, None, (), "d"
+        ),
+    )
+    monkeypatch.setattr(
+        tasks,
+        "evaluate_lefthook_pin",
+        lambda: tasks.FreshnessFinding(
+            tasks.FRESHNESS_SUBJECT_LEFTHOOK,
+            "c",
+            "unverified",
+            tasks.FRESHNESS_REASON_UPDATE_AVAILABLE,
+            "2.1.10",
+            "2.1.12",
+            (),
+            "d",
+        ),
+    )
+    monkeypatch.setattr(
+        tasks,
+        "evaluate_renovate_activity",
+        lambda: tasks.FreshnessFinding(
+            tasks.FRESHNESS_SUBJECT_RENOVATE_ACTIVITY,
+            "c",
+            "pass",
+            tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_OBSERVED,
+            None,
+            None,
+            (),
+            "d",
+        ),
+    )
+    output = tmp_path / "freshness.json"
+
+    tasks.target_freshness_checks(output)
+
+    document = json.loads(output.read_text(encoding="utf-8"))
+    assert [finding["subject"] for finding in document["findings"]] == [
+        "gh-aw",
+        "Lefthook",
+        "Renovate app activity",
+    ]
+    assert document["status"] == "unverified"

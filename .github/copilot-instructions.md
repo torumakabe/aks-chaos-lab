@@ -32,6 +32,7 @@ k8s/chaos/        # Chaos Mesh 実験
 docs/deployment.md # 構築・削除・検証手順
 docs/observability.md # 可観測性の運用詳細
 docs/chaos-experiments.md # Chaos 実験の実行ガイド
+docs/dependency-management.md # 依存とツールの更新責務
 docs/adr/         # Architecture Decision Records
 docs/features/    # Feature Document（作業途中の状態保存）
 ```
@@ -45,6 +46,7 @@ docs/features/    # Feature Document（作業途中の状態保存）
 - README.md — プロジェクトの全体像とドキュメント入口
 - docs/deployment.md — `azd up/down`、権限、feature flag、ローカル開発、負荷テスト
 - docs/observability.md — 観測シグナル、SLI、アラート、OTLP logs
+- docs/dependency-management.md — 更新候補の検出責務、機械検査、fast / full の境界
 
 ## コードパターンの参照先
 
@@ -73,6 +75,7 @@ docs/features/    # Feature Document（作業途中の状態保存）
 - `docs/observability.md` — 可観測性の運用詳細
 - `docs/chaos-experiments.md` — Chaos 実験の実行手順
 - `docs/workarounds.md` — 継続中のワークアラウンドと解消条件
+- `docs/dependency-management.md` — 依存とツールの更新責務。version更新の仕組みを変える前に確認する
 - `.github/skills/` — リポジトリ固有タスクの詳細な実行手順
 - `infra/` — 現在のインフラ構成（Bicep）
 - `src/` — 現在のアプリケーションコード
@@ -82,7 +85,7 @@ docs/features/    # Feature Document（作業途中の状態保存）
 
 - セッション開始時、`docs/features/` に関連する Feature Document があれば `resume` エージェントで作業を再開する
 - セッションの区切りでは `wrap-up` エージェントで ADR 候補の洗い出し・Feature Document の要否判断・リトマステストを行う
-- リポジトリ点検は`review-repo`エージェントを使う。標準のfastはtaskによる非編集検査だけを実行する。fullまたは鮮度確認を指定した場合は、全task、公開鮮度とBicep APIの確認、文書とAI運用資産の意味評価を実行する
+- リポジトリ点検は`review-repo`エージェントを使う。標準のfastはtaskによる非編集検査だけを実行する。fullを指定した場合は、全task、公開MarkdownリンクとBicep APIのcheck-only確認、文書とAI運用資産の意味評価を実行する。version候補、EOL、support範囲、互換性はscheduled workflowが担当し、fullでは再評価しない
 - 複雑な機能は実装前に段階的な設計会話を行う（要件確認 → コンポーネント設計 → データフロー → インターフェース定義 → 実装）。コードは設計合意後
 - ユーザーから見える振る舞いが変わる変更（機能追加、API 変更、デプロイ手順変更、アーキテクチャ変更）では README.md または該当する `docs/*.md` の更新要否を確認し、必要なら同一 PR 内で更新する
 - buildまたはdeployの失敗を理由に新しい経路を実装する前に、`docs/deployment.md`、関連ADR、対象CLIの`--help`を確認する。既存のbuild済みartifactを渡す経路を含め、現在の機能を組み合わせて解決できるか再現してから、リポジトリ変更の要否を判断する

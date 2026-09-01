@@ -1,0 +1,95 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "enabledManagers": ["pep621", "github-actions", "dockerfile", "custom.regex"],
+  "dependencyDashboard": true,
+  "automerge": false,
+  "ignorePaths": [".github/workflows/*.lock.yml", ".github/aw/**"],
+  "packageRules": [
+    {
+      "description": "gh-aw-compiler-owned",
+      "matchPackageNames": ["github/gh-aw-actions", "github/gh-aw-actions/**"],
+      "enabled": false
+    },
+    {
+      "description": "python-workspace-candidate-detection-only",
+      "matchManagers": ["pep621"],
+      "dependencyDashboardApproval": true,
+      "skipArtifactsUpdate": true
+    },
+    {
+      "description": "uv-single-pull-request",
+      "matchPackageNames": ["uv", "ghcr.io/astral-sh/uv"],
+      "groupName": "uv"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "chaos-mesh-chart-version",
+      "managerFilePatterns": ["/^azure\\.yaml$/"],
+      "matchStrings": [
+        "chart:\\s*chaos-mesh/chaos-mesh\\s*\\n\\s*version:\\s*(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "depNameTemplate": "chaos-mesh",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://charts.chaos-mesh.org",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "actionlint-docker-image",
+      "managerFilePatterns": ["/^scripts/tasks\\.py$/"],
+      "matchStrings": [
+        "ACTIONLINT_IMAGE\\s*=\\s*\"rhysd/actionlint:(?<currentValue>[0-9][^\"]*)\""
+      ],
+      "depNameTemplate": "rhysd/actionlint",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "kubeconform-docker-image",
+      "managerFilePatterns": ["/^scripts/tasks\\.py$/"],
+      "matchStrings": [
+        "KUBECONFORM_IMAGE\\s*=\\s*\"ghcr\\.io/yannh/kubeconform:(?<currentValue>v[0-9][^\"]*)\""
+      ],
+      "depNameTemplate": "ghcr.io/yannh/kubeconform",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "renovate-validator-image",
+      "managerFilePatterns": ["/^scripts/tasks\\.py$/"],
+      "matchStrings": [
+        "RENOVATE_VALIDATOR_IMAGE\\s*=\\s*\"renovate/renovate:(?<currentValue>[0-9][^\"]*)\""
+      ],
+      "depNameTemplate": "renovate/renovate",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "bicep-cli-version",
+      "managerFilePatterns": ["/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": [
+        "BICEP_VERSION=v(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "depNameTemplate": "Azure/bicep",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "uv-required-version",
+      "managerFilePatterns": ["/^pyproject\\.toml$/"],
+      "matchStrings": [
+        "required-version = \">=(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+),<[0-9]+\\.[0-9]+\\.[0-9]+\""
+      ],
+      "depNameTemplate": "uv",
+      "datasourceTemplate": "pypi",
+      "versioningTemplate": "semver"
+    }
+  ]
+}

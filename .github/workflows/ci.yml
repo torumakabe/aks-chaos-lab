@@ -26,6 +26,12 @@ jobs:
         run: uv lock --check
       - name: Check lock package sources
         run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" check-public-lock
+      # Fails a Renovate pull request that moved only part of a multi-coordinate
+      # pin, so an inconsistent uv or version-contract update cannot land.
+      - name: Check uv version pins
+        run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" check-uv-version
+      - name: Check version update contract
+        run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" check-version-pins
 
   format:
     name: Ruff Format Check
@@ -140,6 +146,22 @@ jobs:
         run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" lint-k8s
       - name: Validate Chaos Mesh Helm values
         run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" validate-helm-values
+  renovate-config:
+    name: Renovate Config Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          resolution-strategy: "lowest"
+          python-version: "3.14"
+      # Runs the official renovate-config-validator and Renovate's own RE2
+      # extraction. Both need the pinned Renovate image, so they stay out of the
+      # offline review layer and run here instead.
+      - name: Validate Renovate configuration
+        run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" check-renovate-config
   workflows-lint:
     name: Workflows Lint (actionlint)
     runs-on: ubuntu-latest

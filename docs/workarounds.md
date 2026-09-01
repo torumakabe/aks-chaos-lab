@@ -201,3 +201,12 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: gh-awを更新し、WindowsでPythonの`subprocess`から直接実行した`gh aw --version`と`gh aw compile`が待機せず終了することを確認する。
 - **確認方法**: Pythonの`subprocess`による直接起動とPowerShellの子プロセス起動の両方でgh-awを実行し、両方が同じ終了コードと生成結果になることを確認する。
 - **最終確認**: 2026-08-27、gh-aw v0.79.6はPythonの`subprocess`による直接起動で60秒を超えて待機し、PowerShellの子プロセス起動では`--version`が1.141秒で終了して`compile`も成功した。
+
+### D-12. Renovateはversionとchecksumを一体更新できないため、LefthookのpinをRenovate管理から外し専用taskで更新する
+
+- **概要**: `.github/workflows/ci.yml`の`LEFTHOOK_VERSION`と`LEFTHOOK_SHA256`は対で固定する。`LEFTHOOK_SHA256`はRenovateが計算できないため、Renovateに`LEFTHOOK_VERSION`だけを更新させると、そのPRはCIの`sha256sum -c -`でchecksum不一致となり必ず失敗する。Renovate PRを必ず赤いCIの通知チャネルにしないため、Lefthookは`.github/renovate.json`の対象に含めない。更新候補の検出はscheduled checker（`freshness-checks`の`Lefthook` finding）が公式latest releaseとの比較および公式`lefthook_checksums.txt`との照合で行い、リポジトリ内の座標とchecksum形式は`check-version-pins`が検査する。更新は`uv run --no-project "${PWD}/scripts/tasks.py" update-lefthook-pin --version <version>`で、公式checksumと`LEFTHOOK_VERSION`を同じファイル書き込みで一体更新する。automergeは無効のままとする。
+- **理由**: Renovateのregex custom managerは単一の`matchStrings`が捕捉した値の更新候補を提示するだけで、別ファイルや別行のchecksumを計算して同時に書き換える機能を持たない。versionとchecksumを同じcustom managerで安全に一括更新する一般的な方法は現時点でない。
+- **場所**: `.github/workflows/ci.yml`の`LEFTHOOK_VERSION`/`LEFTHOOK_SHA256`、`scripts/tasks.py`の`check-version-pins`/`update-lefthook-pin`/`freshness-checks` task target（`.github/renovate.json`にLefthookのcustomManagerは置かない）
+- **解消条件**: RenovateがGitHub Releaseのchecksum資産から関連値を解決し、同じcustomManagerでversionとchecksumを一体更新できるようになる。その時点でLefthookをRenovate管理へ戻し、専用checkerと更新taskの必要性を再評価する。
+- **確認方法**: `freshness-checks`を実行し、pin versionが公式latest releaseと異なるとき`Lefthook` findingが`unverified`（`reason_code: update-available`）になること、pin済みchecksumが公式`lefthook_checksums.txt`と一致することを確認する。意図的に`LEFTHOOK_SHA256`を1文字削ってから`check-version-pins`を実行し、`fail`になることを確認する。
+- **最終確認**: 2026-08-31、pin版2.1.10に対し公式GitHub latest releaseは2.1.12であり、`freshness-checks`が`unverified`（`reason_code: update-available`）を返すこと、`lefthook_2.1.10_Linux_x86_64.gz`の公式checksumがci.ymlのpin値と一致することを確認した。

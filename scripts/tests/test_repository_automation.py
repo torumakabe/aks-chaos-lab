@@ -4,9 +4,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
-
-import yaml
+from typing import Any, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRESHNESS_SUBJECTS = (
@@ -21,47 +19,85 @@ FRESHNESS_SUBJECTS = (
 )
 
 
-def dependabot_update_blocks() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
-    config = yaml.safe_load(
-        (REPO_ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+def renovate_config() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads((REPO_ROOT / ".github" / "renovate.json").read_text("utf-8")),
     )
-    return config, {update["package-ecosystem"]: update for update in config["updates"]}
 
 
-def test_dependabot_contract() -> None:
-    config, blocks = dependabot_update_blocks()
+def test_dependabot_version_updates_are_disabled() -> None:
+    """Renovate owns scheduled version updates, so no Dependabot config exists.
 
-    assert config["version"] == 2
-    assert set(blocks) == {"github-actions", "docker"}
+    GitHub's Dependabot alerts and security updates are repository settings and
+    are unaffected by removing this file.
+    """
+    assert not (REPO_ROOT / ".github" / "dependabot.yml").exists()
 
-    for ecosystem, limit in (("github-actions", 5), ("docker", 3)):
-        block = blocks[ecosystem]
-        assert block["schedule"]["interval"] == "weekly"
-        assert block["open-pull-requests-limit"] == limit
-        group = next(iter(block["groups"].values()))
-        assert group["patterns"] == ["*"]
-        assert group["update-types"] == ["minor", "patch"]
-
-
-def test_dependabot_excludes_generated_and_uv_managed_inputs() -> None:
-    config_text = (REPO_ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
-    _, blocks = dependabot_update_blocks()
-
-    actions = blocks["github-actions"]
-    assert actions["directory"] == "/"
-    assert actions["exclude-paths"] == [".github/workflows/*.lock.yml"]
-    action_ignores = {item["dependency-name"] for item in actions["ignore"]}
-    assert "github/gh-aw-actions/*" in action_ignores
-    assert "github/gh-aw-actions" in action_ignores
-    assert (
-        "gh-aw only manages the exact github/gh-aw-actions ignore entry" in config_text
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "tasks.py"),
+            "check-version-pins",
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
     )
-    assert "Managed by gh aw compile" in config_text
+    assert completed.returncode == 0, completed.stderr
+    assert "Dependabot version updates: disabled" in completed.stdout
 
-    docker = blocks["docker"]
-    assert docker["directory"] == "/src/api"
-    docker_ignores = {item["dependency-name"] for item in docker["ignore"]}
-    assert docker_ignores == {"astral-sh/uv"}
+
+def test_renovate_covers_the_scheduled_update_targets() -> None:
+    config = renovate_config()
+
+    assert config["enabledManagers"] == [
+        "pep621",
+        "github-actions",
+        "dockerfile",
+        "custom.regex",
+    ]
+    assert config["automerge"] is False
+    assert config["dependencyDashboard"] is True
+    assert config["ignorePaths"] == [".github/workflows/*.lock.yml", ".github/aw/**"]
+    pep621_rule = next(
+        rule
+        for rule in config["packageRules"]
+        if rule["description"] == "python-workspace-candidate-detection-only"
+    )
+    assert pep621_rule["dependencyDashboardApproval"] is True
+    assert pep621_rule["skipArtifactsUpdate"] is True
+    descriptions = {manager["description"] for manager in config["customManagers"]}
+    assert descriptions == {
+        "chaos-mesh-chart-version",
+        "actionlint-docker-image",
+        "kubeconform-docker-image",
+        "renovate-validator-image",
+        "bicep-cli-version",
+        "uv-required-version",
+    }
+
+
+def test_scheduled_and_review_detection_do_not_overlap() -> None:
+    """Only what Renovate cannot reach is left to the scheduled checker.
+
+    The freshness workflow must not re-detect a Renovate-owned coordinate, and
+    the offline review layer must not detect update candidates at all.
+    """
+    config = renovate_config()
+    renovate_owned = {
+        manager["depNameTemplate"] for manager in config["customManagers"]
+    }
+    workflow = (
+        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.md"
+    ).read_text(encoding="utf-8")
+
+    assert renovate_owned.isdisjoint({"evilmartians/lefthook", "github/gh-aw"})
+    assert "Renovateが構造上扱えない3対象だけ" in workflow or (
+        "Renovateが検出できない3対象だけ" in workflow
+    )
+    assert "同じ最新版検出を繰り返さず" in workflow
 
 
 def test_ci_runs_repository_health_check() -> None:
@@ -100,19 +136,22 @@ def test_freshness_workflow_contract() -> None:
     assert "max: 1" in source
     assert "repository-freshness-checker/SKILL.md" in source
     assert 'scripts/tasks.py" inventory-repo --format json' in source
+    assert 'scripts/tasks.py" freshness-checks' in source
+    assert "reason_code" in source
+    assert "update-available" in source
+    assert "evidence-unavailable" in source
     assert "scripts/repo_health.py" not in source
 
     for subject in FRESHNESS_SUBJECTS:
         assert subject in source
     assert f"{len(FRESHNESS_SUBJECTS)}つ" in source
-    assert "Docker image tag更新はDependabot" in source
     for boundary in (
-        "bicep-version-check.yml",
-        "aks-updates-analyzer",
-        "GitHub Actionsのversion更新",
-        "Dependabot",
+        "Renovate（`.github/renovate.json`）",
+        "latestと比較して更新する対象ではありません",
     ):
         assert boundary in source
+    # Bicep CLI updates moved to Renovate; unrelated scheduled workflows remain.
+    assert "bicep-version-check.yml" not in source
 
     for forbidden in (
         "azure/login",
@@ -202,7 +241,7 @@ def test_freshness_scope_is_identical_across_declarations() -> None:
     paths = (
         REPO_ROOT / ".github/workflows/repository-freshness-check.md",
         REPO_ROOT / ".github/skills/repository-freshness-checker/SKILL.md",
-        REPO_ROOT / "README.md",
+        REPO_ROOT / "docs/dependency-management.md",
     )
 
     for path in paths:
@@ -258,7 +297,6 @@ def test_bicep_api_version_workflow_is_compiled() -> None:
     ).read_text(encoding="utf-8")
 
     assert "automatically generated by gh-aw" in lock
-    assert "schedule:" in lock
     assert "workflow_dispatch:" in lock
     assert "issues: write" in lock
     assert "pull-requests: write" not in lock
@@ -271,6 +309,9 @@ def test_documentation_exposes_maintenance_entry_points() -> None:
         encoding="utf-8"
     )
     deployment = (REPO_ROOT / "docs" / "deployment.md").read_text(encoding="utf-8")
+    dependencies = (REPO_ROOT / "docs" / "dependency-management.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "review-repo-fast" in readme
     assert "review-repo-full" in readme
@@ -278,24 +319,42 @@ def test_documentation_exposes_maintenance_entry_points() -> None:
     assert "意味評価や専門skillは実行しません" in readme
     assert "fullモードは" in readme
     assert "文書とAI運用資産の意味評価を実行します" in readme
-    assert ".github/dependabot.yml" in readme
-    assert "bicep-version-check.yml" in readme
-    assert "bicep-api-version-check.md" in readme
-    assert "aks-updates-analyzer.md" in readme
-    assert "repository-freshness-check.md" in readme
+    assert "docs/dependency-management.md" in readme
     assert "唯一の上位実行入口" in readme
     assert "構造化inventory" in readme
+    assert "オフラインで完結する検査だけを実行します" in readme
+    # README stays a short entry point: the responsibility split lives in the
+    # dependency-management document.
+    assert (
+        len(readme.split("## リポジトリ保守")[1].split("##")[0].strip().splitlines())
+        <= 3
+    )
+
+    assert ".github/renovate.json" in dependencies
+    assert "repository-freshness-check.md" in dependencies
+    assert "refresh-uv-lock.yml" in dependencies
+    assert "`.github/dependabot.yml`は存在せず" in dependencies
+    assert "## fastとfullの境界" in dependencies
+    assert "`review-repo-fast`はオフラインで完結する" in dependencies
+    assert "version候補、EOL、support範囲、互換性はscheduled workflowが担当" in (
+        dependencies
+    )
+    assert "fullは再評価しない" in dependencies
+    assert "--results-json" in dependencies
 
     assert "標準のfastはtaskによる非編集検査だけを実行する" in instructions
-    assert "全task、公開鮮度とBicep APIの確認" in instructions
+    assert "公開MarkdownリンクとBicep APIのcheck-only確認" in instructions
+    assert "version候補、EOL、support範囲、互換性はscheduled workflowが担当" in (
+        instructions
+    )
     assert "文書とAI運用資産の意味評価を実行する" in instructions
 
-    assert "Dependabotのuv ecosystemは現時点では有効にしません" in deployment
+    assert "Renovateはworkspaceの依存について更新候補の検出だけ" in deployment
     assert 'resolution-strategy = "lowest"' in deployment
     assert "workspace member" in deployment
     assert "public PyPI" in deployment
     assert "check-public-lock" in deployment
     assert "check-publisher-requirements" in deployment
+    assert "check-version-pins" in deployment
+    assert "check-renovate-config" in deployment
     assert "refresh-uv-lock.yml" in deployment
-    assert "GitHub Actions ecosystem" in deployment
-    assert "完全一致のignore entry" in deployment

@@ -1139,9 +1139,9 @@ def classify_file_coverage(
             "lint-workflows",
             "actionlint loads this configuration while validating workflows",
         ),
-        ".github/dependabot.yml": (
-            "repository-automation-contract",
-            "repository automation tests validate the Dependabot configuration",
+        ".github/renovate.json": (
+            "renovate-config",
+            "check-version-pins and check-renovate-config validate this configuration",
         ),
         ".vscode/tasks.json": (
             "repository-automation-contract",
@@ -1698,12 +1698,16 @@ def build_result(root: Path, *, include_checks: bool) -> dict[str, Any]:
             {
                 "area": "external-freshness",
                 "status": "excluded",
-                "reason": "This offline scanner does not query networks or authenticated environments.",
+                "reason": (
+                    "This scanner only records version coordinates. Comparing "
+                    "them against published versions is delegated to Renovate "
+                    "and to the scheduled freshness-checks target."
+                ),
             },
             {
                 "area": "public-link-reachability",
                 "status": "unverified",
-                "reason": "Public Markdown links require the network-enabled freshness check.",
+                "reason": "Public Markdown links require the repository-freshness-checker skill.",
             },
         ],
     }
