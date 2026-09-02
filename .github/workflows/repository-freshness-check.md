@@ -17,6 +17,9 @@ network:
     - "learn.microsoft.com"
 tools:
   bash: ["uv", "python3", "git", "gh"]
+runtimes:
+  uv:
+    version: "0.12.9"
 safe-outputs:
   create-issue:
     title-prefix: "[Repository Freshness] "
