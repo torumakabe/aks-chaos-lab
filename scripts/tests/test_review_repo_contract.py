@@ -552,6 +552,25 @@ def test_renovate_config_contract_requires_the_dependency_dashboard() -> None:
     assert any("dependencyDashboard" in violation for violation in violations)
 
 
+def test_renovate_config_contract_rejects_global_dashboard_approval() -> None:
+    violations = tasks.renovate_contract_violations(
+        _mutated_renovate_config(dependencyDashboardApproval=True)
+    )
+
+    assert any("dependencyDashboardApproval" in violation for violation in violations)
+
+
+def test_renovate_config_contract_requires_explicit_dashboard_approval_default() -> (
+    None
+):
+    config = tasks.load_renovate_config()
+    del config["dependencyDashboardApproval"]
+
+    violations = tasks.renovate_contract_violations(config)
+
+    assert any("dependencyDashboardApproval" in violation for violation in violations)
+
+
 def test_renovate_config_contract_requires_gh_aw_generated_paths_to_be_ignored() -> (
     None
 ):
@@ -620,6 +639,7 @@ def test_uv_pin_coordinates_move_in_one_pull_request() -> None:
 def test_python_dependency_updates_stay_candidate_detection_only() -> None:
     """Renovate must not regenerate uv.lock; refresh-uv-lock.yml owns that."""
     config = tasks.load_renovate_config()
+    assert config["dependencyDashboardApproval"] is False
     rule = next(
         item
         for item in config["packageRules"]
