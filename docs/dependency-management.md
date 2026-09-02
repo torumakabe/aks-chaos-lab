@@ -23,14 +23,14 @@
 | gh-aw | scheduled checker（`freshness-checks`） | `gh-aw-compiler-version`ルール、`compile-aw` |
 | Lefthook | scheduled checker（`freshness-checks`） | `check-version-pins`、`test-hooks` |
 | Renovate app自体の稼働 | scheduled checker（`freshness-checks`） | なし（外部appの公開活動の観測） |
-| azd minimum version range | latestとの比較対象外 | `check-version-pins`（構文と座標数） |
+| azd minimum version range | Renovate（custom manager） | `check-version-pins`（構文と座標数） |
 | Azure Functions extension bundleのsupport範囲 | latestとの比較対象外 | `check-version-pins`（構文と座標数） |
 
 正本は[Renovate設定](../.github/renovate.json)と[Repository freshness check workflow](../.github/workflows/repository-freshness-check.md)である。
 
 ## Renovate
 
-Renovateはこのリポジトリで唯一のscheduled version update機構である。Dependabotのversion updateは使わない。`.github/dependabot.yml`は存在せず、`check-version-pins`がその不在を検査する。GitHubのDependabot alertsとsecurity updatesはリポジトリ設定の機能であり、この判断とは別物として有効なまま残る。
+Renovateはこのリポジトリで唯一のscheduled version update機構である。azdは`Azure/azure-dev`の安定版releaseを参照し、`azure.yaml`のminimum versionだけを更新する。Pull Requestは自動マージせず、最低要求版を引き上げる根拠と互換性をレビューする。Dependabotのversion updateは使わない。`.github/dependabot.yml`は存在せず、`check-version-pins`がその不在を検査する。GitHubのDependabot alertsとsecurity updatesはリポジトリ設定の機能であり、この判断とは別物として有効なまま残る。
 
 有効にするmanagerは`pep621`、`github-actions`、`dockerfile`、`custom.regex`の4つである。built-in managerが読めない座標だけをcustom managerで補い、同じ座標を2つのmanagerが抽出しないようにする。custom managerの対象、datasource、期待match数は`scripts/tasks.py`の`RENOVATE_MANAGER_EXPECTATIONS`が正本であり、`check-version-pins`が設定と実ファイルの両方に対して検査する。
 

@@ -3449,6 +3449,17 @@ RENOVATE_MANAGER_EXPECTATIONS = (
         versioning_template="semver",
         extract_version_template=r"^v(?P<version>.+)$",
     ),
+    RenovateManagerExpectation(
+        "azd-required-version",
+        "azure.yaml",
+        r"requiredVersions:\s*\n\s*azd:\s*'>=\s*"
+        r"(?P<currentValue>[0-9]+\.[0-9]+\.[0-9]+)'",
+        1,
+        dep_name_template="Azure/azure-dev",
+        datasource_template="github-releases",
+        versioning_template="semver",
+        extract_version_template=r"^azure-dev-cli_(?P<version>.+)$",
+    ),
     # The uv lower bound and the Dockerfile uv image must stay equal. Renovate
     # groups both coordinates into one pull request, and check-uv-version fails
     # the pull request when the bounds still disagree, so no uv bump can land

@@ -20,7 +20,7 @@ description: scheduled checkerの結果を入力に依存やツールのEOL、su
 | kubeconform | Renovate。Renovate appが稼働している場合にだけ有効 |
 | Chaos Mesh Helm chart | Renovate。Renovate appが稼働している場合にだけ有効 |
 | Docker base imageのEOLとdigest固定状況 | Renovateがtagとdigestを更新し、digest固定の座標は`.github/repo-health.toml`の`docker-base-digest`ルールが検証する |
-| azd | latestとの比較対象外。`check-version-pins`がrange構文と正本座標を検証する |
+| azd | Renovate。`Azure/azure-dev`の安定版releaseからminimum versionの更新候補を検出する |
 | Azure Functions extension bundleのsupport範囲 | latestとの比較対象外。`check-version-pins`がrange構文と正本座標を検証する |
 
 gh-awとLefthookはRenovateが扱わない。gh-awのpinはcompilerと生成物のversionを一体で決めるため`gh aw compile`が所有し、Lefthookはversionとchecksumを一体更新する必要があるため専用の更新taskが所有する（[docs/workarounds.md §D-12](../../../docs/workarounds.md)）。この2対象と、Renovate自身の稼働確認だけがscheduled checkerの担当である。
@@ -31,7 +31,7 @@ Renovateは定期的なpingを公開しない。Dependency Dashboard issueが書
 
 観測窓の内側に活動があれば`pass` + `reason_code: renovate-activity-observed`。Dashboardもapp authoredのPull Requestも一度も観測できなければ`unverified` + `reason_code: renovate-not-observed`。観測はあるが観測窓より古い場合は、app停止と断定せず`unverified` + `reason_code: renovate-activity-unobserved`とし、最近の公開活動から現在の稼働を確認できないと記述する。GitHub APIを照会できない、rate limitに達した、結果が不完全な場合は`unverified` + `reason_code: evidence-unavailable`になる。Dashboardが存在することだけを根拠に現在稼働していると断定しない。このスキルはRenovate appの公開活動が観測できていない状態で、Renovateが担当する対象を`pass`と報告しない。Dashboard issueを作るのはRenovate app自身であり、このスキルもtask runnerもIssueを作成しない。
 
-azdとAzure Functions extension bundleは、exact pinではなく意図的な範囲（azdはプロジェクトが要求する下限バージョン、Functions bundleはサポート対象のmajor versionの範囲）である。`check-version-pins`は範囲の構文と正本座標の数だけを検証し、latestと比較して更新する対象として扱わない。このスキルは、azdのrangeが現行schemaの`requiredVersions`仕様に従っているか、Functions bundleのrangeがサポート対象かを固定の公式情報源で意味評価する。
+azdとAzure Functions extension bundleは、exact pinではなく意図的な範囲（azdはプロジェクトが要求する下限バージョン、Functions bundleはサポート対象のmajor versionの範囲）である。azdの下限はRenovateが`Azure/azure-dev`の安定版releaseと比較して更新候補を検出し、`check-version-pins`がrange構文と正本座標の数を検証する。Functions bundleはlatestと比較して更新する対象ではない。このスキルは、azdのrangeが現行schemaの`requiredVersions`仕様に従っているか、azd更新候補の互換性と移行条件、およびFunctions bundleのrangeがサポート対象かを固定の公式情報源で意味評価する。
 
 inventoryに存在しない対象を推測で補わない。各対象について、入力座標、確認済み座標、未検証座標、除外座標を数える。
 
@@ -46,7 +46,7 @@ review-repo fullから呼び出された場合は、`documentation-external-link
 
 ## 既存経路との境界
 
-- 通常のversion更新候補はすべてRenovateが検出する。Python依存、GitHub Actions、Docker image、actionlint、kubeconform、Chaos Mesh Helm chart、Renovate validator image、Bicep CLI、uvが対象である。このスキルは同じ更新候補を列挙しない。
+- 通常のversion更新候補はすべてRenovateが検出する。Python依存、GitHub Actions、Docker image、actionlint、kubeconform、Chaos Mesh Helm chart、Renovate validator image、Bicep CLI、uv、azdが対象である。このスキルは同じ更新候補を列挙しない。
 - gh-awとLefthookの更新候補は`scripts/tasks.py`の`freshness-checks`が検出する。このスキルは同じ比較をやり直さず、findingの`status`と`reason_code`をそのまま採用する。
 - リポジトリ内のversion契約（RenovateのprHourlyLimit、座標とmatch数、Dependabot version updateの停止、Lefthookの座標とchecksum形式、azdとFunctions bundleのrange構文）は`check-version-pins`が検証する。Renovate configの公式schema検証とRE2抽出照合は`check-renovate-config`が検証する。このスキルはこれらを再実行しない。
 - Docker base imageのdigest固定座標とcoverageは`.github/repo-health.toml`の`docker-base-digest`ルール（`check-repo-health`）が検証する。このスキルはEOLだけを意味評価する。
@@ -67,7 +67,7 @@ SKILL.mdには判断規則だけを置く。変化するversion値、EOL日、di
 1. 渡されたinventory JSONのschema versionと対象commitを記録する。review-repo fullでは別のinventory生成コマンドを実行せず、渡された検査結果JSONの`checks[].status`/`reason_code`をそのまま採用する。解釈できないschemaは全体を`unverified`とする。
 2. 週次workflowでは、`freshness-checks`の機械可読JSON（`findings[]`と全体`status`/`coverage`）を入力にし、各対象の決定的な検出・検証の主体（上表）が既に出した`status`と`reason_code`をそのまま採用する。同じ検出・検証をこのスキルがやり直さない。`reason_code: update-available`は更新候補が確定しているが互換性レビュー待ち（`unverified`）、`reason_code: evidence-unavailable`は公開情報を取得できなかった（`unverified`）ことを表し、両者を区別する。
 3. 週次workflowでは、Renovateが担当する対象（actionlint、kubeconform、Chaos Mesh Helm chart、Docker base image tag）は、`Renovate app activity` findingが`pass`のときにだけ通知経路が生きているとみなす。findingが`renovate-not-observed`、`renovate-activity-unobserved`、`evidence-unavailable`のいずれかの場合、これらの対象を`pass`とせず`unverified`とし、公開活動の未観測を理由として記録する。`renovate-activity-unobserved`はapp停止の証拠ではないため、停止と断定して記述しない。
-4. 週次workflowでは、azdの`requiredVersions` range、Azure Functions extension bundleのsupport範囲、Docker base imageのEOLなど、決定的な検出・検証の対象外の意味評価だけを固定の公式情報源から確認する。
+4. 週次workflowでは、Renovateが検出したazd更新候補の互換性と移行条件、Azure Functions extension bundleのsupport範囲、Docker base imageのEOLなど、決定的な検出・検証の対象外の意味評価だけを固定の公式情報源から確認する。
 5. 週次workflowでは、現在値と公開情報を比較して状態と根拠を記録し、更新候補がある場合は影響確認事項を示す。
 6. review-repo fullでは、公開Markdownリンクを重複URLごとに一度取得する。`404`と`410`は`fail`、timeout、TLS障害、rate limit、server errorは`unverified`とし、取得できない内容を有効と推定しない。
 
