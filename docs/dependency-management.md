@@ -34,7 +34,7 @@ Renovateはこのリポジトリで唯一のscheduled version update機構であ
 
 有効にするmanagerは`pep621`、`github-actions`、`dockerfile`、`custom.regex`の4つである。built-in managerが読めない座標だけをcustom managerで補い、同じ座標を2つのmanagerが抽出しないようにする。custom managerの対象、datasource、期待match数は`scripts/tasks.py`の`RENOVATE_MANAGER_EXPECTATIONS`が正本であり、`check-version-pins`が設定と実ファイルの両方に対して検査する。
 
-automergeは有効にしない。`.github/workflows/*.lock.yml`と`.github/aw/**`はgh-aw compilerの生成物なので`ignorePaths`で除外し、`github/gh-aw-actions`はpackage ruleで無効化する。
+automergeは有効にしない。`prHourlyLimit`は5に固定し、Renovateの既定値に依存せず、1時間に作成するPull Request数の上限を明示する。`.github/workflows/*.lock.yml`と`.github/aw/**`はgh-aw compilerの生成物なので`ignorePaths`で除外し、`github/gh-aw-actions`はpackage ruleで無効化する。
 
 ### uv workspaceの制約
 
@@ -76,7 +76,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" update-lefthook-pin --version <lef
 
 fastが実行するversion関連の検査は`check-version-pins`である。検査対象はすべてリポジトリ内で完結する。
 
-- Renovate設定の静的構造（enabledManagers、ignorePaths、packageRules、custom managerの期待座標とmatch数、manager重複禁止、automerge禁止）
+- Renovate設定の静的構造（enabledManagers、prHourlyLimit、ignorePaths、packageRules、custom managerの期待座標とmatch数、manager重複禁止、automerge禁止）
 - Dependabot version updateの停止
 - Lefthookの座標がちょうど一組であることとchecksumの形式
 - azdとAzure Functions extension bundleのrange構文と座標数

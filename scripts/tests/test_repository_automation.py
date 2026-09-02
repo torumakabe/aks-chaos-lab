@@ -59,6 +59,7 @@ def test_renovate_covers_the_scheduled_update_targets() -> None:
         "custom.regex",
     ]
     assert config["automerge"] is False
+    assert config["prHourlyLimit"] == 5
     assert config["dependencyDashboard"] is True
     assert config["dependencyDashboardApproval"] is False
     assert config["ignorePaths"] == [".github/workflows/*.lock.yml", ".github/aw/**"]

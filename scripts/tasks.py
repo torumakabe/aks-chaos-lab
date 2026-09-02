@@ -3477,6 +3477,9 @@ RENOVATE_ENABLED_MANAGERS = (
 # gh-aw compiles its own workflow locks and actions lock, so Renovate must not
 # read them.
 RENOVATE_IGNORE_PATHS = (".github/workflows/*.lock.yml", ".github/aw/**")
+# Bound each hourly Renovate burst while allowing the usual weekly batch to
+# surface without relying on Renovate's generic default.
+RENOVATE_PR_HOURLY_LIMIT = 5
 # Repository config must override any inherited top-level approval default.
 # The pep621 package rule below is the only exception.
 RENOVATE_DEPENDENCY_DASHBOARD_APPROVAL = False
@@ -3590,6 +3593,12 @@ def renovate_contract_violations(config: dict[str, Any]) -> list[str]:
         )
     if config.get("automerge"):
         violations.append("renovate.json must not enable automerge")
+    if config.get("prHourlyLimit") != RENOVATE_PR_HOURLY_LIMIT:
+        violations.append(
+            "renovate.json must set prHourlyLimit to "
+            f"{RENOVATE_PR_HOURLY_LIMIT} so hourly pull request creation is "
+            "explicitly bounded without relying on Renovate's default"
+        )
     if config.get("dependencyDashboard") is not True:
         violations.append(
             "renovate.json must set dependencyDashboard to true so update "
