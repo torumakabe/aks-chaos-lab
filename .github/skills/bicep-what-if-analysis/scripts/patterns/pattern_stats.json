@@ -366,9 +366,9 @@
       "lastMatched": "2026-09-02T04:17:56.655984+00:00"
     },
     "Microsoft.Management/serviceGroups/providers/slis:custom_patterns:^sliProperties\\.(goodSignals|totalSignals)\\.signalSources\\.\\d+\\.temporalAggregation\\.windowSizeMinutes$": {
-      "matchCount": 2,
+      "matchCount": 3,
       "firstMatched": "2026-08-06T08:50:08.427862+00:00",
-      "lastMatched": "2026-09-02T02:29:50.934296+00:00"
+      "lastMatched": "2026-09-02T05:55:18.082737+00:00"
     },
     "Microsoft.ContainerService/managedClusters/providers/extensions:custom_patterns:^autoUpgradeMode$": {
       "matchCount": 5,
@@ -376,5 +376,5 @@
       "lastMatched": "2026-09-02T04:17:56.655984+00:00"
     }
   },
-  "lastRun": "2026-09-02T04:17:56.655984+00:00"
+  "lastRun": "2026-09-02T05:55:18.082737+00:00"
 }
