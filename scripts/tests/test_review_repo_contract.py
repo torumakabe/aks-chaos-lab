@@ -524,6 +524,7 @@ def test_renovate_covers_every_scheduled_version_update_ecosystem() -> None:
         "ghcr.io/yannh/kubeconform",
         "renovate/renovate",
         "Azure/bicep",
+        "Azure/azure-dev",
         "uv",
     }
 
@@ -745,6 +746,15 @@ _RENOVATE_EXTRACTION_FIXTURE = (
                         "deps": [{"depName": "Azure/bicep", "currentValue": "0.46.1"}],
                     },
                     {
+                        "packageFile": "azure.yaml",
+                        "deps": [
+                            {
+                                "depName": "Azure/azure-dev",
+                                "currentValue": "1.28.1",
+                            }
+                        ],
+                    },
+                    {
                         "packageFile": "pyproject.toml",
                         "deps": [{"depName": "uv", "currentValue": "0.12.2"}],
                     },
@@ -761,6 +771,7 @@ _RENOVATE_EXTRACTION_EXPECTED = {
     ("regex", "scripts/tasks.py", "ghcr.io/yannh/kubeconform", "v0.7.0"),
     ("regex", "scripts/tasks.py", "renovate/renovate", "44.51.2"),
     ("regex", ".github/workflows/ci.yml", "Azure/bicep", "0.46.1"),
+    ("regex", "azure.yaml", "Azure/azure-dev", "1.28.1"),
     ("regex", "pyproject.toml", "uv", "0.12.2"),
 }
 
@@ -786,6 +797,7 @@ def test_expected_renovate_extractions_covers_the_real_coordinates() -> None:
         "ghcr.io/yannh/kubeconform",
         "renovate/renovate",
         "Azure/bicep",
+        "Azure/azure-dev",
         "uv",
     }
     assert "evilmartians/lefthook" not in dep_names

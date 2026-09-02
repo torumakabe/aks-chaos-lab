@@ -187,7 +187,7 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
 - **概要**: Agentic Workflowの`safe-outputs`へ`noop: false`を明示し、暗黙のnoop Issue報告と`agentics-maintenance.yml`の生成を無効化する。
 - **理由**: gh-aw v0.79.6は`safe-outputs`に`noop`がない場合、noop Issue報告を暗黙に有効化する。この設定は30日の有効期限を持つため、明示的な`expires`がない場合も日次maintenance workflowを生成する。週次workflowは実行結果をcreate-issueで必ず記録するため、追加のnoop Issue報告を使用しない。
-- **場所**: `.github/workflows/aks-updates-analyzer.md`、`.github/workflows/repository-freshness-check.md`
+- **場所**: `.github/workflows/aks-updates-analyzer.md`、`.github/workflows/bicep-api-version-check.md`、`.github/workflows/repository-freshness-check.md`
 - **解消条件**: gh-awを、暗黙noopの`report-as-issue`が既定で無効なバージョンへ更新し、`noop: false`を外してもmaintenance workflowが生成されないことを確認する。
 - **確認方法**: 一時コピーで`noop: false`を外して`gh aw compile`を実行し、`agentics-maintenance.yml`が生成されないことを確認する。
 - **最終確認**: 2026-08-26、gh-aw v0.79.6の公式ソースで暗黙noop Issue報告と30日の既定期限を確認した。

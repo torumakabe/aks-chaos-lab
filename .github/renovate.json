@@ -85,6 +85,18 @@
     },
     {
       "customType": "regex",
+      "description": "azd-required-version",
+      "managerFilePatterns": ["/^azure\\.yaml$/"],
+      "matchStrings": [
+        "requiredVersions:\\s*\\n\\s*azd:\\s*'>=\\s*(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)'"
+      ],
+      "depNameTemplate": "Azure/azure-dev",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^azure-dev-cli_(?<version>.+)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
       "description": "uv-required-version",
       "managerFilePatterns": ["/^pyproject\\.toml$/"],
       "matchStrings": [
