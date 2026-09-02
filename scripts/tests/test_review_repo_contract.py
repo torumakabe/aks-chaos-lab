@@ -536,6 +536,23 @@ def test_renovate_config_contract_rejects_automerge() -> None:
     assert any("automerge" in violation for violation in violations)
 
 
+def test_renovate_config_contract_rejects_a_different_pr_hourly_limit() -> None:
+    violations = tasks.renovate_contract_violations(
+        _mutated_renovate_config(prHourlyLimit=2)
+    )
+
+    assert any("prHourlyLimit" in violation for violation in violations)
+
+
+def test_renovate_config_contract_requires_an_explicit_pr_hourly_limit() -> None:
+    config = tasks.load_renovate_config()
+    del config["prHourlyLimit"]
+
+    violations = tasks.renovate_contract_violations(config)
+
+    assert any("prHourlyLimit" in violation for violation in violations)
+
+
 def test_renovate_config_contract_rejects_a_disabled_manager() -> None:
     violations = tasks.renovate_contract_violations(
         _mutated_renovate_config(enabledManagers=["custom.regex"])

@@ -48,7 +48,7 @@ review-repo fullから呼び出された場合は、`documentation-external-link
 
 - 通常のversion更新候補はすべてRenovateが検出する。Python依存、GitHub Actions、Docker image、actionlint、kubeconform、Chaos Mesh Helm chart、Renovate validator image、Bicep CLI、uvが対象である。このスキルは同じ更新候補を列挙しない。
 - gh-awとLefthookの更新候補は`scripts/tasks.py`の`freshness-checks`が検出する。このスキルは同じ比較をやり直さず、findingの`status`と`reason_code`をそのまま採用する。
-- リポジトリ内のversion契約（Renovateの座標とmatch数、Dependabot version updateの停止、Lefthookの座標とchecksum形式、azdとFunctions bundleのrange構文）は`check-version-pins`が検証する。Renovate configの公式schema検証とRE2抽出照合は`check-renovate-config`が検証する。このスキルはこれらを再実行しない。
+- リポジトリ内のversion契約（RenovateのprHourlyLimit、座標とmatch数、Dependabot version updateの停止、Lefthookの座標とchecksum形式、azdとFunctions bundleのrange構文）は`check-version-pins`が検証する。Renovate configの公式schema検証とRE2抽出照合は`check-renovate-config`が検証する。このスキルはこれらを再実行しない。
 - Docker base imageのdigest固定座標とcoverageは`.github/repo-health.toml`の`docker-base-digest`ルール（`check-repo-health`）が検証する。このスキルはEOLだけを意味評価する。
 - 公開Markdownリンクは到達性とredirect先を確認する。参照内容の意味が現在の実装と一致するかは、review-repo agentが文書種別の評価基準に従って判断する。
 

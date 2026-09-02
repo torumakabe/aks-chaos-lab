@@ -94,7 +94,7 @@ fullモードでは、`review-workspace create` task targetが現在のworktree�
 
 - 通常のversion更新候補はすべてRenovate（`.github/renovate.json`）が検出する。Python依存、GitHub Actions、Docker image、actionlint、kubeconform、Chaos Mesh Helm chart、Renovate validator image、Bicep CLI、uvが対象である。このagentもfreshness skillも同じ最新版検出を繰り返さない。Renovate appの公開活動と、活動を確認できない場合のRenovate担当対象の状態分類はscheduled workflowが担当する。
 - gh-awとLefthookの最新版候補はscheduled checker（`freshness-checks`）が検出し、週次Issueへ集約する。fastはこの比較を行わない。gh-aw pinとlock file compiler_versionの内部整合は`gh-aw-compiler-version`ルールが、Lefthookの座標とchecksum形式は`check-version-pins`が検査する。Lefthookの更新は`update-lefthook-pin`がversionとchecksumを一体で書き換える。
-- Renovate configの静的契約（enabledManagers、ignorePaths、packageRules、custom managerの座標とmatch数、automerge禁止、Dependabot version updateの停止）は`check-version-pins`が検査する。公式`renovate-config-validator`によるschema検証とRenovate自身のRE2抽出照合はDocker imageを必要とするため`check-renovate-config`が担当し、CIの専用jobで実行する。fastはDockerに依存しない。
+- Renovate configの静的契約（enabledManagers、prHourlyLimit、ignorePaths、packageRules、custom managerの座標とmatch数、automerge禁止、Dependabot version updateの停止）は`check-version-pins`が検査する。公式`renovate-config-validator`によるschema検証とRenovate自身のRE2抽出照合はDocker imageを必要とするため`check-renovate-config`が担当し、CIの専用jobで実行する。fastはDockerに依存しない。
 - azdのminimum version rangeとAzure Functions extension bundleのsupport rangeは、`check-version-pins`が構文と座標数だけを検査する。どちらもexact pinのlatest比較対象にせず、azdのrangeが現行schemaに従っているか、Functions bundleのrangeがサポート対象かの意味評価はscheduled workflowが担当する。
 - Docker base imageのdigest固定座標とcoverageは`docker-base-digest`ルールが検証し、EOLの意味評価はscheduled workflowが担当する。
 - AKSの公開更新情報は`aks-updates-analyzer`の責務とし、同じ公開情報を再取得しない。
