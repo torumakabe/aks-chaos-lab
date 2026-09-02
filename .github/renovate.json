@@ -3,6 +3,7 @@
   "enabledManagers": ["pep621", "github-actions", "dockerfile", "custom.regex"],
   "prHourlyLimit": 5,
   "dependencyDashboard": true,
+  "dependencyDashboardAutoclose": true,
   "dependencyDashboardApproval": false,
   "automerge": false,
   "ignorePaths": [".github/workflows/*.lock.yml", ".github/aw/**"],
