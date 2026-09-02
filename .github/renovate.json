@@ -2,6 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "enabledManagers": ["pep621", "github-actions", "dockerfile", "custom.regex"],
   "dependencyDashboard": true,
+  "dependencyDashboardApproval": false,
   "automerge": false,
   "ignorePaths": [".github/workflows/*.lock.yml", ".github/aw/**"],
   "packageRules": [

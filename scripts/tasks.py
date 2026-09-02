@@ -3477,6 +3477,9 @@ RENOVATE_ENABLED_MANAGERS = (
 # gh-aw compiles its own workflow locks and actions lock, so Renovate must not
 # read them.
 RENOVATE_IGNORE_PATHS = (".github/workflows/*.lock.yml", ".github/aw/**")
+# Repository config must override any inherited top-level approval default.
+# The pep621 package rule below is the only exception.
+RENOVATE_DEPENDENCY_DASHBOARD_APPROVAL = False
 # Repository-relative paths the enabled built-in managers already extract. A
 # custom manager targeting one of them would duplicate an update candidate.
 RENOVATE_BUILTIN_MANAGER_FILE_PATTERNS = (
@@ -3591,6 +3594,15 @@ def renovate_contract_violations(config: dict[str, Any]) -> list[str]:
         violations.append(
             "renovate.json must set dependencyDashboard to true so update "
             "candidates Renovate does not open a pull request for stay visible"
+        )
+    if (
+        config.get("dependencyDashboardApproval")
+        is not RENOVATE_DEPENDENCY_DASHBOARD_APPROVAL
+    ):
+        violations.append(
+            "renovate.json must set dependencyDashboardApproval to false so "
+            "routine non-Python updates create branches and pull requests "
+            "without Dependency Dashboard approval"
         )
     if config.get("ignorePaths") != list(RENOVATE_IGNORE_PATHS):
         violations.append(
