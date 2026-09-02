@@ -17,6 +17,11 @@ network:
     - "learn.microsoft.com"
 tools:
   bash: ["uv", "python3", "git", "gh"]
+pre-agent-steps:
+  - name: Setup uv
+    uses: astral-sh/setup-uv@v8
+    with:
+      resolution-strategy: "lowest"
 safe-outputs:
   create-issue:
     title-prefix: "[Repository Freshness] "
