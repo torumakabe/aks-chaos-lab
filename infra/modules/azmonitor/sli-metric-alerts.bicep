@@ -82,7 +82,7 @@ var sliPromQlCriteria = {
   }
 }
 
-resource baselineAlerts 'Microsoft.Insights/metricAlerts@2024-03-01-preview' = [for sli in sliDefinitions: {
+resource baselineAlerts 'Microsoft.Insights/metricAlerts@2026-01-01' = [for sli in sliDefinitions: {
   name: 'SLI baseline alert for ${sli.name}'
   location: location
   tags: tags
@@ -116,7 +116,7 @@ resource baselineAlerts 'Microsoft.Insights/metricAlerts@2024-03-01-preview' = [
   }
 }]
 
-resource fastBurnRateAlerts 'Microsoft.Insights/metricAlerts@2024-03-01-preview' = [for sli in sliDefinitions: {
+resource fastBurnRateAlerts 'Microsoft.Insights/metricAlerts@2026-01-01' = [for sli in sliDefinitions: {
   name: 'SLI fast burn rate alert for ${sli.name}'
   location: location
   tags: tags
@@ -152,7 +152,7 @@ resource fastBurnRateAlerts 'Microsoft.Insights/metricAlerts@2024-03-01-preview'
   }
 }]
 
-resource slowBurnRateAlerts 'Microsoft.Insights/metricAlerts@2024-03-01-preview' = [for sli in sliDefinitions: {
+resource slowBurnRateAlerts 'Microsoft.Insights/metricAlerts@2026-01-01' = [for sli in sliDefinitions: {
   name: 'SLI slow burn rate alert for ${sli.name}'
   location: location
   tags: tags
