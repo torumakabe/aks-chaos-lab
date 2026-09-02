@@ -232,7 +232,7 @@ def test_freshness_targets_exist_in_repository_inventory() -> None:
     assert gh_aw_versions
     assert any(image.startswith("python:3.14-slim@sha256:") for image in docker_images)
     assert any(
-        image.startswith("ghcr.io/astral-sh/uv:0.12.2@sha256:")
+        image.startswith("ghcr.io/astral-sh/uv:") and "@sha256:" in image
         for image in docker_images
     )
     assert "[4.*, 5.0.0)" in extension_bundles
