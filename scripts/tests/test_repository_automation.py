@@ -77,6 +77,7 @@ def test_renovate_covers_the_scheduled_update_targets() -> None:
         "kubeconform-docker-image",
         "renovate-validator-image",
         "bicep-cli-version",
+        "azd-required-version",
         "uv-required-version",
     }
 
@@ -149,7 +150,8 @@ def test_freshness_workflow_contract() -> None:
     assert f"{len(FRESHNESS_SUBJECTS)}つ" in source
     for boundary in (
         "Renovate（`.github/renovate.json`）",
-        "latestと比較して更新する対象ではありません",
+        "azdはRenovateがminimum versionを安定版releaseと比較",
+        "Azure Functions extension bundleのsupport範囲はlatestと比較して更新する対象ではない",
     ):
         assert boundary in source
     # Bicep CLI updates moved to Renovate; unrelated scheduled workflows remain.
