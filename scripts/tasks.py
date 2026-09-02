@@ -102,7 +102,7 @@ CHAOS_MESH_VALUES = Path("infra/helm/chaos-mesh-values.yaml")
 RENOVATE_CONFIG_PATH = Path(".github/renovate.json")
 # .github/renovate.json contains a customManagers regex entry that keeps this
 # pin current; Renovate updates its own validator image through that entry.
-RENOVATE_VALIDATOR_IMAGE = "renovate/renovate:44.56.3"
+RENOVATE_VALIDATOR_IMAGE = "renovate/renovate:44.56.4"
 RENOVATE_EXTRACT_TIMEOUT_SECONDS = 300
 RENOVATE_VALIDATOR_TIMEOUT_SECONDS = 300
 # renovate-config-validator prints this line before it reports any schema
