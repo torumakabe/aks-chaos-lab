@@ -4,6 +4,14 @@
 
 ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
+## 2026-09-02 棚卸し結果
+
+既存の azd `eval` 環境で、API version の移行結果を確認した。
+
+| ID | 反映内容 | 検証結果 |
+|---|---|---|
+| D-4 | 削除 | `metricAlerts@2026-01-01` の what-if が provider validation を通過し、既存の SLI Metric Alert 6 件も同 API version でデプロイ済みであることを確認した。preview API を継続する回避策が不要になったため削除した。 |
+
 ## 2026-07-24 棚卸し結果
 
 既存の azd `eval` 環境で、削除候補を個別に差分検証した。
@@ -137,15 +145,6 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 ---
 
 ## D. 既知の遅延 / 制約
-
-### D-4. Azure Monitor SLI Metric Alert (Portal 型) の動作仕様が未公開
-
-- **概要**: `Microsoft.Insights/metricAlerts@2024-03-01-preview` の `PromQLCriteria` で SLI を criteria にする Portal 型 alert を使用する。stable schema `2026-01-01` は公開済みだが、`eval` の Microsoft.Insights provider では未提供である。
-- **理由**: Azure Monitor SLI 自体が preview API (`Microsoft.Monitor/slis@2025-03-01-preview`) で動作中。Portal / Bicep / API の動作差分と alert instance のトリガー条件も公式 docs に記載されていない。
-- **場所**: `infra/modules/azmonitor/sli-metric-alerts.bicep`、ADR-009 §Consequences
-- **解消条件**: Microsoft.Insights provider が `metricAlerts@2026-01-01` を提供し、SLI Metric Alert の Portal / Bicep / API の動作が docs にまとまる。
-- **確認方法**: SLI burn rate alert の test fire (`chaos-app` Pod を 0 replicas にして 5 分以上維持) で alert instance が記録されるかを確認する。
-- **最終確認**: 2026-07-24、`metricAlerts@2026-01-01` は Bicep build に成功したが、`eval` の provider what-if は `NoRegisteredProviderFound` で拒否した。`2024-03-01-preview` を継続する。
 
 ### D-5. OpenTelemetry UpDownCounter `http.server.active_requests` の Pod 再起動時ドリフト
 
