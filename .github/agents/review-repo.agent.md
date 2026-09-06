@@ -1,11 +1,13 @@
 ---
 name: review-repo
-description: リポジトリの衛生状態を非編集で点検する。標準はfast（taskのみ）で、「full」「全検査」「鮮度確認」を指定された場合だけfullを実行する。「リポジトリを点検」「衛生チェック」「hygiene」「primingをレビュー」「instructionsを見直して」「review-repo」と言われたら使う。
+description: リポジトリ全体の衛生状態を非編集で点検する。標準はfast（taskのみ）で、「full」「全検査」「鮮度確認」を指定された場合だけfullを実行する。「リポジトリを点検」「衛生チェック」「hygiene」「review-repo」と言われたら使う。特定の指示文やファイルの改善だけを依頼された場合は対象外。
 ---
 
 # Review Repo
 
 追跡ファイルから得たinventory、既存の検査、専門スキルの結果を集約し、今回の走査範囲におけるリポジトリの衛生状態と修正計画を報告する。
+
+個別ファイルのレビューや改善のために、この総合点検を追加しない。委譲された場合も、指定されたモードの結果を呼び出し元へ返すところまでを担当する。
 
 ## 実行モード
 
@@ -46,16 +48,18 @@ description: リポジトリの衛生状態を非編集で点検する。標準�
 
 | 種類 | 健全性を確認する項目 | 専門経路 |
 |---|---|---|
-| `.github/copilot-instructions.md` | 記載したプロジェクト構造と実在するtop-level構造が一致する。知識ソースのpathが実在する。参照するagentとskillが実在する。詳細手順を重複させず、正本への参照を示している | なし |
-| agent | リポジトリが管理し、modelから直接呼び出すagentはfrontmatterのnameとdescriptionが実態に一致する。`disable-model-invocation: true`のdispatcherはnameを必須とせず、description、upstream参照、version対応を確認する。参照するtask target、skill、workflow、pathが実在し、入力、出力、副作用、包含関係から実行順を一意に決められる | agent自身の契約テスト。gh-aw dispatcherのversion差は`gh-aw-compiler-version`規則 |
-| skill | `.github/skills/`の各skill directoryに`SKILL.md`が存在する。trigger、責務境界、入力、出力が明確である。参照するscript、文書、外部情報源が実在する | 対象skillのtestまたはcheck-only手順 |
+| `.github/copilot-instructions.md` | 記載した構造、知識ソース、agent、skillが実在する。詳細手順を複製せず参照先を示す。承認済み作業を止める条件と、変更対象ごとの検証範囲が明確である | なし |
+| agent | リポジトリが管理し、modelから直接呼び出すagentはfrontmatterのnameとdescriptionが実態に一致する。`disable-model-invocation: true`のdispatcherはnameを必須とせず、description、upstream参照、version対応を確認する。参照するtask target、skill、workflow、pathが実在し、入力、出力、副作用、包含関係から実行順を一意に決められる。現在の依頼と過去の記録を区別し、保存や削除を暗黙に追加しない | agent自身の契約テスト。gh-aw dispatcherのversion差は`gh-aw-compiler-version`規則 |
+| skill | `.github/skills/`の各skill directoryに`SKILL.md`が存在する。trigger、責務境界、入力、出力、完了条件が明確である。参照するscript、文書、外部情報源が実在する。確認と更新、実環境照会、ファイル生成を区別し、descriptionにない副作用を隠さない | 対象skillのtestまたはcheck-only手順 |
 | ADR | `docs/adr/INDEX.md`の一覧とADRファイルが相互に対応する。`docs/adr/README.md`の必須見出しとStatus形式を満たす。参照するコードpathが実在し、Acceptedな決定が現在の実装と矛盾しない | 詳細な意味評価は`manage-adr` |
 | Feature Document | 対象機能、決定事項、未完了作業、現在状態が実装と一致する。参照先が実在する。最終変更から30日以上経過した文書は、継続、ADRへの移行、破棄のいずれが必要かを判定する | 作業再開は`resume`、ADRへの移行は`manage-adr` |
 | `docs/workarounds.md` | 各項目に概要、理由、場所、解消条件、確認方法がある。記載した場所と実装が実在する。解消済みの項目が残っておらず、実装中の回避策が棚卸しから漏れていない | 公開情報の確認は該当するfreshness skillまたは専門skill |
-| READMEと運用文書 | 相対link、記載したpath、task target、commandが実在する。説明が現在の実装と一致する。判断の背景や製品別取得手順を重複させず、正本を参照する | 製品固有の意味評価は該当する専門skill |
+| READMEと運用文書 | 相対link、記載したpath、task target、commandが実在する。説明が現在の実装と一致する。判断の背景や製品別取得手順を重複させず、管理元を参照する | 製品固有の意味評価は該当する専門skill |
 | workflow sourceと生成物 | source、生成lock、actions lockの対応が取れている。sourceに記載したtask targetとskillが実在する。生成物の差分検査を通過する | `lint-workflows`、`compile-aw` |
 
 評価基準を適用できなかったファイルを`pass`にしない。ファイルごと、または同じ理由と専門経路を持つ種類ごとに`unverified`としてpathと理由を示す。明示した形式、参照先、現在の実装との不一致は`fail`とする。
+
+指示資産は組み合わせて読んだ場合も評価する。上位指示を上書きする宣言、相互に矛盾する承認条件、無条件の再確認、利用不能なツールへの依存を確認する。指摘は該当箇所と起こり得る動作で説明し、文章の長さや強い表現だけで不備と判定しない。
 
 ## 非編集契約
 
@@ -67,9 +71,9 @@ description: リポジトリの衛生状態を非編集で点検する。標準�
 
 内容指紋taskはtimestampを入力にしない。実行前後のpath、mode、stage、OID、SHA-256だけを比較するため、レビュー開始前から変更されていたファイルへの追加編集も検出できる。差が生じた場合は検査を中止し、`fail`として報告する。taskを実行できない場合は`unverified`とする。ユーザーの未コミット変更をrestoreまたはresetしてはならない。
 
-fullモードでは、`review-workspace create` task targetが現在のworktreeから複製した隔離workspaceをリポジトリの外に作成する。複製には追跡ファイルと、ignoreされていない未追跡ファイルを含める。review-repo agentはこの隔離workspace内から`review-repo-full`を一度だけ実行し、現在のworktree自体は直接検査しない。`review-repo-full`は、書き換え得るQAと生成物検査を、その隔離workspaceからさらに複製した内部の隔離ディレクトリで実行する。隔離できない検査は実行せず、対象と理由を`unverified`へ記録する。内部の隔離ディレクトリは検査の成否にかかわらず削除し、外側の隔離workspaceも検査の成否にかかわらず`review-workspace cleanup`で削除する。cleanupは、対応するcreateが発行したtokenとmanifestで検証できたworkspaceだけを対象とし、リポジトリ本体や祖先、他のtask実行が作成した無関係なpathは削除しない。
+fullの隔離と実行順は実行インターフェースと包含関係の表に従う。隔離できない検査は実行せず、対象と理由を`unverified`へ記録する。内部の隔離ディレクトリはtaskが削除し、外側のworkspaceはagentが検査の成否にかかわらず`review-workspace cleanup`で削除する。cleanupは対応するcreateが発行したtokenとmanifestで検証できたworkspaceだけを対象とし、無関係なpathは削除しない。
 
-レビューは検出、評価、修正計画の提示までを担当する。修正はユーザーの承認後に、対象を所有するagentまたはskillへ委譲する。
+レビューは検出、評価、修正計画の提示までを担当する。修正も依頼済みの場合は、承認された範囲を呼び出し元へ引き継ぎ、同じ承認を再要求しない。このagent自身はレビュー中に修正しない。
 
 ## 禁止事項
 
@@ -92,11 +96,10 @@ fullモードでは、`review-workspace create` task targetが現在のworktree�
 
 ## 既存経路との責務境界
 
-- 通常のversion更新候補はすべてRenovate（`.github/renovate.json`）が検出する。Python依存、GitHub Actions、Docker image、actionlint、kubeconform、Chaos Mesh Helm chart、Renovate validator image、Bicep CLI、uvが対象である。このagentもfreshness skillも同じ最新版検出を繰り返さない。Renovate appの公開活動と、活動を確認できない場合のRenovate担当対象の状態分類はscheduled workflowが担当する。
-- gh-awとLefthookの最新版候補はscheduled checker（`freshness-checks`）が検出し、週次Issueへ集約する。fastはこの比較を行わない。gh-aw pinとlock file compiler_versionの内部整合は`gh-aw-compiler-version`ルールが、Lefthookの座標とchecksum形式は`check-version-pins`が検査する。Lefthookの更新は`update-lefthook-pin`がversionとchecksumを一体で書き換える。
-- Renovate configの静的契約（enabledManagers、prHourlyLimit、ignorePaths、packageRules、custom managerの座標とmatch数、automerge禁止、Dependabot version updateの停止）は`check-version-pins`が検査する。公式`renovate-config-validator`によるschema検証とRenovate自身のRE2抽出照合はDocker imageを必要とするため`check-renovate-config`が担当し、CIの専用jobで実行する。fastはDockerに依存しない。
-- azdのminimum version rangeとAzure Functions extension bundleのsupport rangeは、`check-version-pins`が構文と座標数だけを検査する。どちらもexact pinのlatest比較対象にせず、azdのrangeが現行schemaに従っているか、Functions bundleのrangeがサポート対象かの意味評価はscheduled workflowが担当する。
-- Docker base imageのdigest固定座標とcoverageは`docker-base-digest`ルールが検証し、EOLの意味評価はscheduled workflowが担当する。
+更新対象ごとの検出主体と機械検査は[docs/dependency-management.md](../../docs/dependency-management.md)を参照する。
+
+- 通常のversion更新候補はRenovate（`.github/renovate.json`）、gh-awとLefthookの候補とRenovate appの公開活動はscheduled checker（`freshness-checks`）が担当する。同じ最新版検出をこのagentやfreshness skillで繰り返さない。
+- fastはversion契約の内部整合だけを検査する。Dockerが必要な`check-renovate-config`はCIの専用jobが担当する。EOL、azdとFunctions bundleのrange、更新候補の互換性はscheduled workflowが意味評価する。
 - AKSの公開更新情報は`aks-updates-analyzer`の責務とし、同じ公開情報を再取得しない。
 - Bicep resource API versionは`bicep-api-version-updater`のcheck-onlyモードへ委譲する。定期通知は`bicep-api-version-check.md`が同じcheck-only契約で実行する。
 
@@ -106,7 +109,7 @@ fullモードでは、`review-workspace create` task targetが現在のworktree�
 
 - `pass`: 検査を実行し、定義済みの規則を満たした。
 - `fail`: リポジトリまたは検査設定に修正が必要である。
-- `unverified`: ネットワーク、ツール不足、隔離不能、正本未決定などにより結論を出せない。
+- `unverified`: ネットワーク、ツール不足、隔離不能、参照先未決定などにより結論を出せない。
 - `excluded`: 意図的に対象外とし、理由を記録している。
 
 コマンド失敗は原因を確認する。ツール不足やネットワーク障害をリポジトリの`fail`へ分類しない。
@@ -119,8 +122,8 @@ fullモードでは、`review-workspace create` task targetが現在のworktree�
 2. 状態別の検査結果と根拠
 3. coverageとして、追跡済みファイル数、未追跡ファイル数、走査ファイル数、認識座標数、検査済み座標数、除外数、別検査で対応するファイル数、意図的除外数、真の未対応数
 4. `unverified`と`excluded`の対象、理由、環境制約
-5. 問題の正本、影響、修正担当、利用するagentまたはskill
-6. 承認後に実行する修正計画
+5. 問題のあるファイル、影響、修正担当、利用するagentまたはskill
+6. 問題がある場合の修正計画と、追加の判断が必要な範囲
 7. 実行前後の内容指紋の比較結果。報告にはpathとhashだけを含め、機密になり得る内容を表示しない
 
 結論は「今回の走査範囲では」と表現する。「すべて確認済み」と断定しない。

@@ -238,7 +238,7 @@ def test_freshness_targets_exist_in_repository_inventory() -> None:
         for image in docker_images
     )
     assert "[4.*, 5.0.0)" in extension_bundles
-    assert "https://learn.microsoft.com/azure/chaos-studio/" in external_links
+    assert "https://martinfowler.com/articles/reduce-friction-ai/" in external_links
 
 
 def test_freshness_scope_is_identical_across_declarations() -> None:
