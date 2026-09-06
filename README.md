@@ -115,6 +115,10 @@ azd down --force --purge
 | 継続中のワークアラウンドと解消条件 | [docs/workarounds.md](docs/workarounds.md) |
 | AI / コーディングエージェント向けのプロジェクト文脈 | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
+AI エージェントへの依頼では、対象と求める操作（調査、計画、編集など）を指定します。関連する Feature Document があれば [resume](.github/agents/resume.agent.md) で再開し、終了時は [wrap-up](.github/agents/wrap-up.agent.md) で記録の要否を判断します。振り返りだけの依頼では文書を保存せず、作成と保存先を指定済みなら再確認せず保存します。指示文など個別ファイルの改善は、その対象を直接依頼できます。
+
+AI 運用の参考資料は [Reducing Friction for AI-Assisted Development](https://martinfowler.com/articles/reduce-friction-ai/) と [OpenAI のプロンプトガイダンス](https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices)です。
+
 ## リポジトリ保守
 
 日常の点検には`review-repo`エージェントのfastモードを使います。fastモードは`scripts/tasks.py`の`review-repo-fast` task targetを唯一の上位実行入口として呼び、内容指紋taskとオフラインで完結する検査だけを実行します。文書とAI運用資産の意味評価や専門skillは実行しません。全検査ではfullモードを指定します。fullモードは`review-repo-full` task targetの全検査に加えて、構造化inventoryを使った公開MarkdownリンクとBicep APIのcheck-only確認、文書とAI運用資産の意味評価を実行します。scheduled workflowが担当するversion候補、EOL、support範囲、互換性は再評価しません。完全な呼び出し、出力、副作用、検査の包含関係は[review-repoエージェント](.github/agents/review-repo.agent.md)を参照してください。

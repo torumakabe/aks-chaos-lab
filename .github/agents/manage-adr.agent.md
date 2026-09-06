@@ -1,107 +1,70 @@
 ---
 name: manage-adr
-description: ADR のライフサイクル管理。作成・廃止・置換・レビュー。「ADR を作成」「ADR を廃止」「ADR を置換」「ADR をレビュー」「manage-adr」と言われたら使う。
+description: ADR の作成、廃止、置換、レビューを行う。「ADR を作成」「ADR を廃止」「ADR を置換」「ADR をレビュー」「manage-adr」と言われたら使う。レビューだけの依頼では編集しない。
 ---
 
-ADR（Architecture Decision Record）のライフサイクル全体を管理する。
+ADR（Architecture Decision Record）に設計判断と理由を記録し、判断の変更を追える状態に保つ。形式と粒度は [docs/adr/README.md](../../docs/adr/README.md) を参照する。
 
-## パスの判定
+## 操作と対象
 
-ユーザーの意図に応じてパスを選択する:
+現在の依頼に応じて次の経路を選ぶ。操作、対象、記録する判断が明示されていれば、同じ承認を求めず進める。「manage-adr」だけのように操作が不明な場合は確認し、作成を既定動作にしない。
 
-- ADR を**作りたい** → Feature Document があればパス A、なければパス B
-- ADR を**廃止したい** → パス C
-- ADR を**置換したい**（新しい判断で上書き）→ パス D
-- ADR を**レビューしたい**（全体の健全性確認）→ パス E
+| 依頼 | 経路 |
+|---|---|
+| Feature Document の判断を ADR にする | A |
+| 会話や指定内容から ADR を作る | B |
+| 判断を廃止する | C |
+| 新しい判断で置き換える | D |
+| 判断と実装の整合性をレビューする | E（非編集） |
 
-明示されない場合は `docs/features/` を確認し、該当があればパス A、なければパス B で進める。
+計画、候補抽出、レビューだけの依頼では、ADR や INDEX を編集しない。
 
----
+## A: Feature Document から作成
 
-## パス A: Feature Document → ADR
+1. 指定された、または依頼に関連する `docs/features/` の文書を読み、決定事項と未完了作業を確認する。
+2. 決定事項に「6ヶ月テスト」を適用し、後から理由を問われる判断だけを ADR にする。会話や文書に根拠がない決定を補わない。
+3. 共通手順で ADR と INDEX を更新する。
+4. Feature Document の削除まで明示されている場合は、未完了作業がなく、必要な判断と再開情報が移行済みであることを確認して削除する。条件を満たさなければ保持し、残る内容を報告する。ADR 化の依頼だけで削除しない。
 
-1. 指定された `docs/features/` 内の Feature Document を読む
-2. **決定事項** テーブルの各行に「6ヶ月テスト」を適用する:
-   - 6ヶ月後に「なぜこうなっている？変えていい？」と聞かれそうか？
-   - 聞かれそうな判断のみ ADR にする
-3. ADR を作成する（共通手順を参照）
-4. Feature Document を削除する
+## B: 会話や指定内容から作成
 
-### メモリの更新（パス A）
+現在の依頼と会話から、判断、理由、却下した選択肢を抽出する。合意済みの内容であれば共通手順で作成する。候補が複数あり記録対象が曖昧な場合や、判断そのものが未確定の場合だけ確認する。
 
-Feature Document を削除した後、repository_memories に当該 Feature Document の存在ヒントが残っている場合は、`store_memory` で完了を記録して古い記憶を上書きする:
+過去の根拠が必要な場合は、利用可能な session 履歴ツールで対象セッションと期間、取得件数を絞る。履歴を取得できない場合は現在の文脈と関連ファイルを使い、欠けた判断を推測で作らない。memory ツールへの書き込みは作成の完了条件にしない。
 
-```
-subject: "feature tracking"
-fact: "docs/features/<name>.md は ADR に卒業し削除済み。"
-category: "general"
-citations: "docs/adr/NNN-<判断>.md"
-```
+## C: 廃止
 
----
+判断が有効でなく、置き換える判断もない場合に使う。
 
-## パス B: セッション会話 → ADR
+1. `docs/adr/INDEX.md` から対象を特定し、既存の内容と未コミット差分を読む。
+2. 廃止理由が確定していれば Status を `Deprecated` にし、Context または Consequences に理由を記録する。
+3. INDEX の Status を更新する。
 
-1. session_store から現在のセッションの会話履歴を取得する:
-   ```sql
-   SELECT t.user_message, t.assistant_response
-   FROM turns t JOIN sessions s ON t.session_id = s.id
-   WHERE s.id = '<current_session_id>'
-   ORDER BY t.turn_index;
-   ```
-   session_store にない場合は、現在の会話コンテキストから判断を抽出する。
-2. 会話中の設計判断を洗い出し、各判断に「6ヶ月テスト」を適用する
-3. ADR 候補をユーザーに提示し、確認を取る（会話は Feature Document より曖昧なため）
-4. ADR を作成する（共通手順を参照）
+## D: 置換
 
----
+1. 旧 ADR と、合意された新しい判断を特定する。
+2. 共通手順で新 ADR を作成し、Context に旧 ADR へのリンクと置換理由を記載する。
+3. 旧 ADR の Status を `Superseded by ADR-NNN` にし、新 ADR へリンクする。旧判断の本文は履歴として残す。
+4. INDEX の両エントリを更新する。
 
-## パス C: 既存 ADR の廃止（Deprecated）
+## E: レビュー
 
-対象の判断がもはや有効でなく、置き換える新しい判断もない場合。
+指定された ADR をレビューする。対象指定のない全体レビューでは、INDEX の `Accepted`（一部 amend の注記を含む）を対象とする。
 
-1. `docs/adr/INDEX.md` から対象 ADR を特定する（ユーザーが番号やキーワードで指定）
-2. 対象 ADR ファイルの **Status** を `Deprecated` に変更する
-3. Context または Consequences に廃止理由を追記する
-4. `docs/adr/INDEX.md` の Status 列を更新する
-5. 変更をユーザーに提示し、確認を取る
+各判断が参照する `infra/`、`src/`、`k8s/`、関連文書を確認し、判断が現在も適用されるかを調べる。指摘には対象箇所、実装との対応、根拠を添える。
 
----
+- 実装と判断の不一致は、実装側の逸脱か、記録されていない判断変更かを区別する。コードが変わったことだけを理由に ADR を廃止しない。
+- 対象が未実装なら、Feature Document などに実装予定の根拠があるか確認する。根拠がなければ未確認とし、「今後作る可能性がある」だけで問題なしにしない。
+- 後続 ADR による置換や一部 amend は参照先をたどる。必要なら C または D を提案するが、レビュー中には実行しない。
 
-## パス D: 既存 ADR の置換（Superseded）
+## 共通の作成手順
 
-対象の判断を新しい判断で置き換える場合。
+1. `docs/adr/INDEX.md` と実際の ADR ファイルを照合し、既存番号と重複しない次の番号を選ぶ。対応が崩れている場合は、採番前にその差異を解消する方針を確認する。
+2. `docs/adr/NNN-<判断>.md` を、Status / Context / Decision / Consequences の4節で作成する。判断ごとに短く書き、必要な理由や制約を行数制限のために削らない。実装手順と検証ログは載せない。
+3. INDEX に追加し、番号、タイトル、Status、リンクがファイルと一致することを確認する。
 
-1. `docs/adr/INDEX.md` から旧 ADR を特定する
-2. 新しい ADR を作成する（共通手順を参照）
-3. 旧 ADR ファイルの **Status** を `Superseded by ADR-NNN` に変更する（NNN は新 ADR の番号）
-4. 新 ADR の Context に「ADR-MMM を置換する」旨を記載する
-5. `docs/adr/INDEX.md` の両方のエントリを更新する
-6. 変更をユーザーに提示し、確認を取る
+一時的な設定や影響の小さい実装詳細だけなら、ADR を作らず理由を報告する。
 
----
+## 完了
 
-## パス E: ADR レビュー
-
-全 Accepted ADR の健全性を確認する。
-
-1. `docs/adr/INDEX.md` から Status が `Accepted` の ADR を一覧する
-2. 各 ADR について:
-   - ADR 内で言及されている技術・構成が `infra/`・`src/`・`k8s/` に存在するか確認する
-   - 決定内容と現在のコードが矛盾していないか検証する
-3. 問題が見つかった ADR について、以下を提案する:
-   - コードが変わった → Deprecated（パス C）または Superseded（パス D）を提案
-   - ADR が指す対象がまだ作られていない → 問題なし（今後作成される可能性がある）
-4. レビュー結果を一覧で報告する
-
----
-
-## 共通: ADR 作成手順
-
-1. ADR 候補ごとに `docs/adr/NNN-<判断>.md` を作成する:
-   - `docs/adr/INDEX.md` の既存 ADR の最大番号の次の番号を使う
-   - Status / Context / Decision / Consequences の 4 セクション
-   - 30 行以下に収める
-2. `docs/adr/INDEX.md` の一覧テーブルに追加する
-
-ADR にしない判断（一時的な SKU 選定、影響の小さい技術的詳細等）はスキップすること。
+実行した操作と対象 ADR、必要な未解決事項を報告する。レビューの場合は確認範囲と根拠不足の対象を示す。文書の更新を Azure デプロイやコード変更へ広げない。

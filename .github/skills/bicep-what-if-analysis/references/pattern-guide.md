@@ -1,13 +1,13 @@
 # パターン管理ガイド
 
-ノイズパターンの追加・更新時に参照するガイド。
+ノイズパターンを追加、更新する前に参照する。根拠と対象範囲を確認し、依頼された変更だけを行う。
 
 ## パターンファイル構造
 
 ```
-scripts/patterns/
+.github/skills/bicep-what-if-analysis/scripts/patterns/
 ├── noise_patterns.json    # ノイズ判定パターン
-├── display_config.json    # 表示名・フィルタ設定
+├── display_config.json    # 表示名とフィルタ設定
 └── pattern_stats.json     # 使用統計（自動生成）
 ```
 
@@ -21,7 +21,7 @@ scripts/patterns/
 | `custom_patterns` | 要確認（人間の判断が必要） | ⚠️ | `orchestratorVersion`, `networkSecurityGroup` |
 | `known_defaults` | 既知のデフォルト値 | 📘 | `enableRBAC=true` |
 
-**🔴 上記5カテゴリのみサポート。存在しないカテゴリ（例: `noise_patterns`）を作成しないこと。**
+上記5カテゴリだけを使用する。存在しないカテゴリ（例: `noise_patterns`）を作成しない。
 
 ## JSONスキーマ
 
@@ -76,7 +76,7 @@ scripts/patterns/
 
 ## パターン記述ルール
 
-### 🔴 重要: `properties.` プレフィックスを除去
+### `properties.` プレフィックスを除去
 
 スクリプトは内部で `properties.` を除去してからマッチング。パターンには含めない。
 
@@ -96,52 +96,33 @@ scripts/patterns/
 2. **例外**: 全リソース共通のもののみ `common` に追加
 3. **迷う場合**: `common` ではなく該当リソース配下に `custom_patterns` として追加
 
+根拠が確認できたリソースタイプとプロパティだけに一致させる。一つのリソースで確認した既定値を、他のリソースや親オブジェクト全体へ広げない。
+
 ## パターン追加ワークフロー
 
 「❓ 未分類」が出た場合:
 
 ### 1. 外部知識で調査
 
-```
-# ARM スキーマ確認（Azure MCP Server）
-bicepschema get:
-  resource-type: "Microsoft.ContainerService/managedClusters"
+- ARM スキーマ: Azure MCP Server の bicepschema で対象リソースタイプの属性を確認する。
+- 既定値: Microsoft Learn の文書検索で、対象属性の設定条件を確認する。
+- 既知ノイズ: `Azure/arm-template-whatif` の公開 Issue で、同じ変更と発生条件かを確認する。
 
-# MS Learn で既定値調査
-microsoft_docs_search:
-  query: "AKS managed cluster default properties"
+ツールを使う前に利用可能な操作と入力を確認する。調査結果には根拠 URL を添える。
 
-# GitHub で既知ノイズ確認（GitHub MCP Server）
-search_issues:
-  owner: "Azure"
-  repo: "arm-template-whatif"
-  query: "noise"
-```
+### 2. 分類と対象を示す
 
-### 2. パターン追加を提案
+リソースタイプ、プロパティ、追加カテゴリ、根拠を報告する。分析だけの依頼なら候補の提示で終了する。パターン編集が依頼済みで根拠を確認できた場合は、同じ承認を再確認せず編集する。
 
-```
-以下のパターン追加を提案します：
+### 3. 編集後にローカルで検証
 
-【readonly_patterns に追加】
-- kind: ARMスキーマでReadOnly確認済み
-
-【auto_managed_patterns に追加】
-- aadProfile.tenantID: Azure ADテナントIDは自動設定
-
-【custom_patterns に追加】
-- addonProfiles: 環境依存、手動確認推奨
-```
-
-### 3. ユーザー確認後に実行
+リポジトリルートから JSON 構文を検証する。
 
 ```bash
-# JSON構文検証
-python3 -c 'import json; json.load(open("scripts/patterns/noise_patterns.json", encoding="utf-8"))'
-
-# 再実行して確認
-python3 scripts/what_if_analyzer.py
+uv run --no-project python -c 'import json; from pathlib import Path; json.loads(Path(".github/skills/bicep-what-if-analysis/scripts/patterns/noise_patterns.json").read_text(encoding="utf-8"))'
 ```
+
+変更した分類に対応する既存テストがあれば、対象を絞って検証する。what-if スクリプトの再実行は Azure 照会と統計更新を伴うため、パターン編集だけの検証には使わない。実行も依頼された場合のコマンドと履歴保持契約は [SKILL.md](../SKILL.md#実行コマンド) を参照する。
 
 ## 分類基準
 

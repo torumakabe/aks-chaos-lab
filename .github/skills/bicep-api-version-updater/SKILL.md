@@ -1,93 +1,59 @@
 ---
 name: bicep-api-version-updater
-description: BicepファイルのAzureリソースAPIバージョンを確認または更新する。review-repoからは公開情報だけを使うcheck-onlyモードで呼び出す。「APIバージョンを更新」「Bicepを最新化」「古いAPIバージョンをチェック」を求める場合に使用。
+description: BicepファイルのAzureリソースAPIバージョンを確認または更新する。確認依頼とreview-repoでは公開情報だけを使うcheck-only、明示された更新依頼ではupdateを使う。「APIバージョンを更新」「Bicepを最新化」「古いAPIバージョンをチェック」を求める場合に使用。
 ---
 
 # Bicep API Version Updater
 
-BicepファイルのAzureリソースAPIバージョンを確認し、更新モードでは最新の安定版へ更新する。
+BicepファイルのAzureリソースAPIバージョンを確認し、更新依頼では互換性とローカル検証を満たす安定版へ更新する。確認だけの依頼を更新へ広げない。
 
 ## check-onlyモード
 
-`review-repo`または`bicep-api-version-check` workflowから呼び出された場合は、この節だけを実行する。入力はrepo health inventory JSONのBicep resource API座標である。worktreeは読み取り専用として扱い、Azure認証を行わない。subscriptionを照会しない。
+手動の確認依頼、および`review-repo`または`bicep-api-version-check` workflowからの呼び出しでは、この節だけを実行する。worktreeは読み取り専用として扱い、Azure認証を行わない。subscriptionを照会しない。
 
-1. inventoryのschema version、対象commit、Bicep resource API座標を記録する。解釈できないschemaまたは座標は`unverified`とする。
-2. `microsoft_docs_fetch`または`microsoft_docs_search`で、Microsoft Learnの公開APIリファレンスとbreaking changesを最初に確認する。現在versionがMicrosoft Learnにまだ掲載されていない場合は、Azure公式`Azure/azure-rest-api-specs` repositoryの対応するstableまたはpreview仕様を確認する。定期workflowでは、許可された`learn.microsoft.com`とGitHub APIをPython標準ライブラリで取得する。
+1. repo health inventory JSONが渡された場合は、schema version、対象commit、Bicep resource API座標を記録する。解釈できないschemaまたは座標は`unverified`とする。inventoryのない手動確認では、依頼対象のBicepを読み、ファイル、リソースタイプ、現在のAPI versionを抽出する。存在しないinventoryのschemaやcommitを推測しない。
+2. Microsoft Learnの公開APIリファレンスとbreaking changesを文書検索、取得ツールで確認する。公開候補の確認にはAzure公式`Azure/azure-rest-api-specs` repositoryの対応するstableまたはpreview仕様も参照する。定期workflowでは、許可された`learn.microsoft.com`とGitHub APIをPython標準ライブラリで取得する。
 3. 現在のversion、公開されている安定版、プレビュー版からGAへ移行できるかを比較する。
-4. 結果を`pass`、`fail`、`unverified`、`excluded`へ分類する。Microsoft Learnと`Azure/azure-rest-api-specs`のどちらからも公開情報を取得できない対象は`unverified`とする。両者のversion一覧が異なる場合は、各情報源の確認結果と反映時刻の差を示す。
-5. inventory座標数、確認済み座標数、未検証座標数、除外座標数からcoverageを計算し、根拠URLとともに返す。
+4. 結果を`pass`、`fail`、`unverified`、`excluded`へ分類する。Microsoft Learnと`Azure/azure-rest-api-specs`のどちらからも公開情報を取得できない対象は`unverified`とする。両者のversion一覧が異なる場合は各確認結果を示し、反映時刻の差は確認できた場合だけ説明する。
+5. 対象座標数、確認済み座標数、未検証座標数、除外座標数からcoverageを計算し、入力の出所、根拠URL、確認時刻とともに返す。
 6. 結果を返して終了する。後続のupdateモードへ進まない。
 
 check-onlyモードでは、ローカルまたはAzure上の構成を変更する操作を行わない。現在値が公開情報と異なる場合も、影響と確認事項だけを報告する。
 
 ## updateモード
 
-ユーザーの明示承認を得た場合だけ、この節を実行する。Azure CLIによる実環境の照会、Bicepファイルの変更、ローカル検証はupdateモードだけで行える。
+ユーザーの明示承認がある場合に実行する。「APIバージョンを更新して」のように対象範囲が決まった更新依頼は、その範囲の編集承認として扱い、再確認しない。Azure CLIによる照会、Bicepのversion変更、ローカル検証までを扱い、デプロイは行わない。
 
-### Tools
+Azure認証と対象subscriptionが必要な照会では、既存の認証と指定対象を使う。認証がない、対象を特定できない、権限が不足する場合は制約を報告する。別subscriptionへの照会や認証設定の変更へ勝手に広げず、公開情報で確認できる範囲と未確認事項を分ける。
 
-| Tool | 用途 |
+### 使用するツール
+
+| ツール | 用途 |
 |------|------|
-| `az provider show` | updateモードでの最新GA版の取得 |
-| `microsoft_docs_fetch` | check-onlyでの取得、updateモードのフォールバック |
-| `az bicep build` | 構文検証・Linterチェック |
-| `microsoft_docs_search` | Breaking changes情報の検索 |
-| `grep` / `view` | Bicepファイルの解析 |
-| `edit` | APIバージョンの更新 |
+| `az provider show` | 対象subscriptionで提供されるAPI versionの確認 |
+| 公開文書の検索、取得ツール | API仕様とbreaking changesの確認 |
+| `scripts/tasks.py` の `build-bicep` | 構文とLinterの検証 |
+| ファイル検索、閲覧ツール | 対象Bicepと既存変更の確認 |
+| ファイル編集ツール | 承認範囲のAPI version変更 |
 
-#### bicepschemaを使用しない理由
+#### API versionの情報源
 
 Azure MCP Serverの`bicepschema`と`az provider show`では、APIバージョンの取得元が異なる。
 
 | ツール | データソース | 更新タイミング |
 |--------|-------------|---------------|
 | `bicepschema` | Bicep CLIに同梱された型定義（[Azure/bicep-types-az](https://github.com/Azure/bicep-types-az)） | Bicep CLIのリリース時 |
-| `az provider show` | Azureリソースプロバイダーへのリアルタイム問い合わせ | 常に最新 |
+| `az provider show` | Azureリソースプロバイダーへの問い合わせ | 照会時 |
 
-この設計上の差異により、`bicepschema`が返す「最新版」がBicep CLIのバージョンに依存し、実際の最新GA版より古い場合がある。最新版の判定には`az provider show`を使用する。
-
-> **参考:** `bicepschema`の最新版選択ロジックは[ApiVersionSelector.cs](https://github.com/microsoft/mcp/blob/main/tools/Azure.Mcp.Tools.BicepSchema/src/Services/Support/ApiVersionSelector.cs)で実装されており、安定版を優先してソート・選択する仕様となっている。
-
-#### az provider showの制限
+型定義の対応状況だけで公開候補の新しさを判断しない。`az provider show`と公開API仕様を照合する。
 
 `az provider show` はリソースプロバイダーに登録されているリソースタイプのみを返す。一部の子リソース（例: `redisEnterprise/databases/accessPolicyAssignments`）は登録されていない場合があり、その場合はAPIリファレンスを参照する必要がある。
-
-### 更新フロー
-
-```
-1. Bicepファイル解析 → Step 1
-   ↓
-2. プレビュー版チェック → Step 2
-   - "-preview" を含む場合は更新スキップ
-   ↓
-3. 最新GA版の取得と比較 → Step 3
-   - az provider show で最新GA版を取得
-   - 現在のバージョンと比較
-   ↓
-4. Breaking Changes確認 → Step 4
-   ↓
-5. APIバージョン更新（仮適用） → Step 5
-   ↓
-6. Linter検証 → Step 6
-   - 警告が出た場合は元のバージョンに戻す
-```
-
-### スキップ理由の分類
-
-| 理由 | 報告時の状態 | 追加アクション |
-|------|-------------|---------------|
-| プレビュー版使用中 | ⏭️ スキップ（プレビュー版） | GA移行可否の分析（必須） |
-| 既に最新GA版 | ⏭️ スキップ（既に最新） | なし |
-| GA版が存在しない | ⏭️ スキップ（GA版なし） | なし |
-| Linter警告発生 | ⚠️ スキップ（BCP081警告） | なし |
 
 ### 実行手順
 
 #### Step 1: リソースタイプとAPIバージョンの抽出
 
-```bash
-grep -E "^resource\s+" infra/**/*.bicep
-```
+ファイル検索、閲覧ツールで依頼対象のresource宣言を読む。更新前のAPI versionとユーザーの既存変更を記録する。
 
 > **対象外:** `resourceInput<'Type@version'>` / `resourceOutput<'Type@version'>` 構文（Bicep 0.34.1以降）は本スキルの対象外。これらは型定義用でありリソースをデプロイしないため、APIバージョン更新の優先度が異なる。
 
@@ -98,46 +64,32 @@ APIバージョンに `-preview` が含まれる場合は**更新をスキップ
 **ただし、以下の分析は必ず実施すること:**
 
 1. 現在のBicepファイルで使用している属性を特定
-2. `az provider show` で最新GA版を取得
+2. Step 3の経路で最新GA版を確認
 3. コードの属性がGA版でサポートされているか確認（ドキュメント検索）
-4. 結果を出力フォーマットの「プレビュー版分析セクション」に含める
+4. GA移行可否と、判断に関わる属性を報告する
 
 #### Step 3: 最新GA版の取得と比較
 
 ##### 3-1. 最新GA版の取得
 
 ```bash
-az provider show -n Microsoft.Network \
-  --query "resourceTypes[?resourceType=='virtualNetworks'].apiVersions" \
-  -o tsv | tr '\t' '\n' | grep -iv preview | sort -r | head -1
+az provider show --subscription <subscription-id> -n Microsoft.Network \
+  --query "resourceTypes[?resourceType=='virtualNetworks'].apiVersions[]" \
+  -o json
 ```
 
-> **注意:** `az provider show` の返すAPIバージョン一覧は降順ソートされているように見えるが、公式ドキュメントでは保証されていない。`sort -r` でクライアント側ソートを行い、確実に最新版を取得する。
-
-複数リソースタイプの一括取得:
-```bash
-for provider_resource in \
-  "Microsoft.ManagedIdentity:userAssignedIdentities" \
-  "Microsoft.Network:virtualNetworks" \
-  "Microsoft.Authorization:roleAssignments"
-do
-  provider="${provider_resource%%:*}"
-  resource="${provider_resource##*:}"
-  echo "=== $provider/$resource ==="
-  az provider show -n "$provider" \
-    --query "resourceTypes[?resourceType=='$resource'].apiVersions" \
-    -o tsv 2>/dev/null | tr '\t' '\n' | grep -iv preview | sort -r | head -1
-done
-```
+返された一覧の順序には依存せず、`-preview` を除いたversionを比較する。CLIの終了コードとエラーを確認し、照会失敗をGA版なしと扱わない。
 
 ##### 3-2. 比較と判断
 
 - 現在のバージョン == 最新GA版 → スキップ（既に最新）
 - 現在のバージョン < 最新GA版 → Step 4へ
+- GA版なし、または取得結果を確認できない → 変更せず理由を報告
+- 現在のバージョンが取得候補より新しい → 自動で下げず、情報源の差を報告
 
 ##### 3-3. フォールバック: APIリファレンス参照
 
-`az provider show` で結果が空の場合（リソースタイプが登録されていない場合）、`microsoft_docs_fetch` でAPIリファレンスを参照:
+`az provider show`の成功結果が空の場合や照会できない場合は、公開APIリファレンスと`Azure/azure-rest-api-specs`を参照する。照会失敗の理由は残す。
 
 ```
 URL形式:
@@ -163,67 +115,37 @@ APIリファレンスページの上部に利用可能なAPIバージョン一�
 
 #### Step 5: APIバージョン更新（仮適用）
 
-`edit` ツールで更新。この時点では「仮適用」。
+使用中の属性とbreaking changesを確認する。仮適用する変更がある場合は、Step 6の検証を変更前にも実行して診断を記録し、対象resource宣言のAPI versionだけを編集する。この時点では仮適用とする。
 
 #### Step 6: Linter検証と更新確定
 
 ```bash
-az bicep build --file infra/main.bicep 2>&1
+uv run --no-project "${PWD}/scripts/tasks.py" build-bicep
 ```
 
-##### 警告が出た場合の対応（必須）
+リポジトリルートから実行し、変更前後の診断を比較する。
 
-1. **更新前のバージョンに戻す**
-2. 「スキップされたリソース」として報告
+##### 更新によりエラーまたは警告が増えた場合
 
-**理由:** Bicep型定義が未対応の場合、プロパティの検証ができず意図しないデプロイエラーのリスクがある。Bicep CLIが更新されれば自動的に対応されるため、待つ方が安全。
+1. 問題を生じた自分のAPI version変更だけを更新前へ戻し、ユーザーの既存変更を保持する。ファイル全体の復元は行わない。
+2. 同じ検証で、新たに生じた診断が解消したか確認する。
+3. 対象、診断、戻した変更をスキップ理由として報告する。既存警告は今回の更新による警告と分ける。
+
+BCP081など型定義の未対応による警告では、更新後のプロパティ検証ができない。対応する型定義が利用できるまで元のversionを維持する。
 
 **禁止:** 最新GA版でBCP081警告が出た場合に、警告が出ない別のバージョンへ変更すること。元のバージョンに戻すのみ許可。
 
-**例外:** `#disable-next-line BCP081` で意図的に警告を抑制しているリソースは、更新を許可する（Linterが警告しない）。
+既存の`#disable-next-line BCP081`で意図的に警告を抑制しているリソースは、仕様を確認したうえで更新できる。今回の更新を通すための抑制追加は行わない。
 
-##### 警告が出なかった場合
+##### 検証できた場合
 
-更新確定。
+buildが成功し、新規警告がなければ更新を確定する。ツール不足や既存エラーなどで検証を完了できない場合は、検証済みと扱わず、仮適用したversion変更だけを戻して制約を報告する。
 
-### 出力フォーマット（必須）
+### 報告
 
-以下のセクションを**必ず**含めること:
+依頼範囲の全リソースについて、ファイル、リソースタイプ、変更前後のversion、更新またはスキップの理由、検証結果を報告する。複数ある場合は表にまとめる。プレビュー版が存在する場合はGA移行可否と、その判断に関わる属性を含める。取得不能や互換性未確認は、移行可能と扱わない。
 
-1. **更新サマリーテーブル** - 全リソースの更新状況（BCP081警告も含む）
-2. **プレビュー版分析セクション** - GA移行可否と理由（プレビュー版が存在する場合）
-
-#### テンプレート
-
-```markdown
-## APIバージョン更新サマリー
-
-| ファイル | リソースタイプ | 更新前 | 更新後 | 状態 |
-|----------|---------------|--------|--------|------|
-| identity.bicep | Microsoft.ManagedIdentity/userAssignedIdentities | 2023-01-31 | 2024-11-30 | ✅ 更新 |
-| aks.bicep | Microsoft.ContainerService/managedClusters | 2025-06-02-preview | - | ⏭️ スキップ（プレビュー版） |
-| network.bicep | Microsoft.Network/virtualNetworks | 2024-07-01 | - | ⏭️ スキップ（既に最新） |
-| network.bicep | Microsoft.Network/publicIPAddresses | 2024-07-01 | - | ⚠️ スキップ（BCP081警告） |
-
-**BCP081警告について:** 最新GA版への更新を試みたが、Bicep型定義が未対応のため元のバージョンを維持した。Bicep CLI更新後に再実行で更新可能になる場合がある。
-
-### スキップされたプレビュー版リソースの分析
-
-| ファイル | リソースタイプ | 現在のバージョン | 最新GA版 | GA移行可否 |
-|----------|---------------|-----------------|---------|-----------|
-| aks.bicep | Microsoft.ContainerService/managedClusters | 2025-06-02-preview | 2025-10-01 | ❌ 不可 |
-
-**GA版に存在しない属性:**
-- `properties.networkProfile.advancedNetworking.security.advancedNetworkPolicies`
-
-上記の属性はプレビュー専用のため、GA版への移行には機能の代替または削除が必要である。
-すべての属性がGA版に存在する場合は「✅ 可能」と表示され、GA版への移行を検討できる。
-```
-
-### 前提条件
-
-- Azure CLIでログイン済み（`az login`）
-- Bicep CLIがインストール済み
+ローカル検証にはuvとBicep CLIを使う既存task環境が必要になる。不足を理由に別の検証経路を追加しない。
 
 ### このスキルを使わない場合
 
