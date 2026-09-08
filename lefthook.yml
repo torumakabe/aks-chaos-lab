@@ -1,4 +1,7 @@
 pre-commit:
+  scripts:
+    check-public-lock.py:
+      runner: uv run --no-project --no-config --offline --no-python-downloads
   commands:
     bicep-build:
       glob: "{infra/*.bicep,infra/**/*.bicep}"

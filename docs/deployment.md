@@ -2,6 +2,8 @@
 
 このドキュメントは、AKS Chaos Lab を構築・検証・削除するための手順をまとめます。設計判断の背景は [ADR 一覧](adr/INDEX.md)、既知のワークアラウンドと解消条件は [workarounds.md](workarounds.md) を参照してください。
 
+コマンド例はリポジトリのルートで実行します。`<env>` は対象の azd 環境名を表し、`<...>` で示した値は利用する環境の値に置き換えてください。`-e` を省略した azd コマンドは、`azd init` または `azd env select "<env>"` で選択した環境を使います。
+
 ## 前提ツール
 
 - Windows、macOS、または Linux
@@ -27,7 +29,7 @@ Azure Monitor SLI は Service Group に紐づくテナントレベル リソー�
 - 既定構成 (`enableAzureMonitorSli=true`): tenant root の Service Group 配下に環境別 Service Group を作成するため、tenant root Service Group 上で Service Group の作成 / 子リソース管理ができる権限が必要
 - 別の親 Service Group を使う場合: `AZURE_MONITOR_SLI_PARENT_SERVICE_GROUP_ID` / `azureMonitorSliParentServiceGroupId` で指定し、その親 Service Group 上で Service Group の作成 / 子リソース管理ができること
 - 既存の環境別 Service Group を再利用する場合: `AZURE_MONITOR_SLI_SERVICE_GROUP_RESOURCE_ID` / `azureMonitorSliServiceGroupResourceId` で指定し、その Service Group で SLI 作成 (`Microsoft.Monitor/slis/write`) ができること
-- `eval` 環境で SLI 作成が成功した実績のある最小構成は、環境別 Service Group に対する **Service Group Administrator** の直接付与
+- 環境別 Service Group で作成権限を付与する構成例は、デプロイ実行 identity に対する **Service Group Administrator** の直接付与
 
 Service Group RBAC の制約は [docs/workarounds.md §A-5](workarounds.md#a-5-環境別-service-group-への-service-group-administrator-直付与が必要) で棚卸ししています。
 
@@ -75,18 +77,20 @@ Azure Kubernetes Fleet Manager が更新管理を担います。
 - Control plane 用と NodeImage 用の autoUpgradeProfile が同じ承認ゲートを共有
 - Azure Monitor Scheduled Query Rule `fleet-approval-pending` が、Approval Gate が Pending の間アクション グループに通知
 
+base layer は AKS、Fleet module、Inspektor Gadget 拡張の順に作成します。Fleet module が失敗した場合、拡張の導入は開始しません。拡張追加時の依存の扱いと、この直列化の対象範囲は[ワークアラウンド D-13](workarounds.md#d-13-fleet-登録後に-aks-拡張を導入する)を参照してください。
+
 Approval Gate の承認例:
 
 ```bash
 az extension add --name fleet
 az fleet gate list \
-  --resource-group rg-aks-chaos-lab-dev \
-  --fleet-name fleet-aks-chaos-lab-dev \
+  --resource-group "<resource-group>" \
+  --fleet-name "<fleet-name>" \
   --state Pending
 az fleet gate approve \
-  --resource-group rg-aks-chaos-lab-dev \
-  --fleet-name fleet-aks-chaos-lab-dev \
-  --gate-name <gate-name>
+  --resource-group "<resource-group>" \
+  --fleet-name "<fleet-name>" \
+  --gate-name "<gate-name>"
 ```
 
 リソース名は `appName` と `environment` に応じて読み替えてください。
@@ -104,11 +108,12 @@ azd up
 
 1. `azd provision base` (`infra/main.bicep`) — VNet / AKS / Inspektor Gadget 拡張 / Redis / Application Insights / Managed Prometheus / external SLI publisher infra / Service Group / SLI 用 Managed Identity / RBAC を作成
 2. `azd deploy api-instrumentation` — chaos-app 固有の Application Insights OTLP `Instrumentation` を先に適用し、AKS App Monitoring webhook が参照できる状態にする
-3. `azd deploy api` — chaos-app をデプロイし、`postdeploy` hook で Pod に `OTEL_EXPORTER_OTLP_*` が注入されたことを確認
-4. `azd deploy observability` — Envoy Gateway などをデプロイ
-5. `azd deploy chaos-mesh` — Chaos Mesh を Helm install
-6. `azd deploy external-sli-publisher` — Flex Consumption の Azure Functions publisher をデプロイ
-7. `azd provision sli` (`infra/sli/main.bicep`) — layer `preprovision` hook で external SLI input metrics の出現を待ってから Azure Monitor SLI definitions と SLI metric alerts を作成
+3. `azd exec -- uv run --no-project scripts/tasks.py deploy-node-provisioning` — NAP 有効時だけ CRD の準備を待ち、既存の node-provisioning service を適用する。無効時はスキップする
+4. `azd deploy api` — chaos-app をデプロイし、`postdeploy` hook で Pod に `OTEL_EXPORTER_OTLP_*` が注入されたことを確認
+5. `azd deploy observability` — Envoy Gateway などをデプロイ
+6. `azd deploy chaos-mesh` — Chaos Mesh を Helm install
+7. `azd deploy external-sli-publisher` — Flex Consumption の Azure Functions publisher をデプロイ
+8. `azd provision sli` (`infra/sli/main.bicep`) — layer `preprovision` hook で external SLI input metrics の出現を待ってから Azure Monitor SLI definitions と SLI metric alerts を作成
 
 SLI layer は external SLI publisher が Managed Prometheus に good / total metrics を出した後に実行する必要があるため、`infra.layers` で `base` と `sli` を分離しています。この判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md) を参照してください。
 
@@ -131,14 +136,14 @@ azd provision base --preview
 azd provision sli --preview
 ```
 
-このプロジェクトは `azure.yaml` の `requiredVersions` で、今回 `eval` 環境を検証した azd 1.28.1 以上を要求します。古い azd ではプロジェクトを実行せず、azd を更新してください。
+このプロジェクトは `azure.yaml` の `requiredVersions` で azd 1.33.0 以上を要求します。古い azd ではプロジェクトを実行せず、azd を更新してください。
 
 リージョンや AKS node VM size を変更した直後に既存の azd 環境を再利用する場合、`azd env refresh` は過去の Azure deployment outputs から旧値を取り込むことがあります。`azd env refresh` の後、`azd down` や `azd up` の前に対象環境の値を明示してください。
 
 ```bash
-azd env refresh -e eval --no-prompt
-azd env set AZURE_LOCATION japaneast -e eval
-azd env set AZURE_AKS_NODE_VM_SIZE Standard_D4pds_v6 -e eval
+azd env refresh -e "<env>" --no-prompt
+azd env set AZURE_LOCATION "<location>" -e "<env>"
+azd env set AZURE_AKS_NODE_VM_SIZE "<vm-size>" -e "<env>"
 ```
 
 ### Node Auto Provisioning
@@ -148,9 +153,9 @@ Node Auto Provisioning（NAP）は既定で無効です。設計判断と採用�
 NAPを有効にする場合は、対象環境へ明示的に設定してからbase layerの差分を確認します。NAP有効時はSystem AgentPoolがArm64 2台固定となり、Cluster Autoscalerは無効になります。
 
 ```bash
-azd env refresh -e eval --no-prompt
-azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING true -e eval
-azd provision base --preview -e eval
+azd env refresh -e "<env>" --no-prompt
+azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING true -e "<env>"
+azd provision base --preview -e "<env>"
 ```
 
 既存環境のpreviewにAKS以外の意図しない変更、またはSystem AgentPoolの削除や置換が含まれる場合は、base layerを適用しません。Azure PolicyがsubnetへBicep管理外のNSGを関連付ける環境では、previewにNSG関連付けの削除が表示されます。対象NSGがポリシー管理であり、subnetの名前、address prefix、delegationに変更がないことを確認した場合は、期待されたdriftとして扱います。
@@ -158,8 +163,8 @@ azd provision base --preview -e eval
 既存AKSだけを移行するときは、System AgentPoolのCluster Autoscalerを無効化してから、AKSのnode provisioning profileだけを更新します。
 
 ```bash
-RESOURCE_GROUP="$(azd env get-value AZURE_RESOURCE_GROUP -e eval)"
-AKS_NAME="$(azd env get-value AZURE_AKS_CLUSTER_NAME -e eval)"
+RESOURCE_GROUP="$(azd env get-value AZURE_RESOURCE_GROUP -e "<env>")"
+AKS_NAME="$(azd env get-value AZURE_AKS_CLUSTER_NAME -e "<env>")"
 
 az aks nodepool update \
   --resource-group "$RESOURCE_GROUP" \
@@ -174,17 +179,13 @@ az aks update \
   --node-provisioning-default-pools None
 ```
 
-System AgentPoolが2台Readyで、既存workloadが健全であることを確認します。NAP resourceは既定の`azd up` workflowへ含めていません。AKS側にNAPのCRDが作成されたことを確認してから、User workload用のAKSNodeClassとNodePoolを明示的に適用します。
+System AgentPoolが2台Readyで、既存workloadが健全であることを確認します。通常の `azd up` は instrumentation の後に NAP の条件付き task を実行します。単独で適用する場合も、同じ task で CRD の作成と Established を待ってから、User workload 用の AKSNodeClass と NodePool を適用します。
 
 ```bash
-kubectl wait \
-  --for=condition=Established \
-  crd/nodepools.karpenter.sh \
-  crd/aksnodeclasses.karpenter.azure.com \
-  --timeout=10m
-
-azd deploy node-provisioning -e eval
+azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-node-provisioning
 ```
+
+環境を読み込めない場合や flag が不正な場合は停止します。読み込んだ `AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING` が未設定または false なら Kubernetes に接続せずスキップします。false に戻すだけでは既存の NodePool を削除しません。
 
 無効化するときは、次の順序で操作します。System AgentPoolは全工程で2台を維持します。
 
@@ -195,7 +196,7 @@ azd deploy node-provisioning -e eval
 5. `az aks nodepool update --enable-cluster-autoscaler --min-count 1 --max-count 3`でSystem AgentPoolのCluster Autoscalerを復元する。
 6. System AgentPool、既存workload、外部health endpointを確認する。
 7. `AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING`を`false`へ戻す。
-8. `azd provision base --preview -e eval`を実行し、NAPに関する差分が解消したことを確認する。ポリシー管理のNSG関連付けは期待されたdriftとして残る場合がある。
+8. `azd provision base --preview -e "<env>"`を実行し、NAPに関する差分が解消したことを確認する。ポリシー管理のNSG関連付けは期待されたdriftとして残る場合がある。
 
 ## ローカル開発
 
@@ -208,7 +209,9 @@ lefthook install
 uv run --no-project "${PWD}/scripts/tasks.py" run
 ```
 
-`lefthook install` は、コントリビュータ向けにこのリポジトリの Git hooks を登録します。ステージされた `infra/` 配下の Bicep ファイルがある場合、pre-commit は `infra/main.bicep` をビルドし、失敗したコミットを中止します。Lefthook のインストール方法は [公式手順](https://lefthook.dev/install/) を参照してください。
+`lefthook install` は、コントリビュータ向けにこのリポジトリの Git hooks を登録します。pre-commit は毎コミット、Git index 内の `uv.lock` とルート `pyproject.toml` を既存の public lock validator で検査します。作業ツリーとは独立してコミット対象を読み、非public source、必須ファイルの欠落、未解決の競合、解析不能の場合はコミットを中止します。public lock の検査では、依存の同期、ネットワーク接続、ファイルの修復や再ステージは行いません。実行には uv とインストール済みの Python 3.14 以降が必要です。
+
+ステージされた `infra/` 配下の Bicep ファイルがある場合は、従来どおり `infra/main.bicep` もビルドします。hook の未導入や `--no-verify` による省略に備え、CI の public lock 検査も維持します。Lefthook のインストール方法は [公式手順](https://lefthook.dev/install/) を参照してください。
 
 ### 組織承認済み package index を使う環境
 
@@ -226,6 +229,12 @@ post-edit hookは依存関係の整合性を判定しません。Python編集時
 
 `uv.lock`が同期中に変わった場合や同期が中断した場合、taskは対象コマンドを実行しません。同じコマンドを再実行してください。通常の同期へ戻す場合はuser-levelのapproved-index設定を無効にしてから`sync-dev`を実行します。
 
+明示的な `sync-dev-approved-index` と `package-api-approved-index` には、取得元だけが変わった lock の限定修復があります。Git HEAD の public lock と比較し、registry と artifact の URL 変更、および artifact の `size` / `upload-time` の消失だけなら、通知して HEAD の内容へ戻します。パッケージ、版、依存関係、marker、workspace source、artifact 数や hash、その他の値が異なる場合は保存したまま停止します。
+
+修復が必要な場合は、比較元の不在、lock の staged 変更、root/member の `pyproject.toml` の変更、競合、処理中の入力変更も停止理由です。対象 lock の絶対パス単位で修復を排他します。有効な public lock にはこの Git 条件を課しません。QA、lint、レビューに伴う暗黙同期と validator は修復しないため、取得元変更で停止した場合は明示的な同期 task を使ってください。依存や hash の変更を修復条件へ追加して回避しないでください。
+
+pre-commit で拒否された場合は、まずステージされた2ファイルの差分を確認してください。取得元だけの変更を限定修復する場合は、対象のステージを解除してから上記の明示 task を実行し、修復後の差分を確認して再ステージします。初回コミットや依存変更を含む場合は限定修復の対象外です。[public lockfile の更新](#public-lockfile-の更新)手順で用意した内容をステージしてください。通常のコミットで追加操作は不要です。
+
 task runnerを介さない `uv run` では、projectの自動同期を明示的に止めます。
 
 ```bash
@@ -242,16 +251,48 @@ PowerShellでは `$env:UV_NO_SYNC = "1"` を設定します。
 docker build -f src/api/Dockerfile -t aks-chaos-lab:local .
 ```
 
-組織承認済みpackage indexが必要な環境では、専用taskでAPI imageをbuildし、そのimageを`azd deploy --from-package`へ渡します。taskはuser-level `uv.toml`を検証し、BuildKit secretとしてbuildへ渡します。
+組織承認済み package index が必要な環境では、専用 task で API image を build し、その成果物を `azd deploy --from-package` へ渡します。task は user-level `uv.toml` を検証し、BuildKit secret として build へ渡します。公開コンテナレジストリと ACR には接続できることが前提です。Python package index の制限への対応であり、コンテナレジストリをミラーする処理は含みません。
+
+build が成功すると、ローカル image ID に対応する `aks-chaos-lab-approved:sha256-<image-id>` を出力します。deploy にはその参照を `--image` で必ず指定します。固定の `aks-chaos-lab:local` や最後に成功した build を暗黙に選びません。
+
+既存環境の API 更新では、次のコマンド例のように build 後に deploy を実行します。`<image-reference>` は build task が出力したイメージ参照全体に置き換えてください。対象環境の Instrumentation は構築済みであることが前提です。
 
 ```bash
-azd env select <environment>
 uv run --no-project "${PWD}/scripts/tasks.py" package-api-approved-index
-azd deploy api-instrumentation --no-prompt
-uv run --no-project "${PWD}/scripts/tasks.py" deploy-api-approved-index
+azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-api-approved-index \
+  --image "<image-reference>"
 ```
 
-通常の`azd package api`と`azd deploy api`はpublic PyPIを使用します。認証が必要なindexは専用taskの対象外です。`uv.lock`はpublic PyPIのURLを維持します。
+deploy はローカルの ID と Arm64 architecture を確認してから既存 azd に渡し、適用後に ACR の manifest/config と Deployment、稼働 Pod の対応を照合します。Pod 不在、未 Ready、不一致や判別不能な応答は成功にしません。同じ内容の成果物の再適用は許容しますが、将来の外部操作による tag の上書きまで防ぐ仕組みではありません。
+
+`--from-package` が省略するのは build です。API の deploy hook による Instrumentation の存在確認と Pod への OTel 設定注入の確認も自動実行されるため、確認スクリプトを別途実行する必要はありません。API の Kustomize に含まれる CiliumNetworkPolicy、ConfigMap なども再適用します。API 配下の宣言とデプロイ先のリソースの差分を確認し、意図しない変更があれば適用を停止してください。CiliumNetworkPolicy の DNS egress 許可先は CoreDNS です。異なる DNS 構成を使う場合は、適用前に許可先の整合を確認してください。
+
+初回構築のコマンド例を次に示します。ログイン、環境作成、権限と feature flag の準備後に実行してください。すべての `<env>` に同じ環境名を指定し、`<image-reference>` には先頭の build task が出力したイメージ参照全体を指定します。
+
+```bash
+uv run --no-project "${PWD}/scripts/tasks.py" package-api-approved-index
+azd provision base -e "<env>"
+azd deploy api-instrumentation -e "<env>"
+azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-node-provisioning
+azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-api-approved-index \
+  --image "<image-reference>"
+azd deploy observability -e "<env>"
+azd deploy chaos-mesh -e "<env>"
+azd deploy external-sli-publisher -e "<env>"
+azd provision sli -e "<env>"
+```
+
+通常の `azd up`、`azd package api`、`azd deploy api` は public PyPI で API を build し、事前ビルドを引き継ぎません。制限環境では上記手順を使い、`azure.yaml` の一時書換えや public PyPI への fallback は行いません。API 更新時に他サービスを再適用する必要はありません。Functions の remote build は従来どおり public PyPI を使います。認証が必要な index は専用 Docker build の対象外です。`uv.lock` は public PyPI の URL を維持します。
+
+### AKS の接続先と認証
+
+azd と Azure CLI は別々にログインします。hook と専用 task は対象 AKS の情報を Azure CLI で照会するため、その identity にも管理プレーンの読み取り権限が必要です。Kubernetes の認証と RBAC は別に成立させてください。`azd exec -e "<env>"` は環境値を渡すだけで、Kubernetes の context を準備するコマンドではありません。
+
+`KUBECONFIG` 未指定時は、hook と独自の稼働確認が処理専用の一時 kubeconfig を作り、対象 subscription、resource group、AKS を明示して user credentials を取得し、`azd` 認証へ変換します。実際の deploy は引き続き azd が標準の接続準備を行います。一時ファイルはその処理内だけで使い、終了時に削除します。先行 deploy や手元の既定 context に依存しません。azd 自体は共有の `~/.kube/config` を更新するため、既定設定の不変性は保証しません。
+
+専用 kubeconfig を使う場合は、準備済みの単一ファイルを絶対パスで `KUBECONFIG` に指定し、同じ値を azd と hook に渡します。hook は ARM の対象 AKS と API server の対応を検証し、credentials の再取得、認証方式の変換、context の書換えは行いません。不在、不正、対象不一致は停止理由です。相対パス、複数ファイルのマージ、proxy 経由の独自 endpoint は対象外です。必要な `kubelogin` の準備と、そのファイルに設定された認証方式でのログインは利用者が行ってください。
+
+readiness と OTel helper の `--timeout-seconds` は、環境解決から接続準備、待機、最後の照会までを含む全体上限です。rollout の個別上限は全体の残り時間を延長しません。期限切れや認証失敗では、その理由を確認し、別 context への切替えで成功を代用しないでください。
 
 ### public lockfile の更新
 

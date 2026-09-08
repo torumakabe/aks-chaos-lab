@@ -36,6 +36,14 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 # Keep sibling imports available when this script is loaded through importlib.
+from aks_connection import (  # noqa: E402
+    AKSConnectionError,
+    Deadline,
+    aks_connection,
+)
+from aks_connection import (  # noqa: E402
+    run_command as run_aks_command,
+)
 from approved_index_config import (  # noqa: E402
     UNSAFE_UV_ENVIRONMENT_VARIABLES,
     ApprovedIndexConfigError,
@@ -45,6 +53,7 @@ from approved_index_config import (  # noqa: E402
 )
 from public_lock import (  # noqa: E402
     PublicLockError,
+    public_lock_repair_content,
     validate_exported_requirements,
     validate_public_lock,
 )
@@ -151,7 +160,6 @@ LEFTHOOK_CHECKSUMS_URL_TEMPLATE = (
 LEFTHOOK_LINUX_ASSET_TEMPLATE = "lefthook_{version}_Linux_x86_64.gz"
 LEFTHOOK_NETWORK_TIMEOUT_SECONDS = 15
 APPROVED_INDEX_CACHE_DIRECTORY = Path(".uv-state") / "cache"
-API_LOCAL_IMAGE = "aks-chaos-lab:local"
 # Subjects of the scheduled freshness evaluators. Every one of them needs an
 # external lookup, so they belong to the scheduled workflow only; the offline
 # review layer never re-runs them.
@@ -270,7 +278,10 @@ def acquire_approved_index_lock() -> None:
     if _approved_index_lock_file is not None:
         return
 
-    lock_path = approved_index_lock_path()
+    _approved_index_lock_file = acquire_file_lock(approved_index_lock_path())
+
+
+def acquire_file_lock(lock_path: Path) -> BinaryIO:
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     lock_file = lock_path.open("a+b")
     lock_file.seek(0, os.SEEK_END)
@@ -291,7 +302,7 @@ def acquire_approved_index_lock() -> None:
         fcntl = importlib.import_module("fcntl").__dict__
         fcntl["flock"](lock_file.fileno(), fcntl["LOCK_EX"])
 
-    _approved_index_lock_file = lock_file
+    return lock_file
 
 
 def release_approved_index_lock() -> None:
@@ -309,6 +320,122 @@ def lock_sha256() -> str:
         for chunk in iter(lambda: lock_file.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def public_lock_repair_lock_path() -> Path:
+    path = os.path.normcase(str((ROOT / "uv.lock").resolve()))
+    key = hashlib.sha256(path.encode()).hexdigest()
+    return Path(tempfile.gettempdir()) / "aks-chaos-lab-uv-locks" / f"public-{key}.lock"
+
+
+def public_lock_git(*args: str) -> bytes:
+    result = subprocess.run(
+        resolve_command(["git", *args]),
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    if result.returncode:
+        raise PublicLockError(
+            "Cannot repair uv.lock: Git comparison is unavailable. File preserved."
+        )
+    return result.stdout
+
+
+def public_lock_repair_snapshot() -> tuple[str, bytes]:
+    head = public_lock_git("rev-parse", "--verify", "HEAD").decode().strip()
+    baseline = public_lock_git("show", f"{head}:uv.lock")
+    project_bytes = public_lock_git("show", f"{head}:pyproject.toml")
+    project = tomllib.loads(project_bytes.decode("utf-8"))
+    members = project["tool"]["uv"]["workspace"]["members"]
+    manifests = ["pyproject.toml"]
+    for member in members:
+        path = PurePosixPath(member)
+        if path.is_absolute() or ".." in path.parts or any(c in member for c in "*?["):
+            raise PublicLockError("Cannot repair uv.lock: unsupported workspace path.")
+        manifests.append(str(path / "pyproject.toml"))
+    paths = ["uv.lock", *manifests]
+    if public_lock_git("ls-files", "--unmerged", "--", *paths):
+        raise PublicLockError("Cannot repair uv.lock: lock or manifest has conflicts.")
+    if public_lock_git("diff", "--cached", "--name-only", head, "--", *paths):
+        raise PublicLockError("Cannot repair uv.lock: staged lock or manifest changes.")
+    if public_lock_git("diff", "--name-only", head, "--", *manifests):
+        raise PublicLockError("Cannot repair uv.lock: workspace manifests changed.")
+    for name in manifests:
+        if (ROOT / name).read_bytes() == public_lock_git("show", f"{head}:{name}"):
+            continue
+        if (
+            public_lock_git("hash-object", f"--path={name}", name).strip()
+            != public_lock_git("rev-parse", f"{head}:{name}").strip()
+        ):
+            raise PublicLockError("Cannot repair uv.lock: workspace manifests changed.")
+    return head, baseline
+
+
+def ensure_public_lock(*, allow_repair: bool = False) -> None:
+    lock_path = ROOT / "uv.lock"
+    project_path = ROOT / "pyproject.toml"
+    try:
+        try:
+            validate_public_lock(project_path, lock_path)
+            return
+        except PublicLockError, tomllib.TOMLDecodeError, UnicodeError:
+            if not allow_repair:
+                raise PublicLockError(
+                    "Invalid public uv.lock; file preserved. Run the explicit "
+                    "sync-dev-approved-index task for bounded recovery."
+                ) from None
+
+        # Always acquire after the venv lock, when that lock is needed.
+        with acquire_file_lock(public_lock_repair_lock_path()):
+            try:
+                validate_public_lock(project_path, lock_path)
+                return
+            except PublicLockError, tomllib.TOMLDecodeError, UnicodeError:
+                pass
+            if lock_path.is_symlink():
+                raise PublicLockError("Cannot repair a symlinked uv.lock.")
+            snapshot = public_lock_repair_snapshot()
+            current = lock_path.read_bytes()
+            recovered = public_lock_repair_content(project_path, snapshot[1], current)
+            if (
+                public_lock_repair_snapshot() != snapshot
+                or lock_path.read_bytes() != current
+            ):
+                raise PublicLockError("Cannot repair uv.lock: inputs changed.")
+            temporary_root = ROOT / "tmp"
+            temporary_root.mkdir(exist_ok=True)
+            fd, name = tempfile.mkstemp(prefix="public-lock-", dir=temporary_root)
+            temporary_path = Path(name)
+            try:
+                with os.fdopen(fd, "wb") as stream:
+                    stream.write(recovered)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                temporary_path.chmod(stat.S_IMODE(lock_path.stat().st_mode))
+                if (
+                    public_lock_repair_snapshot() != snapshot
+                    or lock_path.read_bytes() != current
+                ):
+                    raise PublicLockError("Cannot repair uv.lock: inputs changed.")
+                os.replace(temporary_path, lock_path)
+            finally:
+                temporary_path.unlink(missing_ok=True)
+            validate_public_lock(project_path, lock_path)
+            print_success(
+                "Restored public uv.lock from Git HEAD "
+                "(only index/artifact URLs and omitted artifact metadata differed)"
+            )
+    except (
+        OSError,
+        PublicLockError,
+        tomllib.TOMLDecodeError,
+        UnicodeError,
+        subprocess.TimeoutExpired,
+    ) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
 
 
 def approved_index_run_flags() -> list[str]:
@@ -505,7 +632,14 @@ def target_help() -> None:
     print('Usage: uv run --no-project "${PWD}/scripts/tasks.py" <target>')
     print()
     print("Targets:")
-    for name in sorted({*TARGETS, "review-fingerprint", "review-workspace"}):
+    for name in sorted(
+        {
+            *TARGETS,
+            "review-fingerprint",
+            "review-workspace",
+            "deploy-api-approved-index",
+        }
+    ):
         print(f"  {name}")
 
 
@@ -530,7 +664,7 @@ def target_sync_dev() -> None:
     print_success("Development dependencies synced")
 
 
-def target_sync_dev_approved_index() -> None:
+def target_sync_dev_approved_index(*, allow_lock_repair: bool = False) -> None:
     global _approved_index_environment_prepared
 
     _approved_index_environment_prepared = False
@@ -545,12 +679,8 @@ def target_sync_dev_approved_index() -> None:
         except ApprovedIndexConfigError as error:
             print(f"error: {error}", file=sys.stderr)
             raise SystemExit(1) from error
+        ensure_public_lock(allow_repair=allow_lock_repair)
         lock_digest = lock_sha256()
-        try:
-            validate_public_lock(ROOT / "pyproject.toml", ROOT / "uv.lock")
-        except (OSError, PublicLockError, tomllib.TOMLDecodeError) as error:
-            print(f"error: {error}", file=sys.stderr)
-            raise SystemExit(1) from error
         with tempfile.TemporaryDirectory(prefix="aks-chaos-lab-uv-") as temporary_dir:
             requirements = Path(temporary_dir) / "requirements.txt"
             run(
@@ -4752,51 +4882,143 @@ def target_build() -> None:
     print_success("Docker image built")
 
 
-def target_package_api_approved_index() -> None:
+def target_package_api_approved_index(*, allow_lock_repair: bool = False) -> None:
+    from api_artifact import ApiArtifactError, build_api_image
+
     print_step("Building the API image with the approved package index")
-    config_path = user_uv_config_path()
     try:
+        config_path = user_uv_config_path()
         validate_approved_index_config(config_path)
     except ApprovedIndexConfigError as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(1) from error
 
-    run(
-        [
-            "docker",
-            "build",
-            "--platform",
-            "linux/arm64",
-            "--build-arg",
-            "UV_INDEX_MODE=approved-index",
-            "--build-arg",
-            f"UV_INDEX_CONFIG_SHA256={config_sha256(config_path)}",
-            "--secret",
-            f"id=uv-config,src={config_path}",
-            "--file",
-            "src/api/Dockerfile",
-            "--tag",
-            API_LOCAL_IMAGE,
-            ".",
-        ],
-        cwd=ROOT,
+    ensure_public_lock(allow_repair=allow_lock_repair)
+    try:
+        image = build_api_image(ROOT, config_path, config_sha256(config_path))
+    except ApiArtifactError as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    print_success("API image built; pass this reference to deploy --image:")
+    print(image)
+
+
+def deployment_environment_name(deadline: Deadline) -> str:
+    name = os.environ.get("AZURE_ENV_NAME", "").strip()
+    if not name:
+        print(
+            "error: run this task through azd exec -e <environment>.", file=sys.stderr
+        )
+        raise SystemExit(1)
+    actual = run_aks_command(
+        ["azd", "env", "get-value", "AZURE_ENV_NAME", "-e", name],
+        deadline=deadline,
+        env=os.environ,
+        operation="resolve azd environment",
     )
-    print_success("API image built")
+    if actual != name:
+        print(
+            "error: azd environment does not match the task environment.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return name
 
 
-def target_deploy_api_approved_index() -> None:
+def node_provisioning_enabled() -> bool:
+    value = os.environ.get("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING")
+    if value is None or value.lower() == "false":
+        return False
+    if value.lower() == "true":
+        return True
+    print(
+        "error: AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING must be true or false.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+
+def target_deploy_api_approved_index(image: str) -> None:
+    from api_artifact import (
+        ApiArtifactError,
+        inspect_local_image,
+        inspect_published_image,
+        verify_running_api,
+    )
+
+    try:
+        local_id = inspect_local_image(image)
+        environment = deployment_environment_name(Deadline(30))
+    except (ApiArtifactError, AKSConnectionError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
     print_step("Deploying the prebuilt API image through azd")
     run(
         [
             "azd",
             "deploy",
             "api",
+            "-e",
+            environment,
             "--from-package",
-            API_LOCAL_IMAGE,
+            image,
             "--no-prompt",
         ],
     )
-    print_success("API deployed")
+    try:
+        deadline = Deadline(600)
+        remote_ref = run_aks_command(
+            ["azd", "env", "get-value", "SERVICE_API_IMAGE_NAME", "-e", environment],
+            deadline=deadline,
+            env=os.environ,
+            operation="read published API image",
+        )
+        published = inspect_published_image(local_id, remote_ref, deadline=deadline)
+        with aks_connection(deadline=deadline) as connection:
+            connection.rollout("chaos-app", "chaos-lab", 600)
+            deployment = connection.json_resource(
+                ["get", "deployment", "chaos-app", "-n", "chaos-lab"]
+            )
+            replicasets = connection.json_resource(
+                ["get", "replicasets", "-n", "chaos-lab", "-l", "app=chaos-app"]
+            )
+            pods = connection.json_resource(
+                ["get", "pods", "-n", "chaos-lab", "-l", "app=chaos-app"]
+            )
+            verify_running_api(published, deployment, pods, replicasets)
+            deadline.remaining()
+    except (ApiArtifactError, AKSConnectionError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    print_success(f"API is running the supplied image: {remote_ref}")
+
+
+def target_deploy_node_provisioning() -> None:
+    try:
+        deadline = Deadline(600)
+        environment = deployment_environment_name(deadline)
+        if not node_provisioning_enabled():
+            print_step("Skipping node-provisioning: NAP is disabled")
+            return
+        with aks_connection(deadline=deadline) as connection:
+            for crd in (
+                "nodepools.karpenter.sh",
+                "aksnodeclasses.karpenter.azure.com",
+            ):
+                for condition in ("create", "condition=Established"):
+                    connection.kubectl(
+                        [
+                            "wait",
+                            f"--for={condition}",
+                            f"crd/{crd}",
+                            f"--timeout={deadline.remaining():.3f}s",
+                        ]
+                    )
+        run(["azd", "deploy", "node-provisioning", "-e", environment, "--no-prompt"])
+    except AKSConnectionError as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    print_success("Node provisioning declarations deployed")
 
 
 def target_run() -> None:
@@ -4962,7 +5184,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "check-version-pins": target_check_version_pins,
     "clean": target_clean,
     "compile-aw": target_compile_aw,
-    "deploy-api-approved-index": target_deploy_api_approved_index,
+    "deploy-node-provisioning": target_deploy_node_provisioning,
     "format": target_format,
     "format-check": target_format_check,
     "freshness-checks": target_freshness_checks,
@@ -5011,6 +5233,20 @@ def main(argv: Sequence[str]) -> int:
         return 0
 
     target = argv[0]
+    if target in {"sync-dev-approved-index", "package-api-approved-index"}:
+        parser = argparse.ArgumentParser(prog=f"tasks.py {target}")
+        parser.parse_args(argv[1:])
+        if target == "sync-dev-approved-index":
+            target_sync_dev_approved_index(allow_lock_repair=True)
+        else:
+            target_package_api_approved_index(allow_lock_repair=True)
+        return 0
+    if target == "deploy-api-approved-index":
+        parser = argparse.ArgumentParser(prog=f"tasks.py {target}")
+        parser.add_argument("--image", required=True)
+        args = parser.parse_args(argv[1:])
+        target_deploy_api_approved_index(args.image)
+        return 0
     if target == "load" and len(argv) > 1:
         run_load_profile(argv[1])
         return 0

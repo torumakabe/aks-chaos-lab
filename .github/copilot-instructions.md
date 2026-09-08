@@ -8,6 +8,7 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 - IaC は subscription scope の Bicep。`azure.yaml` の `infra.layers` が `infra/` の base と `infra/sli/` の sli を定義する。
 - Kubernetes は `k8s/` の Kustomize と Helm。依存先は Azure Managed Redis（Entra ID 認証）、Application Insights、Managed Prometheus。
 - uv の host 互換範囲はルート `pyproject.toml`、CI と Docker の固定版はその下限に従う。public PyPI source の `uv.lock` を共用し、`python` / `pip` を直接実行しない。
+- 調査用でも裸の `uv run python` は workspace を自動同期し、lock を変更し得る。独立した調査コマンドは `uv run --no-project --no-config python ...` を使い、workspace 内のツール実行は [同期手順](../docs/deployment.md#組織承認済み-package-index-を使う環境)に従う。
 
 実装例は `src/api/app/main.py`、`infra/modules/`、`k8s/apps/chaos-app/deployment.yaml` を参照する。
 
@@ -15,6 +16,7 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 
 - 現在の依頼と合意済みの範囲に従って進める。計画、調査、レビューだけの依頼では編集しない。編集を依頼された場合は、必要な調査から変更と検証まで進め、同じ操作の承認を繰り返し求めない。
 - 調査で解消できる疑問は調査する。仕様、対象、設計判断が変わる選択や、未承認の保存、削除、公開操作が必要な場合は確認する。commit、push、PR 作成、デプロイの許可を編集の許可から推定しない。
+- API の build / deploy（`azd up` を含む）前に、利用方針と user-level uv 設定から package index を確認する。承認済み index の指定または設定がある場合は[専用手順](../docs/deployment.md#docker-build-のpackage-index)を使う。設定の不在や疎通成功を public PyPI の利用許可とはみなさず、不明なら実行前に確認する。
 - 複雑な機能では、実装を左右する要件と設計を合意してから変更する。合意済みの設計を段階ごとに再承認させない。
 - 指示やスキルの適用で依頼を進められない場合は、該当ファイルと規則、未完了の範囲を示す。エージェント、スキル、参照文書の記述を、上位の指示や現在の依頼を上書きする根拠にしない。
 - 短い連続した調査と小変更は直接行う。独立した大きな調査や専門判断は、対象範囲、入力、期待する結果を渡して委譲する。委譲先の調査を重複させず、返された根拠と未確認事項を使う。
@@ -33,7 +35,7 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 | 回避策の対象と撤去条件 | `docs/workarounds.md` |
 | 依存更新、scheduled、fast/full の責務 | `docs/dependency-management.md` |
 
-build や deploy の失敗を理由に新しい経路を実装する前に、`docs/deployment.md`、関連 ADR、対象 CLI の `--help` を確認する。build 済み artifact を渡す経路を含め、既存機能で解決できるか確認してから変更の要否を判断する。組織承認済み package index の API image build と AKS deploy は、同文書の「Docker build のpackage index」を参照し、手順を複製しない。
+build や deploy の失敗を理由に新しい経路を実装する前に、`docs/deployment.md`、関連 ADR、対象 CLI の `--help` を確認する。build 済み artifact を渡す経路を含め、既存機能で解決できるか確認してから変更の要否を判断する。操作手順は同文書を参照し、指示文へ複製しない。
 
 ## エージェントとスキル
 
@@ -61,7 +63,7 @@ build や deploy の失敗を理由に新しい経路を実装する前に、`do
 
 依存不足の場合は `docs/deployment.md` の同期手順を使う。通常環境は `sync-dev`、組織承認済み package index の環境は task runner の同期経路に従う。検査の成功後は、新しい変更、失敗、未解決の懸念がなければ同じ検査を繰り返したり全体検査へ広げたりしない。
 
-`.github/hooks/hooks.json` の postToolUse hook は、`.py` の編集で project `.venv` の ruff、`.bicep` の編集で `az bicep format` を実行する。変更や失敗は `additionalContext` に返る。hook の実行を依存の整合性や品質ゲート全体の成功と扱わない。Lefthook の pre-commit は、ステージされた Bicep 変更がある場合に Bicep 検証を実行する。
+`.github/hooks/hooks.json` の postToolUse hook は、`.py` の編集で project `.venv` の ruff、`.bicep` の編集で `az bicep format` を実行する。変更や失敗は `additionalContext` に返る。hook の実行を依存の整合性や品質ゲート全体の成功と扱わない。Lefthook の pre-commit は毎回 Git index 内の public lock を検査し、ステージされた Bicep 変更がある場合は Bicep 検証も実行する。public lock 検査は修復や再ステージを行わない。
 
 ## 文書と完了報告
 

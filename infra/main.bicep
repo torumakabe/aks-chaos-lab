@@ -416,6 +416,10 @@ module aksCluster './modules/aks.bicep' = {
 module inspektorGadget './modules/inspektor-gadget.bicep' = {
   name: 'inspektorGadget'
   scope: resourceGroup
+  // Start extensions after the Fleet module completes (docs/workarounds.md D-13).
+  dependsOn: [
+    fleetManager
+  ]
   params: {
     aksClusterName: aksCluster.outputs.aksNameOut
   }

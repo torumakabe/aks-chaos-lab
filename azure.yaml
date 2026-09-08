@@ -23,6 +23,15 @@ workflows:
     steps:
       - azd: provision base
       - azd: deploy api-instrumentation
+      - azd:
+          args:
+            - exec
+            - --
+            - uv
+            - run
+            - --no-project
+            - scripts/tasks.py
+            - deploy-node-provisioning
       - azd: deploy api
       - azd: deploy observability
       - azd: deploy chaos-mesh

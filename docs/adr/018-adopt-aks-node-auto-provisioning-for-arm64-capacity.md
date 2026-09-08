@@ -5,6 +5,7 @@
 Accepted
 
 - Date: 2026-08-21
+- Amended: 2026-09-08（既存 workflow への条件付き適用）
 
 ## Context
 
@@ -13,6 +14,8 @@ Japan Eastで特定のVM SKUを割り当てられない場合にも、Arm64の`c
 AKS Standardでは、NAPを有効にしても従来型のSystem AgentPoolが必要である。NAPはSystem workload用ノードも作成できるが、System AgentPoolそのものを置き換えられない。このため、NAPだけではAKS全体の割り当て耐性を確保できない。
 
 一方、NAPは`Standard_D4pds_v5`と`Standard_D4pds_v6`を別々のNodeClaimとして作成できる。両SKUはEphemeral OS Diskのplacementが異なるため、単一のVirtual Machines multi-SKU AgentPoolには混在できない。
+
+NAP の適用を通常の構築経路へ含める際も、既定無効と既存サービスの実行順序を維持する。全体の実行方式を置き換えず、小さな条件付き task で適用の有無を明示する。
 
 ## Decision
 
@@ -23,6 +26,8 @@ AKS Standardでは、NAPを有効にしても従来型のSystem AgentPoolが必�
 5. SKUの選択順序、`AllocationFailed`後の別SKUへの再試行、zoneの切り替え順序は保証事項として扱わない。
 6. 初期導入時のNodePool resource limitは8 vCPUとする。候補SKUはいずれも4 vCPUのため、通常は2台分に相当する。ただし、Karpenterのlimit判定はeventual consistencyであり、急なscale-outでは一時的に上限を超える可能性があるため、厳密なノード数上限として扱わない。
 7. consolidationは空ノードだけを対象とし、node expirationは無効にする。voluntary disruptionは同時1台までに制限する。
+8. `azd up` には `api-instrumentation` の後、`api` の前に、`azd exec` 経由の小さな NAP 条件付き task だけを追加する。他サービスの順序、並行性、対象と既存 NodePool 宣言は維持する。
+9. task は対象の azd 環境を解決したうえで、`AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING` が未設定または false なら Kubernetes 操作と deploy を行わずスキップする。true の場合だけ対象 cluster の CRD の作成と Established を有限時間待ち、既存の `node-provisioning` service のみを適用する。環境未解決、不正な flag、待機失敗、適用失敗では後続へ進めない。false への変更で既存 NodePool 等を自動削除しない。認証実装の詳細と無効化を含む操作手順は [デプロイ文書](../deployment.md) に委ねる。
 
 ## Consequences
 

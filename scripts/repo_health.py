@@ -1155,6 +1155,10 @@ def classify_file_coverage(
             "test-hooks",
             "hook contract tests validate the Lefthook configuration",
         ),
+        ".lefthook/pre-commit/check-public-lock.py": (
+            "test-hooks",
+            "Lefthook integration tests execute the staged public lock validator",
+        ),
     }
     explicit_excluded = {
         ".dockerignore": "container build exclusion patterns are data, not a freshness coordinate",

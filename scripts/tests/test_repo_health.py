@@ -968,6 +968,25 @@ def test_file_coverage_has_explicit_categories() -> None:
     }
 
 
+def test_public_lock_hook_coverage_requires_an_assigned_check() -> None:
+    hook_path = ".lefthook/pre-commit/check-public-lock.py"
+    unassigned_path = ".lefthook/pre-commit/unassigned.py"
+
+    coverage = repo_health.classify_file_coverage([hook_path, unassigned_path], set())
+
+    assert coverage["covered_by_other_check"] == [
+        {
+            "path": hook_path,
+            "owner": "test-hooks",
+            "reason": (
+                "Lefthook integration tests execute the staged public lock validator"
+            ),
+        }
+    ]
+    assert coverage["intentionally_excluded"] == []
+    assert [entry["path"] for entry in coverage["true_gap"]] == [unassigned_path]
+
+
 def test_deleted_tracked_file_is_excluded_from_current_worktree_inventory(
     repository: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
