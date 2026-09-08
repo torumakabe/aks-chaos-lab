@@ -6,123 +6,59 @@
 from __future__ import annotations
 
 import argparse
-import os
-import shutil
-import subprocess
 import sys
-import time
 from collections.abc import Sequence
+
+from aks_connection import AKSConnection, AKSConnectionError, aks_connection
 
 DEFAULT_NAMESPACE = "chaos-lab"
 DEFAULT_TIMEOUT_SECONDS = 600
 DEFAULT_POLL_SECONDS = 10
 
 
-def resolve_command(args: Sequence[str]) -> list[str]:
-    resolved_args = list(args)
-    executable = shutil.which(resolved_args[0])
-    if executable:
-        resolved_args[0] = executable
-    return resolved_args
-
-
-def run_command(args: Sequence[str], *, allow_failure: bool = False) -> str:
-    completed = subprocess.run(
-        resolve_command(args),
-        capture_output=True,
-        check=False,
-        text=True,
-    )
-    if completed.returncode != 0 and not allow_failure:
-        if completed.stderr:
-            print(completed.stderr, file=sys.stderr, end="")
-        raise SystemExit(completed.returncode)
-    if completed.returncode != 0:
-        return ""
-    return completed.stdout.strip()
-
-
-def require_command(command: str) -> None:
-    if shutil.which(command) is None:
-        print(f"error: {command} is required", file=sys.stderr)
-        raise SystemExit(1)
-
-
-def get_env_value(name: str) -> str:
-    value = os.environ.get(name, "")
-    if value:
-        return value
-    if shutil.which("azd") is None:
-        return ""
-    return run_command(
-        ["azd", "env", "get-value", name],
-        allow_failure=True,
-    )
-
-
-def refresh_kubeconfig(resource_group: str, cluster_name: str) -> None:
-    if not resource_group or not cluster_name:
-        return
-    run_command(
-        [
-            "az",
-            "aks",
-            "get-credentials",
-            "--resource-group",
-            resource_group,
-            "--name",
-            cluster_name,
-            "--overwrite-existing",
-            "--only-show-errors",
-        ]
-    )
-
-
-def kubectl(args: Sequence[str]) -> str:
-    return run_command(["kubectl", *args], allow_failure=True)
-
-
-def can_i(verb: str, resource: str, namespace: str) -> bool:
-    output = kubectl(["auth", "can-i", verb, resource, "-n", namespace])
-    return output.strip().lower() == "yes"
-
-
-def readiness_failures(namespace: str) -> list[str]:
+def readiness_failures(connection: AKSConnection, namespace: str) -> list[str]:
     failures: list[str] = []
-    if not kubectl(["get", "namespace", "default", "-o", "name"]):
-        failures.append("Kubernetes API")
-    required_permissions = (
+    checks = (
         ("get", "poddisruptionbudgets.policy"),
         ("create", "deployments.apps"),
         ("patch", "deployments.apps"),
         ("get", "services"),
     )
-    for verb, resource in required_permissions:
-        if not can_i(verb, resource, namespace):
-            failures.append(f"Azure RBAC {verb} {resource} in namespace {namespace}")
+    if not connection.probe(["get", "namespace", "default", "-o", "name"]):
+        failures.append("Kubernetes API: default namespace not found")
+    for verb, resource in checks:
+        output = connection.kubectl(["auth", "can-i", verb, resource, "-n", namespace])
+        if output.lower() == "no":
+            failures.append(
+                f"authorization: {verb} {resource} in namespace {namespace}"
+            )
+        elif output.lower() != "yes":
+            raise AKSConnectionError(
+                "kubectl auth can-i returned an unexpected response"
+            )
     return failures
 
 
-def wait_until_ready(args: argparse.Namespace) -> None:
-    deadline = time.monotonic() + args.timeout_seconds
-    last_failures: list[str] = []
-    while time.monotonic() < deadline:
-        last_failures = readiness_failures(args.namespace)
-        if not last_failures:
+def wait_until_ready(args: argparse.Namespace, connection: AKSConnection) -> None:
+    while True:
+        connection.deadline.remaining()
+        try:
+            failures = readiness_failures(connection, args.namespace)
+        except AKSConnectionError as error:
+            if error.category not in {"authorization", "connection"}:
+                raise
+            failures = [str(error)]
+        if not failures:
+            connection.deadline.remaining()
             print("ok: AKS Kubernetes API and Azure RBAC are ready")
             return
+        connection.deadline.last_failure = ", ".join(failures)
         print(
-            "waiting for AKS readiness: " + ", ".join(last_failures),
+            "waiting for AKS readiness: " + connection.deadline.last_failure,
             file=sys.stderr,
             flush=True,
         )
-        time.sleep(args.poll_seconds)
-
-    print(
-        "error: AKS did not become ready before timeout: " + ", ".join(last_failures),
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
+        connection.deadline.sleep(args.poll_seconds)
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -130,21 +66,27 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         description="Wait for AKS Kubernetes API and Azure RBAC readiness before applying manifests.",
     )
     parser.add_argument("--namespace", default=DEFAULT_NAMESPACE)
-    parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS)
+    parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help="Overall deadline including environment and connection preparation.",
+    )
     parser.add_argument("--poll-seconds", type=int, default=DEFAULT_POLL_SECONDS)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.timeout_seconds <= 0 or args.poll_seconds <= 0:
+        parser.error("timeout-seconds and poll-seconds must be positive")
+    return args
 
 
 def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
-    require_command("az")
-    require_command("azd")
-    require_command("kubectl")
-    refresh_kubeconfig(
-        get_env_value("AZURE_RESOURCE_GROUP"),
-        get_env_value("AZURE_AKS_CLUSTER_NAME"),
-    )
-    wait_until_ready(args)
+    try:
+        with aks_connection(args.timeout_seconds) as connection:
+            wait_until_ready(args, connection)
+    except AKSConnectionError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     return 0
 
 

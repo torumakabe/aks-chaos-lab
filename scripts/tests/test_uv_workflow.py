@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -237,7 +241,7 @@ def test_child_environment_removes_unsafe_uv_overrides_and_credentials(
     assert review_environment[tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE] == "1"
 
 
-def test_package_api_approved_index_uses_buildkit_secret(
+def test_package_api_approved_index_delegates_validated_build(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     config_path = tmp_path / "uv.toml"
@@ -245,43 +249,312 @@ def test_package_api_approved_index_uses_buildkit_secret(
         config_path, "https://packagefeedproxy.microsoft.io/pypi/simple"
     )
     monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
-    commands: list[list[str]] = []
+    import api_artifact
+
+    calls: list[tuple[Path, Path, str]] = []
+    repairs: list[bool] = []
     monkeypatch.setattr(
         tasks,
-        "run",
-        lambda command, **_kwargs: commands.append(command),
+        "ensure_public_lock",
+        lambda *, allow_repair: repairs.append(allow_repair),
     )
+    reference = "aks-chaos-lab-approved:sha256-" + "a" * 64
 
-    tasks.target_package_api_approved_index()
+    def build(root: Path, config: Path, digest: str) -> str:
+        calls.append((root, config, digest))
+        return reference
 
-    command = commands[0]
-    assert command[:3] == ["docker", "build", "--platform"]
-    assert f"id=uv-config,src={config_path}" in command
-    assert "UV_INDEX_MODE=approved-index" in command
-    assert tasks.API_LOCAL_IMAGE in command
+    monkeypatch.setattr(api_artifact, "build_api_image", build)
+    tasks.main(["package-api-approved-index"])
+    assert calls == [
+        (tasks.ROOT, config_path, approved_config.config_sha256(config_path))
+    ]
+    assert repairs == [True]
 
 
-def test_deploy_api_approved_index_uses_prebuilt_image(
+def test_deploy_api_approved_index_cli_requires_explicit_image() -> None:
+    with pytest.raises(SystemExit) as raised:
+        tasks.main(["deploy-api-approved-index"])
+    assert raised.value.code == 2
+
+
+def test_deploy_api_approved_index_cli_passes_explicit_image(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    commands: list[list[str]] = []
+    images: list[str] = []
     monkeypatch.setattr(
         tasks,
-        "run",
-        lambda command, **_kwargs: commands.append(command),
+        "target_deploy_api_approved_index",
+        images.append,
     )
+    reference = "aks-chaos-lab-approved:sha256-" + "a" * 64
+    tasks.main(["deploy-api-approved-index", "--image", reference])
+    assert images == [reference]
 
-    tasks.target_deploy_api_approved_index()
 
+@pytest.mark.parametrize("kubeconfig", [None, "", "/prepared/cluster.kubeconfig"])
+def test_deploy_api_uses_fresh_published_image_and_checks_running_artifact(
+    monkeypatch: pytest.MonkeyPatch, kubeconfig: str | None
+) -> None:
+    import api_artifact
+
+    if kubeconfig is None:
+        monkeypatch.delenv("KUBECONFIG", raising=False)
+    else:
+        monkeypatch.setenv("KUBECONFIG", kubeconfig)
+    monkeypatch.setenv("AZURE_ENV_NAME", "eval")
+    monkeypatch.setenv("SERVICE_API_IMAGE_NAME", "old.example.test/api:old")
+    calls: list[str] = []
+    commands: list[list[str]] = []
+    local = "sha256:" + "a" * 64
+    remote = "registry.example.test/api:new"
+    published = api_artifact.PublishedApiImage(remote, local, "sha256:" + "b" * 64)
+    budgets: list[object] = []
+
+    def output(command: list[str], **kwargs: Any) -> str:
+        assert command[-2:] == ["-e", "eval"]
+        calls.append(command[3])
+        if command[3] == "SERVICE_API_IMAGE_NAME":
+            budgets.append(kwargs["deadline"])
+            return remote
+        return "eval"
+
+    def inspect(
+        image_id: str, reference: str, *, deadline: object
+    ) -> api_artifact.PublishedApiImage:
+        assert deadline is budgets[0]
+        assert (image_id, reference) == (local, remote)
+        calls.append("registry")
+        return published
+
+    class Connection:
+        def rollout(self, *args: object) -> None:
+            assert args == ("chaos-app", "chaos-lab", 600)
+            calls.append("rollout")
+
+        def json_resource(self, args: list[str]) -> dict[str, str]:
+            calls.append(args[1])
+            assert args[args.index("-n") : args.index("-n") + 2] == ["-n", "chaos-lab"]
+            return {"kind": args[1]}
+
+    @contextmanager
+    def connection(**kwargs: Any) -> Iterator[Connection]:
+        assert kwargs["deadline"] is budgets[0]
+        calls.append("connect")
+        yield Connection()
+
+    def deploy(command: list[str]) -> None:
+        assert os.environ.get("KUBECONFIG") == kubeconfig
+        commands.append(command)
+        calls.append("deploy")
+
+    def verify(
+        image: api_artifact.PublishedApiImage, *resources: dict[str, str]
+    ) -> None:
+        assert image is published
+        assert resources == (
+            {"kind": "deployment"},
+            {"kind": "pods"},
+            {"kind": "replicasets"},
+        )
+        calls.append("verify")
+
+    monkeypatch.setattr(api_artifact, "inspect_local_image", lambda _: local)
+    monkeypatch.setattr(api_artifact, "inspect_published_image", inspect)
+    monkeypatch.setattr(api_artifact, "verify_running_api", verify)
+    monkeypatch.setattr(tasks, "run_aks_command", output)
+    monkeypatch.setattr(tasks, "aks_connection", connection)
+    monkeypatch.setattr(tasks, "run", deploy)
+    tasks.target_deploy_api_approved_index("explicit-image")
     assert commands == [
         [
             "azd",
             "deploy",
             "api",
+            "-e",
+            "eval",
             "--from-package",
-            tasks.API_LOCAL_IMAGE,
+            "explicit-image",
             "--no-prompt",
         ]
+    ]
+    assert calls == [
+        "AZURE_ENV_NAME",
+        "deploy",
+        "SERVICE_API_IMAGE_NAME",
+        "registry",
+        "connect",
+        "rollout",
+        "deployment",
+        "replicasets",
+        "pods",
+        "verify",
+    ]
+
+
+@pytest.mark.parametrize("stage", ["local", "deploy", "published"])
+def test_api_deploy_stops_on_artifact_or_deployment_failure(
+    monkeypatch: pytest.MonkeyPatch, stage: str
+) -> None:
+    import api_artifact
+
+    calls: list[str] = []
+    monkeypatch.setattr(tasks, "deployment_environment_name", lambda _: "eval")
+
+    def local(_: str) -> str:
+        if stage == "local":
+            raise api_artifact.ApiArtifactError("missing local image")
+        return "sha256:" + "a" * 64
+
+    def deploy(_: list[str]) -> None:
+        calls.append("deploy")
+        if stage == "deploy":
+            raise SystemExit(3)
+
+    def published(*_args: object, **_kwargs: object) -> None:
+        calls.append("published")
+        raise api_artifact.ApiArtifactError("published digest mismatch")
+
+    monkeypatch.setattr(api_artifact, "inspect_local_image", local)
+    monkeypatch.setattr(api_artifact, "inspect_published_image", published)
+    monkeypatch.setattr(tasks, "run", deploy)
+    monkeypatch.setattr(tasks, "run_aks_command", lambda *_args, **_kwargs: "remote")
+    monkeypatch.setattr(
+        tasks, "aks_connection", lambda **_: pytest.fail("unexpected AKS")
+    )
+    with pytest.raises(SystemExit):
+        tasks.target_deploy_api_approved_index("explicit-image")
+    assert (
+        calls
+        == {
+            "local": [],
+            "deploy": ["deploy"],
+            "published": ["deploy", "published"],
+        }[stage]
+    )
+
+
+@pytest.mark.parametrize("flag", [None, "false", "FALSE", "", "invalid", "1"])
+def test_nap_disabled_or_invalid_never_connects(
+    monkeypatch: pytest.MonkeyPatch, flag: str | None
+) -> None:
+    monkeypatch.setattr(tasks, "deployment_environment_name", lambda _: "eval")
+    if flag is None:
+        monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
+    else:
+        monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", flag)
+    monkeypatch.setattr(
+        tasks, "aks_connection", lambda **_: pytest.fail("unexpected AKS")
+    )
+    monkeypatch.setattr(tasks, "run", lambda _: pytest.fail("unexpected deploy"))
+    if flag in (None, "false", "FALSE"):
+        tasks.target_deploy_node_provisioning()
+    else:
+        with pytest.raises(SystemExit):
+            tasks.target_deploy_node_provisioning()
+
+
+@pytest.mark.parametrize("fail_wait", [False, True])
+@pytest.mark.parametrize("kubeconfig", [None, "/prepared/cluster.kubeconfig"])
+def test_nap_waits_then_deploys_only_its_service(
+    monkeypatch: pytest.MonkeyPatch, fail_wait: bool, kubeconfig: str | None
+) -> None:
+    monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", "true")
+    if kubeconfig is None:
+        monkeypatch.delenv("KUBECONFIG", raising=False)
+    else:
+        monkeypatch.setenv("KUBECONFIG", kubeconfig)
+    calls: list[list[str]] = []
+    budgets: list[object] = []
+
+    def environment(deadline: object) -> str:
+        budgets.append(deadline)
+        return "eval"
+
+    class Connection:
+        def kubectl(self, args: list[str]) -> str:
+            calls.append(args[:-1])
+            assert args[-1].startswith("--timeout=")
+            if fail_wait:
+                raise tasks.AKSConnectionError("CRD wait failed")
+            return "condition met"
+
+    @contextmanager
+    def connection(**kwargs: Any) -> Iterator[Connection]:
+        assert kwargs["deadline"] is budgets[0]
+        yield Connection()
+        calls.append(["cleanup"])
+
+    def deploy(command: list[str]) -> None:
+        assert os.environ.get("KUBECONFIG") == kubeconfig
+        assert calls[-1] == ["cleanup"]
+        calls.append(command)
+
+    monkeypatch.setattr(tasks, "deployment_environment_name", environment)
+    monkeypatch.setattr(tasks, "aks_connection", connection)
+    monkeypatch.setattr(tasks, "run", deploy)
+    if fail_wait:
+        with pytest.raises(SystemExit):
+            tasks.target_deploy_node_provisioning()
+        assert len(calls) == 1
+    else:
+        tasks.target_deploy_node_provisioning()
+        assert calls == [
+            ["wait", "--for=create", "crd/nodepools.karpenter.sh"],
+            ["wait", "--for=condition=Established", "crd/nodepools.karpenter.sh"],
+            ["wait", "--for=create", "crd/aksnodeclasses.karpenter.azure.com"],
+            [
+                "wait",
+                "--for=condition=Established",
+                "crd/aksnodeclasses.karpenter.azure.com",
+            ],
+            ["cleanup"],
+            ["azd", "deploy", "node-provisioning", "-e", "eval", "--no-prompt"],
+        ]
+
+
+@pytest.mark.parametrize("name,actual", [(None, ""), ("eval", ""), ("eval", "another")])
+def test_nap_requires_resolved_environment_even_when_disabled(
+    monkeypatch: pytest.MonkeyPatch, name: str | None, actual: str
+) -> None:
+    if name is None:
+        monkeypatch.delenv("AZURE_ENV_NAME", raising=False)
+    else:
+        monkeypatch.setenv("AZURE_ENV_NAME", name)
+    monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
+    monkeypatch.setattr(tasks, "run_aks_command", lambda *_args, **_kwargs: actual)
+    monkeypatch.setattr(
+        tasks, "aks_connection", lambda **_: pytest.fail("unexpected AKS")
+    )
+    with pytest.raises(SystemExit):
+        tasks.target_deploy_node_provisioning()
+
+
+def test_up_preserves_sequential_services_with_one_nap_step() -> None:
+    import yaml
+
+    config = yaml.safe_load((REPO_ROOT / "azure.yaml").read_text(encoding="utf-8"))
+    assert config["workflows"]["up"]["steps"] == [
+        {"azd": "provision base"},
+        {"azd": "deploy api-instrumentation"},
+        {
+            "azd": {
+                "args": [
+                    "exec",
+                    "--",
+                    "uv",
+                    "run",
+                    "--no-project",
+                    "scripts/tasks.py",
+                    "deploy-node-provisioning",
+                ]
+            }
+        },
+        {"azd": "deploy api"},
+        {"azd": "deploy observability"},
+        {"azd": "deploy chaos-mesh"},
+        {"azd": "deploy external-sli-publisher"},
+        {"azd": "provision sli"},
     ]
 
 

@@ -6,13 +6,11 @@
 from __future__ import annotations
 
 import argparse
-import json
-import shutil
-import subprocess
 import sys
-import time
 from collections.abc import Sequence
 from typing import Any
+
+from aks_connection import AKSConnection, AKSConnectionError, aks_connection
 
 DEFAULT_NAMESPACE = "chaos-lab"
 DEFAULT_DEPLOYMENT = "chaos-app"
@@ -29,30 +27,7 @@ REQUIRED_OTEL_ENV = (
 )
 
 
-def kubectl(args: Sequence[str], *, allow_failure: bool = False) -> str:
-    executable = shutil.which("kubectl")
-    if executable is None:
-        print("error: kubectl not found", file=sys.stderr)
-        raise SystemExit(1)
-    completed = subprocess.run(
-        [executable, *args],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if completed.returncode != 0 and not allow_failure:
-        if completed.stderr:
-            print(completed.stderr, file=sys.stderr, end="")
-        raise SystemExit(completed.returncode)
-    return completed.stdout.strip()
-
-
-def resource_exists(args: Sequence[str]) -> bool:
-    return bool(kubectl(args, allow_failure=True))
-
-
-def wait_until_ready(args: argparse.Namespace) -> None:
-    deadline = time.monotonic() + args.timeout_seconds
+def wait_until_ready(args: argparse.Namespace, connection: AKSConnection) -> None:
     checks: tuple[tuple[str, Sequence[str]], ...] = (
         ("Instrumentation CRD", ["get", "crd", INSTRUMENTATION_CRD, "-o", "name"]),
         (
@@ -78,38 +53,30 @@ def wait_until_ready(args: argparse.Namespace) -> None:
             ],
         ),
     )
-
-    missing: list[str] = []
-    while time.monotonic() < deadline:
-        missing = [name for name, command in checks if not resource_exists(command)]
+    while True:
+        connection.deadline.remaining()
+        missing = [name for name, command in checks if not connection.probe(command)]
         if not missing:
-            kubectl(
-                [
-                    "rollout",
-                    "status",
-                    f"deployment/{args.webhook_deployment}",
-                    "-n",
-                    args.webhook_namespace,
-                    f"--timeout={args.rollout_timeout_seconds}s",
-                ]
+            connection.rollout(
+                args.webhook_deployment,
+                args.webhook_namespace,
+                args.rollout_timeout_seconds,
             )
             print("ok: API Instrumentation CR and app-monitoring webhook are ready")
             return
-        time.sleep(args.poll_seconds)
-
-    print(
-        "error: API Instrumentation is not ready. Missing: " + ", ".join(missing),
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
-
-
-def require_instrumentation(args: argparse.Namespace) -> None:
-    wait_until_ready(args)
+        connection.deadline.last_failure = "Missing: " + ", ".join(missing)
+        print(
+            "waiting for API Instrumentation: " + ", ".join(missing),
+            file=sys.stderr,
+            flush=True,
+        )
+        connection.deadline.sleep(args.poll_seconds)
 
 
-def json_resource(args: Sequence[str]) -> dict[str, Any]:
-    return json.loads(kubectl([*args, "-o", "json"]))
+def require_instrumentation(
+    args: argparse.Namespace, connection: AKSConnection
+) -> None:
+    wait_until_ready(args, connection)
 
 
 def container_env_names(container: dict[str, Any]) -> set[str]:
@@ -124,10 +91,7 @@ def named_container(containers: list[dict[str, Any]], name: str) -> dict[str, An
     for container in containers:
         if container.get("name") == name:
             return container
-    if containers:
-        return containers[0]
-    print("error: no containers found", file=sys.stderr)
-    raise SystemExit(1)
+    raise AKSConnectionError(f"Required container {name} was not found")
 
 
 def missing_env(container: dict[str, Any]) -> list[str]:
@@ -137,40 +101,33 @@ def missing_env(container: dict[str, Any]) -> list[str]:
 
 def deployment_selector(deployment: dict[str, Any]) -> str:
     labels = deployment["spec"]["selector"]["matchLabels"]
+    if not labels:
+        raise AKSConnectionError("Deployment has no supported matchLabels selector")
     return ",".join(f"{key}={value}" for key, value in sorted(labels.items()))
 
 
-def check_injected(args: argparse.Namespace) -> None:
-    wait_until_ready(args)
-    kubectl(
-        [
-            "rollout",
-            "status",
-            f"deployment/{args.deployment}",
-            "-n",
-            args.namespace,
-            f"--timeout={args.rollout_timeout_seconds}s",
-        ]
-    )
-
-    deployment = json_resource(
+def check_injected(args: argparse.Namespace, connection: AKSConnection) -> None:
+    wait_until_ready(args, connection)
+    connection.rollout(args.deployment, args.namespace, args.rollout_timeout_seconds)
+    deployment = connection.json_resource(
         ["get", "deployment", args.deployment, "-n", args.namespace]
     )
     containers = deployment["spec"]["template"]["spec"].get("containers", [])
-    app_container = named_container(containers, args.container)
-    deployment_missing = missing_env(app_container)
+    deployment_missing = missing_env(named_container(containers, args.container))
     if deployment_missing:
-        print(
-            "error: Deployment pod template is missing OTEL env: "
-            + ", ".join(deployment_missing),
-            file=sys.stderr,
+        raise AKSConnectionError(
+            "Deployment pod template is missing OTEL env: "
+            + ", ".join(deployment_missing)
         )
-        raise SystemExit(1)
 
     selector = deployment_selector(deployment)
-    pods = json_resource(["get", "pod", "-n", args.namespace, "-l", selector])
+    pods = connection.json_resource(
+        ["get", "pod", "-n", args.namespace, "-l", selector]
+    )
+    if not pods.get("items"):
+        raise AKSConnectionError("API pod query returned no pods")
     pod_errors: list[str] = []
-    for pod in pods.get("items", []):
+    for pod in pods["items"]:
         pod_name = pod["metadata"]["name"]
         phase = pod.get("status", {}).get("phase")
         if phase not in {"Running", "Succeeded"}:
@@ -182,15 +139,11 @@ def check_injected(args: argparse.Namespace) -> None:
         pod_missing = missing_env(pod_container)
         if pod_missing:
             pod_errors.append(f"{pod_name}: missing {', '.join(pod_missing)}")
-
     if pod_errors:
-        print(
-            "error: API pods are not fully OTLP-injected:\n  "
-            + "\n  ".join(pod_errors),
-            file=sys.stderr,
+        raise AKSConnectionError(
+            "API pods are not fully OTLP-injected:\n  " + "\n  ".join(pod_errors)
         )
-        raise SystemExit(1)
-
+    connection.deadline.remaining()
     print("ok: API deployment and pods contain required OTEL exporter env vars")
 
 
@@ -208,20 +161,35 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--instrumentation", default=DEFAULT_INSTRUMENTATION)
     parser.add_argument("--webhook-namespace", default=DEFAULT_WEBHOOK_NAMESPACE)
     parser.add_argument("--webhook-deployment", default=DEFAULT_WEBHOOK_DEPLOYMENT)
-    parser.add_argument("--timeout-seconds", type=int, default=120)
+    parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=120,
+        help="Overall deadline including environment, connection, rollout and final queries.",
+    )
     parser.add_argument("--rollout-timeout-seconds", type=int, default=120)
     parser.add_argument("--poll-seconds", type=int, default=5)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if min(args.timeout_seconds, args.rollout_timeout_seconds, args.poll_seconds) <= 0:
+        parser.error(
+            "timeout-seconds, rollout-timeout-seconds and poll-seconds must be positive"
+        )
+    return args
 
 
 def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
-    if args.action == "wait-instrumentation":
-        wait_until_ready(args)
-    elif args.action == "require-instrumentation":
-        require_instrumentation(args)
-    elif args.action == "check-injected":
-        check_injected(args)
+    try:
+        with aks_connection(args.timeout_seconds) as connection:
+            if args.action == "wait-instrumentation":
+                wait_until_ready(args, connection)
+            elif args.action == "require-instrumentation":
+                require_instrumentation(args, connection)
+            elif args.action == "check-injected":
+                check_injected(args, connection)
+    except AKSConnectionError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     return 0
 
 

@@ -84,6 +84,8 @@ azd init
 azd up
 ```
 
+public PyPI を使えない環境では、[承認済み index での初回構築と API 更新](docs/deployment.md#docker-build-のpackage-index)を使います。通常の `azd up` は、専用 task で事前ビルドした API イメージを引き継ぎません。
+
 ローカル開発と検証:
 
 ```bash

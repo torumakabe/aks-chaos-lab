@@ -161,7 +161,7 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **理由**: Kubernetes は同一 Kustomize bundle 内の CR と Deployment の admission-time 依存を保証しない。既に admitted された Pod は後から retroactive に mutate されないため、Application Insights traces / metrics / logs と Redis dependency が欠落する。
 - **場所**: `azure.yaml` の `api-instrumentation` service、`k8s/apps/chaos-app/instrumentation/`、`scripts/check-api-otel-injection.py`、`docs/observability.md` §運用上の注意、ADR-006
 - **解消条件**: AKS App Monitoring が参照先 `Instrumentation` 未作成時でも Deployment / Pod を後から安全に再評価できる、または Kubernetes 側で CR と Deployment の admission-time ordering を宣言できる。
-- **確認方法**: `azd deploy api-instrumentation` 後に `uv run scripts/check-api-otel-injection.py wait-instrumentation`、`azd deploy api` 後に `uv run scripts/check-api-otel-injection.py check-injected` を実行する。`kubectl rollout restart` は既存の未注入 Pod を復旧する手段であり、通常の deploy path には使わない。
+- **確認方法**: `api-instrumentation` の `postdeploy` hook が Instrumentation の準備完了を待ち、`api` の `predeploy` hook がその存在を、`postdeploy` hook が Pod への OTel 設定注入を自動確認する。通常操作で確認スクリプトを別途実行する必要はない。初回の適用順序と承認済み index 向けの操作は [デプロイ手順](deployment.md) を参照する。`kubectl rollout restart` は既存の未注入 Pod を復旧する手段であり、通常のデプロイでは使わない。
 - **最終確認**: 2026-05-20、`sli-flex-test` で `Instrumentation` が `Deployment` より 5 秒遅れて作成され API Pod の `OTEL_*` が欠落。`api-instrumentation` service と deploy hook で ordering / validation を追加。
 
 ### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発（実害なし・ログノイズのみ）
@@ -209,3 +209,13 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: RenovateがGitHub Releaseのchecksum資産から関連値を解決し、同じcustomManagerでversionとchecksumを一体更新できるようになる。その時点でLefthookをRenovate管理へ戻し、専用checkerと更新taskの必要性を再評価する。
 - **確認方法**: `freshness-checks`を実行し、pin versionが公式latest releaseと異なるとき`Lefthook` findingが`unverified`（`reason_code: update-available`）になること、pin済みchecksumが公式`lefthook_checksums.txt`と一致することを確認する。意図的に`LEFTHOOK_SHA256`を1文字削ってから`check-version-pins`を実行し、`fail`になることを確認する。
 - **最終確認**: 2026-08-31、pin版2.1.10に対し公式GitHub latest releaseは2.1.12であり、`freshness-checks`が`unverified`（`reason_code: update-available`）を返すこと、`lefthook_2.1.10_Linux_x86_64.gz`の公式checksumがci.ymlのpin値と一致することを確認した。
+
+### D-13. Fleet 登録後に AKS 拡張を導入する
+
+- **概要**: AKS の作成後、Fleet module の完了を待ってから Inspektor Gadget 拡張を導入する。拡張側に `dependsOn: [fleetManager]` を置き、Fleet を特定の拡張に依存させない。
+- **理由**: Inspektor Gadget の初期化に伴う AKS 更新中に、Fleet member の登録が `ManagedClusterNotInExpectedState` で拒否されることがある。機能上の依存ではなく、同じ AKS への管理操作の重複を避けるための順序である。
+- **場所と対象範囲**: `infra/main.bicep` の同一 deployment 内の Fleet module と拡張 module。Fleet module 内の登録、更新戦略、アラートなどが失敗すると、拡張導入も開始しない。module 完了後も Azure 内部の更新が残る場合があり、内部操作の競合や別 deployment、外部操作による更新まで排他するものではない。
+- **拡張の追加と廃止**: 拡張を追加するときは、その拡張側に Fleet 完了後の依存を置く。拡張同士の AKS 更新も競合する場合は、該当する拡張間にも順序を設ける。Inspektor Gadget の廃止だけでは Fleet 側の依存を変更しない。宣言の除去と Azure 上の既存拡張の削除は別操作として扱う。
+- **解消条件**: Azure 側が Fleet 登録と拡張初期化の競合を待機または安全に処理できることを確認し、依存を外した新規環境で初回構築が成功する。
+- **確認方法**: 生成 ARM template で Fleet が AKS に、拡張が Fleet に依存することを確認する。実機では新規環境の Activity Log で Fleet module 完了後に拡張が開始し、base 作成が azd コマンドの再実行なしで成功することを確認する。既存環境への再適用だけでは初回競合の解消を実証したと扱わない。
+- **再試行**: module 完了後に残る内部操作との競合は、拡張サービスの再試行に任せる。失敗が deployment に返される場合は、対象リソースと最終エラーコードを確認し、Bicep の `@retryOn` による回数上限付きの再試行を検討する。
