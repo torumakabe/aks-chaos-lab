@@ -124,9 +124,13 @@ jobs:
       - name: Bicep version
         run: bicep --version
       - name: Restore Bicep modules
-        run: bicep restore infra/main.bicep
+        run: |
+          bicep restore infra/main.bicep
+          bicep restore infra/sli/main.bicep
       - name: Validate Bicep Templates
-        run: bicep build infra/main.bicep
+        run: |
+          bicep build infra/main.bicep
+          bicep build infra/sli/main.bicep
   k8s-validate:
     name: Kubernetes and Helm Validation
     runs-on: ubuntu-latest

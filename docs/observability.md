@@ -22,11 +22,39 @@ AKS control plane metrics は `azureMonitorProfile.metrics.controlPlane.enabled`
 
 ## DNS と network observability
 
-クラスタ全体の DNS 量には CoreDNS の `coredns_dns_requests_total` を使います。`ama-metrics-settings-configmap` は schema v2 で cluster metrics と control-plane metrics を分離し、CoreDNS default target を 30 秒間隔、minimal ingestion 有効で収集します。
+Local DNS が無効な構成では、クラスタの DNS 量を CoreDNS の `coredns_dns_requests_total` で観察します。Local DNS が有効な構成では、同じ指標は CoreDNS に届いた問い合わせ量を表し、ノード内キャッシュで完結した問い合わせを含みません。`ama-metrics-settings-configmap` は schema v2 で cluster metrics と control-plane metrics を分離し、CoreDNS default target を 30 秒間隔、minimal ingestion 有効で収集します。
 
-ACNS の DNS dashboard は `hubble_dns_queries_total` と `hubble_dns_responses_total` を使います。Cilium cluster では DNS rule を持つ CiliumNetworkPolicy の対象だけが DNS visibility に含まれるため、Hubble DNS metric をクラスタ全体の DNS 量として扱いません。
+ACNS の DNS dashboard は `hubble_dns_queries_total` と `hubble_dns_responses_total` を使います。DNS rule を持つ CiliumNetworkPolicy の対象通信を観測するもので、クラスタ全体の DNS 量ではありません。counter が増えない区間の `rate()` は0となり、`> 0` で絞るパネルは No data になります。
 
 Drops (Workload) dashboard は `rate(hubble_drop_total[...])` と `> 0` を使います。drop がない期間は No data となり、Heatmap は TypeError を表示する場合があります。counter が最初の drop 発生時に作られ、事前の 0 sample がない場合、その初回増分は後から `rate()` で復元できません。収集停止の確認には、対象 workload の表示だけでなく、`networkobservability-hubble` target とクラスタ全体の `hubble_drop_total` の増加を確認してください。
+
+### Local DNS
+
+各ノードの `$NODE_IP:9253` を `localdns-metrics` ジョブとして30秒間隔で収集します。`instance` はノード名です。有効なノードでは次の `up` が1となります。無効なノードで接続できないことは想定内です。
+
+```promql
+up{job="localdns-metrics"}
+```
+
+問い合わせ数は CoreDNS の `kube-dns` ジョブと分けて観察します。
+
+```promql
+sum by (job) (
+  rate(coredns_dns_requests_total{job=~"kube-dns|localdns-metrics"}[5m])
+)
+```
+
+ノード別のキャッシュヒット率です。問い合わせがない期間やサンプル不足時は、有効な比率が得られません。
+
+```promql
+sum by (instance) (rate(coredns_cache_hits_total{job="localdns-metrics"}[5m]))
+/
+sum by (instance) (rate(coredns_cache_requests_total{job="localdns-metrics"}[5m]))
+```
+
+`serveStale: Immediate` では上流が正常でも TTL 切れの応答を返してから更新するため、`coredns_cache_served_stale_total` の増加だけで上流障害とは判断しません。DNS 指標は、アプリの名前解決結果と外形 SLI を併せて確認してください。
+
+Local DNS は systemd サービスのため、コンテナログ収集だけで問い合わせログを取得できるとは限りません。通常の `queryLogging` は `Error` です。
 
 ## アプリケーション trace と request telemetry
 

@@ -35,7 +35,7 @@ param probeUrl string
 param probeName string
 
 @description('Probe timeout in seconds')
-@minValue(2)
+@minValue(6)
 param probeTimeoutSeconds int = 10
 
 @description('Publisher aggregation window size in seconds')

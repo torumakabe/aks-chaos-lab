@@ -15,6 +15,13 @@ param nodeVmSize string = 'Standard_D4pds_v6'
 @description('Enable AKS Node Auto Provisioning for user workload capacity')
 param enableNodeAutoProvisioning bool = false
 
+@description('Local DNS mode for System and Node Auto Provisioning nodes')
+@allowed([
+  'Disabled'
+  'Required'
+])
+param localDnsMode string = 'Required'
+
 @description('Virtual network address prefix')
 param vnetAddressPrefix string = '10.10.0.0/16'
 
@@ -65,7 +72,7 @@ param externalSliProbePath string = '/'
 param externalSliProbeName string = ''
 
 @description('External SLI probe timeout in seconds')
-@minValue(2)
+@minValue(6)
 param externalSliProbeTimeoutSeconds int = 10
 
 @description('External SLI publisher aggregation window in seconds')
@@ -402,6 +409,7 @@ module aksCluster './modules/aks.bicep' = {
     aksName: aksClusterName
     nodeVmSize: nodeVmSize
     enableNodeAutoProvisioning: enableNodeAutoProvisioning
+    localDnsMode: localDnsMode
     aksSubnetId: network.outputs.aksSubnetId
     aksApiSubnetId: network.outputs.aksApiSubnetId
     kubernetesVersion: kubernetesVersion
@@ -585,6 +593,9 @@ module chaosRoleAssignments './modules/chaos/role-assignments.bicep' = if (enabl
 
 @description('AKS cluster name')
 output AZURE_AKS_CLUSTER_NAME string = aksCluster.outputs.aksNameOut
+
+@description('Local DNS mode for System and Node Auto Provisioning nodes')
+output AZURE_AKS_LOCAL_DNS_MODE string = localDnsMode
 
 @description('ACR endpoint for azd to push images')
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.outputs.loginServer

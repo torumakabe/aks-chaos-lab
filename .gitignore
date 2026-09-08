@@ -235,3 +235,4 @@ CLAUDE.md
 infra/**/*.json
 !infra/abbreviations.json
 !infra/**/main.parameters.json
+!infra/modules/templates/aks-localdns.json

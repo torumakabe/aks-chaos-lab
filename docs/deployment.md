@@ -104,7 +104,7 @@ azd init
 azd up
 ```
 
-`azd up` は `azure.yaml` の `workflows.up` に従い、以下の順で実行されます。
+`azd up` は `preup` hook で公開取得の許可設定を確認してから、`azure.yaml` の `workflows.up` に従って実行します。未確認の場合や user-level uv 設定と矛盾する場合は、最初の `provision base` より前に停止し、理由と専用手順を表示します。[公開取得の許可設定と Docker build の手順](#docker-build-のpackage-index)を参照してください。
 
 1. `azd provision base` (`infra/main.bicep`) — VNet / AKS / Inspektor Gadget 拡張 / Redis / Application Insights / Managed Prometheus / external SLI publisher infra / Service Group / SLI 用 Managed Identity / RBAC を作成
 2. `azd deploy api-instrumentation` — chaos-app 固有の Application Insights OTLP `Instrumentation` を先に適用し、AKS App Monitoring webhook が参照できる状態にする
@@ -115,17 +115,13 @@ azd up
 7. `azd deploy external-sli-publisher` — Flex Consumption の Azure Functions publisher をデプロイ
 8. `azd provision sli` (`infra/sli/main.bicep`) — layer `preprovision` hook で external SLI input metrics の出現を待ってから Azure Monitor SLI definitions と SLI metric alerts を作成
 
-SLI layer は external SLI publisher が Managed Prometheus に good / total metrics を出した後に実行する必要があるため、`infra.layers` で `base` と `sli` を分離しています。この判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md) を参照してください。
-
-Azure Monitor SLI destination metrics は、SLI resource 作成後に評価が始まるまで時間がかかることがあります。`azd up` は destination metric の出現を待ちません。評価開始を手動で確認する場合は、デプロイ後に次のコマンドを実行します。
-
-```bash
-uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination
-```
+`base` と `sli` を分離する判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md)、デプロイ後の SLI 評価開始の確認は [可観測性ガイド](observability.md#アプリ信頼性-signal)を参照してください。`azd up` は SLI destination metric の出現までは待ちません。
 
 `api-instrumentation` は app-specific な `Instrumentation/chaos-app-otel` だけを `k8s/apps/chaos-app/instrumentation/` から適用します。クラスタ共通の `k8s/observability` には置きません。`Instrumentation` を `Deployment/chaos-app` より先に作成しないと、AKS App Monitoring の admission webhook が Pod template に `OTEL_EXPORTER_OTLP_*` を注入できず、API の Application Insights traces / metrics / logs と Redis dependency が欠落します。
 
-External SLI publisher の Function host storage と deployment storage は managed identity 接続です。Storage account key / connection string に依存しないため、`allowSharedKeyAccess=false` の環境でも `azd deploy external-sli-publisher` を使います。publisher storage は `publicNetworkAccess=Disabled` とし、Function App を `snet-func` に VNet integration して blob / queue / table の Private Endpoint 経由で接続します。公式 azd sample と同じく、デプロイ実行 principal には deployment package upload 用の Storage Blob Data Owner を付与します。デプロイ実行環境は storage Private Endpoint を名前解決・到達できる必要があります。デプロイ失敗時に publisher storage の public access を一時的に開ける運用は行いません。
+External SLI publisher の Function host storage と deployment storage は managed identity 接続です。Storage account key / connection string に依存しないため、`allowSharedKeyAccess=false` の環境でも `azd deploy external-sli-publisher` を使います。publisher storage は `publicNetworkAccess=Disabled` とし、Function App を `snet-func` に VNet integration して blob / queue / table の Private Endpoint 経由で接続します。公式 azd sample と同じく、デプロイ実行 principal には Storage Blob Data Owner を付与します。
+
+azd 1.33.0 は ZIP を Function App の SCM エンドポイント `/api/publish` へ送信します（[実装](https://github.com/Azure/azure-dev/blob/29133b640536436db9b56f8db4b1781cb136e5ba/cli/azd/pkg/azsdk/funcapp_host_client.go)）。デプロイ実行元に必要なのは SCM への接続で、storage の Private Endpoint へ直接アップロードする構成ではありません。storage への接続は Functions 側で行います。デプロイ失敗時に publisher storage の public access を一時的に開ける運用は行いません。
 
 差分確認:
 
@@ -138,13 +134,24 @@ azd provision sli --preview
 
 このプロジェクトは `azure.yaml` の `requiredVersions` で azd 1.33.0 以上を要求します。古い azd ではプロジェクトを実行せず、azd を更新してください。
 
-リージョンや AKS node VM size を変更した直後に既存の azd 環境を再利用する場合、`azd env refresh` は過去の Azure deployment outputs から旧値を取り込むことがあります。`azd env refresh` の後、`azd down` や `azd up` の前に対象環境の値を明示してください。
+環境設定の復元などで `azd env refresh` を使うと、過去のデプロイ出力から値が取り込まれます。リージョンや VM サイズを変更する場合は、refresh 後に設定してください。
+
+### Local DNS
+
+`AZURE_AKS_LOCAL_DNS_MODE` の既定は `Required`（有効）です。System pool と NAP に `azd up` で適用します。未設定の既存環境も有効化対象です。無効化する場合は、事前に `azd env set AZURE_AKS_LOCAL_DNS_MODE Disabled -e <environment>` を実行してください。再有効化は `Required` を指定します。
+
+対応する Kubernetes、OS、VM サイズは [Microsoft Learn](https://learn.microsoft.com/azure/aks/localdns-custom)、採用判断は [ADR-019](adr/019-adopt-aks-local-dns.md)を参照してください。
+
+既存環境で初めて有効化する際は、ノード更新前に `kubectl apply -f k8s/apps/chaos-app/ciliumnetworkpolicy-egress-allowlist.yaml` で DNS 許可を反映してください。有効化と無効化ではノードの再イメージ化による停止を想定し、他の Chaos 実験を停止して実施します。PDB があっても無停止は保証されません。
+
+`<environment>` は対象の azd 環境名に置き換えます。プレビューに意図しない差分がある場合は、続く `azd up` を実行しません。
 
 ```bash
-azd env refresh -e "<env>" --no-prompt
-azd env set AZURE_LOCATION "<location>" -e "<env>"
-azd env set AZURE_AKS_NODE_VM_SIZE "<vm-size>" -e "<env>"
+azd provision base --preview -e <environment>
+azd up -e <environment>
 ```
+
+適用後は新規 Pod の名前解決と[ノード別メトリクス](observability.md#local-dns)を確認してください。API が返す Local DNS の状態が `state: Enabled` でも既存ノードに反映されない場合だけ、[D-14](workarounds.md#d-14-local-dns-の-api-更新が既存ノードへ反映されない場合)の追加対応を使います。DNS 障害注入の範囲は [Chaos 実験ガイド](chaos-experiments.md#local-dns-の比較検証)を参照してください。
 
 ### Node Auto Provisioning
 
@@ -153,30 +160,16 @@ Node Auto Provisioning（NAP）は既定で無効です。設計判断と採用�
 NAPを有効にする場合は、対象環境へ明示的に設定してからbase layerの差分を確認します。NAP有効時はSystem AgentPoolがArm64 2台固定となり、Cluster Autoscalerは無効になります。
 
 ```bash
-azd env refresh -e "<env>" --no-prompt
 azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING true -e "<env>"
 azd provision base --preview -e "<env>"
 ```
 
 既存環境のpreviewにAKS以外の意図しない変更、またはSystem AgentPoolの削除や置換が含まれる場合は、base layerを適用しません。Azure PolicyがsubnetへBicep管理外のNSGを関連付ける環境では、previewにNSG関連付けの削除が表示されます。対象NSGがポリシー管理であり、subnetの名前、address prefix、delegationに変更がないことを確認した場合は、期待されたdriftとして扱います。
 
-既存AKSだけを移行するときは、System AgentPoolのCluster Autoscalerを無効化してから、AKSのnode provisioning profileだけを更新します。
+差分確認後、標準の `azd up` で AKS の NAP 設定と AKSNodeClass／NodePool を適用します。
 
 ```bash
-RESOURCE_GROUP="$(azd env get-value AZURE_RESOURCE_GROUP -e "<env>")"
-AKS_NAME="$(azd env get-value AZURE_AKS_CLUSTER_NAME -e "<env>")"
-
-az aks nodepool update \
-  --resource-group "$RESOURCE_GROUP" \
-  --cluster-name "$AKS_NAME" \
-  --name default \
-  --disable-cluster-autoscaler
-
-az aks update \
-  --resource-group "$RESOURCE_GROUP" \
-  --name "$AKS_NAME" \
-  --node-provisioning-mode Auto \
-  --node-provisioning-default-pools None
+azd up -e "<env>"
 ```
 
 System AgentPoolが2台Readyで、既存workloadが健全であることを確認します。通常の `azd up` は instrumentation の後に NAP の条件付き task を実行します。単独で適用する場合も、同じ task で CRD の作成と Established を待ってから、User workload 用の AKSNodeClass と NodePool を適用します。
@@ -187,11 +180,13 @@ azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-node
 
 環境を読み込めない場合や flag が不正な場合は停止します。読み込んだ `AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING` が未設定または false なら Kubernetes に接続せずスキップします。false に戻すだけでは既存の NodePool を削除しません。
 
+NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` を生成し、Local DNS の設定値を Kustomize へ渡すため、このファイルを手動で管理する必要はありません。
+
 無効化するときは、次の順序で操作します。System AgentPoolは全工程で2台を維持します。
 
 1. NAP capacityを必要とするUser workloadを停止する。
 2. User NodeClaimが0台になったことを確認する。
-3. `kubectl delete -k k8s/node-provisioning`でNodePoolとAKSNodeClassを削除する。
+3. `kubectl delete nodepool.karpenter.sh chaos-arm64`、続いて `kubectl delete aksnodeclass.karpenter.azure.com chaos-arm64` で対象の NodePool と AKSNodeClass を削除する。
 4. `az aks update --node-provisioning-mode Manual`でNAPを無効化する。
 5. `az aks nodepool update --enable-cluster-autoscaler --min-count 1 --max-count 3`でSystem AgentPoolのCluster Autoscalerを復元する。
 6. System AgentPool、既存workload、外部health endpointを確認する。
@@ -211,7 +206,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" run
 
 `lefthook install` は、コントリビュータ向けにこのリポジトリの Git hooks を登録します。pre-commit は毎コミット、Git index 内の `uv.lock` とルート `pyproject.toml` を既存の public lock validator で検査します。作業ツリーとは独立してコミット対象を読み、非public source、必須ファイルの欠落、未解決の競合、解析不能の場合はコミットを中止します。public lock の検査では、依存の同期、ネットワーク接続、ファイルの修復や再ステージは行いません。実行には uv とインストール済みの Python 3.14 以降が必要です。
 
-ステージされた `infra/` 配下の Bicep ファイルがある場合は、従来どおり `infra/main.bicep` もビルドします。hook の未導入や `--no-verify` による省略に備え、CI の public lock 検査も維持します。Lefthook のインストール方法は [公式手順](https://lefthook.dev/install/) を参照してください。
+ステージされた `infra/` 配下の Bicep ファイルがある場合は、`infra/main.bicep` と `infra/sli/main.bicep` をビルドします。hook の未導入や `--no-verify` による省略に備え、CI の public lock 検査も維持します。Lefthook のインストール方法は [公式手順](https://lefthook.dev/install/) を参照してください。
 
 ### 組織承認済み package index を使う環境
 
@@ -245,6 +240,18 @@ PowerShellでは `$env:UV_NO_SYNC = "1"` を設定します。
 
 ### Docker build のpackage index
 
+`azd up` の実行者は、public PyPI、公開コンテナレジストリ、Helm repository からの取得が利用方針で許可されていることを確認してください。コーディングエージェントは利用者による確認を得てから、対象環境に次を設定します。疎通成功や user-level 設定の不在を許可とはみなしません。
+
+```bash
+azd env set AZD_ALLOW_PUBLIC_SOURCES true -e "<env>"
+```
+
+`preup` hook は `AZD_ALLOW_PUBLIC_SOURCES` が未設定、不正、または `false` の場合に非ゼロで終了します。`true` でも、user-level uv に public PyPI 以外の index、取得元に関する追加設定、不正な設定、または引き継げない uv 環境変数があれば停止します。設定ファイルの探索は既存の専用 task と共通で、`UV_CONFIG_FILE`、`XDG_CONFIG_HOME`、OS ごとの既定位置に従います。公開取得の許可を取り消す場合は、この値を `false` に変更してください。
+
+hook は標準ライブラリだけを使い、workspace の同期、ネットワーク接続、設定変更は行いません。起動にも `--offline --no-python-downloads` を指定するため、uv と Python 3.14 以降を事前に用意してください。このチェックは宣言された利用方針との矛盾を検出するもので、接続可否の確認や通信制御ではありません。個別の `azd package`、`azd deploy`、Docker build には `preup` は適用されません。
+
+組織承認済み index が必要な環境では、許可設定や uv 設定を変更してチェックを通すのではなく、以下の専用手順を使います。hook は build や適用方法の切り替えを自動実行しません。公開コンテナレジストリや Functions remote build の public PyPI も禁止されている場合は、専用手順もそのままでは使用できません。
+
 通常のDocker buildはpublic PyPIを使用します。
 
 ```bash
@@ -265,7 +272,7 @@ azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-api-
 
 deploy はローカルの ID と Arm64 architecture を確認してから既存 azd に渡し、適用後に ACR の manifest/config と Deployment、稼働 Pod の対応を照合します。Pod 不在、未 Ready、不一致や判別不能な応答は成功にしません。同じ内容の成果物の再適用は許容しますが、将来の外部操作による tag の上書きまで防ぐ仕組みではありません。
 
-`--from-package` が省略するのは build です。API の deploy hook による Instrumentation の存在確認と Pod への OTel 設定注入の確認も自動実行されるため、確認スクリプトを別途実行する必要はありません。API の Kustomize に含まれる CiliumNetworkPolicy、ConfigMap なども再適用します。API 配下の宣言とデプロイ先のリソースの差分を確認し、意図しない変更があれば適用を停止してください。CiliumNetworkPolicy の DNS egress 許可先は CoreDNS です。異なる DNS 構成を使う場合は、適用前に許可先の整合を確認してください。
+`--from-package` が省略するのは build です。API の deploy hook による Instrumentation の存在確認と Pod への OTel 設定注入の確認も自動実行されるため、確認スクリプトを別途実行する必要はありません。API の Kustomize に含まれる CiliumNetworkPolicy、ConfigMap なども再適用します。API 配下の宣言とデプロイ先のリソースの差分を確認し、意図しない変更があれば適用を停止してください。CiliumNetworkPolicy は CoreDNS と Local DNS への DNS 名制限付き通信を許可します。異なる DNS 構成を使う場合は、適用前に許可先の整合を確認してください。
 
 初回構築のコマンド例を次に示します。ログイン、環境作成、権限と feature flag の準備後に実行してください。すべての `<env>` に同じ環境名を指定し、`<image-reference>` には先頭の build task が出力したイメージ参照全体を指定します。
 
@@ -303,7 +310,7 @@ gh run list --workflow refresh-uv-lock.yml --branch <branch>
 gh run download <run-id> --name uv-lock-public --dir tmp/refresh-uv-lock
 ```
 
-workflowは`pyproject.toml`、`uv.lock`、workflow定義自身を変更したpull requestで実行されます。既定branchへmergeした後は`workflow_dispatch`でも実行できます。取得した`uv.lock`の差分を確認して変更branchへ追加すると、組織承認済みpackage indexを使う環境では次のworkspace task実行時に再同期します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
+workflowはルートまたは `src/` 配下の `pyproject.toml`、`uv.lock`、workflow定義自身を変更したpull requestで実行されます。既定branchへmergeした後は`workflow_dispatch`でも実行できます。取得した`uv.lock`の差分を確認して変更branchへ追加すると、組織承認済みpackage indexを使う環境では次のworkspace task実行時に再同期します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
 
 Renovateはworkspaceの依存について更新候補の検出だけを行い、lockは更新しません。workspace member、`resolution-strategy = "lowest"`、public PyPIを参照する`uv.lock`、external SLI publisherのrequirements同期を一度の更新で維持できることを保証できないためです。lockの更新経路は`refresh-uv-lock.yml`のままとし、取得した`uv.lock`は`check-uv-version`、`check-public-lock`、`check-publisher-requirements`、既存QAで検証します。責務の全体像は[依存パッケージとツールの更新管理](dependency-management.md)を参照してください。
 
@@ -321,7 +328,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" typecheck
 uv run --no-project "${PWD}/scripts/tasks.py" qa-app
 ```
 
-Bicep:
+Bicep（base と sli の両 layer）:
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" build-bicep
@@ -349,6 +356,14 @@ uv run --no-project "${PWD}/scripts/tasks.py" qa
 ```
 
 `uv run --no-project "${PWD}/scripts/tasks.py" qa`はworkflows、Bicep、Kubernetes manifests、アプリ、リポジトリ用Python scriptsのQAをまとめて実行します。必要な外部ツールの確認は`uv run --no-project "${PWD}/scripts/tasks.py" install-tools`と`check-*`ターゲットで実行できます。
+
+### GitHub Actions の統合テスト
+
+`Platform Integration Test`（`.github/workflows/integration-test.yml`）は手動起動です。`full` は一時環境で既存の `azd up` を実行し、HTTP endpoint を検査します。`infra-only` は base layer の構築だけを行い、アプリと sli layer は適用しません。AKS は現在の IaC と同じ Base に固定し、`Automatic` と `app-only` は選択肢に含めません。
+
+GitHub Environment `integration-test` に認証用 secrets `AZURE_CLIENT_ID`、`AZURE_TENANT_ID`、`AZURE_SUBSCRIPTION_ID` を設定します。identity には本書の構築と削除に必要な権限を付与します。`full` で公開取得が許可されている場合は、同 Environment の変数 `AZD_ALLOW_PUBLIC_SOURCES` を `true` に設定してください。workflow は未設定の値を補完しません。runner は `ubuntu-latest` を維持し、uv と Python を各処理の前に準備します。
+
+cleanup job は構築の成否にかかわらず、実行IDに対応する環境名と subscription を既存の `cleanup-azure-monitor-sli-resources.py` に渡します。`.azure` の引き継ぎは行いません。RG の削除完了待機を含めて job の上限を90分とし、削除失敗は job の失敗として報告します。
 
 ## 負荷テスト
 
@@ -404,7 +419,15 @@ Azure Monitor SLI を有効化した環境では、Service Group scope の `Micr
 azd down --force --purge
 ```
 
-`predown` hook は Service Group scope の SLI / Service Group / AKS の OTLP Application Insights DCR association / deployment record / base resource group を整理します。AKS 上の OTLP DCRA を先に削除することで、App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) は base RG の削除に連動して消えます。詳細な順序と理由は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md)、[docs/workarounds.md §A-4](workarounds.md#a-4-predown-hook-で-service-group-scope-sli-と環境別-service-group-を削除)、[§B-2](workarounds.md#b-2-predown-hook-で-aks-上の-otlpappinsightsextension-dcra-を先に削除) を参照してください。
+`predown` hook は対象環境の `AZURE_SUBSCRIPTION_ID` を必須とし、取得できなければ削除前に停止します。Azure CLI の既定 subscription は使わず、取得した値を各操作へ明示します。Service Group は tenant scope のため、環境名による所有確認も維持します。指定した RG が対象環境の命名規則に一致しない場合は、RG を削除せず停止します。
+
+Service Group ID が環境変数にない場合は、対象環境の base デプロイの操作記録から取得します。操作記録を手動で削除した環境では、`AZURE_MONITOR_SLI_SERVICE_GROUP_ID` または `AZURE_MONITOR_SLI_SERVICE_GROUP_NAME` を指定してください。SG 本体の取得が `ResourceNotFound` を返した場合だけ SG の削除を省略し、SLI 一覧の403を削除済みとは扱いません。
+
+SG の DELETE が202を返した場合は、応答の `Location` で非同期削除の完了を確認します。`Retry-After` に従い、指定がなければ5秒間隔で、削除要求と完了待ちを合わせて最大10分待機します。処理中の SG 本体の GET は削除完了の判定に使いません。
+
+Service Group 側の探索や削除に失敗した場合は、エラーを記録して subscription 内の後始末を続け、最後に非ゼロで終了します。この場合、再実行で SG を特定できるよう base デプロイ記録は残します。RG、AKS、DCRA の存在確認は、正常な応答で対象の不在を確認できた場合だけ削除済みと扱います。存在確認や DCRA 削除後の確認に失敗した場合は、base RG を削除せず停止します。Service Group API の制約と改善確認項目は [workarounds.md §A-8](workarounds.md#a-8-service-group-api-の探索と不在応答を補う) を参照してください。
+
+hook は Service Group scope の SLI / Service Group / AKS の OTLP Application Insights DCR association / deployment record / base resource group を整理します。AKS 上の OTLP DCRA を先に削除することで、App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) は base RG の削除に連動して消えます。詳細な順序と理由は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md)、[docs/workarounds.md §A-4](workarounds.md#a-4-predown-hook-で-service-group-scope-sli-と環境別-service-group-を削除)、[§B-2](workarounds.md#b-2-predown-hook-で-aks-上の-otlpappinsightsextension-dcra-を先に削除) を参照してください。
 
 cleanup hook の構文・実行経路だけを非破壊で確認する場合は、削除系処理を dry-run にして hook を単体実行できます。
 

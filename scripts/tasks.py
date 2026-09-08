@@ -2540,8 +2540,9 @@ def target_review_repo_full(
 
 def target_build_bicep() -> None:
     target_check_az()
-    print_step("Building Bicep template infra/main.bicep")
-    run(["az", "bicep", "build", "--file", "infra/main.bicep"])
+    for template in ("infra/main.bicep", "infra/sli/main.bicep"):
+        print_step(f"Building Bicep template {template}")
+        run(["az", "bicep", "build", "--file", template])
     print_success("Bicep build passed")
 
 

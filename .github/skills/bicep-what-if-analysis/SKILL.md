@@ -40,7 +40,7 @@ uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_i
 
 ### azd プロジェクト (multi layer)
 
-`azure.yaml` の `infra.layers` を `--layer` で指定すると、`<path>/main.bicep` と `<path>/main.parameters.json` を自動採用し、parameters file 内の `${ENV_VAR}` / `${ENV_VAR:default}` を `azd env get-values` の値で解決する。
+`azure.yaml` の `infra.layers` を `--layer` で指定すると、`<path>/main.bicep` と `<path>/main.parameters.json` を自動採用し、parameters file 内の `${ENV_VAR}` / `${ENV_VAR=default}` を `azd env get-values` の値で解決する。`=default` は未設定または空の値に適用する。既存の `${ENV_VAR:default}` も従来どおり解決する。
 
 ```bash
 # 特定の layer (本リポ例: base / sli) を解析

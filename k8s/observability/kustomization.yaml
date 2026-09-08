@@ -8,5 +8,6 @@ kind: Kustomization
 resources:
   - ama-metrics-settings-configmap.yaml
   - ama-metrics-prometheus-config.yaml
+  - ama-metrics-prometheus-config-node.yaml
   - container-network-log.yaml
   - container-azm-ms-agentconfig.yaml

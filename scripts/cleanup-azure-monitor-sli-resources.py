@@ -12,12 +12,18 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from collections.abc import Sequence
+from email.message import Message
+from http.client import HTTPException
 from typing import Any
 
 SERVICE_GROUP_API_VERSION = "2024-02-01-preview"
 SLI_API_VERSION = "2025-03-01-preview"
 DATA_COLLECTION_RULE_ASSOCIATION_API_VERSION = "2024-03-11"
+SERVICE_GROUP_DELETE_TIMEOUT_SECONDS = 600
 
 
 def log(message: str) -> None:
@@ -101,10 +107,11 @@ def command_json(
 
 
 def json_items(payload: Any | None) -> list[Any]:
-    if not isinstance(payload, dict):
-        return []
-    value = payload.get("value")
-    return value if isinstance(value, list) else []
+    value = payload.get("value") if isinstance(payload, dict) else None
+    if not isinstance(value, list) or any(not json_id(item) for item in value):
+        log("invalid resource list response: expected value array with resource IDs")
+        raise SystemExit(1)
+    return value
 
 
 def json_id(payload: Any | None) -> str:
@@ -116,12 +123,14 @@ def json_id(payload: Any | None) -> str:
 
 def deployment_names(payload: Any | None, env_name: str, layer_name: str) -> list[str]:
     if not isinstance(payload, list):
-        return []
+        log("invalid deployment list response")
+        raise SystemExit(1)
 
     names: list[str] = []
     for deployment in payload:
         if not isinstance(deployment, dict):
-            continue
+            log("invalid deployment list entry")
+            raise SystemExit(1)
         tags = deployment.get("tags")
         name = deployment.get("name")
         if (
@@ -141,18 +150,23 @@ def valid_env_value(value: str) -> bool:
 
 
 def get_env_value(name: str) -> str:
-    current = os.environ.get(name, "")
+    current = os.environ.get(name, "").strip()
+    if name == "AZURE_SUBSCRIPTION_ID" and name in os.environ:
+        return current if valid_env_value(current) else ""
     if current and valid_env_value(current):
         return current
 
     if shutil.which("azd") is None:
         return ""
 
-    value = command_output(
+    completed = run_command(
         ["azd", "env", "get-value", name],
         allow_failure=True,
         quiet_stderr=True,
     )
+    if completed.returncode != 0:
+        return ""
+    value = completed.stdout.strip()
     if value and valid_env_value(value):
         return value
     return ""
@@ -173,6 +187,14 @@ def service_group_name_from_id(service_group_id: str) -> str:
 def is_owned_service_group_id(service_group_id: str, env_name: str) -> bool:
     if not env_name:
         return False
+    prefix_path = (
+        "https://management.azure.com/providers/Microsoft.Management/serviceGroups/"
+    )
+    url = resource_url(service_group_id).rstrip("/")
+    if not url.lower().startswith(prefix_path.lower()):
+        return False
+    if "/" in url[len(prefix_path) :] or "?" in url or "#" in url:
+        return False
     service_group_name = service_group_name_from_id(service_group_id)
     prefix = f"sg-aks-chaos-lab-{env_name}-"
     if not service_group_name.startswith(prefix):
@@ -192,57 +214,242 @@ def run_delete(args: Sequence[str], description: str, *, dry_run: bool) -> None:
     run_command(args)
 
 
-def discover_service_group_ids(env_name: str) -> list[str]:
+def resource_group_exists(resource_group: str, subscription_id: str) -> bool:
+    exists = command_output(
+        [
+            "az",
+            "group",
+            "exists",
+            "--subscription",
+            subscription_id,
+            "--name",
+            resource_group,
+            "--output",
+            "tsv",
+        ],
+    ).lower()
+    if exists not in {"true", "false"}:
+        log(
+            f"failed to determine whether base resource group {resource_group} exists: {exists}"
+        )
+        raise SystemExit(1)
+    return exists == "true"
+
+
+# Service Group API limitations and removal criteria: docs/workarounds.md A-8.
+def discover_service_group_ids(env_name: str, subscription_id: str) -> list[str]:
     if not env_name:
         return []
 
-    service_group_prefix = f"sg-aks-chaos-lab-{env_name}-"
     payload = command_json(
         [
             "az",
-            "rest",
-            "--method",
-            "get",
-            "--url",
-            (
-                "https://management.azure.com/providers/Microsoft.Management/"
-                f"serviceGroups?api-version={SERVICE_GROUP_API_VERSION}"
-            ),
+            "deployment",
+            "sub",
+            "list",
+            "--subscription",
+            subscription_id,
             "--output",
             "json",
         ],
-        allow_failure=True,
-        quiet_stderr=True,
     )
 
-    service_group_ids: list[str] = []
-    for service_group in json_items(payload):
-        if not isinstance(service_group, dict):
-            continue
-        service_group_name = str(service_group.get("name", ""))
-        service_group_id = str(service_group.get("id", ""))
-        if (
-            not service_group_name.startswith(service_group_prefix)
-            or not service_group_id
+    service_group_ids: set[str] = set()
+    for deployment_name in deployment_names(payload, env_name, "base"):
+        ids = command_json(
+            [
+                "az",
+                "deployment",
+                "operation",
+                "sub",
+                "list",
+                "--subscription",
+                subscription_id,
+                "--name",
+                deployment_name,
+                "--query",
+                "[?properties.targetResource.resourceType=='Microsoft.Management/serviceGroups'].properties.targetResource.id",
+                "--output",
+                "json",
+            ],
+        )
+        if not isinstance(ids, list) or any(
+            not isinstance(item, str) or not item for item in ids
         ):
-            continue
-        suffix = service_group_name.removeprefix(service_group_prefix)
-        if not suffix or "-" in suffix:
-            continue
-        service_group_ids.append(service_group_id)
-    return service_group_ids
+            log(
+                f"invalid Service Group IDs in deployment operations: {deployment_name}"
+            )
+            raise SystemExit(1)
+        service_group_ids.update(ids)
+    return sorted(service_group_ids)
+
+
+def service_group_exists(service_group_id: str, subscription_id: str) -> bool:
+    service_group_url = resource_url(service_group_id).rstrip("/")
+    completed = run_command(
+        [
+            "az",
+            "rest",
+            "--subscription",
+            subscription_id,
+            "--method",
+            "get",
+            "--url",
+            f"{service_group_url}?api-version={SERVICE_GROUP_API_VERSION}",
+            "--output",
+            "json",
+            "--only-show-errors",
+        ],
+        allow_failure=True,
+    )
+    if completed.returncode != 0:
+        message = completed.stderr.strip()
+        prefix = "ERROR: Not Found("
+        if message.startswith(prefix) and message.endswith(")"):
+            try:
+                details = json.loads(message[len(prefix) : -1])
+            except json.JSONDecodeError:
+                log("invalid Service Group error response")
+            else:
+                error = details.get("error") if isinstance(details, dict) else None
+                if isinstance(error, dict) and error.get("code") == "ResourceNotFound":
+                    return False
+        if completed.stderr:
+            print(completed.stderr, file=sys.stderr, end="")
+        raise SystemExit(completed.returncode)
+
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        log("invalid Service Group JSON response")
+        raise SystemExit(1) from None
+    if resource_url(json_id(payload)).lower() != service_group_url.lower():
+        log(f"Service Group response ID does not match {service_group_id}")
+        raise SystemExit(1)
+    return True
+
+
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Message,
+        newurl: str,
+    ) -> None:
+        return None
+
+
+def delete_service_group_and_wait(
+    service_group_id: str, subscription_id: str, *, dry_run: bool
+) -> None:
+    if dry_run:
+        log(f"dry-run: would delete Service Group {service_group_id}")
+        return
+
+    token = command_output(
+        [
+            "az",
+            "account",
+            "get-access-token",
+            "--subscription",
+            subscription_id,
+            "--resource",
+            "https://management.azure.com/",
+            "--query",
+            "accessToken",
+            "--output",
+            "tsv",
+        ],
+    )
+    if not token or any(character.isspace() for character in token):
+        log("invalid ARM access token response")
+        raise SystemExit(1)
+
+    opener = urllib.request.build_opener(NoRedirectHandler())
+    deadline = time.monotonic() + SERVICE_GROUP_DELETE_TIMEOUT_SECONDS
+
+    def request(method: str, url: str) -> tuple[int, Message]:
+        if not url.lower().startswith("https://management.azure.com/") or any(
+            character in url for character in "\r\n#"
+        ):
+            log("invalid Service Group deletion URL; expected an ARM HTTPS URL")
+            raise SystemExit(1)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            log("Service Group deletion timed out")
+            raise SystemExit(1)
+        req = urllib.request.Request(
+            url, headers={"Authorization": f"Bearer {token}"}, method=method
+        )
+        try:
+            with opener.open(req, timeout=min(60, remaining)) as response:
+                return response.status, response.headers
+        except urllib.error.HTTPError as error:
+            log(f"Service Group deletion {method} failed: HTTP {error.code}")
+            raise SystemExit(1) from None
+        except (OSError, HTTPException) as error:
+            log(f"Service Group deletion {method} failed: {error}")
+            raise SystemExit(1) from None
+
+    delete_url = (
+        f"{resource_url(service_group_id).rstrip('/')}"
+        f"?api-version={SERVICE_GROUP_API_VERSION}"
+    )
+    status, headers = request("DELETE", delete_url)
+    if status == 204:
+        return
+    if status != 202:
+        log(f"unexpected Service Group DELETE response: HTTP {status}")
+        raise SystemExit(1)
+    location = (headers.get("Location") or "").strip()
+    if not location:
+        log("Service Group DELETE returned 202 without Location")
+        raise SystemExit(1)
+    try:
+        status_url = urllib.parse.urljoin(delete_url, location)
+    except ValueError:
+        log("invalid Service Group deletion Location")
+        raise SystemExit(1) from None
+
+    while True:
+        try:
+            delay = int(headers.get("Retry-After", "5"))
+        except ValueError:
+            log("invalid Service Group Retry-After header")
+            raise SystemExit(1) from None
+        if delay < 0:
+            log("invalid Service Group Retry-After header")
+            raise SystemExit(1)
+        time.sleep(min(max(1, delay), max(0, deadline - time.monotonic())))
+        status, headers = request("GET", status_url)
+        if status in {200, 204}:
+            log("Service Group deletion completed")
+            return
+        if status != 202:
+            log(f"unexpected Service Group deletion status: HTTP {status}")
+            raise SystemExit(1)
 
 
 def delete_service_group_sli_resources(
     service_group_id: str,
+    subscription_id: str,
     *,
     dry_run: bool,
 ) -> None:
-    service_group_url = resource_url(service_group_id)
+    if not service_group_exists(service_group_id, subscription_id):
+        log(f"Service Group {service_group_id} is already deleted")
+        return
+
+    service_group_url = resource_url(service_group_id).rstrip("/")
     payload = command_json(
         [
             "az",
             "rest",
+            "--subscription",
+            subscription_id,
             "--method",
             "get",
             "--url",
@@ -250,14 +457,23 @@ def delete_service_group_sli_resources(
             "--output",
             "json",
         ],
-        allow_failure=True,
-        quiet_stderr=True,
     )
     sli_ids = [
         item_id
         for item_id in (json_id(item) for item in json_items(payload))
         if item_id
     ]
+    sli_prefix = f"{service_group_url.rstrip('/')}/providers/Microsoft.Monitor/slis/"
+    for sli_id in sli_ids:
+        sli_url = resource_url(sli_id)
+        suffix = sli_url[len(sli_prefix) :]
+        if (
+            not sli_url.lower().startswith(sli_prefix.lower())
+            or not suffix
+            or any(char in suffix for char in "/?#")
+        ):
+            log(f"SLI ID is outside the selected Service Group: {sli_id}")
+            raise SystemExit(1)
 
     if sli_ids:
         for sli_id in sli_ids:
@@ -266,6 +482,8 @@ def delete_service_group_sli_resources(
                 [
                     "az",
                     "rest",
+                    "--subscription",
+                    subscription_id,
                     "--method",
                     "delete",
                     "--url",
@@ -280,25 +498,51 @@ def delete_service_group_sli_resources(
         log("no Service Group scoped SLI resources found")
 
     log(f"deleting Service Group {service_group_id}")
-    run_delete(
-        [
-            "az",
-            "rest",
-            "--method",
-            "delete",
-            "--url",
-            f"{service_group_url}?api-version={SERVICE_GROUP_API_VERSION}",
-            "--output",
-            "none",
-        ],
-        f"delete Service Group {service_group_id}",
-        dry_run=dry_run,
-    )
+    delete_service_group_and_wait(service_group_id, subscription_id, dry_run=dry_run)
+
+
+def otlp_app_insights_dcra_exists(association_id: str, subscription_id: str) -> bool:
+    association_url = resource_url(association_id)
+    collection_url = association_url.rsplit("/", 1)[0]
+    url = f"{collection_url}?api-version={DATA_COLLECTION_RULE_ASSOCIATION_API_VERSION}"
+    while True:
+        payload = command_json(
+            [
+                "az",
+                "rest",
+                "--subscription",
+                subscription_id,
+                "--method",
+                "get",
+                "--url",
+                url,
+                "--output",
+                "json",
+            ],
+        )
+        if not isinstance(payload, dict):
+            log("invalid DCRA list response: expected an object")
+            raise SystemExit(1)
+        if any(
+            resource_url(json_id(item)).lower() == association_url.lower()
+            for item in json_items(payload)
+        ):
+            return True
+        next_link = payload.get("nextLink")
+        if next_link is None or next_link == "":
+            return False
+        if not isinstance(next_link, str) or not resource_url(
+            next_link
+        ).lower().startswith(f"{collection_url}?".lower()):
+            log("invalid DCRA list nextLink")
+            raise SystemExit(1)
+        url = resource_url(next_link)
 
 
 def delete_otlp_app_insights_dcra(
     resource_group: str,
     aks_cluster_name: str,
+    subscription_id: str,
     *,
     dry_run: bool,
 ) -> None:
@@ -308,11 +552,17 @@ def delete_otlp_app_insights_dcra(
         )
         return
 
+    if not resource_group_exists(resource_group, subscription_id):
+        log(f"base resource group {resource_group} is already deleted")
+        return
+
     payload = command_json(
         [
             "az",
             "resource",
-            "show",
+            "list",
+            "--subscription",
+            subscription_id,
             "--resource-group",
             resource_group,
             "--resource-type",
@@ -322,16 +572,30 @@ def delete_otlp_app_insights_dcra(
             "--output",
             "json",
         ],
-        allow_failure=True,
-        quiet_stderr=True,
     )
-    aks_cluster_id = json_id(payload)
-
-    if not aks_cluster_id:
-        log(
-            f"AKS cluster {resource_group}/{aks_cluster_name} is already deleted or inaccessible"
-        )
+    if (
+        not isinstance(payload, list)
+        or len(payload) > 1
+        or any(not json_id(item) for item in payload)
+    ):
+        log("invalid AKS list response: expected at most one cluster with an ID")
+        raise SystemExit(1)
+    if not payload:
+        log(f"AKS cluster {resource_group}/{aks_cluster_name} is already deleted")
         return
+    aks_cluster_id = json_id(payload[0])
+    expected_cluster_id = (
+        f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}"
+        f"/providers/Microsoft.ContainerService/managedClusters/{aks_cluster_name}"
+    )
+    if (
+        resource_url(aks_cluster_id).lower()
+        != resource_url(expected_cluster_id).lower()
+    ):
+        log(
+            f"AKS ID does not match the selected subscription and cluster: {aks_cluster_id}"
+        )
+        raise SystemExit(1)
 
     association_id = (
         f"{aks_cluster_id}/providers/Microsoft.Insights/"
@@ -342,22 +606,7 @@ def delete_otlp_app_insights_dcra(
         f"?api-version={DATA_COLLECTION_RULE_ASSOCIATION_API_VERSION}"
     )
 
-    payload = command_json(
-        [
-            "az",
-            "rest",
-            "--method",
-            "get",
-            "--url",
-            association_url,
-            "--output",
-            "json",
-        ],
-        allow_failure=True,
-        quiet_stderr=True,
-    )
-    existing_association = json_id(payload)
-    if not existing_association:
+    if not otlp_app_insights_dcra_exists(association_id, subscription_id):
         log("OTLP App Insights DCRA is already deleted")
         return
 
@@ -366,6 +615,8 @@ def delete_otlp_app_insights_dcra(
         [
             "az",
             "rest",
+            "--subscription",
+            subscription_id,
             "--method",
             "delete",
             "--url",
@@ -380,22 +631,7 @@ def delete_otlp_app_insights_dcra(
         return
 
     for _attempt in range(1, 13):
-        payload = command_json(
-            [
-                "az",
-                "rest",
-                "--method",
-                "get",
-                "--url",
-                association_url,
-                "--output",
-                "json",
-            ],
-            allow_failure=True,
-            quiet_stderr=True,
-        )
-        existing_association = json_id(payload)
-        if not existing_association:
+        if not otlp_app_insights_dcra_exists(association_id, subscription_id):
             log("OTLP App Insights DCRA deleted")
             return
         time.sleep(5)
@@ -404,7 +640,9 @@ def delete_otlp_app_insights_dcra(
     raise SystemExit(1)
 
 
-def delete_sli_layer_deployment_records(env_name: str, *, dry_run: bool) -> None:
+def delete_sli_layer_deployment_records(
+    env_name: str, subscription_id: str, *, dry_run: bool
+) -> None:
     if not env_flag("AZURE_MONITOR_SLI_FIX_SLI_VOID", default=True):
         log(
             "AZURE_MONITOR_SLI_FIX_SLI_VOID=false; skipping SLI layer void prevention (evidence-collection mode)"
@@ -423,11 +661,11 @@ def delete_sli_layer_deployment_records(env_name: str, *, dry_run: bool) -> None
             "deployment",
             "sub",
             "list",
+            "--subscription",
+            subscription_id,
             "--output",
             "json",
         ],
-        allow_failure=True,
-        quiet_stderr=True,
     )
     sli_deployments = deployment_names(payload, env_name, "sli")
 
@@ -446,6 +684,8 @@ def delete_sli_layer_deployment_records(env_name: str, *, dry_run: bool) -> None
                 "deployment",
                 "sub",
                 "delete",
+                "--subscription",
+                subscription_id,
                 "--name",
                 deployment_name,
                 "--output",
@@ -455,12 +695,14 @@ def delete_sli_layer_deployment_records(env_name: str, *, dry_run: bool) -> None
             quiet_stderr=True,
         )
         if completed.returncode != 0:
-            log(f"failed to delete deployment record {deployment_name}; continuing")
+            log(f"failed to delete deployment record {deployment_name}")
+            raise SystemExit(1)
 
 
 def delete_base_resource_group_sync(
     env_name: str,
     resource_group: str,
+    subscription_id: str,
     *,
     dry_run: bool,
 ) -> None:
@@ -479,19 +721,8 @@ def delete_base_resource_group_sync(
         )
         return
 
-    exists = (
-        command_output(
-            ["az", "group", "exists", "--name", resource_group, "--output", "tsv"],
-            allow_failure=True,
-            quiet_stderr=True,
-        )
-        or "unknown"
-    )
-
-    if exists.lower() != "true":
-        log(
-            f"base resource group {resource_group} is already deleted or inaccessible (exists={exists})"
-        )
+    if not resource_group_exists(resource_group, subscription_id):
+        log(f"base resource group {resource_group} is already deleted")
         return
 
     log(f"deleting base resource group {resource_group} (synchronous)")
@@ -504,6 +735,8 @@ def delete_base_resource_group_sync(
             "az",
             "group",
             "delete",
+            "--subscription",
+            subscription_id,
             "--name",
             resource_group,
             "--yes",
@@ -519,21 +752,11 @@ def delete_base_resource_group_sync(
         raise SystemExit(1)
 
     for attempt in range(1, 241):
-        last_exists = (
-            command_output(
-                ["az", "group", "exists", "--name", resource_group, "--output", "tsv"],
-                allow_failure=True,
-                quiet_stderr=True,
-            )
-            or "unknown"
-        )
-        if last_exists.lower() == "false":
+        if not resource_group_exists(resource_group, subscription_id):
             log(f"base resource group {resource_group} deleted (attempt {attempt})")
             return
         if attempt == 1 or attempt % 12 == 0:
-            log(
-                f"{resource_group} still deleting (attempt {attempt}/240, exists={last_exists})"
-            )
+            log(f"{resource_group} still deleting (attempt {attempt}/240)")
         time.sleep(15)
 
     log(
@@ -542,7 +765,9 @@ def delete_base_resource_group_sync(
     raise SystemExit(1)
 
 
-def delete_base_layer_deployment_records(env_name: str, *, dry_run: bool) -> None:
+def delete_base_layer_deployment_records(
+    env_name: str, subscription_id: str, *, dry_run: bool
+) -> None:
     if not env_flag("AZURE_MONITOR_SLI_FIX_BASE_VOID", default=True):
         log(
             "AZURE_MONITOR_SLI_FIX_BASE_VOID=false; skipping base layer void prevention (evidence-collection mode)"
@@ -561,11 +786,11 @@ def delete_base_layer_deployment_records(env_name: str, *, dry_run: bool) -> Non
             "deployment",
             "sub",
             "list",
+            "--subscription",
+            subscription_id,
             "--output",
             "json",
         ],
-        allow_failure=True,
-        quiet_stderr=True,
     )
     base_deployments = deployment_names(payload, env_name, "base")
 
@@ -584,6 +809,8 @@ def delete_base_layer_deployment_records(env_name: str, *, dry_run: bool) -> Non
                 "deployment",
                 "sub",
                 "delete",
+                "--subscription",
+                subscription_id,
                 "--name",
                 deployment_name,
                 "--output",
@@ -618,6 +845,16 @@ def main() -> int:
 
     dry_run = args.dry_run or env_flag("AZURE_MONITOR_SLI_CLEANUP_DRY_RUN")
     require_command("az")
+    try:
+        subscription_id = get_env_value("AZURE_SUBSCRIPTION_ID")
+    except OSError as exc:
+        log(f"failed to obtain AZURE_SUBSCRIPTION_ID: {exc}")
+        return 1
+    if not subscription_id:
+        log(
+            "AZURE_SUBSCRIPTION_ID is required; it is missing, empty, or could not be retrieved"
+        )
+        return 1
 
     # azd hooks cannot pass arguments or inline environment assignments when using
     # Python file execution. Default to the same auto-confirmed behavior that the
@@ -645,22 +882,39 @@ def main() -> int:
             f"/providers/Microsoft.Management/serviceGroups/{service_group_name}"
         )
 
-    candidate_service_group_ids = (
-        [service_group_id] if service_group_id else discover_service_group_ids(env_name)
-    )
-    service_group_ids = [
-        candidate_service_group_id
-        for candidate_service_group_id in candidate_service_group_ids
-        if is_owned_service_group_id(candidate_service_group_id, env_name)
-    ]
-    skipped_service_group_ids = sorted(
-        set(candidate_service_group_ids) - set(service_group_ids)
-    )
-    for skipped_service_group_id in skipped_service_group_ids:
-        log(
-            "skipping Service Group outside current env naming scope: "
-            f"env={env_name}, serviceGroup={skipped_service_group_id}"
+    service_group_failed = False
+    try:
+        candidate_service_group_ids = (
+            [service_group_id]
+            if service_group_id
+            else discover_service_group_ids(env_name, subscription_id)
         )
+        service_group_ids = [
+            candidate_service_group_id
+            for candidate_service_group_id in candidate_service_group_ids
+            if is_owned_service_group_id(candidate_service_group_id, env_name)
+        ]
+        skipped_service_group_ids = sorted(
+            set(candidate_service_group_ids) - set(service_group_ids)
+        )
+        for skipped_service_group_id in skipped_service_group_ids:
+            log(
+                "skipping Service Group outside current env naming scope: "
+                f"env={env_name}, serviceGroup={skipped_service_group_id}"
+            )
+
+        if service_group_ids:
+            for current_service_group_id in service_group_ids:
+                delete_service_group_sli_resources(
+                    current_service_group_id, subscription_id, dry_run=dry_run
+                )
+        else:
+            log(
+                "no in-scope Service Group ID found; skipping Service Group scoped cleanup"
+            )
+    except SystemExit:
+        service_group_failed = True
+        log("Service Group cleanup failed; continuing subscription-scoped cleanup")
 
     if not resource_group and env_name:
         resource_group = f"rg-aks-chaos-lab-{env_name}"
@@ -668,32 +922,30 @@ def main() -> int:
     if not aks_cluster_name and env_name:
         aks_cluster_name = f"aks-aks-chaos-lab-{env_name}"
 
-    if service_group_ids:
-        for current_service_group_id in service_group_ids:
-            delete_service_group_sli_resources(
-                current_service_group_id, dry_run=dry_run
-            )
-    else:
-        log("no in-scope Service Group ID found; skipping Service Group scoped cleanup")
-
     if resource_group and not is_owned_resource_group(resource_group, env_name):
         log(
             "resource group is outside current env naming scope; "
-            f"skipping RG-scoped cleanup: env={env_name}, resourceGroup={resource_group}"
+            f"stopping RG-scoped cleanup: env={env_name}, resourceGroup={resource_group}"
         )
-        resource_group = ""
-        aks_cluster_name = ""
+        return 1
 
-    delete_otlp_app_insights_dcra(resource_group, aks_cluster_name, dry_run=dry_run)
+    delete_otlp_app_insights_dcra(
+        resource_group, aks_cluster_name, subscription_id, dry_run=dry_run
+    )
 
     # Eliminate the void deployment polling 404 risk by short-circuiting both layers'
     # Destroy paths. Order matters:
     #   1. SLI record first (sub-scope only, no RG)
     #   2. Base RG sync delete
-    #   3. Base record last
-    delete_sli_layer_deployment_records(env_name, dry_run=dry_run)
-    delete_base_resource_group_sync(env_name, resource_group, dry_run=dry_run)
-    delete_base_layer_deployment_records(env_name, dry_run=dry_run)
+    #   3. Base record last, retained if Service Group cleanup needs a retry
+    delete_sli_layer_deployment_records(env_name, subscription_id, dry_run=dry_run)
+    delete_base_resource_group_sync(
+        env_name, resource_group, subscription_id, dry_run=dry_run
+    )
+    if service_group_failed:
+        log("retaining base deployment records for Service Group cleanup retry")
+        return 1
+    delete_base_layer_deployment_records(env_name, subscription_id, dry_run=dry_run)
     return 0
 
 

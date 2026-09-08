@@ -987,6 +987,27 @@ def test_public_lock_hook_coverage_requires_an_assigned_check() -> None:
     assert [entry["path"] for entry in coverage["true_gap"]] == [unassigned_path]
 
 
+def test_localdns_profile_coverage_requires_an_assigned_check() -> None:
+    profile_path = "infra/modules/templates/aks-localdns.json"
+    unassigned_path = "infra/modules/templates/unassigned.json"
+
+    coverage = repo_health.classify_file_coverage(
+        [profile_path, unassigned_path], set()
+    )
+
+    assert coverage["covered_by_other_check"] == [
+        {
+            "path": profile_path,
+            "owner": "test-hooks",
+            "reason": (
+                "Local DNS contract tests validate the Bicep binding and NAP profile parity"
+            ),
+        }
+    ]
+    assert coverage["intentionally_excluded"] == []
+    assert [entry["path"] for entry in coverage["true_gap"]] == [unassigned_path]
+
+
 def test_deleted_tracked_file_is_excluded_from_current_worktree_inventory(
     repository: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

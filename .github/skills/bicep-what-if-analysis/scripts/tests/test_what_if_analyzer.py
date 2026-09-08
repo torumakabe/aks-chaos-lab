@@ -1059,6 +1059,27 @@ class TestResolveParametersFilePlaceholders(unittest.TestCase):
         path = self._write_params({"parameters": {"x": {"value": "${MISSING_VAR}"}}})
         self.assertEqual(resolve_parameters_file_placeholders(path, {}), {})
 
+    def test_azd_default_preserves_explicit_localdns_mode(self) -> None:
+        path = self._write_params(
+            {
+                "parameters": {
+                    "localDnsMode": {"value": "${AZURE_AKS_LOCAL_DNS_MODE=Required}"}
+                }
+            }
+        )
+        self.addCleanup(Path(path).unlink)
+        for env_values, expected in (
+            ({}, "Required"),
+            ({"AZURE_AKS_LOCAL_DNS_MODE": ""}, "Required"),
+            ({"AZURE_AKS_LOCAL_DNS_MODE": "Required"}, "Required"),
+            ({"AZURE_AKS_LOCAL_DNS_MODE": "Disabled"}, "Disabled"),
+        ):
+            with self.subTest(env_values=env_values):
+                self.assertEqual(
+                    resolve_parameters_file_placeholders(path, env_values),
+                    {"localDnsMode": expected},
+                )
+
     def test_ignores_non_string_values(self) -> None:
         """bool / int / array / object はそのまま file 側に任せる"""
         path = self._write_params(

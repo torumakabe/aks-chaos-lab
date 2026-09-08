@@ -31,6 +31,19 @@ spec:
               # Limit DNS lookups to necessary targets
               - matchPattern: "*.*.redis.azure.net"
               - matchName: "login.microsoftonline.com"
+    # Local DNS 経由でも DNS の名前制限と FQDN の学習を維持する。
+    - toEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*.*.redis.azure.net"
+              - matchName: "login.microsoftonline.com"
     # Allow DNS queries to Chaos Mesh DNS (chaos-mesh-dns-server)
     # Note: L7 DNS filters are intentionally omitted to ensure queries reach Chaos DNS.
     - toServices:
