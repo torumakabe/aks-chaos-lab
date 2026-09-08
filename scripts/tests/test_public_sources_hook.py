@@ -123,7 +123,9 @@ def test_uv_environment_overrides_stop_without_exposing_values(
     assert "credential-value" not in error
 
 
-def test_user_config_discovery_is_shared(environ: dict[str, str], tmp_path: Path) -> None:
+def test_user_config_discovery_is_shared(
+    environ: dict[str, str], tmp_path: Path
+) -> None:
     path = tmp_path / "uv/uv.toml"
     path.parent.mkdir()
     path.write_text(

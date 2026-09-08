@@ -36,8 +36,7 @@ def check_uv_sources(environ: Mapping[str, str]) -> None:
     )
     if overrides:
         raise ApprovedIndexConfigError(
-            "通常の Docker build に反映されない uv 環境変数: "
-            + ", ".join(overrides)
+            "通常の Docker build に反映されない uv 環境変数: " + ", ".join(overrides)
         )
 
     try:
@@ -49,7 +48,7 @@ def check_uv_sources(environ: Mapping[str, str]) -> None:
                 "UV_CONFIG_FILE の指定先が存在しません。"
             ) from None
         return
-    except (OSError, ValueError):
+    except OSError, ValueError:
         # 例外本文に含まれ得る認証情報を出力しない。
         raise ApprovedIndexConfigError(
             "user-level uv 設定を読み取れないか、TOML が不正です。"

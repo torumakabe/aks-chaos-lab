@@ -1151,6 +1151,10 @@ def classify_file_coverage(
             "build-bicep",
             "the Bicep entrypoint loads this resource abbreviation data",
         ),
+        "infra/modules/templates/aks-localdns.json": (
+            "test-hooks",
+            "Local DNS contract tests validate the Bicep binding and NAP profile parity",
+        ),
         "lefthook.yml": (
             "test-hooks",
             "hook contract tests validate the Lefthook configuration",
