@@ -78,10 +78,10 @@ def test_default_validation_preserves_drift(root: Path) -> None:
         (b'version = "1.0"', b'version = "2.0"'),
         (b"sha256:abc", b"sha256:changed"),
         (b"python_version >= '3.14'", b"python_version >= '3.15'"),
-        (b'version = 1\n', b'version = 1.0\n'),
+        (b"version = 1\n", b"version = 1.0\n"),
         (b'name = "dependency"', b'name = "dependency", size = 9'),
         (b'hash = "sha256:def"', b'hash = "sha256:def", extra = true'),
-        (b'registry = "https://approved.example/simple"', b'registry = 7'),
+        (b'registry = "https://approved.example/simple"', b"registry = 7"),
     ],
 )
 def test_repair_rejects_other_changes(root: Path, old: bytes, new: bytes) -> None:
@@ -114,7 +114,9 @@ def test_metadata_cannot_be_added(root: Path, field: str) -> None:
     source = BASELINE.replace(b", size = 10", b"").replace(
         b', upload-time = "2026-01-01"', b""
     )
-    changed = DRIFT.replace(b'hash = "sha256:abc"', f'hash = "sha256:abc", {field}'.encode())
+    changed = DRIFT.replace(
+        b'hash = "sha256:abc"', f'hash = "sha256:abc", {field}'.encode()
+    )
     with pytest.raises(public_lock.PublicLockError):
         public_lock.public_lock_repair_content(root / "pyproject.toml", source, changed)
 
@@ -124,7 +126,7 @@ def test_metadata_cannot_be_added(root: Path, field: str) -> None:
     [
         DRIFT.split(b"wheels =")[0],
         DRIFT + b'\n[[package]]\nname = "extra"\nversion = "1.0"\n',
-        DRIFT.replace(b'sdist = {', b'unexpected = {'),
+        DRIFT.replace(b"sdist = {", b"unexpected = {"),
         b"invalid TOML [",
     ],
 )
@@ -174,7 +176,9 @@ def test_git_guards_preserve_lock(
 def test_valid_lock_does_not_require_git_or_clean_manifests(
     monkeypatch: pytest.MonkeyPatch, root: Path
 ) -> None:
-    (root / "uv.lock").write_bytes(BASELINE.replace(b'version = "1.0"', b'version = "2.0"'))
+    (root / "uv.lock").write_bytes(
+        BASELINE.replace(b'version = "1.0"', b'version = "2.0"')
+    )
     (root / "src/api/pyproject.toml").write_bytes(MEMBER + b"description = 'edited'\n")
     monkeypatch.setattr(
         tasks, "public_lock_git", lambda *_: pytest.fail("Valid lock must not need Git")
