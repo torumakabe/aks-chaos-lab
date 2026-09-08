@@ -4,6 +4,8 @@ AKS Chaos Lab は、Azure Kubernetes Service (AKS) 上で動くアプリケー�
 
 `azd up` で AKS、サンプルアプリ、Azure Managed Redis、Azure Chaos Studio / Chaos Mesh、Managed Prometheus、Application Insights をまとめて構築します。
 
+AKS Local DNS は既定で有効です。設定と既存環境への適用は [Local DNS の構築手順](docs/deployment.md#local-dns)を参照してください。
+
 ## 何を学ぶか
 
 - Kubernetes / AKS の自己修復がどこまで効くかを実環境で確認する

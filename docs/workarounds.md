@@ -98,6 +98,15 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **確認方法**: 親 Service Group の Contributor のみを付与し、子 Service Group での SLI 作成が通るか確認する。
 - **最終確認**: 2026-05-17、親 Service Group Contributor のみでは `Microsoft.Monitor/slis/write` が AuthorizationFailed。削除不可。
 
+### A-8. Service Group API の探索と不在応答を補う
+
+- **概要**: cleanup は Service Group ID が未指定の場合、対象環境の base デプロイの操作記録から ID を取得する。SG 本体の GET が `ResourceNotFound` を返した場合は削除済みとして扱い、SLI 一覧は取得しない。SG 削除は `Location` で非同期処理の完了を待ち、失敗や時間切れの場合は再実行用に base デプロイ記録を残す。
+- **理由**: 使用中の `2024-02-01-preview` には Service Group の一覧 GET がなく、SG 不在時の SLI 一覧取得は403を返す場合がある。これらを通常の一覧取得や不存在判定として扱うと、探索に失敗したり、削除済み環境の cleanup が失敗を繰り返したりする。`az rest` は非同期削除を待たず、Azure CLI 2.90.0 の `az resource` も SG の tenant scope ID を受け付けないため、SG 削除の完了待ちはスクリプトが担当する。
+- **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、[環境削除](deployment.md#環境削除)
+- **解消条件**: Service Group 管理 API またはその CLI に一覧操作が追加され、作成直後を含め対象を取得できるようになれば、デプロイ操作記録による探索を置き換える。SG 不在時の SLI API 応答を権限不足と区別できるようになれば、SG 本体の先行確認を再評価する。CLI が構造化したエラーコードを返すようになれば、現在の stderr からの抽出を置き換える。CLI が tenant scope の SG 削除と非同期処理の完了待ちを扱えるようになれば、スクリプト内の HTTP 処理を置き換える。GA への移行だけでは撤去しない。
+- **確認方法**: `review-repo full` の棚卸しで、[公開 API 定義](https://github.com/Azure/azure-rest-api-specs/tree/main/specification/management/resource-manager/Microsoft.Management/ServiceGroups)と[管理 API の説明](https://learn.microsoft.com/azure/governance/service-groups/manage-service-groups)を確認し、一覧操作、不在時の応答、CLI の tenant scope 対応と完了待ちの改善を報告する。実環境の調査を依頼された場合は、既存 SG と不在 SG の GET / SLI 一覧を読み取り専用で照会し、変更後の応答を確認する。
+- **最終確認**: 2026-09-08、公開仕様に一覧 GET がなく、実 API でも404。SG 本体の不在は404 `ResourceNotFound`、同じ SG の SLI 一覧は403 `AuthorizationFailed`。`eval` の base デプロイの操作記録から SG ID を取得できた。
+
 ---
 
 ## B. OTLP / Application Insights 関連 (ADR-006)
@@ -219,3 +228,12 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: Azure 側が Fleet 登録と拡張初期化の競合を待機または安全に処理できることを確認し、依存を外した新規環境で初回構築が成功する。
 - **確認方法**: 生成 ARM template で Fleet が AKS に、拡張が Fleet に依存することを確認する。実機では新規環境の Activity Log で Fleet module 完了後に拡張が開始し、base 作成が azd コマンドの再実行なしで成功することを確認する。既存環境への再適用だけでは初回競合の解消を実証したと扱わない。
 - **再試行**: module 完了後に残る内部操作との競合は、拡張サービスの再試行に任せる。失敗が deployment に返される場合は、対象リソースと最終エラーコードを確認し、Bicep の `@retryOn` による回数上限付きの再試行を検討する。
+
+### D-14. Local DNS の API 更新が既存ノードへ反映されない場合
+
+- **対象範囲**: API の Local DNS プロファイルで設定値が `mode: Required`、読み取り専用の状態が `state: Enabled` だが、新規 Pod の resolver、ノード設定、9253 番のメトリクスで Local DNS の稼働を確認できない既存 pool。
+- **追加対応**: 対象 pool の `az aks nodepool get-upgrades` で更新先を確認し、承認後に `az aks nodepool upgrade --node-image-only` を実行する。Kubernetes バージョンと保存済みの BlueGreen 設定は変更しない。この追加更新を通常の有効化へ無条件に組み込まない。
+- **理由**: API 更新後も Local DNS のノード設定が生成されず、node image 更新後の新ノードでは稼働した。原因は未確定で、すべての AKS 構成に該当するとは判断していない。
+- **解消条件**: 同じ条件の既存 pool で `localdns-config` の更新だけによりノード構成が反映され、新規 Pod の名前解決と Local DNS のメトリクスを確認できるようになる。
+- **確認方法**: 更新前後のノード設定と新規 Pod の resolver を比較し、各ノードの `up{job="localdns-metrics"}` と問い合わせ counter を確認する。
+- **最終確認**: 2026-09-07、`eval` の新規 System ノード2台で `169.254.10.11` を使う名前解決と `up=1` を確認した。

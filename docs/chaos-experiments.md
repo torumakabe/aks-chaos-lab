@@ -39,3 +39,9 @@ az rest --method post \
 4. 実験停止後、回復時間と SLI / operational alerts の反応を確認する。
 
 負荷をかけずに実験すると no-traffic 扱いのシグナルが混ざりやすいため、挙動確認では smoke / baseline のどちらかを流した状態で開始してください。
+
+## Local DNS の比較検証
+
+[構築手順](deployment.md#local-dns)で Local DNS を切り替え、アプリの Pod から許可済みの名前を同じ条件で問い合わせて、[キャッシュと DNS の指標](observability.md#local-dns)を比較します。
+
+DNS 障害注入には既存の `exp-aks-dns` を使います。DNSChaos は Pod の resolver を Chaos DNS Server へ切り替えるため、Local DNS の上流停止や stale 応答の継続性を評価する実験ではありません。Redis 接続の再利用で HTTP エラーが出ない場合もあるため、DNS 応答と接続状態を区別してください。

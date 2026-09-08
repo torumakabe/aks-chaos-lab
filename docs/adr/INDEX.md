@@ -20,3 +20,4 @@
 | 016 | [Azure Chaos Studio Workspace の採用](016-azure-chaos-studio-workspace-adoption.md) | Rejected | 2026-07-16 |
 | 017 | [管理対象環境向け approved-index 変換フロー (ADR-013 の一部を amend)](017-approved-index-conversion-for-managed-environments.md) | Accepted | 2026-08-08 |
 | 018 | [NAPをArm64 workloadの追加capacityに採用する](018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md) | Accepted | 2026-08-21 |
+| 019 | [AKS Local DNS を既定で採用する](019-adopt-aks-local-dns.md) | Accepted | 2026-09-07 |

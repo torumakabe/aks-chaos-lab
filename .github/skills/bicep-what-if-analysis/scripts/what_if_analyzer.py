@@ -1194,14 +1194,15 @@ def get_bicep_param_names(template_path: str) -> set[str]:
 def resolve_parameters_file_placeholders(
     parameters_file: str, env_values: dict[str, str]
 ) -> dict[str, str]:
-    """parameters file (ARM JSON) の `${VAR}` / `${VAR:default}` を解決する。
+    """parameters file の `${VAR}` / `${VAR=default}` を解決する。
 
-    azd は deployment 時に同形式のプレースホルダーを env 値で展開する。
+    azd と同じく `=default` は未設定または空の値に適用する。
+    既存の `${VAR:default}` は互換性のため従来どおり扱う。
     az CLI 単独では展開しないため、本ヘルパーで明示的に解決し、
     `--parameters key=value` の inline override として渡す想定。
 
     対象:
-        - 文字列値かつ ${VAR} または ${VAR:default} 全体に一致するもの
+        - 文字列値かつ ${VAR}、${VAR=default}、${VAR:default} 全体に一致するもの
     対象外:
         - bool / int / array / object などの非文字列値 (parameters file の値をそのまま使う)
         - 文字列でも `${VAR}` を含まない literal (parameters file の値をそのまま使う)
@@ -1227,7 +1228,7 @@ def resolve_parameters_file_placeholders(
     if not isinstance(parameters, dict):
         return {}
 
-    placeholder_re = re.compile(r"^\$\{([A-Za-z_][\w]*)(?::([^}]*))?\}$")
+    placeholder_re = re.compile(r"^\$\{([A-Za-z_][\w]*)(?:([:=])([^}]*))?\}$")
     resolved: dict[str, str] = {}
 
     for key, entry in parameters.items():
@@ -1239,9 +1240,8 @@ def resolve_parameters_file_placeholders(
         m = placeholder_re.match(value)
         if not m:
             continue
-        var_name = m.group(1)
-        default = m.group(2)
-        if var_name in env_values:
+        var_name, operator, default = m.groups()
+        if var_name in env_values and (operator != "=" or env_values[var_name] != ""):
             resolved[key] = env_values[var_name]
         elif default is not None:
             resolved[key] = default

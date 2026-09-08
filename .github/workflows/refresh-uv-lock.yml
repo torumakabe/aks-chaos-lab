@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/refresh-uv-lock.yml
       - pyproject.toml
+      - src/**/pyproject.toml
       - uv.lock
 
 permissions:

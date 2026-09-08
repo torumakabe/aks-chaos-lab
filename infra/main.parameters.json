@@ -17,6 +17,9 @@
     "enableNodeAutoProvisioning": {
       "value": "${AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING:false}"
     },
+    "localDnsMode": {
+      "value": "${AZURE_AKS_LOCAL_DNS_MODE=Required}"
+    },
     "vnetAddressPrefix": {
       "value": "10.10.0.0/16"
     },

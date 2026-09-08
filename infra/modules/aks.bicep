@@ -12,6 +12,12 @@ param nodeResourceGroupName string
 param nodeVmSize string
 @description('Enable AKS Node Auto Provisioning for user workload capacity')
 param enableNodeAutoProvisioning bool = false
+@description('Local DNS mode for the System node pool')
+@allowed([
+  'Disabled'
+  'Required'
+])
+param localDnsMode string = 'Required'
 @description('AKS subnet id')
 param aksSubnetId string
 @description('AKS API Server subnet id')
@@ -32,6 +38,10 @@ param actionGroupId string = ''
 param skuName string = 'Base'
 
 var resourceGroupSuffix = uniqueString(resourceGroup().id)
+
+var localDnsProfile = union(loadJsonContent('templates/aks-localdns.json'), {
+  mode: localDnsMode
+})
 
 // KQL queries for auto-upgrade alerts
 var aksNodeOsAutoUpgradeKqlTemplate = sys.loadTextContent('templates/aks-nodeos-autoupgrade.kql')
@@ -171,6 +181,7 @@ var aksBaseSpecificProperties = {
       name: 'default'
       vmSize: nodeVmSize
       mode: 'System'
+      localDNSProfile: localDnsProfile
       // Pin node OS to Ubuntu 24.04 ahead of Ubuntu 22.04 retirement (ADR-008)
       osSKU: 'Ubuntu2404'
       // Distribute nodes across availability zones (1/2/3 if region supports)

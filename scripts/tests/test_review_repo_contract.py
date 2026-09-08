@@ -83,6 +83,35 @@ def test_review_targets_are_registered() -> None:
     assert tasks.TARGETS["validate-helm-values"] is tasks.target_validate_helm_values
 
 
+@pytest.mark.parametrize(
+    "failing_template", (None, "infra/main.bicep", "infra/sli/main.bicep")
+)
+def test_build_bicep_checks_both_layers_and_propagates_failure(
+    monkeypatch: pytest.MonkeyPatch, failing_template: str | None
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(tasks, "target_check_az", lambda: None)
+
+    def build(args: list[str]) -> None:
+        assert args[:4] == ["az", "bicep", "build", "--file"]
+        calls.append(args[4])
+        if args[4] == failing_template:
+            raise SystemExit(1)
+
+    monkeypatch.setattr(tasks, "run", build)
+    if failing_template is None:
+        tasks.target_build_bicep()
+    else:
+        with pytest.raises(SystemExit) as error:
+            tasks.target_build_bicep()
+        assert error.value.code == 1
+    assert calls == (
+        ["infra/main.bicep"]
+        if failing_template == "infra/main.bicep"
+        else ["infra/main.bicep", "infra/sli/main.bicep"]
+    )
+
+
 def test_kubernetes_validation_includes_nested_yaml_and_yml(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

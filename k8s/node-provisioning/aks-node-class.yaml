@@ -5,3 +5,43 @@ metadata:
 spec:
   imageFamily: Ubuntu
   osDiskSizeGB: 100
+  localDNS:
+    mode: Required
+    vnetDNSOverrides:
+      - zone: .
+        queryLogging: Error
+        protocol: PreferUDP
+        forwardDestination: VnetDNS
+        forwardPolicy: Sequential
+        maxConcurrent: 1000
+        cacheDuration: 3600s
+        serveStaleDuration: 3600s
+        serveStale: Immediate
+      - zone: cluster.local
+        queryLogging: Error
+        protocol: ForceTCP
+        forwardDestination: ClusterCoreDNS
+        forwardPolicy: Sequential
+        maxConcurrent: 1000
+        cacheDuration: 3600s
+        serveStaleDuration: 3600s
+        serveStale: Immediate
+    kubeDNSOverrides:
+      - zone: .
+        queryLogging: Error
+        protocol: PreferUDP
+        forwardDestination: ClusterCoreDNS
+        forwardPolicy: Sequential
+        maxConcurrent: 1000
+        cacheDuration: 3600s
+        serveStaleDuration: 3600s
+        serveStale: Immediate
+      - zone: cluster.local
+        queryLogging: Error
+        protocol: ForceTCP
+        forwardDestination: ClusterCoreDNS
+        forwardPolicy: Sequential
+        maxConcurrent: 1000
+        cacheDuration: 3600s
+        serveStaleDuration: 3600s
+        serveStale: Immediate

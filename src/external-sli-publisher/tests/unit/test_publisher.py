@@ -71,6 +71,10 @@ def test_settings_rejects_timeout_smaller_than_largest_bucket() -> None:
         settings(probe_timeout_seconds=5)
 
 
+def test_settings_accepts_timeout_above_largest_bucket() -> None:
+    assert settings(probe_timeout_seconds=6).probe_timeout_seconds == 6
+
+
 def test_target_window_uses_latest_closed_window() -> None:
     now = datetime(2026, 5, 19, 16, 52, 9, tzinfo=UTC)
     window = target_window(now, settings())

@@ -19,15 +19,6 @@ on:
         options:
           - full
           - infra-only
-          - app-only
-      aks_sku:
-        description: 'AKS SKU mode'
-        required: false
-        default: 'Base'
-        type: choice
-        options:
-          - Base
-          - Automatic
 
 concurrency:
   group: integration-test
@@ -66,6 +57,7 @@ jobs:
         run: |
           echo "::group::Bicep Build"
           az bicep build --file infra/main.bicep
+          az bicep build --file infra/sli/main.bicep
           echo "::endgroup::"
 
           echo "::group::ARM Deployment Validation"
@@ -86,8 +78,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     needs: validate
-    if: (inputs.test_scope || 'full') != 'app-only'
     environment: integration-test
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZD_ALLOW_PUBLIC_SOURCES: ${{ vars.AZD_ALLOW_PUBLIC_SOURCES }}
     outputs:
       resource_group: ${{ steps.provision.outputs.resource_group }}
       ingress_fqdn: ${{ steps.provision.outputs.ingress_fqdn }}
@@ -107,6 +101,12 @@ jobs:
       - name: Install Azure Developer CLI
         uses: Azure/setup-azd@0b7e3a35ab00f2eee7080c845eb39c3f0ebfa553 # v2.4.0
 
+      - name: Setup uv and Python
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          resolution-strategy: "lowest"
+          python-version: "3.14"
+
       - name: Install kubelogin
         uses: Azure/use-kubelogin@0ce7c36141aa27d4934872cf00b0120804c98a29 # v1.3
         env:
@@ -125,26 +125,20 @@ jobs:
           echo "::group::azd env new"
           azd env new ${{ env.AZURE_ENV_NAME }} --no-prompt
           azd env set AZURE_LOCATION ${{ env.AZURE_LOCATION }}
-          azd env set AZURE_SUBSCRIPTION_ID ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          azd env set AKS_SKU_NAME ${{ inputs.aks_sku || 'Base' }}
+          azd env set AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
           echo "::endgroup::"
 
-      - name: Provision infrastructure
+      - name: Provision and deploy
         id: provision
+        env:
+          TEST_SCOPE: ${{ inputs.test_scope || 'full' }}
         run: |
-          echo "::group::azd provision"
-          azd provision --no-prompt || {
-            {
-              echo "## ❌ Provision Failed"
-              echo "Run ID: \`${{ github.run_id }}\`"
-              echo "Environment: \`${{ env.AZURE_ENV_NAME }}\`"
-              echo "Check the logs above for details."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          }
-          echo "::endgroup::"
+          if [ "$TEST_SCOPE" = "infra-only" ]; then
+            azd provision base --no-prompt
+          else
+            azd up --no-prompt
+          fi
 
-          # Output resource group and ingress FQDN for subsequent jobs
           RESOURCE_GROUP=$(azd env get-value AZURE_RESOURCE_GROUP)
           INGRESS_FQDN=$(azd env get-value AZURE_INGRESS_FQDN)
           {
@@ -153,28 +147,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
           {
-            echo "## ✅ Provision Completed"
+            echo "## ✅ ${TEST_SCOPE} Completed"
             echo "- Resource Group: \`$RESOURCE_GROUP\`"
-            echo "- AKS SKU: \`${{ inputs.aks_sku || 'Base' }}\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Deploy application
-        if: (inputs.test_scope || 'full') != 'infra-only'
-        run: |
-          echo "::group::azd deploy"
-          azd deploy --no-prompt || {
-            {
-              echo "## ❌ Deploy Failed"
-              echo "Run ID: \`${{ github.run_id }}\`"
-              echo "Check the logs above for details."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          }
-          echo "::endgroup::"
-
-          {
-            echo "## ✅ Deploy Completed"
-            echo "- Ingress FQDN: \`${{ steps.provision.outputs.ingress_fqdn }}\`"
+            echo "- Ingress FQDN: \`$INGRESS_FQDN\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   test:
@@ -211,17 +186,19 @@ jobs:
           RETRY_COUNT=0
           HTTP_STATUS="000"
 
-          echo "Waiting for application to be ready at https://${INGRESS_FQDN}/health"
+          echo "Waiting for application to be ready at http://${INGRESS_FQDN}/health"
 
           while [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${INGRESS_FQDN}/health" --max-time 30 -k || echo "000")
+            if ! HTTP_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "http://${INGRESS_FQDN}/health" --max-time 30); then
+              HTTP_STATUS="000"
+            fi
             echo "Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: HTTP $HTTP_STATUS"
 
             if [ "$HTTP_STATUS" = "200" ]; then
               echo "Health check passed (HTTP $HTTP_STATUS)"
               {
                 echo "## ✅ Smoke Test Passed"
-                echo "- Endpoint: \`https://${INGRESS_FQDN}/health\`"
+                echo "- Endpoint: \`http://${INGRESS_FQDN}/health\`"
                 echo "- Status: HTTP $HTTP_STATUS"
                 echo "- Attempts: $((RETRY_COUNT + 1))"
               } >> "$GITHUB_STEP_SUMMARY"
@@ -239,7 +216,7 @@ jobs:
           echo "Health check failed after $MAX_RETRIES attempts (last HTTP $HTTP_STATUS)"
           {
             echo "## ❌ Smoke Test Failed"
-            echo "- Endpoint: \`https://${INGRESS_FQDN}/health\`"
+            echo "- Endpoint: \`http://${INGRESS_FQDN}/health\`"
             echo "- Status: HTTP $HTTP_STATUS"
             echo "- Attempts: $MAX_RETRIES"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -248,18 +225,11 @@ jobs:
 
       - name: Run platform integration tests
         env:
-          INTEGRATION_TEST_URL: https://${{ needs.provision-and-deploy.outputs.ingress_fqdn }}
+          INTEGRATION_TEST_URL: http://${{ needs.provision-and-deploy.outputs.ingress_fqdn }}
         run: |
           echo "::group::Platform Integration Tests"
-          cd src
-          uv sync --group dev
-          PYTHONPATH=. uv run pytest tests/integration/test_platform.py -v --tb=short || {
-            {
-              echo "## ❌ Integration Tests Failed"
-              echo "Check the logs above for details."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          }
+          uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py" sync-dev
+          uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py" test-integration
           echo "::endgroup::"
 
           echo "## ✅ Integration Tests Passed" >> "$GITHUB_STEP_SUMMARY"
@@ -267,11 +237,18 @@ jobs:
   cleanup:
     name: Cleanup Resources
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
     needs: [validate, provision-and-deploy, test]
     if: always() && needs.provision-and-deploy.result != 'skipped'
     environment: integration-test
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.branch || github.ref_name }}
+
       - name: Azure Login
         uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
         with:
@@ -279,24 +256,16 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Delete resource group
+      - name: Setup uv and Python
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          resolution-strategy: "lowest"
+          python-version: "3.14"
+
+      - name: Delete integration resources
         run: |
-          echo "::group::Cleanup Resources"
-          # Use predictable resource group name based on run_id
-          # This ensures cleanup works even if provision job failed mid-way
-          RESOURCE_GROUP="rg-aks-chaos-lab-inttest-${{ github.run_id }}"
-
-          echo "Checking for resource group: $RESOURCE_GROUP"
-          if az group exists --name "$RESOURCE_GROUP" | grep -q true; then
-            echo "Deleting resource group: $RESOURCE_GROUP"
-            az group delete --name "$RESOURCE_GROUP" --yes --no-wait || true
-            echo "Resource group deletion initiated (async)"
-          else
-            echo "Resource group does not exist or already deleted"
-          fi
-          echo "::endgroup::"
-
+          uv run --no-project --no-config --offline --no-python-downloads scripts/cleanup-azure-monitor-sli-resources.py
           {
             echo "## 🧹 Cleanup Completed"
-            echo "- Resource Group: \`$RESOURCE_GROUP\`"
+            echo "- Environment: \`$AZURE_ENV_NAME\`"
           } >> "$GITHUB_STEP_SUMMARY"

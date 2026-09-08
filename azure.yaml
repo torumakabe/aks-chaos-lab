@@ -39,6 +39,17 @@ workflows:
       - azd: provision sli
 
 hooks:
+  preup:
+    windows:
+      shell: pwsh
+      run: uv run --no-project --no-config --offline --no-python-downloads scripts/check-public-sources.py
+      interactive: false
+      continueOnError: false
+    posix:
+      shell: sh
+      run: uv run --no-project --no-config --offline --no-python-downloads scripts/check-public-sources.py
+      interactive: false
+      continueOnError: false
   predown:
     windows:
       run: uv run scripts/cleanup-azure-monitor-sli-resources.py
@@ -128,6 +139,8 @@ services:
       namespace: kube-system
       kustomize:
         dir: k8s/node-provisioning
+        env:
+          AZURE_AKS_LOCAL_DNS_MODE: ${AZURE_AKS_LOCAL_DNS_MODE=Required}
   external-sli-publisher:
     project: src/external-sli-publisher
     language: python
