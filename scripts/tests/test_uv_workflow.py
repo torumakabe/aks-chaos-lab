@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 from collections.abc import Iterator
@@ -37,6 +38,16 @@ post_edit = load_module(
     "post_edit_quality_feedback",
     REPO_ROOT / ".github" / "hooks" / "scripts" / "post-edit-quality-feedback.py",
 )
+
+
+@pytest.fixture(autouse=True)
+def isolate_uv_configuration(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(
+        tasks, "user_uv_config_path", lambda: tmp_path / "missing-uv.toml"
+    )
+    for name in tasks.UNSAFE_UV_ENVIRONMENT_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv(tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE, raising=False)
 
 
 def configure_root(
@@ -168,6 +179,121 @@ def test_non_approved_config_is_deferred_to_uv(
 
     tasks.ensure_approved_index_not_selected()
     assert tasks.approved_index_run_flags() == []
+
+
+@pytest.mark.parametrize(
+    "entrypoint",
+    (
+        "run_uv",
+        "run_uv_in",
+        "target_install",
+        "target_sync",
+        "target_sync_dev",
+        "target_prepare_review_python_environment",
+    ),
+)
+@pytest.mark.parametrize(
+    ("setting", "override", "diagnostic"),
+    (
+        ('find-links = ["https://packages.example.test/wheels"]\n', None, "find-links"),
+        ("no-verify-hashes = true\n", None, "no-verify-hashes"),
+        ("[pip]\n", None, r"\[pip\]"),
+        ("", "UV_FIND_LINKS", "UV_FIND_LINKS"),
+        ("", "UV_NO_VERIFY_HASHES", "UV_NO_VERIFY_HASHES"),
+    ),
+)
+def test_invalid_selected_index_stops_entrypoints_before_uv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    entrypoint: str,
+    setting: str,
+    override: str | None,
+    diagnostic: str,
+) -> None:
+    configure_root(monkeypatch, tmp_path)
+    config_path = tmp_path / "uv.toml"
+    write_approved_config(config_path)
+    config_path.write_text(
+        setting + config_path.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    if override is not None:
+        monkeypatch.setenv(override, "1")
+    monkeypatch.setattr(
+        tasks.subprocess,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("uv must not start"),
+    )
+    monkeypatch.setattr(
+        tasks,
+        "target_sync_dev_approved_index",
+        lambda: pytest.fail("invalid selection must fail before synchronization"),
+    )
+    with pytest.raises(SystemExit, match=diagnostic):
+        if entrypoint == "run_uv":
+            tasks.run_uv(["pytest"])
+        elif entrypoint == "run_uv_in":
+            tasks.run_uv_in(tmp_path / "src", ["pytest"])
+        else:
+            getattr(tasks, entrypoint)()
+
+
+@pytest.mark.parametrize(
+    "url", (None, "http://packages.example.test/simple", "https://[")
+)
+def test_invalid_default_index_url_is_not_a_normal_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, url: str | None
+) -> None:
+    configure_root(monkeypatch, tmp_path)
+    config_path = tmp_path / "uv.toml"
+    config_path.write_text(
+        '[[index]]\nname = "approved"\ndefault = true\n'
+        + (f'url = "{url}"\n' if url else ""),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    with pytest.raises(SystemExit, match="URL"):
+        tasks.approved_index_run_flags()
+
+
+@pytest.mark.parametrize("python_exists", (True, False))
+def test_review_handoff_only_reuses_environment_with_python(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, python_exists: bool
+) -> None:
+    configure_root(monkeypatch, tmp_path)
+    monkeypatch.setenv(tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE, "1")
+    python = tasks.environment_python_path()
+    if python_exists:
+        python.parent.mkdir(parents=True)
+        python.touch()
+    monkeypatch.setattr(
+        tasks,
+        "selected_approved_index_config",
+        lambda: pytest.fail("review handoff must not reselect or synchronize"),
+    )
+    if python_exists:
+        assert tasks.approved_index_run_flags() == ["--no-sync"]
+    else:
+        with pytest.raises(SystemExit):
+            tasks.approved_index_run_flags()
+
+
+@pytest.mark.parametrize("approved", (True, False))
+def test_review_preparation_selects_matching_sync(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, approved: bool
+) -> None:
+    configure_root(monkeypatch, tmp_path)
+    if approved:
+        config_path = tmp_path / "uv.toml"
+        write_approved_config(config_path)
+        monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    calls: list[str] = []
+    monkeypatch.setattr(tasks, "target_sync_dev", lambda: calls.append("standard"))
+    monkeypatch.setattr(
+        tasks, "target_sync_dev_approved_index", lambda: calls.append("approved")
+    )
+    tasks.target_prepare_review_python_environment()
+    assert calls == ["approved" if approved else "standard"]
 
 
 def test_approved_index_config_requires_one_non_public_default(
@@ -434,20 +560,36 @@ def test_api_deploy_stops_on_artifact_or_deployment_failure(
     )
 
 
-@pytest.mark.parametrize("flag", [None, "false", "FALSE", "", "invalid", "1"])
+def test_nap_defaults_are_enabled_across_infrastructure_and_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
+    assert tasks.node_provisioning_enabled() is True
+    parameters = json.loads(
+        (REPO_ROOT / "infra/main.parameters.json").read_text(encoding="utf-8")
+    )
+    assert parameters["parameters"]["enableNodeAutoProvisioning"]["value"] == (
+        "${AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING:true}"
+    )
+    for path in ("infra/main.bicep", "infra/modules/aks.bicep"):
+        assert "param enableNodeAutoProvisioning bool = true" in (
+            REPO_ROOT / path
+        ).read_text(encoding="utf-8")
+    main = (REPO_ROOT / "infra/main.bicep").read_text(encoding="utf-8")
+    assert "enableNodeAutoProvisioning: enableNodeAutoProvisioning" in main
+
+
+@pytest.mark.parametrize("flag", ["false", "FALSE", "", "invalid", "1"])
 def test_nap_disabled_or_invalid_never_connects(
-    monkeypatch: pytest.MonkeyPatch, flag: str | None
+    monkeypatch: pytest.MonkeyPatch, flag: str
 ) -> None:
     monkeypatch.setattr(tasks, "deployment_environment_name", lambda _: "eval")
-    if flag is None:
-        monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
-    else:
-        monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", flag)
+    monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", flag)
     monkeypatch.setattr(
         tasks, "aks_connection", lambda **_: pytest.fail("unexpected AKS")
     )
     monkeypatch.setattr(tasks, "run", lambda _: pytest.fail("unexpected deploy"))
-    if flag in (None, "false", "FALSE"):
+    if flag in ("false", "FALSE"):
         tasks.target_deploy_node_provisioning()
     else:
         with pytest.raises(SystemExit):
@@ -456,10 +598,17 @@ def test_nap_disabled_or_invalid_never_connects(
 
 @pytest.mark.parametrize("fail_wait", [False, True])
 @pytest.mark.parametrize("kubeconfig", [None, "/prepared/cluster.kubeconfig"])
+@pytest.mark.parametrize("flag", [None, "true", "TRUE"])
 def test_nap_waits_then_deploys_only_its_service(
-    monkeypatch: pytest.MonkeyPatch, fail_wait: bool, kubeconfig: str | None
+    monkeypatch: pytest.MonkeyPatch,
+    fail_wait: bool,
+    kubeconfig: str | None,
+    flag: str | None,
 ) -> None:
-    monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", "true")
+    if flag is None:
+        monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
+    else:
+        monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", flag)
     if kubeconfig is None:
         monkeypatch.delenv("KUBECONFIG", raising=False)
     else:
@@ -514,14 +663,21 @@ def test_nap_waits_then_deploys_only_its_service(
 
 
 @pytest.mark.parametrize("name,actual", [(None, ""), ("eval", ""), ("eval", "another")])
-def test_nap_requires_resolved_environment_even_when_disabled(
-    monkeypatch: pytest.MonkeyPatch, name: str | None, actual: str
+@pytest.mark.parametrize("flag", [None, "false"])
+def test_nap_requires_resolved_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    name: str | None,
+    actual: str,
+    flag: str | None,
 ) -> None:
     if name is None:
         monkeypatch.delenv("AZURE_ENV_NAME", raising=False)
     else:
         monkeypatch.setenv("AZURE_ENV_NAME", name)
-    monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
+    if flag is None:
+        monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
+    else:
+        monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", flag)
     monkeypatch.setattr(tasks, "run_aks_command", lambda *_args, **_kwargs: actual)
     monkeypatch.setattr(
         tasks, "aks_connection", lambda **_: pytest.fail("unexpected AKS")

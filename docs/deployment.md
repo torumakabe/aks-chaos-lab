@@ -155,12 +155,11 @@ azd up -e <environment>
 
 ### Node Auto Provisioning
 
-Node Auto Provisioning（NAP）は既定で無効です。設計判断と採用条件は[ADR-018](adr/018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md)を参照してください。
+Node Auto Provisioning（NAP）は既定で有効です。`AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING` が未設定の環境も有効化対象です。設計判断と採用条件は[ADR-018](adr/018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md)、既定有効化の判断は[ADR-020](adr/020-enable-node-auto-provisioning-by-default.md)を参照してください。
 
-NAPを有効にする場合は、対象環境へ明示的に設定してからbase layerの差分を確認します。NAP有効時はSystem AgentPoolがArm64 2台固定となり、Cluster Autoscalerは無効になります。
+NAP有効時はSystem AgentPoolがArm64 2台固定となり、Cluster Autoscalerは無効になります。未設定の既存環境でも次回のbase layer適用からこの構成が要求されるため、適用前に差分を確認してください。NAPを使わない新規環境や、NAP無効の既存環境を維持する場合は、適用前に `azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING false -e "<env>"` を実行してください。明示的な `false` は引き続き無効として扱います。
 
 ```bash
-azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING true -e "<env>"
 azd provision base --preview -e "<env>"
 ```
 
@@ -178,7 +177,7 @@ System AgentPoolが2台Readyで、既存workloadが健全であることを確�
 azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-node-provisioning
 ```
 
-環境を読み込めない場合や flag が不正な場合は停止します。読み込んだ `AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING` が未設定または false なら Kubernetes に接続せずスキップします。false に戻すだけでは既存の NodePool を削除しません。
+環境を読み込めない場合や flag が空文字または不正な値の場合は停止します。読み込んだ `AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING` が未設定または true なら NAP の適用を行い、false なら Kubernetes に接続せずスキップします。false の環境で再有効化する場合は、`azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING true -e "<env>"` を実行してから差分を確認してください。false に設定するだけでは既存の NodePool を削除せず、稼働中の NAP を無効化するには次の手順が必要です。
 
 NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` を生成し、Local DNS の設定値を Kustomize へ渡すため、このファイルを手動で管理する必要はありません。
 
@@ -190,7 +189,7 @@ NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` �
 4. `az aks update --node-provisioning-mode Manual`でNAPを無効化する。
 5. `az aks nodepool update --enable-cluster-autoscaler --min-count 1 --max-count 3`でSystem AgentPoolのCluster Autoscalerを復元する。
 6. System AgentPool、既存workload、外部health endpointを確認する。
-7. `AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING`を`false`へ戻す。
+7. `azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING false -e "<env>"` で無効を明示する。未設定にすると次回の適用で再び有効化されるため、設定を削除しない。
 8. `azd provision base --preview -e "<env>"`を実行し、NAPに関する差分が解消したことを確認する。ポリシー管理のNSG関連付けは期待されたdriftとして残る場合がある。
 
 ## ローカル開発
@@ -216,9 +215,11 @@ public package registry へ直接接続できない環境では、user-level の
 uv run --no-project "${PWD}/scripts/tasks.py" qa-app
 ```
 
-task runnerは有効なapproved-index設定を検出すると、各task processの最初のworkspaceコマンドを実行する前に`.venv`を再構築します。同期開始からtask processの終了までは、対象venvの正規化pathから導出したprocess間lockをOSの一時領域で保持するため、同じvenvを使うworkspace taskは直列に実行されます。明示的に環境だけを準備する場合は`sync-dev-approved-index`を実行します。
+task runnerは有効なapproved-index設定を検出すると、通常のtaskでは、各processの最初のworkspaceコマンドを実行する前に`.venv`を再構築します。同期開始からtask processの終了までは、対象venvの正規化pathから導出したprocess間lockをOSの一時領域で保持するため、同じvenvを使う通常のworkspace taskは直列に実行されます。レビュー専用環境のprocess間引渡しは[full レビューの Python 環境](#full-レビューの-python-環境)を参照してください。明示的に環境だけを準備する場合は`sync-dev-approved-index`を実行します。
 
-同期処理はuser-level設定とpublic lockのsourceを検査してから、public `uv.lock`を一時requirementsへ変換し、構成済みのpackage indexから`.venv`を作成します。変換後のrequirementsも検査し、direct URL、find-links、hash検証やTLS検証を無効にする設定、projectやdependency groupを変更する環境変数を拒否します。exportと後続の`uv run`はroot projectと対象venvの絶対pathへ固定します。registry packageには`--require-hashes`を適用し、workspace sourceはindexを介さず`.pth`で参照します。通常環境と分離した`.uv-state/cache/`を使い、一時requirementsは処理後に削除します。index固有のusernameとpassword環境変数は同期processだけへ渡し、ruff、ty、pytest、アプリなどの後続processから除去します。同じtask process内の後続コマンドだけは、直前に構築した環境へ`--no-sync`を適用します。
+単一の非public `[[index]]` に `default = true` がある場合、task runnerは選択済み設定として検査します。禁止された設定や環境変数があれば、通常のworkspace実行、標準同期、レビュー準備はいずれもuv起動前に停止し、通常環境の処理へ切り替えません。設定不在やpublic indexの設定は従来どおり通常環境として扱います。TOMLを解析できない場合は選択を判定せず、uv自身の設定エラー処理に委ねます。
+
+同期処理はuser-level設定とpublic lockのsourceを検査してから、public `uv.lock`を一時requirementsへ変換し、構成済みのpackage indexから`.venv`を作成します。変換後のrequirementsも検査し、direct URL、find-links、hash検証やTLS検証を無効にする設定、projectやdependency groupを変更する環境変数を拒否します。exportと後続の`uv run`はroot projectと対象venvの絶対pathへ固定します。registry packageには`--require-hashes`を適用し、workspace sourceはindexを介さず`.pth`で参照します。通常環境と分離した`.uv-state/cache/`を使い、一時requirementsは処理後に削除します。index固有のusernameとpassword環境変数は同期processだけへ渡し、ruff、ty、pytest、アプリなどの後続processから除去します。通常のtaskでは、同じprocess内の後続コマンドに、直前に構築した環境を使う`--no-sync`を適用します。
 
 post-edit hookは依存関係の整合性を判定しません。Python編集時はprojectの`.venv`にある`ruff`を直接実行し、ruffがない場合は同期を要求します。lockと仮想環境の整合性は同期taskとCIで検証します。
 
@@ -310,7 +311,7 @@ gh run list --workflow refresh-uv-lock.yml --branch <branch>
 gh run download <run-id> --name uv-lock-public --dir tmp/refresh-uv-lock
 ```
 
-workflowはルートまたは `src/` 配下の `pyproject.toml`、`uv.lock`、workflow定義自身を変更したpull requestで実行されます。既定branchへmergeした後は`workflow_dispatch`でも実行できます。取得した`uv.lock`の差分を確認して変更branchへ追加すると、組織承認済みpackage indexを使う環境では次のworkspace task実行時に再同期します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
+workflowはルートまたは `src/` 配下の `pyproject.toml`、`uv.lock`、workflow定義自身を変更したpull requestで実行されます。既定branchへmergeした後は`workflow_dispatch`でも実行できます。取得した`uv.lock`の差分を確認して変更branchへ追加すると、組織承認済みpackage indexを使う環境では次の通常のworkspace task実行時に再同期します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
 
 Renovateはworkspaceの依存について更新候補の検出だけを行い、lockは更新しません。workspace member、`resolution-strategy = "lowest"`、public PyPIを参照する`uv.lock`、external SLI publisherのrequirements同期を一度の更新で維持できることを保証できないためです。lockの更新経路は`refresh-uv-lock.yml`のままとし、取得した`uv.lock`は`check-uv-version`、`check-public-lock`、`check-publisher-requirements`、既存QAで検証します。責務の全体像は[依存パッケージとツールの更新管理](dependency-management.md)を参照してください。
 
@@ -318,7 +319,7 @@ Renovateはworkspaceの依存について更新候補の検出だけを行い、
 
 アプリケーション:
 
-クリーン環境や新しいworktreeでは、通常環境で`uv run --no-project "${PWD}/scripts/tasks.py" sync-dev`を実行してください。組織承認済みpackage indexを使う環境では、workspaceコマンドを含むtaskが実行前に環境を同期します。絶対pathと`--no-project`は、task runnerの起動前にuvが別のprojectを探索または同期することを防ぎます。
+クリーン環境や新しいworktreeでは、通常環境で`uv run --no-project "${PWD}/scripts/tasks.py" sync-dev`を実行してください。組織承認済みpackage indexを使う環境では、workspaceコマンドを含む通常のtaskが実行前に環境を同期します。レビュー専用環境の扱いは[full レビューの Python 環境](#full-レビューの-python-環境)を参照してください。絶対pathと`--no-project`は、task runnerの起動前にuvが別のprojectを探索または同期することを防ぎます。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" test
@@ -356,6 +357,18 @@ uv run --no-project "${PWD}/scripts/tasks.py" qa
 ```
 
 `uv run --no-project "${PWD}/scripts/tasks.py" qa`はworkflows、Bicep、Kubernetes manifests、アプリ、リポジトリ用Python scriptsのQAをまとめて実行します。必要な外部ツールの確認は`uv run --no-project "${PWD}/scripts/tasks.py" install-tools`と`check-*`ターゲットで実行できます。
+
+### full レビューの Python 環境
+
+`review-repo-full` は元 worktree を保護するため、隔離コピーの `.venv` を `UV_PROJECT_ENVIRONMENT` に指定し、別 process の `prepare-review-python-env` で準備します。approved-index を使う場合も上記の同期処理を通り、venv の消去、public lock と一時 requirements の検査、`--require-hashes`、専用 cache、同期前後の lock hash 照合を行います。過去に public PyPI から取得した artifact の再利用や public source への fallback は認めません。workspace source の `.pth` は隔離側の API と publisher を参照します。隔離コピーは OS sandbox ではなく、準備段階ではネットワークから package を取得する場合があります。
+
+レビュー処理は、子processの環境から変数を除去する前に、親processの環境でapproved-index設定と禁止変数を検査します。選択したindexのusernameとpasswordだけを準備processへ渡し、後続QAに共有する環境には保存しません。後続QAの子processからは、すべてのindexのusernameとpassword環境変数を除去します。
+
+準備に成功した場合だけ、レビュー処理は同じ隔離先 venv と内部マーカー `AKS_CHAOS_LAB_REVIEW_ENV_PREPARED=1` を後続 QA の子 process へ明示的に渡し、QA を逐次実行します。task runner はこのマーカーの通常の環境継承を除去し、準備 process にも渡しません。準備に失敗した場合は後続 QA を起動せず、`unverified` として報告します。
+
+引渡しを受けた task は Python の存在を確認し、後続実行に `--no-sync` を付けます。この分岐では取得元や lock hash を再検証しないため、取得元条件の根拠は直前の準備成功とレビュー処理による限定された引渡しにあります。マーカーや `--no-sync` 自体が取得元を保証するわけではなく、元 worktree や任意の既存 venv を再利用するための設定ではありません。
+
+venv 単位の process 間 lock は準備 process が取得し、その終了時に解放します。後続 QA はこの lock を再取得せず、レビュー専用 venv と逐次実行を使います。レビュー全体で lock を保持する方式ではなく、`--no-sync` も環境を読み取り専用にはしません。
 
 ### GitHub Actions の統合テスト
 

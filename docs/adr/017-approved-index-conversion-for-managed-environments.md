@@ -16,7 +16,8 @@ Public GitHub repository では public PyPI source の root `uv.lock` を唯一�
 1. Public GitHub repository では public PyPI source の root `uv.lock` を唯一の正本として維持する。
 2. 管理対象環境では、user-level uv configが単一の`[[index]]`と`default = true`を持つことを検査する。index source、find-links、hash検証、TLS検証、projectまたはdependency groupを変更する設定と環境変数がある場合は同期を中止する。exportと後続の`uv run`はroot projectと対象venvの絶対pathへ固定する。
 3. 管理対象環境ではpublic lockのsourceを検査し、`uv export --frozen`で未コミットの一時requirementsへ変換する。変換後のrequirementsも検査してdirect URLを拒否し、registry packageへ`--require-hashes`を適用してapproved-indexから環境を構築する。workspace sourceはindexを介さず参照する。通常環境とは別のuv cacheを使い、過去にpublic PyPIから取得したartifactを再利用しない。approved-indexがpublic lockの許可するbit-identical artifactを提供することを成立条件とする。
-4. task runnerが有効なapproved-index設定を検出した場合、各task processの最初のworkspaceコマンドを実行する前に、仮想環境を消去してapproved-indexから同期する。同期開始からtask processの終了までは、対象venvの正規化pathから導出したprocess間lockを保持し、別processによる同じvenvの再構築を防ぐ。同じprocess内の後続コマンドだけは、直前に構築した環境を`--no-sync`で使用する。永続的なsync stateは保存しない。同期の開始時と完了時でlockのhashが異なる場合はコマンドを実行せず、public sourceへ自動fallbackしない。
+4. task runnerが有効なapproved-index設定を検出した場合、通常のtaskでは、各processの最初のworkspaceコマンドを実行する前に、仮想環境を消去してapproved-indexから同期する。同期開始からtask processの終了までは、対象venvの正規化pathから導出したprocess間lockを保持し、別processによる同じvenvの再構築を防ぐ。同じprocess内の後続コマンドは、直前に構築した環境を`--no-sync`で使用する。永続的なsync stateは保存しない。同期の開始時と完了時でlockのhashが異なる場合はコマンドを実行せず、public sourceへ自動fallbackしない。
+    - `review-repo-full` では、同じレビューの後続 QA で準備済み環境を共有するため、レビュー専用の隔離コピー内で準備した環境に限り、process 間の引渡しを認める。準備には上記の取得元条件と hash 検査を適用し、成功した場合だけレビュー処理が後続 QA へ明示的に引き渡す。準備失敗時は後続 QA を起動しない。元 worktree や任意の既存 venv の再利用は認めない。引渡しと排他の有効範囲は[デプロイ文書](../deployment.md#full-レビューの-python-環境)に記載する。
 5. task runnerはscriptの絶対pathと`uv run --no-project`で起動し、taskのstate検査より前に別のprojectを探索または同期しないようにする。
 6. GitHub Actions、Azure Functions remote build、外部利用者はpublic PyPIを継続して使用する。
 7. Docker buildも同じexportとpip syncを使う。管理対象環境のローカルbuildはbuild argumentでapproved-index modeとconfigのSHA-256を明示し、BuildKit secretでuser-level uv configをmountする。Dockerfileはmountしたconfigのhashを照合し、build modeとhashをdependency layerおよびBuildKit cache mountのkeyへ含める。公開CIにはsecretを渡さない。
@@ -34,7 +35,7 @@ Public GitHub repository では public PyPI source の root `uv.lock` を唯一�
 
 ## Consequences
 - 管理対象環境は public lock と bit-identical な依存関係を再現できる。
-- 一時requirementsの生成とtask processごとの再同期が必要になる。approved-indexが成立条件を満たさない場合、環境構築は失敗する。
+- 一時requirementsの生成と通常のtask processごとの再同期が必要になる。full レビューでは、隔離先での準備成功を確認したレビュー処理が後続 QA への引渡しを担う。approved-indexが成立条件を満たさない場合、環境構築は失敗する。
 - 明示した2つの task は、限定条件に合致する場合に限り `uv.lock` を修復する副作用を持つ。排他に協調しない外部プロセスの書き込みを完全には防げない。
 - 成果物の同一性は適用後の確認時点を対象とする。将来の外部操作によるタグの上書きと再 pull まで不変性を保証しない。
 

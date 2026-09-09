@@ -15,11 +15,11 @@
 
 | カテゴリ | 用途 | 出力記号 | 例 |
 |---------|------|---------|-----|
-| `readonly_patterns` | ARM readOnly プロパティ | 🔒 | `provisioningState`, `etag`, `kind` |
-| `arm_reference_patterns` | ARM 参照式 | 🔒 | `[reference(`, `[resourceId(` |
-| `auto_managed_patterns` | Azure 自動管理 | 📘 | `identityProfile`, `addonProfiles` |
+| `readonly_patterns` | ARM readOnly プロパティ | 🔒 | `provisioningState`, `etag` |
+| `arm_reference_patterns` | ARM 参照式の検出（解決結果は要確認） | ⚠️ | `[reference(`, `[resourceId(` |
+| `auto_managed_patterns` | 自動設定の候補（適用条件と値は要確認） | ⚠️ | `identityProfile`, `addonProfiles` |
 | `custom_patterns` | 要確認（人間の判断が必要） | ⚠️ | `orchestratorVersion`, `networkSecurityGroup` |
-| `known_defaults` | 既知のデフォルト値 | 📘 | `enableRBAC=true` |
+| `known_defaults` | 変更前後それぞれの既定値との一致 | 📘 | `enableRBAC=true` |
 
 上記5カテゴリだけを使用する。存在しないカテゴリ（例: `noise_patterns`）を作成しない。
 
@@ -48,6 +48,8 @@
 各カテゴリでデータ形式が異なる。**形式を間違えるとスクリプトがエラーになる。**
 
 #### `readonly_patterns`, `arm_reference_patterns`: 文字列の配列
+
+次はリソースタイプ別の readOnly パターンの例。
 
 ```json
 "readonly_patterns": [
@@ -78,7 +80,7 @@
 
 ### `properties.` プレフィックスを除去
 
-スクリプトは内部で `properties.` を除去してからマッチング。パターンには含めない。
+リソースタイプ別パターンと、共通の `auto_managed_patterns`、`custom_patterns`、`known_defaults` は、先頭の `properties.` を除去してから照合する。これらのパターンにはプレフィックスを含めない。
 
 ```json
 ❌ "^properties\\.enableRBAC$"
@@ -90,6 +92,8 @@
 
 例外: `sku.tier` など `properties` 配下でないプロパティはそのまま記述。
 
+共通の `readonly_patterns` は元のパスで照合する。`^name$` はリソース名だけに一致し、`properties.name` など設定辞書内の同名キーには一致させない。プロビジョニング状態は `^properties\.provisioningState$` と記述する。
+
 ### パターン追加先の原則
 
 1. **原則**: `resource_types` 配下のリソース別に追加
@@ -97,6 +101,35 @@
 3. **迷う場合**: `common` ではなく該当リソース配下に `custom_patterns` として追加
 
 根拠が確認できたリソースタイプとプロパティだけに一致させる。一つのリソースで確認した既定値を、他のリソースや親オブジェクト全体へ広げない。
+
+`kind` は全リソース共通の readOnly ではない。例えば Storage Account では [StorageV2 への更新](https://learn.microsoft.com/azure/storage/common/storage-account-upgrade#upgrade-an-account)に使うため、共通の `readonly_patterns` に追加しない。
+
+Data Collection Endpoint の [`properties`](https://learn.microsoft.com/azure/templates/microsoft.insights/2024-03-11/datacollectionendpoints)には、設定可能な `networkAcls.publicNetworkAccess` などが含まれる。差分が親オブジェクト単位で返る場合もあるため、`properties` 全体を readOnly にしない。
+
+同様に、[Fleet](https://learn.microsoft.com/azure/templates/microsoft.containerservice/fleets#resource-format) の `properties.hubProfile`、[User Assigned Identity](https://learn.microsoft.com/rest/api/managedidentity/user-assigned-identities/create-or-update?view=rest-managedidentity-2024-11-30) の `properties.isolationScope`、[Monitor Account](https://learn.microsoft.com/azure/templates/microsoft.monitor/2025-10-03-preview/accounts#resource-format) の `properties.publicNetworkAccess`、[Log Analytics Table](https://learn.microsoft.com/azure/templates/microsoft.operationalinsights/2025-07-01/workspaces/tables#resource-format) の `properties.schema.columns` は設定可能な属性を含む。これらの `properties` や `schema` 全体を readOnly にしない。
+
+`Microsoft.Relationships/serviceGroupMember` の `properties.targetTenant` は、API `2023-09-01-preview` の [PUT 入力の公式例](https://github.com/Azure/azure-rest-api-specs/blob/main/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/preview/2023-09-01-preview/examples/ServiceGroupMemberRelationships_CreateOrUpdate.json)で指定する書き込み可能な属性である。親リソース型に `/providers/serviceGroupMember` を付けたパターン定義でも、`targetTenant` を readOnly にしない。
+
+### readOnly の根拠を確認できなかった5パス
+
+次の5パスは readOnly の根拠を確認できなかったため、`readonly_patterns` から削除した。`Modify` で変更前後に ARM 参照式がない場合は、通常の未分類として `pending`（`reason` と `confidence` は `null`）を表示する。書き込み可能と確定したものではない。
+
+| リソース型 | 対象パス | 確認結果 |
+|-----------|----------|----------|
+| `Microsoft.Monitor/accounts` | `properties.endpoints` | [Accounts API `2025-10-03` stable](https://github.com/Azure/azure-rest-api-specs/blob/main/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/stable/2025-10-03/azuremonitorworkspace.json)に該当属性がない。`defaultIngestionSettings.ingestionEndpoints` は別パス |
+| `Microsoft.Network/privateEndpoints/privateDnsZoneGroups` | `properties.privateDnsZoneConfigs.<index>.etag`、`.id`、`.type`、`.properties.provisioningState` | Network API `2025-07-01` の `PrivateDnsZoneConfig` と `PrivateDnsZonePropertiesFormat` に該当する4属性がない。group 自身の `properties.provisioningState` は別パスであり、既存の readOnly 判定を維持する |
+
+定義の導入元は、Monitor がコミット `2a09bc8`、DNS zone config の4件が `aa988a1`。Monitor のコミット説明にはスキーマで裏付けたとの記述があるが、対象パスの仕様参照はなく、DNS zone config の4件にも根拠の参照はない。
+
+照合では、resource ID から子リソース型まで抽出し、delta の `children` のパスをドットで連結する。例えば子パス `0` は `privateDnsZoneConfigs.0.etag` のようになる。型別ルールは先頭の `properties.` だけを除去するため、今回の5ルールは上表のパスに適用されていた。配列の角括弧表記を数値のドット表記へ変換する処理はない。合成 delta にルールが一致することは、API response にその属性が存在することや、正式な readOnly 属性であることの根拠にはならない。共通の metadata ルールは変更していない。
+
+### 候補の表示と確定評価を分ける
+
+`auto_managed_patterns` の一致はパスだけを確認する。説明文にある未指定時の補完、値の等価性、サービスの動作条件を確認した結果ではないため、出力は要確認とし、説明文を実際の差分の原因として表示しない。Bicep 照合の `notDefined` も、変数やモジュールを通じた指定がないことの証明には使わない。
+
+`known_defaults` は正規化後のパスと値を照合し、変更前と変更後のどちらが既定値に一致したかを表示する。別の階層や似た名前への末尾一致は使わず、`null` や値の欠落から既定値への復帰を推定しない。既定値への一致だけでは差分をノイズ確定にしない。
+
+ARM 参照式は、その存在だけでは変更前後の値が等しいと判断できない。[what-if の制限](https://learn.microsoft.com/azure/azure-resource-manager/bicep/deploy-what-if#view-results)を踏まえ、解決結果を比較できない差分は `pending` とし、要確認の注記を付ける。`NoEffect` と readOnly に該当する差分は、それぞれの根拠による `noise_confirmed` を維持する。
 
 ## パターン追加ワークフロー
 
@@ -128,9 +161,9 @@ uv run --no-project python -c 'import json; from pathlib import Path; json.loads
 
 | 出力記号 | 分類 | 基準 | 例 |
 |---------|-----|-----|-----|
-| 🔒 | **readOnly** | ARM スキーマで readOnly、ユーザー制御不可 | `provisioningState`, `kind` |
-| 📘 | **自動設定/デフォルト** | Azure が自動設定またはデフォルト値 | `identityProfile`, `enableRBAC` |
-| ⚠️ | **要確認** | 人間の判断が必要、ドリフトの可能性 | `orchestratorVersion`, `networkSecurityGroup` |
+| 🔒 | **readOnly** | ARM スキーマで readOnly、ユーザー制御不可 | `provisioningState`, `etag` |
+| 📘 | **既定値情報** | 変更前後のどちらが既定値に一致したかを表示 | `enableRBAC` |
+| ⚠️ | **要確認** | 自動設定の条件や参照式の解決結果など、人間の判断が必要 | `identityProfile`, `orchestratorVersion`, `networkSecurityGroup` |
 | ❓ | **未分類** | パターンにマッチしない、調査が必要 | - |
 
 ## 禁止事項

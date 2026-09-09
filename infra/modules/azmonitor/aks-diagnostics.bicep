@@ -12,7 +12,7 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-09-01' exis
   name: aksClusterName
 }
 
-resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' existing = {
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' existing = {
   name: logAnalyticsWorkspaceName
 }
 
@@ -72,7 +72,7 @@ resource diagnosticSetting 'Microsoft.Insights/diagnosticSettings@2021-05-01-pre
 }
 
 // Table plan: Basic (ADR-005)
-resource aksAuditAdminTable 'Microsoft.OperationalInsights/workspaces/tables@2025-02-01' = {
+resource aksAuditAdminTable 'Microsoft.OperationalInsights/workspaces/tables@2026-03-01' = {
   parent: logAnalyticsWorkspace
   name: 'AKSAuditAdmin'
   properties: {
@@ -80,7 +80,7 @@ resource aksAuditAdminTable 'Microsoft.OperationalInsights/workspaces/tables@202
   }
 }
 
-resource aksControlPlaneTable 'Microsoft.OperationalInsights/workspaces/tables@2025-02-01' = {
+resource aksControlPlaneTable 'Microsoft.OperationalInsights/workspaces/tables@2026-03-01' = {
   parent: logAnalyticsWorkspace
   name: 'AKSControlPlane'
   properties: {

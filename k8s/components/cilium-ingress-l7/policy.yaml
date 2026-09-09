@@ -26,18 +26,6 @@ spec:
             http:
               - method: "GET"
                 path: "^/$"
-    # Platform scraping. This source should not get app or readiness paths.
-    - fromEndpoints:
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: kube-system
-      toPorts:
-        - ports:
-            - port: "8000"
-              protocol: TCP
-          rules:
-            http:
-              - method: "GET"
-                path: "^/metrics$"
     # Kubelet HTTP probes from nodes.
     - fromEntities:
         - host

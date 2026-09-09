@@ -132,7 +132,7 @@ resource storageBlobPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtua
   }
 }
 
-resource storageBlobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-05-01' = {
+resource storageBlobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = {
   name: 'pe-blob-${storageAccount.name}'
   location: location
   tags: tags
@@ -181,7 +181,7 @@ resource storageQueuePrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtu
   }
 }
 
-resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-05-01' = {
+resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = {
   name: 'pe-queue-${storageAccount.name}'
   location: location
   tags: tags
@@ -230,7 +230,7 @@ resource storageTablePrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtu
   }
 }
 
-resource storageTablePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-05-01' = {
+resource storageTablePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = {
   name: 'pe-table-${storageAccount.name}'
   location: location
   tags: tags

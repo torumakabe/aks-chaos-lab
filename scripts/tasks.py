@@ -47,6 +47,7 @@ from aks_connection import (  # noqa: E402
 from approved_index_config import (  # noqa: E402
     UNSAFE_UV_ENVIRONMENT_VARIABLES,
     ApprovedIndexConfigError,
+    approved_index_is_selected,
     config_sha256,
     user_uv_config_path,
     validate_approved_index_config,
@@ -438,6 +439,20 @@ def ensure_public_lock(*, allow_repair: bool = False) -> None:
         raise SystemExit(1) from error
 
 
+def selected_approved_index_config() -> Path | None:
+    try:
+        config_path = user_uv_config_path()
+    except ApprovedIndexConfigError:
+        return None
+    if not approved_index_is_selected(config_path):
+        return None
+    try:
+        validate_approved_index_config(config_path)
+    except ApprovedIndexConfigError as error:
+        raise SystemExit(f"error: {error}") from error
+    return config_path
+
+
 def approved_index_run_flags() -> list[str]:
     global _approved_index_environment_prepared
 
@@ -452,10 +467,7 @@ def approved_index_run_flags() -> list[str]:
             raise SystemExit(1)
         return ["--no-sync"]
 
-    try:
-        config_path = user_uv_config_path()
-        validate_approved_index_config(config_path, environ={})
-    except ApprovedIndexConfigError:
+    if selected_approved_index_config() is None:
         return []
 
     target_sync_dev_approved_index()
@@ -463,9 +475,7 @@ def approved_index_run_flags() -> list[str]:
 
 
 def ensure_approved_index_not_selected() -> None:
-    try:
-        validate_approved_index_config(user_uv_config_path(), environ={})
-    except ApprovedIndexConfigError:
+    if selected_approved_index_config() is None:
         return
     print(
         "error: Standard sync cannot use the approved package index. "
@@ -752,9 +762,7 @@ def target_sync_dev_approved_index(*, allow_lock_repair: bool = False) -> None:
 
 
 def target_prepare_review_python_environment() -> None:
-    try:
-        validate_approved_index_config(user_uv_config_path(), environ={})
-    except ApprovedIndexConfigError:
+    if selected_approved_index_config() is None:
         target_sync_dev()
     else:
         target_sync_dev_approved_index()
@@ -2425,6 +2433,18 @@ def run_review_targets_isolated(
                 REVIEW_PYTHON_ENVIRONMENT_TIMEOUT_SECONDS,
             )
             try:
+                config_path = selected_approved_index_config()
+                preparation_environment = {
+                    **isolated_environment,
+                    **(
+                        {
+                            "UV_CONFIG_FILE": str(config_path),
+                            **approved_index_credentials(config_path),
+                        }
+                        if config_path is not None
+                        else {}
+                    ),
+                }
                 completed = run_isolated_review_command(
                     [
                         sys.executable,
@@ -2432,8 +2452,14 @@ def run_review_targets_isolated(
                         preparation_check.target_name,
                     ],
                     cwd=isolated_root,
-                    env=isolated_environment,
+                    env=preparation_environment,
                     timeout=preparation_check.timeout_seconds,
+                )
+            except SystemExit as error:
+                python_preparation_failure = (
+                    "unverified",
+                    REVIEW_REASON_CHECK_FAILED,
+                    str(error),
                 )
             except subprocess.TimeoutExpired:
                 python_preparation_failure = (
@@ -4928,10 +4954,10 @@ def deployment_environment_name(deadline: Deadline) -> str:
 
 def node_provisioning_enabled() -> bool:
     value = os.environ.get("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING")
-    if value is None or value.lower() == "false":
-        return False
-    if value.lower() == "true":
+    if value is None or value.lower() == "true":
         return True
+    if value.lower() == "false":
+        return False
     print(
         "error: AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING must be true or false.",
         file=sys.stderr,

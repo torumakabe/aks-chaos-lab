@@ -4,6 +4,10 @@
 
 Accepted
 
+Decision と Consequences にある `FQDN` 設定および Istio 併用時の L7 利用不可という前提は、[ADR-007](007-acns-l7-observability.md) により部分変更された。ADR-007 は App Routing Istio 構成で L7 ポリシーと Hubble L7 メトリクスを採用している。
+
+CRD ベースの保存ログ採用、Log Analytics 連携、対象 Pod のフィルタ、L7 フローログ保存を対象外とする判断は引き続き有効とする。L7 保存ログの可否は ADR-007 でも検証対象外であり、以下の「利用不可」は当時の前提として保持する。
+
 ## Context
 
 AKS コンテナーネットワークログが 2026年3月に GA した。本プロジェクトは ACNS + Cilium が有効済みで前提条件を満たしている。Chaos Engineering 実験（NetworkChaos, DNSChaos）でネットワークフローの可視性が不足しており、ADR-001 で記録した「HTTPChaos は Envoy 層で注入されるためアプリ層メトリクスでは観測不可」の課題の延長として、ネットワーク層の可観測性向上が求められた。

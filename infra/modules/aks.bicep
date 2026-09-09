@@ -11,7 +11,7 @@ param nodeResourceGroupName string
 @description('Node VM size')
 param nodeVmSize string
 @description('Enable AKS Node Auto Provisioning for user workload capacity')
-param enableNodeAutoProvisioning bool = false
+param enableNodeAutoProvisioning bool = true
 @description('Local DNS mode for the System node pool')
 @allowed([
   'Disabled'
@@ -247,7 +247,7 @@ var subnetName = last(subnetIdParts)
 var virtualNetworkName = subnetIdParts[8]
 
 @description('Existing VNet (parent of the AKS subnet)')
-resource existingVirtualNetwork 'Microsoft.Network/virtualNetworks@2024-07-01' existing = {
+resource existingVirtualNetwork 'Microsoft.Network/virtualNetworks@2025-09-01' existing = {
   name: virtualNetworkName
 }
 

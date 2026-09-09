@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import mock_open, patch
 
 # テスト対象モジュールのパスを追加
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -18,9 +19,11 @@ from what_if_analyzer import (
     DisplayConfigLoader,
     NoisePatternLoader,
     _extract_actual_provider_type,
+    build_output,
     contains_arm_reference,
     evaluate_property_change,
     extract_resource_changes,
+    extract_resource_type_from_id,
     flatten_property_changes,
     format_azd_style_output,
     get_bicep_param_names,
@@ -28,6 +31,7 @@ from what_if_analyzer import (
     is_create_false_positive,
     is_main_resource,
     is_readonly_property,
+    match_known_default,
     parse_azure_yaml_layers,
     resolve_parameters_file_placeholders,
     run_what_if,
@@ -36,6 +40,86 @@ from what_if_analyzer import (
 
 class TestEvaluatePropertyChange(unittest.TestCase):
     """evaluate_property_change のテスト"""
+
+    def test_storage_account_kind_change_remains_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as bicep_dir:
+            output = build_output(
+                {
+                    "changes": [
+                        {
+                            "changeType": "Modify",
+                            "resourceId": (
+                                "/subscriptions/sub/resourceGroups/rg/providers/"
+                                "Microsoft.Storage/storageAccounts/st-test"
+                            ),
+                            "delta": [
+                                {
+                                    "path": "kind",
+                                    "propertyChangeType": "Modify",
+                                    "before": "Storage",
+                                    "after": "StorageV2",
+                                }
+                            ],
+                        }
+                    ]
+                },
+                template="infra/main.bicep",
+                location="japaneast",
+                bicep_dir=bicep_dir,
+            )
+        change = output["changes"][0]["propertyChanges"][0]
+        self.assertEqual(change["evaluation"]["status"], "pending")
+        self.assertIsNone(change["evaluation"]["reason"])
+        self.assertEqual(output["evaluationSummary"]["noise_confirmed"], 0)
+        self.assertEqual(output["pendingEvaluations"]["count"], 1)
+        text = format_azd_style_output(output)
+        self.assertIn("kind", text)
+        self.assertNotIn("readOnly", text)
+
+    def test_dce_properties_change_remains_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as bicep_dir:
+            output = build_output(
+                {
+                    "changes": [
+                        {
+                            "changeType": "Modify",
+                            "resourceId": (
+                                "/subscriptions/sub/resourceGroups/rg/providers/"
+                                "Microsoft.Insights/dataCollectionEndpoints/dce-test"
+                            ),
+                            "delta": [
+                                {
+                                    "path": "properties",
+                                    "propertyChangeType": "Modify",
+                                    "before": {
+                                        "networkAcls": {
+                                            "publicNetworkAccess": "Disabled"
+                                        }
+                                    },
+                                    "after": {
+                                        "networkAcls": {
+                                            "publicNetworkAccess": "Enabled"
+                                        }
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                },
+                template="infra/main.bicep",
+                location="japaneast",
+                bicep_dir=bicep_dir,
+            )
+        change = output["changes"][0]["propertyChanges"][0]
+        self.assertEqual(change["path"], "properties")
+        self.assertEqual(change["evaluation"]["status"], "pending")
+        self.assertIsNone(change["evaluation"]["reason"])
+        self.assertEqual(output["evaluationSummary"]["noise_confirmed"], 0)
+        self.assertEqual(output["pendingEvaluations"]["count"], 1)
+        text = format_azd_style_output(output)
+        self.assertIn("dce-test", text)
+        self.assertIn("properties", text)
+        self.assertNotIn("readOnly", text)
 
     def test_noeffect_returns_noise_confirmed(self) -> None:
         """NoEffect は noise_confirmed を返す"""
@@ -60,16 +144,315 @@ class TestEvaluatePropertyChange(unittest.TestCase):
         self.assertEqual(result["status"], "noise_confirmed")
         self.assertEqual(result["reason"], "readOnly")
 
-    def test_arm_reference_returns_noise_confirmed(self) -> None:
-        """ARM 参照式を含む場合は noise_confirmed を返す"""
+    def test_arm_reference_remains_pending(self) -> None:
+        """ARM 参照式だけでは変更が消えることを証明できない"""
         result = evaluate_property_change(
             path="properties.subnetId",
             change_type="Modify",
             before="[reference(resourceId('Microsoft.Network/virtualNetworks', 'vnet'))]",
             after="/subscriptions/.../subnets/default",
         )
-        self.assertEqual(result["status"], "noise_confirmed")
+        self.assertEqual(result["status"], "pending")
         self.assertEqual(result["reason"], "armReference")
+        self.assertIsNone(result["confidence"])
+
+    def test_configurable_changes_remain_pending_in_output(self) -> None:
+        cases = (
+            (
+                "Microsoft.ContainerService/fleets",
+                "properties",
+                {},
+                {"hubProfile": {"dnsPrefix": "new-hub"}},
+                None,
+            ),
+            (
+                "Microsoft.ManagedIdentity/userAssignedIdentities",
+                "properties",
+                {"isolationScope": "None"},
+                {"isolationScope": "Regional"},
+                None,
+            ),
+            (
+                "Microsoft.Monitor/accounts",
+                "properties",
+                {"publicNetworkAccess": "Disabled"},
+                {"publicNetworkAccess": "Enabled"},
+                None,
+            ),
+            (
+                "Microsoft.OperationalInsights/workspaces/tables",
+                "properties.schema",
+                {"columns": []},
+                {"columns": [{"name": "Message", "type": "string"}]},
+                None,
+            ),
+            (
+                "Microsoft.Monitor/accounts",
+                "properties.publicNetworkAccess",
+                "Disabled",
+                "Enabled",
+                None,
+            ),
+            (
+                "Microsoft.OperationalInsights/workspaces/tables",
+                "properties.schema.columns",
+                [],
+                [{"name": "Message", "type": "string"}],
+                None,
+            ),
+            (
+                "Microsoft.Web/sites/config",
+                "properties.name",
+                "old-setting",
+                "new-setting",
+                None,
+            ),
+            (
+                "Microsoft.Network/privateEndpoints",
+                "properties.subnet.id",
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'vnet', 'old')]",
+                "[resourceId('Microsoft.Network/virtualNetworks/subnets', 'vnet', 'new')]",
+                "armReference",
+            ),
+            (
+                "Microsoft.Authorization/roleAssignments",
+                "properties.principalId",
+                "[reference('old-identity').principalId]",
+                "[reference('new-identity').principalId]",
+                "armReference",
+            ),
+            (
+                "Microsoft.Network/virtualNetworks",
+                "properties.customValue",
+                "old",
+                "[subscription().subscriptionId]",
+                "armReference",
+            ),
+        )
+        with tempfile.TemporaryDirectory() as bicep_dir:
+            for resource_type, path, before, after, reason in cases:
+                with self.subTest(resource_type=resource_type, path=path):
+                    provider, *type_segments = resource_type.split("/")
+                    resource_path = "/".join(
+                        f"{segment}/test-resource" for segment in type_segments
+                    )
+                    output = build_output(
+                        {
+                            "changes": [
+                                {
+                                    "changeType": "Modify",
+                                    "resourceId": (
+                                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                                        f"{provider}/{resource_path}"
+                                    ),
+                                    "delta": [
+                                        {
+                                            "path": path,
+                                            "propertyChangeType": "Modify",
+                                            "before": before,
+                                            "after": after,
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                        template="infra/main.bicep",
+                        location="japaneast",
+                        bicep_dir=bicep_dir,
+                    )
+                    self.assertEqual(
+                        output["changes"][0]["resourceType"], resource_type
+                    )
+                    change = output["changes"][0]["propertyChanges"][0]
+                    self.assertEqual(change["evaluation"]["status"], "pending")
+                    self.assertEqual(change["evaluation"]["reason"], reason)
+                    self.assertEqual(output["evaluationSummary"]["noise_confirmed"], 0)
+                    self.assertEqual(output["pendingEvaluations"]["count"], 1)
+                    text = format_azd_style_output(output)
+                    self.assertIn(path, text)
+                    self.assertNotIn("readOnly", text)
+                    self.assertNotIn("非表示", text)
+                    if reason == "armReference":
+                        self.assertIn("ARM 参照式", text)
+                        self.assertIn("要確認", text)
+
+    def test_unverified_readonly_paths_remain_pending_in_output(self) -> None:
+        cases = (
+            (
+                "Microsoft.Monitor/accounts/monitor-test",
+                "Microsoft.Monitor/accounts",
+                "properties.endpoints",
+            ),
+            *(
+                (
+                    "Microsoft.Network/privateEndpoints/pe-test/"
+                    "privateDnsZoneGroups/group-test",
+                    "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+                    f"properties.privateDnsZoneConfigs.0.{suffix}",
+                )
+                for suffix in ("etag", "id", "type", "properties.provisioningState")
+            ),
+            (
+                "Microsoft.Network/privateEndpoints/pe-test/"
+                "privateDnsZoneGroups/group-test",
+                "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+                "properties.provisioningState",
+            ),
+        )
+        with tempfile.TemporaryDirectory() as bicep_dir:
+            for resource_path, resource_type, path in cases:
+                for nested in (False, True):
+                    with self.subTest(path=path, nested=nested):
+                        resource_id = (
+                            "/subscriptions/11111111-1111-4111-8111-111111111111/"
+                            f"resourceGroups/rg-test/providers/{resource_path}"
+                        )
+                        self.assertEqual(
+                            extract_resource_type_from_id(resource_id), resource_type
+                        )
+                        segments = path.split(".") if nested else [path]
+                        delta = {
+                            "path": segments[-1],
+                            "propertyChangeType": "Modify",
+                            "before": "Succeeded",
+                            "after": "Updating",
+                        }
+                        for segment in reversed(segments[:-1]):
+                            delta = {
+                                "path": segment,
+                                "propertyChangeType": "Modify",
+                                "children": [delta],
+                            }
+                        output = build_output(
+                            {
+                                "changes": [
+                                    {
+                                        "changeType": "Modify",
+                                        "resourceId": resource_id,
+                                        "delta": [delta],
+                                    }
+                                ]
+                            },
+                            template="infra/main.bicep",
+                            location="japaneast",
+                            bicep_dir=bicep_dir,
+                        )
+                        resource = output["changes"][0]
+                        self.assertEqual(resource["resourceType"], resource_type)
+                        self.assertEqual(len(resource["propertyChanges"]), 1)
+                        change = resource["propertyChanges"][0]
+                        self.assertEqual(change["path"], path)
+                        evaluation = change["evaluation"]
+                        text = format_azd_style_output(output)
+                        self.assertIn(resource_path.rsplit("/", 1)[-1], text)
+                        self.assertIn(f"~ {path}  ", text)
+                        self.assertNotIn("非表示", text)
+                        if path == "properties.provisioningState":
+                            self.assertEqual(evaluation["status"], "noise_confirmed")
+                            self.assertEqual(evaluation["reason"], "readOnly")
+                            self.assertEqual(evaluation["confidence"], "high")
+                            self.assertEqual(
+                                output["evaluationSummary"]["noise_confirmed"], 1
+                            )
+                            self.assertEqual(output["pendingEvaluations"]["count"], 0)
+                            self.assertIn("🔒 readOnly", text)
+                        else:
+                            self.assertEqual(evaluation["status"], "pending")
+                            self.assertIsNone(evaluation["reason"])
+                            self.assertIsNone(evaluation["confidence"])
+                            self.assertEqual(
+                                output["evaluationSummary"]["noise_confirmed"], 0
+                            )
+                            self.assertEqual(output["pendingEvaluations"]["count"], 1)
+                            self.assertIn(f"~ {path}  ❓ 未分類。確認推奨", text)
+                            self.assertNotIn("readOnly", text)
+
+    def test_service_group_member_property_evaluations_in_output(self) -> None:
+        with tempfile.TemporaryDirectory() as bicep_dir:
+            for parent_type in (
+                "Microsoft.Cache/redisEnterprise",
+                "Microsoft.ContainerRegistry/registries",
+                "Microsoft.ContainerService/managedClusters",
+                "Microsoft.Insights/components",
+                "Microsoft.Monitor/accounts",
+                "Microsoft.OperationalInsights/workspaces",
+            ):
+                for property_name in (
+                    "targetTenant",
+                    "metadata",
+                    "originInformation",
+                    "sourceId",
+                ):
+                    with self.subTest(
+                        parent_type=parent_type, property_name=property_name
+                    ):
+                        path = f"properties.{property_name}"
+                        output = build_output(
+                            {
+                                "changes": [
+                                    {
+                                        "changeType": "Modify",
+                                        "resourceId": (
+                                            "/subscriptions/sub/resourceGroups/rg/providers/"
+                                            f"{parent_type}/test-parent/providers/"
+                                            "Microsoft.Relationships/serviceGroupMember/test-member"
+                                        ),
+                                        "delta": [
+                                            {
+                                                "path": path,
+                                                "propertyChangeType": "Modify",
+                                                "before": "11111111-1111-4111-8111-111111111111",
+                                                "after": "22222222-2222-4222-8222-222222222222",
+                                            }
+                                        ],
+                                    }
+                                ]
+                            },
+                            template="infra/main.bicep",
+                            location="japaneast",
+                            bicep_dir=bicep_dir,
+                        )
+                        resource = output["changes"][0]
+                        self.assertEqual(
+                            resource["resourceType"],
+                            f"{parent_type}/providers/serviceGroupMember",
+                        )
+                        change = resource["propertyChanges"][0]
+                        self.assertEqual(change["path"], path)
+                        evaluation = change["evaluation"]
+                        text = format_azd_style_output(output)
+                        self.assertIn(path, text)
+                        if property_name == "targetTenant":
+                            self.assertEqual(evaluation["status"], "pending")
+                            self.assertIsNone(evaluation["reason"])
+                            self.assertIsNone(evaluation["confidence"])
+                            self.assertEqual(
+                                output["evaluationSummary"]["noise_confirmed"], 0
+                            )
+                            self.assertEqual(output["pendingEvaluations"]["count"], 1)
+                            self.assertNotIn("readOnly", text)
+                        else:
+                            self.assertEqual(evaluation["status"], "noise_confirmed")
+                            self.assertEqual(evaluation["reason"], "readOnly")
+                            self.assertEqual(evaluation["confidence"], "high")
+                            self.assertEqual(
+                                output["evaluationSummary"]["noise_confirmed"], 1
+                            )
+                            self.assertEqual(output["pendingEvaluations"]["count"], 0)
+                            self.assertIn("readOnly", text)
+
+    def test_noeffect_and_readonly_keep_precedence_over_arm_reference(self) -> None:
+        for path, change_type, reason in (
+            ("properties.subnetId", "NoEffect", "noEffect"),
+            ("properties.provisioningState", "Modify", "readOnly"),
+        ):
+            with self.subTest(path=path):
+                result = evaluate_property_change(
+                    path, change_type, "[reference('old')]", "[reference('new')]"
+                )
+                self.assertEqual(result["status"], "noise_confirmed")
+                self.assertEqual(result["reason"], reason)
+                self.assertEqual(result["confidence"], "high")
 
     def test_unknown_property_returns_pending(self) -> None:
         """不明なプロパティは pending を返す"""
@@ -86,6 +469,16 @@ class TestEvaluatePropertyChange(unittest.TestCase):
 class TestIsReadonlyProperty(unittest.TestCase):
     """is_readonly_property のテスト"""
 
+    def test_kind_is_not_common_readonly(self) -> None:
+        for resource_type in (
+            "",
+            "Microsoft.Storage/storageAccounts",
+            "Microsoft.Web/sites",
+            "Microsoft.Example/resources",
+        ):
+            with self.subTest(resource_type=resource_type):
+                self.assertFalse(is_readonly_property("kind", resource_type))
+
     def test_provisioning_state_is_readonly(self) -> None:
         """provisioningState は readOnly"""
         self.assertTrue(is_readonly_property("properties.provisioningState"))
@@ -93,6 +486,27 @@ class TestIsReadonlyProperty(unittest.TestCase):
     def test_etag_is_readonly(self) -> None:
         """etag は readOnly"""
         self.assertTrue(is_readonly_property("etag"))
+
+    def test_resource_metadata_does_not_match_settings_dictionary(self) -> None:
+        for path in ("name", "type", "id", "etag", "systemData.createdAt"):
+            with self.subTest(path=path):
+                self.assertTrue(is_readonly_property(path))
+                self.assertFalse(
+                    is_readonly_property(
+                        f"properties.{path}", "Microsoft.Web/sites/config"
+                    )
+                )
+                self.assertFalse(is_readonly_property(f"properties.nested.{path}"))
+
+    def test_resource_specific_readonly_is_preserved(self) -> None:
+        for resource_type, path in (
+            ("Microsoft.ContainerService/managedClusters", "properties.powerState"),
+        ):
+            with self.subTest(resource_type=resource_type):
+                self.assertTrue(is_readonly_property(path, resource_type))
+                self.assertFalse(
+                    is_readonly_property(path, "Microsoft.Example/resources")
+                )
 
     def test_custom_property_is_not_readonly(self) -> None:
         """カスタムプロパティは readOnly ではない"""
@@ -282,11 +696,164 @@ class TestExtractResourceChanges(unittest.TestCase):
 class TestNoisePatternLoader(unittest.TestCase):
     """NoisePatternLoader のテスト"""
 
+    def _loader_with_entries(
+        self, scope: str, category: str, entries: list[object]
+    ) -> NoisePatternLoader:
+        loader = NoisePatternLoader()
+        if scope == "common":
+            loader._data = {"common": {category: entries}}
+        else:
+            loader._data = {
+                "resource_types": {"Microsoft.Test/resources": {category: entries}}
+            }
+        return loader
+
+    def test_rejects_non_string_pattern_fields(self) -> None:
+        """不正な文字列型にはカテゴリ、リソース型、添字、フィールドを示す"""
+        for scope, category, field in (
+            ("common", "readonly_patterns", None),
+            ("common", "auto_managed_patterns", "pattern"),
+            ("common", "custom_patterns", "pattern"),
+            ("resource_types.Microsoft.Test/resources", "readonly_patterns", None),
+            (
+                "resource_types.Microsoft.Test/resources",
+                "auto_managed_patterns",
+                "pattern",
+            ),
+            ("resource_types.Microsoft.Test/resources", "custom_patterns", "pattern"),
+            ("resource_types.Microsoft.Test/resources", "known_defaults", "path"),
+        ):
+            for value in (None, 42, True, [], {}):
+                with self.subTest(scope=scope, category=category, value=value):
+                    valid = {field: "valid"} if field else "valid"
+                    invalid = {field: value} if field else value
+                    loader = self._loader_with_entries(
+                        scope, category, [valid, invalid]
+                    )
+                    with self.assertRaises(ValueError) as error:
+                        loader._validate_patterns()
+                    location = f"{scope}.{category}[1]"
+                    if field:
+                        location += f".{field}"
+                    self.assertIn(location, str(error.exception))
+                    self.assertIn("文字列が必要", str(error.exception))
+
+    def test_rejects_missing_fields_and_non_object_entries(self) -> None:
+        """辞書でない項目や必須文字列の欠落を読み飛ばさない"""
+        for scope, category, field in (
+            ("common", "auto_managed_patterns", "pattern"),
+            ("common", "custom_patterns", "pattern"),
+            (
+                "resource_types.Microsoft.Test/resources",
+                "auto_managed_patterns",
+                "pattern",
+            ),
+            ("resource_types.Microsoft.Test/resources", "custom_patterns", "pattern"),
+            ("resource_types.Microsoft.Test/resources", "known_defaults", "path"),
+        ):
+            for item in (None, "pattern", [], {}):
+                with self.subTest(scope=scope, category=category, item=item):
+                    loader = self._loader_with_entries(scope, category, [item])
+                    with self.assertRaises(ValueError) as error:
+                        loader._validate_patterns()
+                    self.assertIn(
+                        f"{scope}.{category}[0].{field}", str(error.exception)
+                    )
+
+    def test_valid_patterns_keep_values_and_prefix_warning_scope(self) -> None:
+        """型別 prefix と共通の辞書形式パターンだけを警告する"""
+        for scope in ("common", "resource_types.Microsoft.Test/resources"):
+            for category, field, normal, prefixed in (
+                ("readonly_patterns", None, "^state$", "^properties\\.state$"),
+                ("auto_managed_patterns", "pattern", "^state$", "^properties\\.state$"),
+                ("custom_patterns", "pattern", "^state$", "^properties\\.state$"),
+                ("known_defaults", "path", "state", "properties.state"),
+            ):
+                for value in (normal, prefixed, ""):
+                    with self.subTest(scope=scope, category=category, value=value):
+                        entry = (
+                            {field: value, "value": True, "description": "説明"}
+                            if field
+                            else value
+                        )
+                        loader = self._loader_with_entries(scope, category, [entry])
+                        should_warn = value == prefixed and not (
+                            scope == "common"
+                            and category in ("readonly_patterns", "known_defaults")
+                        )
+                        if should_warn:
+                            with self.assertLogs(
+                                "what_if_analyzer", level="WARNING"
+                            ) as logs:
+                                loader._validate_patterns()
+                            self.assertEqual(len(logs.records), 3)
+                            self.assertIn(
+                                f"{scope}.{category}[0]", logs.records[1].getMessage()
+                            )
+                        else:
+                            with self.assertNoLogs("what_if_analyzer", level="WARNING"):
+                                loader._validate_patterns()
+                        resource_type = (
+                            "" if scope == "common" else "Microsoft.Test/resources"
+                        )
+                        if category == "readonly_patterns":
+                            self.assertEqual(
+                                loader.get_readonly_patterns(resource_type), [value]
+                            )
+                        elif category == "known_defaults":
+                            self.assertEqual(
+                                loader.get_known_defaults(resource_type),
+                                [(value, True, "説明")],
+                            )
+                        else:
+                            getter = (
+                                loader.get_auto_managed_patterns
+                                if category == "auto_managed_patterns"
+                                else loader.get_custom_patterns
+                            )
+                            self.assertEqual(getter(resource_type), [(value, "説明")])
+
+    def test_common_readonly_full_path_is_valid(self) -> None:
+        """共通 readonly の properties. フルパスは警告せず照合できる"""
+        loader = self._loader_with_entries(
+            "common", "readonly_patterns", ["^properties\\.provisioningState$"]
+        )
+        with self.assertNoLogs("what_if_analyzer", level="WARNING"):
+            patterns = loader.get_readonly_patterns()
+            loader._validate_patterns()
+        self.assertEqual(patterns, ["^properties\\.provisioningState$"])
+        with patch("what_if_analyzer.get_pattern_loader", return_value=loader):
+            self.assertTrue(is_readonly_property("properties.provisioningState"))
+
+    def test_invalid_loaded_patterns_are_not_cached_or_replaced_with_fallback(
+        self,
+    ) -> None:
+        """検証エラーは伝播し、再読み込みでも不正データを返さない"""
+        data = {"common": {"custom_patterns": [{"pattern": 42}]}}
+        loader = NoisePatternLoader()
+        with patch("builtins.open", mock_open(read_data=json.dumps(data))) as opened:
+            for _ in range(2):
+                with self.assertRaisesRegex(
+                    ValueError, r"common\.custom_patterns\[0\]\.pattern"
+                ):
+                    loader.get_custom_patterns()
+                self.assertIsNone(loader._data)
+            self.assertEqual(opened.call_count, 2)
+
+    def test_invalid_json_returns_empty(self) -> None:
+        """JSON 構文エラー時の既存 fallback を維持する"""
+        loader = NoisePatternLoader()
+        with (
+            patch("builtins.open", mock_open(read_data="{")),
+            self.assertLogs("what_if_analyzer", level="WARNING"),
+        ):
+            self.assertEqual(loader.get_readonly_patterns(), [])
+
     def test_load_default_patterns(self) -> None:
         """デフォルトパターンを読み込める"""
         loader = NoisePatternLoader()
         readonly = loader.get_readonly_patterns()
-        self.assertIn("^provisioningState$", readonly)
+        self.assertIn("^properties\\.provisioningState$", readonly)
 
     def test_load_custom_patterns(self) -> None:
         """カスタムパターンを読み込める"""
@@ -326,6 +893,27 @@ class TestDisplayConfigLoader(unittest.TestCase):
         loader = DisplayConfigLoader("/nonexistent/path.json")
         names = loader.get_display_names()
         self.assertEqual(names, {})
+
+
+class TestMatchKnownDefault(unittest.TestCase):
+    def test_only_exact_path_and_value_match(self) -> None:
+        defaults = [
+            ("enableRBAC", True, "RBAC default"),
+            ("networkProfile.ipFamilies", ["IPv4"], "IPv4 default"),
+        ]
+        for path, value, expected in (
+            ("enableRBAC", True, "RBAC default"),
+            ("enableRBAC", False, None),
+            ("enableRBAC", None, None),
+            ("enableRBAC", 1, None),
+            ("otherenableRBAC", True, None),
+            ("nested.enableRBAC", True, None),
+            ("networkProfile.ipFamilies", ["IPv4"], "IPv4 default"),
+            ("ipFamilies", ["IPv4"], None),
+            ("other.networkProfile.ipFamilies", ["IPv4"], None),
+        ):
+            with self.subTest(path=path, value=value):
+                self.assertEqual(match_known_default(path, value, defaults), expected)
 
 
 class TestGetReferenceInfo(unittest.TestCase):
@@ -375,8 +963,8 @@ class TestGetReferenceInfo(unittest.TestCase):
         )
         self.assertIn("❓", result)
 
-    def test_aks_nginx_mode_returns_auto_managed(self) -> None:
-        """AKS Web App Routing の Nginx mode は自動管理として扱う"""
+    def test_aks_nginx_mode_returns_warning(self) -> None:
+        """自動管理候補は適用条件の確認を促す"""
         result = get_reference_info(
             path="properties.ingressProfile.webAppRouting.nginx.mode",
             before="Enabled",
@@ -384,10 +972,11 @@ class TestGetReferenceInfo(unittest.TestCase):
             bicep_definition={"status": "notDefined"},
             resource_type="Microsoft.ContainerService/managedClusters",
         )
-        self.assertIn("📘", result)
+        self.assertIn("⚠️", result)
+        self.assertIn("要確認", result)
 
-    def test_extension_generated_properties_return_auto_managed(self) -> None:
-        """AKS 拡張機能の生成プロパティは自動管理として扱う"""
+    def test_extension_generated_properties_return_warning(self) -> None:
+        """生成プロパティの候補もパス一致だけでは断定しない"""
         resource_type = (
             "Microsoft.ContainerService/managedClusters/providers/extensions"
         )
@@ -400,7 +989,88 @@ class TestGetReferenceInfo(unittest.TestCase):
                     bicep_definition={"status": "notDefined"},
                     resource_type=resource_type,
                 )
-                self.assertIn("📘", result)
+                self.assertIn("⚠️", result)
+                self.assertIn("要確認", result)
+
+    def test_auto_managed_candidates_do_not_claim_equivalence(self) -> None:
+        for resource_type, path, before, after in (
+            ("Microsoft.Insights/scheduledQueryRules", "windowSize", "PT60M", "PT30M"),
+            (
+                "Microsoft.Insights/diagnosticSettings",
+                "logs.0",
+                {"enabled": False},
+                {"enabled": True},
+            ),
+            (
+                "Microsoft.Chaos/experiments",
+                "steps.0.branches.0.actions.0.parameters.0.value",
+                '{"mode":"one"}',
+                '{"mode":"all"}',
+            ),
+            (
+                "Microsoft.ContainerService/managedClusters",
+                "agentPoolProfiles.0.count",
+                2,
+                4,
+            ),
+            (
+                "Microsoft.Storage/storageAccounts/blobServices",
+                "properties",
+                {},
+                {"deleteRetentionPolicy": {"enabled": True, "days": 7}},
+            ),
+        ):
+            for bicep_status in ("defined", "notDefined", "unknown"):
+                with self.subTest(
+                    resource_type=resource_type, bicep_status=bicep_status
+                ):
+                    full_path = path if path == "properties" else f"properties.{path}"
+                    result = get_reference_info(
+                        full_path,
+                        before,
+                        after,
+                        {"status": bicep_status},
+                        resource_type,
+                    )
+                    self.assertIn("⚠️", result)
+                    self.assertIn("適用条件と変更内容は要確認", result)
+                    self.assertNotIn("📘", result)
+                    self.assertNotIn("値は等価", result)
+                    self.assertNotIn("ノイズ", result)
+                    evaluation = evaluate_property_change(
+                        full_path, "Modify", before, after, resource_type
+                    )
+                    self.assertEqual(evaluation["status"], "pending")
+
+    def test_known_default_identifies_matching_side(self) -> None:
+        for before, after, before_matches, after_matches in (
+            (True, False, True, False),
+            (False, True, False, True),
+            (True, True, True, True),
+            (True, None, True, False),
+            (None, True, False, True),
+            (None, None, False, False),
+            (False, False, False, False),
+        ):
+            with self.subTest(before=before, after=after):
+                result = get_reference_info(
+                    "properties.enableRBAC",
+                    before,
+                    after,
+                    {"status": "notDefined"},
+                    "Microsoft.ContainerService/managedClusters",
+                )
+                self.assertEqual("変更前が既定値" in result, before_matches)
+                self.assertEqual("変更後が既定値" in result, after_matches)
+                self.assertEqual("📘" in result, before_matches or after_matches)
+                evaluation = evaluate_property_change(
+                    "properties.enableRBAC",
+                    "Modify",
+                    before,
+                    after,
+                    "Microsoft.ContainerService/managedClusters",
+                )
+                self.assertEqual(evaluation["status"], "pending")
 
     def test_extension_auto_upgrade_mode_returns_warning(self) -> None:
         """AKS 拡張機能の autoUpgradeMode は要確認として扱う"""
@@ -795,10 +1465,10 @@ class TestExtractResourceChangesWithFalsePositive(unittest.TestCase):
 
 
 class TestFormatAzdStyleOutputFalsePositive(unittest.TestCase):
-    """format_azd_style_output の false positive フィルタリングテスト"""
+    """誤検知候補の Create も表示して注意を促すテスト"""
 
-    def test_false_positive_create_hidden_with_summary(self) -> None:
-        """false positive の Create は非表示でサマリー行が出る"""
+    def test_possible_false_positive_create_shown_with_warning(self) -> None:
+        """誤検知候補もリソース名と要確認注記を表示する"""
         output_data = {
             "changes": [
                 {
@@ -830,9 +1500,61 @@ class TestFormatAzdStyleOutputFalsePositive(unittest.TestCase):
             ]
         }
         result = format_azd_style_output(output_data)
-        self.assertNotIn("exp-aks-pod-failure", result)
+        self.assertIn("Create", result)
+        self.assertIn("exp-aks-pod-failure", result)
         self.assertIn("aks-test", result)
-        self.assertIn("1 件の Create を非表示", result)
+        self.assertIn("誤検知の可能性", result)
+        self.assertIn("要確認", result)
+        self.assertNotIn("非表示", result)
+
+    def test_create_visible_after_classification(self) -> None:
+        for resource_type, name, after, expected_flag in (
+            (
+                "Microsoft.Chaos/experiments",
+                "exp-aks-new",
+                {"type": "Microsoft.Chaos/experiments", "name": "exp-aks-new"},
+                True,
+            ),
+            ("Microsoft.Chaos/experiments", "exp-aks-unknown", None, True),
+            ("Microsoft.Network/virtualNetworks", "vnet-unknown", None, True),
+            (
+                "Microsoft.Network/virtualNetworks",
+                "vnet-new",
+                {"type": "Microsoft.Network/virtualNetworks", "name": "vnet-new"},
+                False,
+            ),
+            ("Microsoft.Authorization/roleAssignments", "role-new", None, True),
+        ):
+            with self.subTest(resource_type=resource_type, name=name):
+                output_data = build_output(
+                    {
+                        "changes": [
+                            {
+                                "changeType": "Create",
+                                "resourceId": (
+                                    "/subscriptions/sub/resourceGroups/rg/providers/"
+                                    f"{resource_type}/{name}"
+                                ),
+                                "before": None,
+                                "after": after,
+                            }
+                        ]
+                    },
+                    template="infra/main.bicep",
+                    location="japaneast",
+                )
+                self.assertEqual(output_data["summary"]["create"], 1)
+                self.assertEqual(
+                    output_data["createFalsePositives"], int(expected_flag)
+                )
+                self.assertEqual(
+                    output_data["changes"][0]["likelyFalsePositive"], expected_flag
+                )
+                result = format_azd_style_output(output_data)
+                self.assertIn("Create", result)
+                self.assertIn(name, result)
+                self.assertEqual("要確認" in result, expected_flag)
+                self.assertNotIn("非表示", result)
 
     def test_no_summary_when_no_false_positives(self) -> None:
         """false positive がない場合はサマリー行なし"""
@@ -855,6 +1577,7 @@ class TestFormatAzdStyleOutputFalsePositive(unittest.TestCase):
         }
         result = format_azd_style_output(output_data)
         self.assertIn("exp-aks-new", result)
+        self.assertNotIn("要確認", result)
         self.assertNotIn("非表示", result)
 
 

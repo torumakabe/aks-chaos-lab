@@ -1,5 +1,7 @@
 # ADR 一覧
 
+Status 列は基本 Status の要約であり、既存の個別注記は補助情報として示す。適用範囲は各 ADR 本文の Status 節と、そこから参照する後続 ADR で確認する。表記の扱いは [判断の変更と Status](README.md#判断の変更と-status) を参照する。
+
 | 番号 | タイトル | Status | 作成日 |
 |------|---------|--------|--------|
 | 001 | [マネージド NGINX から Gateway API (App Routing Istio) への移行とアプリ層メトリクスの採用](001-gateway-api-migration-and-app-level-metrics.md) | Accepted | 2026-04-01 |
@@ -19,5 +21,6 @@
 | 015 | [Azure リソース名への resourceToken サフィックス付与ルール](015-resource-token-suffix-naming.md) | Accepted | 2026-06-28 |
 | 016 | [Azure Chaos Studio Workspace の採用](016-azure-chaos-studio-workspace-adoption.md) | Rejected | 2026-07-16 |
 | 017 | [管理対象環境向け approved-index 変換フロー (ADR-013 の一部を amend)](017-approved-index-conversion-for-managed-environments.md) | Accepted | 2026-08-08 |
-| 018 | [NAPをArm64 workloadの追加capacityに採用する](018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md) | Accepted | 2026-08-21 |
+| 018 | [NAPをArm64 workloadの追加capacityに採用する](018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md) | Accepted (既定値と未設定時の扱いは ADR-020 で amend) | 2026-08-21 |
 | 019 | [AKS Local DNS を既定で採用する](019-adopt-aks-local-dns.md) | Accepted | 2026-09-07 |
+| 020 | [Node Auto Provisioning を既定で有効にする](020-enable-node-auto-provisioning-by-default.md) | Accepted | 2026-09-09 |

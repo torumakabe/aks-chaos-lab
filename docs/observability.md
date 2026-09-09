@@ -22,6 +22,12 @@ AKS control plane metrics は `azureMonitorProfile.metrics.controlPlane.enabled`
 
 ## DNS と network observability
 
+Container network logs は、`chaos-lab` namespace の `app: chaos-app` Pod を送信元または宛先とする通信を収集します。cluster-scoped の `ContainerNetworkLog` で、egress の `from` と ingress の `to` にそれぞれ `namespacedPod: ["chaos-lab/"]` と `labelSelector.matchLabels: {app: chaos-app}` を指定します。末尾の `/` は Pod 名のプレフィックスを空にし、その namespace の全 Pod に一致させます。アプリラベルも満たす Pod だけが対象となり、通信相手の namespace は制限しません。収集対象は TCP、UDP、DNS の forwarded / dropped フローです。
+
+Hubble は同じフィルタ内の `source_pod` と `source_label`（ingress は `destination_pod` と `destination_label`）を AND で評価します。一方、`source_label` / `destination_label` の配列要素は OR です。namespace ラベルをアプリラベルと別要素に変換させると、収集対象が広がります。条件の結合は [BuildFilterList](https://github.com/cilium/cilium/blob/v1.18.0/pkg/hubble/filters/filters.go)、namespace と Pod 名の照合は [filterByNamespacedName](https://github.com/cilium/cilium/blob/v1.18.0/pkg/hubble/filters/k8s.go)、ラベル配列の評価は [FilterByLabelSelectors](https://github.com/cilium/cilium/blob/v1.18.0/pkg/hubble/filters/labels.go) を参照してください。
+
+フィルタ変更時は server dry-run 後に対象 CRD だけを適用し、`kube-system/acns-flowlog-config` の生成設定で上記の AND 条件を確認します。全ノードの exporter 再読み込み後、別 namespace にある同じ `app: chaos-app` ラベルの Pod と対象外 Pod の通信が除外され、既存 chaos-app の通信が引き続き収集されることを確認してください。試験通信の成功と集約間隔を超える観測時間も確認し、`CONFIGURED` 表示や契約テストの成功だけでは収集範囲を判定しません。
+
 Local DNS が無効な構成では、クラスタの DNS 量を CoreDNS の `coredns_dns_requests_total` で観察します。Local DNS が有効な構成では、同じ指標は CoreDNS に届いた問い合わせ量を表し、ノード内キャッシュで完結した問い合わせを含みません。`ama-metrics-settings-configmap` は schema v2 で cluster metrics と control-plane metrics を分離し、CoreDNS default target を 30 秒間隔、minimal ingestion 有効で収集します。
 
 ACNS の DNS dashboard は `hubble_dns_queries_total` と `hubble_dns_responses_total` を使います。DNS rule を持つ CiliumNetworkPolicy の対象通信を観測するもので、クラスタ全体の DNS 量ではありません。counter が増えない区間の `rate()` は0となり、`> 0` で絞るパネルは No data になります。
@@ -90,7 +96,7 @@ Application Insights の role name は Function host 名ではなく `external-s
 
 Azure Monitor SLI は上記 good / total metrics を Request-based SLI として `Sum` 集計します。既定の partitioning dimensions は `environment`, `service`, `test` です。publisher 自体の停止は `ExternalSliPublisherHeartbeatMissing` で検知します。
 
-External SLI metrics は最新の閉じた window に対する probe と、欠落 window の bad sample を合算して発行します。Azure Monitor Workspace は `OldData` として現在から 20 分より古い timestamp を拒否するため、catch-up した複数 window は publisher の実行時刻に合算します。Request-based SLI は good / total の合計で評価されるため、時間分布は圧縮されますが、rolling period 内の分子・分母は回復できます。heartbeat metric は publisher freshness を表すため、実行時刻で発行します。SLI 作成前の入力確認は Managed Prometheus の PromQL で行います。
+External SLI metrics は最新の閉じた window に対する probe と、欠落 window の bad sample を合算して発行します。catch-up 件数の上限により最新の閉じた window を含まないバッチは、すべての window を bad sample として発行します。Azure Monitor Workspace は `OldData` として現在から 20 分より古い timestamp を拒否するため、catch-up した複数 window は publisher の実行時刻に合算します。Request-based SLI は good / total の合計で評価されるため、時間分布は圧縮されますが、rolling period 内の分子・分母は回復できます。heartbeat metric は publisher freshness を表すため、実行時刻で発行します。SLI 作成前の入力確認は Managed Prometheus の PromQL で行います。
 
 Latency SLI の good / total は monotonic counter ではなく、window ごとに書き込む gauge です。成功 probe は `latency_total += 1` とし、`duration <= le` を満たす bucket の `latency_good{le="<bucket>"}` を 1 として扱います。timeout、non-2xx、network error、Function host 停止などで probe 結果を再構成できない欠損 window は、保守的に `latency_total += 1`、全 bucket の good を 0 として扱います。`externalSliProbeTimeoutSeconds` は最大 bucket の 5 秒より大きくする必要があります。
 
@@ -104,7 +110,15 @@ SLI 作成後の destination metric は、SLI ARM resource の `destinationMetri
 
 Gateway Envoy 由来の `gateway:chaos_app:http_request_duration:p95` と `gateway:chaos_app:http_error_rate:ratio` は、短期診断用の recording rule として残します。Azure Monitor SLI の error budget 判定には使いません。
 
-SLI / SLO 系の判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md) と [ADR-014](adr/014-histogram-bucket-latency-sli.md) を参照してください。Latency SLI のしきい値は SLI 定義 (`infra/modules/azmonitor/sli-definitions.bicep`) の `latencyThresholdLe` パラメータで決定し、publisher は単一 metric `chaos_app_external_latency_good` を `le` ラベル付きで bucket 別に emit します。
+Gateway 指標による高エラー率、遅延、無通信の短期アラートは作成せず、SLO 評価と通知には外形 SLI を使います。Managed Prometheus alerts は Kubernetes 基盤の異常検知と、`ExternalSliPublisherHeartbeatMissing` による external SLI publisher の停止検知を継続します。Gateway stats の取得方式は [ADR-004](adr/004-envoy-gateway-metrics-for-slo.md)、アラートの役割分担は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md) を参照してください。
+
+SLI / SLO 系の判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md) と [ADR-014](adr/014-histogram-bucket-latency-sli.md) を参照してください。
+
+### Latency SLI のしきい値変更
+
+Latency SLI のしきい値は、[infra/sli/main.parameters.json](../infra/sli/main.parameters.json) の `parameters.latencyThresholdLe.value` で指定します。値は秒単位の bucket 境界を表す文字列で、`"0.1"`、`"0.25"`、`"0.5"`、`"1"`、`"2"`、`"5"` から選択します。既定値は `"1"`（1秒）です。
+
+変更後は `azd provision sli` で反映します。publisher は全 bucket の `chaos_app_external_latency_good` を発行しており、SLI 定義が指定された `le` ラベルを `eq` filter で選択します。既存 bucket からの選択変更だけなら、publisher の再デプロイは不要です。
 
 ## エンドポイントと L7 policy
 
@@ -116,9 +130,22 @@ Cilium L7 policy で許可する path は以下に限定します。
 | `GET /health` | 外部 health / 手動確認 | あり | 手動確認 |
 | `GET /livez` | liveness / startup | なし | Kubernetes probe |
 | `GET /readyz` | readiness | あり | Kubernetes probe |
-| `GET /metrics` | Prometheus scrape | なし | Managed Prometheus |
 
-外部 Gateway 経由では component が `GET /` を許可し、`chaos-app` 固有 patch が `GET /health` を追加します。Azure Functions external SLI publisher は通常 API の `GET /` を probe し、trace context を伝搬します。Function dependency と chaos-app Server span は `TraceId` で KQL 相関できますが、Application Map が classic table と OTel table を跨いで表示することは保証しません。`/livez`、`/readyz`、`/metrics` は内部 source のみに許可します。probe を追加する場合は、アプリ route、Kubernetes probe、CNP テンプレートまたは app 固有 patch を同時に更新してください。
+外部 Gateway 経由では component が `GET /` を許可し、`chaos-app` 固有 patch が `GET /health` を追加します。Azure Functions external SLI publisher は通常 API の `GET /` を probe し、trace context を伝搬します。Function dependency と chaos-app Server span は `TraceId` で KQL 相関できますが、Application Map が classic table と OTel table を跨いで表示することは保証しません。`/livez`、`/readyz` は内部 source のみに許可します。probe を追加する場合は、アプリ route、Kubernetes probe、CNP テンプレートまたは app 固有 patch を同時に更新してください。
+
+API の metrics は [ADR-006](adr/006-otlp-vendor-neutral-otel.md) に従って標準 OTLP exporter で送信し、scrape endpoint `/metrics` は公開しません。そのため、CNP にも API の `/metrics` 用の通信許可は設けません。Local DNS の `$NODE_IP:9253` への `/metrics` 収集は別用途として維持します。
+
+### L7 policy の適用順序と確認
+
+[ADR-007](adr/007-acns-l7-observability.md) の前提に従い、先に Bicep で ACNS の `advancedNetworkPolicies` を `L7` にし、その後に CNP を含む app manifest を適用します。`azd provision base` の完了後に `azd deploy api` を行う順序を守り、途中の Instrumentation 適用などを含む手順は[環境構築の `azd up`](deployment.md#azd-up)に従ってください。
+
+適用時は次を確認してください。
+
+- 対象 CNP が VAP `advanced-networking-validating-policy` に拒否されず作成されること。
+- 対象 Pod が Ready を維持し、readiness / startup probe が正常であること。
+- LB 経由の `/` と `/health` への正常リクエスト後に、Managed Prometheus の `hubble_http_requests_total` と `hubble_http_request_duration_seconds_count` が生成され、リクエストに伴って増加すること。
+
+L7 メトリクスは、Azure Portal の対象 AKS > Monitoring > Dashboards with Grafana にある Kubernetes / Networking / L7 Flows (Namespace / Workload) で確認します。対象を絞る際は現在の系列とラベルを確認し、chaos-app 宛ての正常応答を観測してください。
 
 ## 外形 SLI publisher
 
@@ -131,7 +158,8 @@ SLI 用の人工トラフィックは AKS 内 CronJob ではなく、Azure Funct
 - `externalSliProbeName`: Prometheus label `test` に入る probe 名
 - `externalSliProbeTimeoutSeconds`: probe timeout
 - `externalSliPublisherWindowSeconds`: publisher の集計 window
-- `externalSliLatencyThresholdMs`: Latency SLI の good 判定しきい値
+
+Latency SLI のしきい値は publisher の設定ではなく、SLI 定義で選択します。設定手順は [Latency SLI のしきい値変更](#latency-sli-のしきい値変更) を参照してください。
 
 既存環境に残る AKS 内 synthetic traffic などは `uv run scripts/cleanup-legacy-sli-sources.py` で dry-run 確認し、必要に応じて `--execute` を付けて削除します。
 
@@ -172,4 +200,5 @@ ContainerLogV2 の stdout 除外を確認する場合は、アプリ logger か�
 
 - Azure Monitor SLI の入力は publisher が Managed Prometheus に remote-write した good / total metrics です。Application Insights dependency telemetry は Application Map と診断用であり、SLI の正本ではありません。
 - `Instrumentation/chaos-app-otel` は `k8s/apps/chaos-app/instrumentation/` で app-specific に管理し、`azd deploy api-instrumentation` で `Deployment/chaos-app` より先に適用します。API deploy hook は Pod に `OTEL_EXPORTER_OTLP_*` が注入されたことを確認し、未注入なら失敗します。通常運用で `kubectl rollout restart` に依存しません。
+- Application Insights 接続文字列は `api-instrumentation` の生成設定から `Instrumentation/chaos-app-otel` の `spec.destination.applicationInsightsConnectionString` に渡し、API の `app-config` と admission 前の生成 Deployment マニフェストの明示 env には設定しません。AKS App Monitoring の admission webhook は同じ接続文字列を Deployment の Pod template env に追加するため、Pod にもその値が存在します。API は接続文字列を参照せず、注入された標準 OTLP 環境変数と標準 OTLP exporter を使います。この設定分離と基盤による注入の責任範囲は [ADR-006](adr/006-otlp-vendor-neutral-otel.md) に定義しています。
 - 標準 semconv の `http.server.active_requests` は Pod 再起動時ドリフトと no-traffic 時の series 欠落があるため、アラート基準にしません。in-flight request 数の観測にはアプリ独自の `chaos_app.active_requests` を使います。

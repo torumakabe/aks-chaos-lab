@@ -11,6 +11,8 @@ spec:
     # Egress: chaos-app から外部への全フロー
     - name: chaos-app-egress
       from:
+        namespacedPod:
+          - chaos-lab/
         labelSelector:
           matchLabels:
             app: chaos-app
@@ -24,6 +26,8 @@ spec:
     # Ingress: 外部から chaos-app への全フロー
     - name: chaos-app-ingress
       to:
+        namespacedPod:
+          - chaos-lab/
         labelSelector:
           matchLabels:
             app: chaos-app

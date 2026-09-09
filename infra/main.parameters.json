@@ -15,7 +15,7 @@
       "value": "${AZURE_AKS_NODE_VM_SIZE:Standard_D4pds_v6}"
     },
     "enableNodeAutoProvisioning": {
-      "value": "${AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING:false}"
+      "value": "${AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING:true}"
     },
     "localDnsMode": {
       "value": "${AZURE_AKS_LOCAL_DNS_MODE=Required}"

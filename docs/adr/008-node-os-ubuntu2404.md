@@ -44,7 +44,7 @@ osSKU: 'Ubuntu2404'
 
 - **制約 / トレードオフ**:
   - `Ubuntu2404` SKU は Kubernetes 1.38 までのサポートとアナウンスされている。将来 1.39 以降へ上げる際に、再度 `Ubuntu`（既定 SKU、1.35+ で 24.04 既定）への戻し or 次世代 versioned SKU への移行判断が必要。
-  - 適用時、Blue-Green 戦略により `default` プール VMSS が置換される。ソーク時間は batchSoak 15min + finalSoak 60min ≈ 75 分以上を見込む。
+  - 適用時、Blue-Green 戦略により `default` プールのノードが置換される。ソーク時間は batchSoak 15min + finalSoak 60min ≈ 75 分以上を見込む。
   - Ubuntu 24.04 は kernel / glibc が上がるため、node-level の依存（privileged DaemonSet 等）に互換性影響が出る可能性はゼロではない。本リポジトリは AMA / ama-metrics / Chaos Mesh 等マネージド/CNCF 系コンポーネントに限定されており、Microsoft 側で 24.04 対応済みのため影響は低いと判断。
   - CVM (Confidential VM) は Ubuntu 22.04 では非対応、24.04 では対応。本プロジェクトは CVM を使っていないため影響なし。
 
@@ -53,50 +53,15 @@ osSKU: 'Ubuntu2404'
   - `osSKU: 'AzureLinux3'`: 選択肢として有効だが、OS 更新と同時にディストリビューション変更まで行うのはスコープ過大。別 ADR として将来検討余地あり。
   - そのまま放置: サポート終了後に強制移行となり計画的運用ができない。ラボ教材としても悪手。
 
-## 付録: Blue-Green アップグレード実測動作
+## 付録: 適用時の観測と所要時間の評価
 
-本 ADR 適用時（2026-04-24）の実測結果を記録する。公式ドキュメント ([Blue-green node pool upgrades](https://learn.microsoft.com/azure/aks/upgrade-aks-cluster#blue-green-node-pool-upgrades)) とは用語・内部実装の見え方が異なるため、運用上の参照として残す。
+本 ADR 適用時（2026-04-24）は、Decision に記載した Blue-Green 設定に加えて `drainTimeoutInMinutes: 30` を使用し、2 台のノードを1バッチで置換した。
 
-### 設定値（`infra/modules/aks.bicep` の `default` pool）
+この適用では VMSS と agentPool 名を維持したまま、同一 VMSS の capacity が2台から4台へ増加した。Green の2台が Ready になった後、旧インスタンスの削除により2台へ戻った。[公式ドキュメントの「parallel green pool」](https://learn.microsoft.com/azure/aks/upgrade-aks-cluster#blue-green-node-pool-upgrades)は VMSS レベルの実装を明示しておらず、この観測を他の構成や将来の実装に対する保証とはしない。
 
-| パラメータ | 値 |
-|---|---|
-| upgradeStrategy | BlueGreen |
-| drainBatchSize | 50% |
-| drainTimeoutInMinutes | 30 |
-| batchSoakDurationInMinutes | 15 |
-| finalSoakDurationInMinutes | 60 |
+Green サージ開始から旧インスタンス削除完了までは約95分、`provisioningState: Succeeded` までは約100分だった。当時は、設定した soak 合計75分との差を drain と VMSS scale-in の所要時間と解釈し、設定どおりの soak と整合すると評価した。所要時間の見積もりには、soak 以外の処理時間も必要である。
 
-### 実測タイムライン（ノード 2 台、1 バッチで置換）
-
-| 時刻 (JST) | 事象 | 経過 |
-|---|---|---|
-| 11:10:46 | Green サージ開始（VMSS capacity 2→4） | 0 |
-| 11:11:48 | Blue 2 ノードが cordoned (SchedulingDisabled) | +1m |
-| 11:12 頃 | Green 2 ノード Ready | +1〜2m |
-| 12:45:52 | VMSS capacity 4→2、Blue インスタンス削除完了 | **+94m** |
-| 12:51 | `provisioningState: Succeeded` | +100m |
-
-- Blue cordon → Blue delete の所要 = **94 分**
-- 設定 soak 合計 = batchSoak(15) + finalSoak(60) = **75 分**
-- 差分 ~19 分 = drain フェーズ（Pod eviction）＋ VMSS scale-in API 所要と解釈でき、**soak time は設定通り**動作している。
-
-### 実装挙動 vs ドキュメント
-
-公式ドキュメントは「parallel green pool を作成し、blue pool を削除する」と記述するが、実測では以下の動作が観測された:
-
-- **VMSS は 1 つのまま**（`aks-default-15188033-vmss`）。新しい VMSS は作られない。
-- **agentPool 名も変わらない**（`default` のまま）。
-- 同一 VMSS 内で **capacity をサージ**（2→4）し、新 instance (`00000a`, `00000b`) を Green として Ready にしてから、旧 instance (`000008`, `000009`) を cordon / drain / soak / delete する。
-- Resource Graph は `upgradeStrategy` / `upgradeSettingsBlueGreen` / `blueGreenStatus` を返さない。`az rest --url ...?api-version=2026-03-01` を使う必要がある。
-
-ドキュメントは「parallel pool」という抽象的な表現で、VMSS レベルの具体実装は明示していない。ラボでの挙動確認・トラブルシュート時には「同一 VMSS 内サージ」であることを前提に監視クエリを書くのが実践的。
-
-### 運用メモ
-
-- Blue-Green コミット中は `nodepool show` の `provisioningState` が長時間 `Upgrading` / `Updating` のままとなる。`az rest` の `blueGreenStatus` で `phase` を見ると進行が細かくわかる。
-- `kubectl get nodes` で `SchedulingDisabled` のノードが残っていても、Green 側が Ready であればワークロードには影響しない。
-- `azd provision` 全体では AKS リソース更新に ~1h 47m、総計 2h 01m かかった。
+当時の Resource Graph 応答には `upgradeStrategy`、`upgradeSettingsBlueGreen`、`blueGreenStatus` が含まれず、詳細な進行状況の取得には制約があった。
 
 ## 参考
 

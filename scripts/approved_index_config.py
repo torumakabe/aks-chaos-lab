@@ -137,7 +137,12 @@ def validate_approved_index_config(
     url = index.get("url")
     if not isinstance(url, str):
         raise ApprovedIndexConfigError("The configured [[index]] must have a URL.")
-    parsed = urlparse(url)
+    try:
+        parsed = urlparse(url)
+    except ValueError as error:
+        raise ApprovedIndexConfigError(
+            "The configured [[index]] URL is invalid."
+        ) from error
     if (
         parsed.scheme != "https"
         or not parsed.hostname
@@ -154,6 +159,31 @@ def validate_approved_index_config(
         raise ApprovedIndexConfigError(
             "The configured [[index]] must not resolve directly to a public package host."
         )
+
+
+def approved_index_is_selected(config_path: Path) -> bool:
+    """Detect selection independently of the approved-index safety checks."""
+    try:
+        config = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    except OSError, ValueError:
+        # Preserve normal uv handling for absent or unparseable configuration.
+        return False
+    indexes = config.get("index")
+    if not isinstance(indexes, list) or len(indexes) != 1:
+        return False
+    index = indexes[0]
+    if not isinstance(index, dict) or index.get("default") is not True:
+        return False
+    url = index.get("url")
+    if isinstance(url, str):
+        try:
+            hostname = urlparse(url).hostname
+        except ValueError:
+            hostname = None
+        if hostname and hostname.rstrip(".").lower() in PUBLIC_PACKAGE_HOSTS:
+            return False
+    # A selected default with an invalid URL must fail validation, not fall back.
+    return True
 
 
 def config_sha256(config_path: Path) -> str:

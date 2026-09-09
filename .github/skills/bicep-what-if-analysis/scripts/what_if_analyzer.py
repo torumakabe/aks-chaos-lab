@@ -87,33 +87,58 @@ class NoisePatternLoader:
         except (FileNotFoundError, json.JSONDecodeError) as e:
             logger.warning("Failed to load patterns file: %s", e)
             self._data = {"common": {}, "resource_types": {}}
+        except ValueError:
+            # 検証に失敗したデータを次回の読み込みで再利用しない。
+            self._data = None
+            raise
 
         return self._data
 
     def _validate_patterns(self) -> None:
-        """パターンファイルの内容を検証し、警告を出す。"""
+        """文字列の型を検証し、不要な properties. プレフィックスを警告する。"""
         if self._data is None:
             return
 
+        def require_string(item: Any, location: str, field: str | None = None) -> str:
+            if field is not None:
+                location = f"{location}.{field}"
+                if not isinstance(item, dict):
+                    raise ValueError(
+                        f"{location}: フィールドを含むオブジェクトが必要です "
+                        f"(実際: {type(item).__name__})"
+                    )
+                item = item.get(field)
+            if not isinstance(item, str):
+                raise ValueError(
+                    f"{location}: 文字列が必要です (実際: {type(item).__name__})"
+                )
+            return item
+
         warnings = []
+
+        # 共通 readonly はフルパスを照合するため、プレフィックスを警告しない。
+        readonly = self._data.get("common", {}).get("readonly_patterns", [])
+        if isinstance(readonly, list):
+            for idx, item in enumerate(readonly):
+                require_string(item, f"common.readonly_patterns[{idx}]")
 
         # 共通パターンの検証
         for pattern_type in [
-            "readonly_patterns",
             "auto_managed_patterns",
             "custom_patterns",
         ]:
             patterns = self._data.get("common", {}).get(pattern_type, [])
             if isinstance(patterns, list):
                 for idx, item in enumerate(patterns):
-                    if isinstance(item, dict) and "pattern" in item:
-                        pattern = item["pattern"]
-                        if pattern.startswith("^properties\\."):
-                            warnings.append(
-                                f"⚠️  common.{pattern_type}[{idx}]: パターン '{pattern}' は "
-                                f"'properties.' プレフィックスを含んでいます。スクリプトは自動的に除去するため、"
-                                f"パターンからは除いてください。"
-                            )
+                    pattern = require_string(
+                        item, f"common.{pattern_type}[{idx}]", "pattern"
+                    )
+                    if pattern.startswith("^properties\\."):
+                        warnings.append(
+                            f"⚠️  common.{pattern_type}[{idx}]: パターン '{pattern}' は "
+                            f"'properties.' プレフィックスを含んでいます。スクリプトは自動的に除去するため、"
+                            f"パターンからは除いてください。"
+                        )
 
         # リソースタイプ別パターンの検証
         for resource_type, resource_patterns in self._data.get(
@@ -122,10 +147,12 @@ class NoisePatternLoader:
             for pattern_type in ["readonly_patterns"]:
                 patterns = resource_patterns.get(pattern_type, [])
                 if isinstance(patterns, list):
-                    for idx, pattern in enumerate(patterns):
-                        if isinstance(pattern, str) and pattern.startswith(
-                            "^properties\\."
-                        ):
+                    for idx, item in enumerate(patterns):
+                        pattern = require_string(
+                            item,
+                            f"resource_types.{resource_type}.{pattern_type}[{idx}]",
+                        )
+                        if pattern.startswith("^properties\\."):
                             warnings.append(
                                 f"⚠️  resource_types.{resource_type}.{pattern_type}[{idx}]: "
                                 f"パターン '{pattern}' は 'properties.' プレフィックスを含んでいます。"
@@ -135,25 +162,31 @@ class NoisePatternLoader:
                 patterns = resource_patterns.get(pattern_type, [])
                 if isinstance(patterns, list):
                     for idx, item in enumerate(patterns):
-                        if isinstance(item, dict) and "pattern" in item:
-                            pattern = item["pattern"]
-                            if pattern.startswith("^properties\\."):
-                                warnings.append(
-                                    f"⚠️  resource_types.{resource_type}.{pattern_type}[{idx}]: "
-                                    f"パターン '{pattern}' は 'properties.' プレフィックスを含んでいます。"
-                                )
+                        pattern = require_string(
+                            item,
+                            f"resource_types.{resource_type}.{pattern_type}[{idx}]",
+                            "pattern",
+                        )
+                        if pattern.startswith("^properties\\."):
+                            warnings.append(
+                                f"⚠️  resource_types.{resource_type}.{pattern_type}[{idx}]: "
+                                f"パターン '{pattern}' は 'properties.' プレフィックスを含んでいます。"
+                            )
 
             # known_defaults の path 検証
             known_defaults = resource_patterns.get("known_defaults", [])
             if isinstance(known_defaults, list):
                 for idx, item in enumerate(known_defaults):
-                    if isinstance(item, dict) and "path" in item:
-                        path = item["path"]
-                        if path.startswith("properties."):
-                            warnings.append(
-                                f"⚠️  resource_types.{resource_type}.known_defaults[{idx}]: "
-                                f"path '{path}' は 'properties.' プレフィックスを含んでいます。"
-                            )
+                    path = require_string(
+                        item,
+                        f"resource_types.{resource_type}.known_defaults[{idx}]",
+                        "path",
+                    )
+                    if path.startswith("properties."):
+                        warnings.append(
+                            f"⚠️  resource_types.{resource_type}.known_defaults[{idx}]: "
+                            f"path '{path}' は 'properties.' プレフィックスを含んでいます。"
+                        )
 
         if warnings:
             logger.warning("=== パターンファイル検証警告 ===")
@@ -169,9 +202,15 @@ class NoisePatternLoader:
         """リソースタイプ別パターンを取得する。"""
         return self._load().get("resource_types", {}).get(resource_type, {})
 
-    def get_readonly_patterns(self, resource_type: str = "") -> list[str]:
-        """readOnly プロパティパターンを返す（共通 + リソースタイプ別）。"""
-        patterns = list(self._get_common().get("readonly_patterns", []))
+    def get_readonly_patterns(
+        self, resource_type: str = "", *, include_common: bool = True
+    ) -> list[str]:
+        """readOnly パターンを返す。共通と型別は照合するパスが異なる。"""
+        patterns = (
+            list(self._get_common().get("readonly_patterns", []))
+            if include_common
+            else []
+        )
         if resource_type:
             patterns.extend(
                 self._get_resource_type(resource_type).get("readonly_patterns", [])
@@ -391,11 +430,12 @@ def match_known_default(
     if value is None:
         return None
 
-    path_end = check_path.split(".")[-1]
     for default_path, default_value, description in known_defaults:
         if (
-            path_end == default_path or check_path.endswith(default_path)
-        ) and value == default_value:
+            check_path == default_path
+            and type(value) is type(default_value)
+            and value == default_value
+        ):
             return description
     return None
 
@@ -411,11 +451,12 @@ def get_reference_info(
     プロパティの参考情報を生成する。
 
     Bicep 照合の成否に関わらず、プロパティの性質に基づいた参考情報を優先する。
-    外部 YAML パターンファイルが利用可能な場合はそれを使用する。
+    自動設定や参照式のパターン一致は、差分が消える証明にはしない。
 
     Parameters:
         path: プロパティパス
         before: 変更前の値
+        after: 変更後の値
         bicep_definition: Bicep 定義情報
         resource_type: リソースタイプ（オプション、より精密なマッチングに使用）
 
@@ -439,19 +480,24 @@ def get_reference_info(
     if is_readonly_property(path, resource_type):
         return "🔒 readOnly（Azure 自動設定）"
 
-    # 3. Azure 自動設定の可能性が高いプロパティ
-    for pattern, description in loader.get_auto_managed_patterns(resource_type):
+    if contains_arm_reference(before) or contains_arm_reference(after):
+        return "⚠️ ARM 参照式の解決結果を比較できないため要確認"
+
+    # 3. パス一致だけでは、自動設定の条件や値の等価性を確認できない。
+    for pattern, _description in loader.get_auto_managed_patterns(resource_type):
         if re.search(pattern, check_path):
             loader.record_pattern_match(pattern, "auto_managed_patterns", resource_type)
-            return f"📘 {description}"
+            return "⚠️ 自動設定の可能性がありますが、適用条件と変更内容は要確認"
 
     # 4. 既知のデフォルト値チェック
     known_defaults = loader.get_known_defaults(resource_type)
-    default_description = match_known_default(check_path, before, known_defaults)
-    if default_description is None:
-        default_description = match_known_default(check_path, after, known_defaults)
-    if default_description is not None:
-        return f"📘 {default_description}"
+    default_matches = []
+    for side, value in (("変更前", before), ("変更後", after)):
+        description = match_known_default(check_path, value, known_defaults)
+        if description is not None:
+            default_matches.append(f"{side}が既定値: {description}")
+    if default_matches:
+        return f"📘 {' / '.join(default_matches)}。差分は要確認"
 
     # 5. Bicep 定義情報（defined の場合のみ表示）
     bicep_status = bicep_definition.get("status", "unknown")
@@ -1315,15 +1361,20 @@ def run_what_if(
 
 
 def is_readonly_property(path: str, resource_type: str = "") -> bool:
-    """パスが ARM 共通 readOnly プロパティかどうかを判定する。"""
+    """共通のリソース情報と型別プロパティを区別して readOnly を判定する。"""
     loader = get_pattern_loader()
 
-    # properties. プレフィックスを除去して判定
+    # 共通パターンは元のパスで照合し、properties 内の同名キーと区別する。
+    for pattern in loader.get_readonly_patterns():
+        if re.search(pattern, path):
+            loader.record_pattern_match(pattern, "readonly_patterns")
+            return True
+
     check_path = path
     if check_path.startswith("properties."):
         check_path = check_path[len("properties.") :]
 
-    for pattern in loader.get_readonly_patterns(resource_type):
+    for pattern in loader.get_readonly_patterns(resource_type, include_common=False):
         if re.search(pattern, check_path):
             loader.record_pattern_match(pattern, "readonly_patterns", resource_type)
             return True
@@ -1376,9 +1427,9 @@ def evaluate_property_change(
     # ARM 参照式を含む場合
     if contains_arm_reference(before) or contains_arm_reference(after):
         return {
-            "status": "noise_confirmed",
+            "status": "pending",
             "reason": "armReference",
-            "confidence": "high",
+            "confidence": None,
         }
 
     # それ以外は pending（後続ステップで評価が必要）
@@ -1547,30 +1598,30 @@ def is_known_acr_acrpull_unsupported(change: dict[str, Any]) -> bool:
 
 def is_create_false_positive(change: dict[str, Any]) -> bool:
     """
-    Create 操作が ARM what-if の誤検知かどうかを判定する。
+    Create 操作が ARM what-if の誤検知候補かどうかを判定する。
 
     判定基準:
-    A（構造的フィルタ）: before/after 両方 null の Create は、ARM API が
-        リソース状態を返せていないことを意味する。Go SDK 経由の what-if で有効。
-        CLI 経由では after が常に populated されるため発動しない。
-    B（パターンフィルタ）: noise_patterns.json の
+    A（状態不足）: before/after 両方 null の Create。
+    B（パターン一致）: noise_patterns.json の
         create_false_positive_patterns に resourceType/resourceName/resourceId が
-        マッチする場合。CLI 経由のメイン判定手段。
+        マッチする場合。
+
+    どちらも正当な新規作成を除外できないため、表示を省略する根拠にはしない。
 
     Parameters:
         change: extract_resource_changes() で構築されたリソース変更辞書
 
     Returns:
-        True の場合、この Create は false positive と判定される
+        True の場合、この Create は誤検知の可能性があり要確認
     """
     if change.get("operation") != "Create":
         return False
 
-    # A: before/after 両方 null → 構造的 false positive
+    # A: before/after 両方 null
     if change.get("beforeState") is None and change.get("afterState") is None:
         return True
 
-    # B: パターンマッチによる false positive
+    # B: パターンマッチによる誤検知候補
     # resourceType, resourceName, resourceId のいずれかにマッチすれば true
     loader = get_pattern_loader()
     fp_patterns = loader.get_create_false_positive_patterns(
@@ -1942,23 +1993,14 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
     }
 
     # text 出力対象をフィルタリング
-    display_candidates = [
+    visible_resources = [
         c for c in output_data["changes"] if should_show_resource_in_text_output(c)
     ]
 
-    # Create false positive をフィルタ（件数は記録）
-    false_positive_count = sum(
-        1 for c in display_candidates if c.get("likelyFalsePositive", False)
-    )
-    visible_resources = [
-        c for c in display_candidates if not c.get("likelyFalsePositive", False)
-    ]
     hidden_effective_count = sum(
         1
         for c in output_data["changes"]
-        if is_effective_change(c)
-        and not should_show_resource_in_text_output(c)
-        and not c.get("likelyFalsePositive", False)
+        if is_effective_change(c) and not should_show_resource_in_text_output(c)
     )
 
     # 最大幅を計算（整列用）
@@ -1982,6 +2024,11 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
 
         lines.append(f"  {op_padded} : {type_padded} : {resource_name}")
 
+        if op == "Create" and change.get("likelyFalsePositive", False):
+            lines.append(
+                "      ⚠️ 誤検知の可能性があります。実際の新規作成かどうか要確認。"
+            )
+
         # Skip 以外はプロパティ変更を表示
         if op not in ("NoChange", "Ignore") and change.get("propertyChanges"):
             for pc in change["propertyChanges"]:
@@ -2004,13 +2051,6 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
                     lines.append(f"      {symbol} {path}  {ref_info}")
                 else:
                     lines.append(f"      {symbol} {path}")
-
-    # false positive サマリーを表示
-    if false_positive_count > 0:
-        lines.append(
-            f"  ({false_positive_count} 件の Create を非表示: "
-            "ARM what-if の既知制限による false positive)"
-        )
 
     if hidden_effective_count > 0:
         lines.append(

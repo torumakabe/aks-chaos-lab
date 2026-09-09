@@ -1,13 +1,12 @@
 {
     "common": {
         "readonly_patterns": [
-            "^provisioningState$",
+            "^properties\\.provisioningState$",
             "^etag$",
             "^id$",
             "^name$",
             "^type$",
-            "^systemData\\.",
-            "^kind$"
+            "^systemData\\."
         ],
         "arm_reference_patterns": [
             "\\[reference\\(",
@@ -181,15 +180,15 @@
             "known_defaults": []
         },
         "Microsoft.Cache/redisEnterprise/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ContainerRegistry/registries/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ContainerService/managedClusters/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ContainerService/managedClusters/providers/extensions": {
@@ -206,15 +205,15 @@
             "known_defaults": []
         },
         "Microsoft.Insights/components/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Monitor/accounts/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.OperationalInsights/workspaces/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Cache/redisEnterprise/databases": {
@@ -225,7 +224,7 @@
             "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ContainerService/fleets": {
-            "readonly_patterns": ["^properties$"],
+            "readonly_patterns": [],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ContainerService/fleets/autoUpgradeProfiles": {
@@ -250,15 +249,15 @@
             "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ManagedIdentity/userAssignedIdentities": {
-            "readonly_patterns": ["^properties$"],
+            "readonly_patterns": [],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Monitor/accounts": {
-            "readonly_patterns": ["^properties$", "^endpoints$"],
+            "readonly_patterns": [],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Insights/dataCollectionEndpoints": {
-            "readonly_patterns": ["^properties$"],
+            "readonly_patterns": [],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Network/privateDnsZones/virtualNetworkLinks": {
@@ -269,16 +268,11 @@
             "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Network/privateEndpoints/privateDnsZoneGroups": {
-            "readonly_patterns": [
-                "^privateDnsZoneConfigs\\.\\d+\\.etag$",
-                "^privateDnsZoneConfigs\\.\\d+\\.id$",
-                "^privateDnsZoneConfigs\\.\\d+\\.type$",
-                "^privateDnsZoneConfigs\\.\\d+\\.properties\\.provisioningState$"
-            ],
+            "readonly_patterns": [],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.OperationalInsights/workspaces/tables": {
-            "readonly_patterns": ["^schema$"],
+            "readonly_patterns": [],
             "auto_managed_patterns": [
                 {"pattern": "^retentionInDays$", "description": "テーブル retention は workspace の既定値を Azure が自動継承"},
                 {"pattern": "^totalRetentionInDays$", "description": "総 retention は workspace の既定値を Azure が自動継承"}

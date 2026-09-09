@@ -4,6 +4,14 @@
 
 ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
+## 2026-09-09 棚卸し結果
+
+gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結果を確認した。
+
+| ID | 反映内容 | 検証結果 |
+|---|---|---|
+| D-10 | 削除 | `safe-outputs` の `noop: false` を削除した。v0.88.7 の[設定抽出処理](https://github.com/github/gh-aw/blob/v0.88.7/pkg/workflow/safe_outputs_config_extraction.go)では暗黙 noop の Issue 報告は既定で無効であり、[maintenance 判定](https://github.com/github/gh-aw/blob/v0.88.7/pkg/workflow/noop.go)でも暗黙 noop は対象外である。再生成した 3 件の lock で noop の設定と handler の Issue 報告が無効であること、`agentics-maintenance.yml` が生成されないことを確認した。ログ用 noop ツールは利用可能になるが、実行結果を毎回 create-issue で記録する本文は維持した。 |
+
 ## 2026-09-02 棚卸し結果
 
 既存の azd `eval` 環境で、API version の移行結果を確認した。
@@ -59,8 +67,8 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **概要**: `azd up` の workflow を `provision base` → `deploy api` → `deploy observability` → `deploy chaos-mesh` → `deploy external-sli-publisher` → `provision sli` に分割し、`sli` layer の `preprovision` で SLI 用 good / total metrics が Managed Prometheus に出るまで待つ。
 - **理由**: Azure Monitor SLI は作成時点で入力 metric と partitioning dimensions が Managed Prometheus に存在することを要求する。メトリクス materialize 前に SLI を作ると validation で失敗する。
 - **場所**: `azure.yaml`、`infra/sli/main.bicep`、`docs/adr/012-functions-direct-external-sli-probe.md`
-- **解消条件**: SLI が「将来生成されるメトリクス」を前提にした作成を許容する API になる。
-- **確認方法**: 一時環境で external SLI metrics 出現待ちなしに `infra/sli/main.bicep` を作成し、SLI が作成エラーにならないか試す。
+- **解消条件**: 必要な input metrics と partitioning dimensions が不在でも SLI 作成が受理され、その後の発行開始で評価されるようになる。この条件は metrics 待機の撤去判断に用いるものであり、base/sli layer 分離全体の廃止は別途判断する。
+- **確認方法**: 実験の承認を得た新規の一時環境で、external-sli-publisher の発行開始を SLI 作成後まで止め、必要な input metrics と partitioning dimensions が Managed Prometheus に存在しないことを確認する。不在を維持したまま metrics 待機を外して `infra/sli/main.bicep` を適用し、SLI 作成が受理されることを確認する。作成中に publisher が発行した場合や、既に入力が存在した場合の成功は撤去の根拠にしない。受理後に発行を開始し、SLI destination metric の出現で評価開始を確認する。
 - **最終確認**: 2026-05-19、入力 metric / dimensions 不在時の SLI 作成 validation failure を避けるため継続。
 
 ### A-2. `scripts/wait-for-external-sli-signals.py` で external SLI metric 出力待機
@@ -69,16 +77,16 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **理由**: A-1 と同じ。SLI 作成前に external SLI input metrics が materialize されている必要がある。SLI 作成後の destination metric は評価開始まで時間がかかるため、`azd up` の完了条件にしない。必要な場合は `uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination` で手動確認する。
 - **場所**: `scripts/wait-for-external-sli-signals.py`、`azure.yaml`
 - **解消条件**: A-1 と同じ。
-- **確認方法**: A-1 と同じ。destination metric の手動確認は、SLI 作成後に `uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination` を実行する。
+- **確認方法**: 入力不在の成立条件と撤去判断は A-1 と同じ。destination metric の手動確認は、SLI 作成後に `uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination` を実行する。
 
 ### A-3. AMW managed resource group 内 DCR への SLI RBAC 付与
 
 - **概要**: `MA_<amw-name>_<region>_managed` リソースグループ内の AMW と同名 DCR に対して、SLI 用 UAMI に `Monitoring Reader` と `Monitoring Metrics Publisher` を付与する。
-- **理由**: AMW 本体への RBAC だけでは SLI の storage location validation を通らない。Microsoft Learn は destination workspace default DCR の最小権限として `Monitoring Reader` を記載しているが、実機の validator は `Monitoring Metrics Publisher` も要求する。
+- **理由**: managed DCR の `Monitoring Metrics Publisher` が不足すると SLI の storage location validation が失敗することを、下記の実測で確認した。`Monitoring Reader` は Microsoft Learn に記載された SLI destination metric の読み出し要件に合わせて付与する。両ロールを維持するが、Reader を単独で外した実測は記録していない。
 - **場所**: `infra/modules/azmonitor/sli-managed-dcr-rbac.bicep`、ADR-009 §RBAC
 - **解消条件**: Microsoft 側で AMW 本体への RBAC だけで SLI が作れるよう挙動が修正される、または公式に managed RG への RBAC が必要だと文書化され、別の方法（policy / built-in role）が用意される。
-- **確認方法**: managed DCR への role assignment を一時的に外し、SLI 作成が通るか試す。
-- **最終確認**: 2026-07-24、`eval` 環境で managed DCR の `Monitoring Metrics Publisher` を外し、SLI の description 変更で PUT を発生させると `DestinationAmwAccountAccessValidator` access denied。割り当てを同じ ID で復旧し、RBAC 伝播後に provision 成功。`Monitoring Reader` と `Monitoring Metrics Publisher` は削除不可。
+- **確認方法**: 承認済みの検証環境で managed DCR のロールを一つずつ外し、他の権限を固定して RBAC 伝播後の結果を比較する。Publisher は SLI 作成と更新時の validation、Reader は公式の読み出し要件と destination metric の読み出し結果を確認する。両ロールを同時に外した結果や、PUT の成功だけで双方の不要を判断しない。
+- **最終確認**: 2026-07-24、`eval` 環境で managed DCR の `Monitoring Metrics Publisher` を外し、SLI の description 変更で PUT を発生させると `DestinationAmwAccountAccessValidator` access denied。割り当てを同じ ID で復旧し、RBAC 伝播後に provision 成功。この実測は Publisher の必要性を示すものであり、Reader の単独除去は検証していない。
 
 ### A-4. `predown` hook で Service Group scope SLI と環境別 Service Group を削除
 
@@ -136,11 +144,12 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 ### C-2. AKS の preview API バージョンを継続使用
 
 - **概要**: 現行 IaC では AKS `managedClusters` に `Microsoft.ContainerService/managedClusters@2026-05-02-preview` を使用する。Fleet 関連 resource type は `Microsoft.ContainerService/fleets@2026-06-01` と同 version の member / update strategy / auto upgrade profile に移行済み。
-- **理由**: AKS の最新 GA `2026-05-01` には、現行構成の VPA addon autoscaling に必要な `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling` が存在しない。最新 preview `2026-05-02-preview` の公式 schema には同プロパティが定義されている。
+- **理由**: AKS の GA `2026-06-01` には、現行構成の VPA addon autoscaling に必要な `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling` が存在しない。現行 preview `2026-05-02-preview` の公式 schema には同プロパティが定義されているため、preview を継続する。
 - **場所**: `infra/modules/aks.bicep` と managedClusters を参照する各 Bicep module、`infra/modules/fleet.bicep`
-- **解消条件**: AKS の VPA addon autoscaling を含む GA API バージョンが提供される。
-- **確認方法**: AKS `managedClusters` を最新の GA API に置換して `azd provision base --preview` と `azd provision base` が通るか確認する。
-- **最終確認**: 2026-07-24、公式 schema で GA `2026-05-01` に `addonAutoscaling` がなく、preview `2026-05-02-preview` に存在することを確認。managedClusters の全参照を最新 preview へ更新し、eval の base 差分デプロイが成功した。GET では `provisioningState: Succeeded` と `addonAutoscaling: Enabled` を確認した。
+- **解消条件**: GA API の公式 schema が `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling` に対応し、同 API への移行後も `addonAutoscaling: Enabled` が維持される。
+- **確認方法**: GA API の公式 schema で同プロパティへの対応を確認してから、AKS `managedClusters` の API を置換し、`azd provision base --preview` で差分を確認する。承認済みの検証環境で `azd provision base` を適用し、GET で `provisioningState: Succeeded` と `addonAutoscaling: Enabled` が維持されることを確認する。デプロイ成功だけでは preview API を撤去しない。
+- **最終確認**: 2026-09-09、公式 REST 仕様の [stable 一覧](https://github.com/Azure/azure-rest-api-specs/tree/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable)で最新 GA が `2026-06-01` であることを確認。[同 GA の定義](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-06-01/managedClusters.json)には `addonAutoscaling` がなく、[現行 preview の定義](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json)には存在する。今回は公開仕様のみを確認し、実環境への適用は行っていない。
+- **実環境での確認**: 2026-07-24、公式 schema で GA `2026-05-01` に `addonAutoscaling` がなく、preview `2026-05-02-preview` に存在することを確認。managedClusters の全参照を最新 preview へ更新し、eval の base 差分デプロイが成功した。GET では `provisioningState: Succeeded` と `addonAutoscaling: Enabled` を確認した。
 
 ### C-3. Azure Monitor 系 managed resource group 命名は制御不可
 
@@ -170,18 +179,19 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **理由**: Kubernetes は同一 Kustomize bundle 内の CR と Deployment の admission-time 依存を保証しない。既に admitted された Pod は後から retroactive に mutate されないため、Application Insights traces / metrics / logs と Redis dependency が欠落する。
 - **場所**: `azure.yaml` の `api-instrumentation` service、`k8s/apps/chaos-app/instrumentation/`、`scripts/check-api-otel-injection.py`、`docs/observability.md` §運用上の注意、ADR-006
 - **解消条件**: AKS App Monitoring が参照先 `Instrumentation` 未作成時でも Deployment / Pod を後から安全に再評価できる、または Kubernetes 側で CR と Deployment の admission-time ordering を宣言できる。
-- **確認方法**: `api-instrumentation` の `postdeploy` hook が Instrumentation の準備完了を待ち、`api` の `predeploy` hook がその存在を、`postdeploy` hook が Pod への OTel 設定注入を自動確認する。通常操作で確認スクリプトを別途実行する必要はない。初回の適用順序と承認済み index 向けの操作は [デプロイ手順](deployment.md) を参照する。`kubectl rollout restart` は既存の未注入 Pod を復旧する手段であり、通常のデプロイでは使わない。
+- **確認方法（現行動作）**: `api-instrumentation` の `postdeploy` hook が Instrumentation の準備完了を待ち、`api` の `predeploy` hook がその存在を、`postdeploy` hook が Pod への OTel 設定注入を自動確認する。これは先行適用を維持した構成の確認であり、撤去可能という証拠ではない。通常の適用順序と承認済み index 向けの操作は [デプロイ手順](deployment.md) を参照する。
+- **確認方法（撤去判断）**: 公開仕様で未作成の Instrumentation への対応を確認したうえで、実験の承認を得た新規の一時環境で比較する。先行適用と存在待機を外し、Deployment の先行適用と同時適用のそれぞれで、手動の再適用や Pod restart なしに OTel 設定が注入され、Application Insights に traces / metrics / logs が届くことを確認する。先行適用を維持した対照構成と同じ版と設定を使い、Pod 作成時刻と注入結果を比較する。既存 eval の適用順序は変更しない。
 - **最終確認**: 2026-05-20、`sli-flex-test` で `Instrumentation` が `Deployment` より 5 秒遅れて作成され API Pod の `OTEL_*` が欠落。`api-instrumentation` service と deploy hook で ordering / validation を追加。
 
-### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発（実害なし・ログノイズのみ）
+### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発（当時の観測範囲ではデータ到達への影響なし）
 
 - **概要**: `ama-metrics` Deployment の replica pod (`prometheus-collector` container) で `mdsd.err` に `[CreateSocket] Failed to connect port 12564 ... to AMACoreAgent: Connection refused` と `[OtlpTokenFetcher] AMACoreAgent tenant not started, trying to start it. DCR Contents: ...dcr-<otlp>...` が約 60 秒周期で継続出力される。
-- **理由**: replica pod の image には `amacoreagent` バイナリが同梱されているが、replica pod 内では `AMACoreAgent` プロセスが supervisor から起動されていない。同じ image を使う `ama-logs` DaemonSet 側では `AMACoreAgent` が正常起動している。
-- **実害評価**: Managed Prometheus / Container Insights / ContainerNetworkLogs / OTLP traces / logs のデータパスは正常。残る影響は `mdsd.err` のディスク消費とログノイズのみ。
+- **理由**: 当時の観測環境では、replica pod の image に `amacoreagent` バイナリが同梱されていたが、replica pod 内では `AMACoreAgent` プロセスが supervisor から起動されていなかった。同じ image を使う `ama-logs` DaemonSet 側では `AMACoreAgent` が正常起動していた。
+- **実害評価**: 当時の観測環境では Managed Prometheus / Container Insights / ContainerNetworkLogs / OTLP traces / logs のデータ到達は正常だった。この環境とデータ種別の範囲では、影響を `mdsd.err` のディスク消費とログノイズと評価した。他の環境や更新後のデータ到達を保証するものではない。
 - **場所**: AKS managed addon の `kube-system/ama-metrics-*` Deployment。リポジトリ側のコードでは制御不能。
 - **解消条件**: Microsoft 側で `prometheus-collector` image の supervisor が replica pod でも `AMACoreAgent` を起動する、あるいは OTLP DCR 配信を replica pod 対象から除外する修正が入る。
-- **確認方法**: image tag の更新後に `kubectl -n kube-system exec <ama-metrics-pod> -c prometheus-collector -- ps -ef | grep amacoreagent` と `mdsd.err` を確認する。
-- **追跡**: [#130](https://github.com/torumakabe/aks-chaos-lab/issues/130)（実害なしと判定済み・closed）。
+- **確認方法**: image tag の更新後に `kubectl -n kube-system exec <ama-metrics-pod> -c prometheus-collector -- ps -ef | grep amacoreagent` と `mdsd.err` を確認する。併せて Managed Prometheus / Container Insights / ContainerNetworkLogs / OTLP traces / logs の更新後のデータが継続して宛先に届くことを確認する。
+- **追跡**: [#130](https://github.com/torumakabe/aks-chaos-lab/issues/130)（当時の観測環境と上記データ種別の範囲ではデータ到達への影響なしと判定、closed）。
 
 ### D-9. `ErrorAwareSampler` は span 終了後の ERROR を判定できない
 
@@ -191,15 +201,6 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: SDK 側で全 span を Collector へ送り、Collector 側で `status=ERROR` を条件にした tail-based sampling を構成して、キーワードに依存せず ERROR trace を保持できるようになる。または OpenTelemetry SDK が span 終了時の状態に基づく sampling を提供する。
 - **確認方法**: `uv run pytest src/api/tests/unit/test_telemetry.py -k error_aware_sampler` でキーワード判定と ratio-based 判定を確認する。tail-based sampling を導入する場合は、キーワードを含まないエンドポイントでエラーを発生させ、Collector と Application Insights で該当 trace が保持されることを確認する。
 - **最終確認**: 2026-08-10、リポジトリ内に tail-based sampling 構成はなく、`ErrorAwareSampler` の単体テストはキーワード判定と ratio-based 判定を対象としている。
-
-### D-10. gh-aw v0.79.6の暗黙noop Issue報告を無効化
-
-- **概要**: Agentic Workflowの`safe-outputs`へ`noop: false`を明示し、暗黙のnoop Issue報告と`agentics-maintenance.yml`の生成を無効化する。
-- **理由**: gh-aw v0.79.6は`safe-outputs`に`noop`がない場合、noop Issue報告を暗黙に有効化する。この設定は30日の有効期限を持つため、明示的な`expires`がない場合も日次maintenance workflowを生成する。週次workflowは実行結果をcreate-issueで必ず記録するため、追加のnoop Issue報告を使用しない。
-- **場所**: `.github/workflows/aks-updates-analyzer.md`、`.github/workflows/bicep-api-version-check.md`、`.github/workflows/repository-freshness-check.md`
-- **解消条件**: gh-awを、暗黙noopの`report-as-issue`が既定で無効なバージョンへ更新し、`noop: false`を外してもmaintenance workflowが生成されないことを確認する。
-- **確認方法**: 一時コピーで`noop: false`を外して`gh aw compile`を実行し、`agentics-maintenance.yml`が生成されないことを確認する。
-- **最終確認**: 2026-08-26、gh-aw v0.79.6の公式ソースで暗黙noop Issue報告と30日の既定期限を確認した。
 
 ### D-11. Windowsでgh-awをPowerShellの子プロセスとして実行
 
@@ -216,7 +217,8 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **理由**: Renovateのregex custom managerは単一の`matchStrings`が捕捉した値の更新候補を提示するだけで、別ファイルや別行のchecksumを計算して同時に書き換える機能を持たない。versionとchecksumを同じcustom managerで安全に一括更新する一般的な方法は現時点でない。
 - **場所**: `.github/workflows/ci.yml`の`LEFTHOOK_VERSION`/`LEFTHOOK_SHA256`、`scripts/tasks.py`の`check-version-pins`/`update-lefthook-pin`/`freshness-checks` task target（`.github/renovate.json`にLefthookのcustomManagerは置かない）
 - **解消条件**: RenovateがGitHub Releaseのchecksum資産から関連値を解決し、同じcustomManagerでversionとchecksumを一体更新できるようになる。その時点でLefthookをRenovate管理へ戻し、専用checkerと更新taskの必要性を再評価する。
-- **確認方法**: `freshness-checks`を実行し、pin versionが公式latest releaseと異なるとき`Lefthook` findingが`unverified`（`reason_code: update-available`）になること、pin済みchecksumが公式`lefthook_checksums.txt`と一致することを確認する。意図的に`LEFTHOOK_SHA256`を1文字削ってから`check-version-pins`を実行し、`fail`になることを確認する。
+- **確認方法（現行動作）**: `freshness-checks`の結果で、pin versionが公式latest releaseと異なるとき`Lefthook` findingが`unverified`（`reason_code: update-available`）になること、pin済みchecksumが公式`lefthook_checksums.txt`と一致することを確認する。不正値の検出は一時コピーで`LEFTHOOK_SHA256`を1文字削り、`check-version-pins`が`fail`になることを確認する。これらは専用checkerの確認であり、Renovateによる一体更新の確認ではない。
+- **確認方法（撤去判断）**: Renovateの公開仕様で、同じcustomManagerによるversionとchecksumの一体更新が提供されたことを確認する。その後、承認済みの検証用リポジトリで旧版からの更新を試し、同じPRで`LEFTHOOK_VERSION`と`LEFTHOOK_SHA256`が更新され、checksumが更新先の対象platform用公式資産と一致することを確認する。手動補正なしで既存CIが成功することを撤去判断の条件とし、versionだけの更新成功では専用処理を廃止しない。
 - **最終確認**: 2026-08-31、pin版2.1.10に対し公式GitHub latest releaseは2.1.12であり、`freshness-checks`が`unverified`（`reason_code: update-available`）を返すこと、`lefthook_2.1.10_Linux_x86_64.gz`の公式checksumがci.ymlのpin値と一致することを確認した。
 
 ### D-13. Fleet 登録後に AKS 拡張を導入する
@@ -226,7 +228,8 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **場所と対象範囲**: `infra/main.bicep` の同一 deployment 内の Fleet module と拡張 module。Fleet module 内の登録、更新戦略、アラートなどが失敗すると、拡張導入も開始しない。module 完了後も Azure 内部の更新が残る場合があり、内部操作の競合や別 deployment、外部操作による更新まで排他するものではない。
 - **拡張の追加と廃止**: 拡張を追加するときは、その拡張側に Fleet 完了後の依存を置く。拡張同士の AKS 更新も競合する場合は、該当する拡張間にも順序を設ける。Inspektor Gadget の廃止だけでは Fleet 側の依存を変更しない。宣言の除去と Azure 上の既存拡張の削除は別操作として扱う。
 - **解消条件**: Azure 側が Fleet 登録と拡張初期化の競合を待機または安全に処理できることを確認し、依存を外した新規環境で初回構築が成功する。
-- **確認方法**: 生成 ARM template で Fleet が AKS に、拡張が Fleet に依存することを確認する。実機では新規環境の Activity Log で Fleet module 完了後に拡張が開始し、base 作成が azd コマンドの再実行なしで成功することを確認する。既存環境への再適用だけでは初回競合の解消を実証したと扱わない。
+- **確認方法（現行動作）**: 生成 ARM template で Fleet が AKS に、拡張が Fleet に依存することを確認する。新規環境の Activity Log で Fleet module 完了後に拡張が開始し、base 作成が azd コマンドの再実行なしで成功することを確認する。これは順序制御が動くことの確認であり、その必要性がなくなったという証拠ではない。
+- **確認方法（撤去判断）**: 実験の承認を得た新規の一時環境で、拡張側の Fleet 依存だけを外した構成と、依存を維持した対照構成を比較する。region、AKSと拡張の版、その他の設定をそろえ、Fleet 登録と拡張初期化の開始時刻、完了状態、エラーを Activity Log で確認する。操作が重なった場合も base 作成が azd コマンドの再実行なしで成功することを確認し、初回構築の比較を反復する。既存 eval への再適用、操作が偶然重ならなかった実行、一度だけの成功を競合解消の証拠にしない。
 - **再試行**: module 完了後に残る内部操作との競合は、拡張サービスの再試行に任せる。失敗が deployment に返される場合は、対象リソースと最終エラーコードを確認し、Bicep の `@retryOn` による回数上限付きの再試行を検討する。
 
 ### D-14. Local DNS の API 更新が既存ノードへ反映されない場合

@@ -14,6 +14,7 @@ network:
   allowed:
     - defaults
     - github
+    - "api.github.com"
     - "www.microsoft.com"
     - "azure.microsoft.com"
     - "learn.microsoft.com"
@@ -26,7 +27,6 @@ safe-outputs:
     labels: [aks-updates, automation]
     close-older-issues: true
     max: 1
-  noop: false
 timeout-minutes: 15
 ---
 
@@ -46,6 +46,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
+from http.client import HTTPException
 import json
 import sys
 
@@ -55,44 +56,63 @@ headers = {
     "User-Agent": "AKS-Updates-Analyzer/1.0"
 }
 
+result = {"source": "azure-updates-rss", "items": [], "received_count": None, "invalid_count": 0, "errors": []}
+
+def finish(status, reason_code, reason):
+    result.update(status=status, reason_code=reason_code, reason=reason)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    sys.exit(0)
+
 try:
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=30) as resp:
         data = resp.read()
-    print(f"RSS feed downloaded: {len(data)} bytes", file=sys.stderr)
-except Exception as e:
-    print(f"RSS feed download failed: {e}", file=sys.stderr)
-    print("[]")
-    sys.exit(0)
+except (OSError, HTTPException) as e:
+    finish("unverified", "evidence-unavailable", f"RSS feed download failed: {e}")
 
-root = ET.fromstring(data)
+try:
+    root = ET.fromstring(data)
+except (ET.ParseError, LookupError) as e:
+    finish("unverified", "invalid-response", f"Invalid RSS XML: {e}")
+
+channels = root.findall("channel")
+if root.tag != "rss" or len(channels) != 1:
+    finish("unverified", "invalid-response", "Expected an RSS root with exactly one channel")
 now = datetime.now(timezone.utc)
 week_ago = now - timedelta(days=7)
 
-items = root.findall(".//item")
+items = channels[0].findall("item")
+result["received_count"] = len(items)
 keywords = ["kubernetes", "aks", "k8s", "container service"]
-aks_items = []
 
-for item in items:
-    title = item.find("title").text or ""
-    desc = item.find("description").text or ""
-    link = item.find("link").text or ""
-    pub_date_str = item.find("pubDate").text or ""
+for index, item in enumerate(items, start=1):
+    try:
+        fields = {}
+        for name in ("title", "description", "link", "pubDate"):
+            value = item.findtext(name)
+            if value is None or not value.strip():
+                raise ValueError(f"Missing or empty {name}")
+            fields[name] = value.strip()
+        title, desc, link, pub_date_str = (fields[name] for name in ("title", "description", "link", "pubDate"))
+        pub_date = parsedate_to_datetime(pub_date_str)
+        if pub_date.tzinfo is None:
+            raise ValueError("pubDate must include a timezone")
+    except (ValueError, OverflowError) as e:
+        result["errors"].append({"index": index, "reason": str(e)})
+        continue
     text = (title + " " + desc).lower()
-    if any(kw in text for kw in keywords):
-        try:
-            pub_date = parsedate_to_datetime(pub_date_str)
-            if pub_date >= week_ago:
-                aks_items.append({
-                    "title": title.strip(),
-                    "date": pub_date_str,
-                    "link": link,
-                    "desc": desc.strip()[:500]
-                })
-        except Exception:
-            pass
+    if any(kw in text for kw in keywords) and pub_date >= week_ago:
+        result["items"].append({
+            "title": title,
+            "date": pub_date_str,
+            "link": link,
+            "desc": desc[:500]
+        })
 
-print(json.dumps(aks_items, indent=2, ensure_ascii=False))
+result["invalid_count"] = len(result["errors"])
+if result["invalid_count"]:
+    finish("unverified", "partial-parse", f"{result['invalid_count']} of {len(items)} RSS entries could not be parsed; valid matching items retained")
+finish("pass", "evidence-available", f"All {len(items)} RSS entries parsed; {len(result['items'])} matched the 7-day AKS filter")
 PYEOF
 ```
 
@@ -107,6 +127,7 @@ import urllib.request
 import json
 import sys
 from datetime import datetime, timedelta, timezone
+from http.client import HTTPException
 
 url = "https://api.github.com/repos/Azure/AKS/releases?per_page=5"
 headers = {
@@ -114,36 +135,75 @@ headers = {
     "User-Agent": "AKS-Updates-Analyzer/1.0"
 }
 
+result = {"source": "github-aks-releases", "items": [], "received_count": None, "invalid_count": 0, "errors": []}
+
+def finish(status, reason_code, reason):
+    result.update(status=status, reason_code=reason_code, reason=reason)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    sys.exit(0)
+
 try:
     req = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(req, timeout=30) as resp:
-        releases = json.loads(resp.read())
-    print(f"Fetched {len(releases)} releases from GitHub API", file=sys.stderr)
-except Exception as e:
-    print(f"GitHub API request failed: {e}", file=sys.stderr)
-    print("[]")
-    sys.exit(0)
+        data = resp.read()
+except (OSError, HTTPException) as e:
+    finish("unverified", "evidence-unavailable", f"GitHub API request failed: {e}")
+
+try:
+    releases = json.loads(data)
+except (json.JSONDecodeError, UnicodeDecodeError) as e:
+    finish("unverified", "invalid-response", f"Invalid GitHub API JSON: {e}")
+if not isinstance(releases, list):
+    finish("unverified", "invalid-response", "Expected a GitHub releases array")
 
 now = datetime.now(timezone.utc)
 two_weeks_ago = now - timedelta(days=14)
-recent = []
+result["received_count"] = len(releases)
 
-for r in releases:
-    pub = datetime.fromisoformat(r["published_at"].replace("Z", "+00:00"))
+for index, r in enumerate(releases, start=1):
+    try:
+        if not isinstance(r, dict):
+            raise ValueError("Release must be an object")
+        for name in ("published_at", "tag_name", "html_url"):
+            if not isinstance(r.get(name), str) or not r[name].strip():
+                raise ValueError(f"Missing or invalid {name}")
+        for name in ("name", "body"):
+            if r.get(name) is not None and not isinstance(r[name], str):
+                raise ValueError(f"Invalid {name}")
+        pub = datetime.fromisoformat(r["published_at"].replace("Z", "+00:00"))
+        if pub.tzinfo is None:
+            raise ValueError("published_at must include a timezone")
+    except (ValueError, OverflowError) as e:
+        result["errors"].append({"index": index, "reason": str(e)})
+        continue
     if pub >= two_weeks_ago:
-        recent.append({
+        result["items"].append({
             "tag": r["tag_name"],
-            "name": r["name"],
+            "name": r.get("name") or r["tag_name"],
             "url": r["html_url"],
             "published_at": r["published_at"],
-            "body": r.get("body", "")
+            "body": r.get("body") or ""
         })
 
-print(json.dumps(recent, indent=2, ensure_ascii=False))
+result["invalid_count"] = len(result["errors"])
+if result["invalid_count"]:
+    finish("unverified", "partial-parse", f"{result['invalid_count']} of {len(releases)} releases could not be parsed; valid recent items retained")
+finish("pass", "evidence-available", f"All {len(releases)} returned releases parsed; {len(result['items'])} matched the 14-day filter")
 PYEOF
 ```
 
-出力にはリリースノートの全文（`body`）と URL が含まれます。以下の情報に注目して分析してください:
+両スクリプトは終了コード0で構造化JSONを出力します。終了コードや`items`の件数だけで取得成功と判断せず、ソースごとの`status`、`reason_code`、`reason`を確認してください。`received_count`は取得した配列の件数（取得や応答解析ができなければ`null`）、`invalid_count`と`errors`は解析できなかった項目の件数と位置（1始まり）および理由です。`items`は期間などの条件に一致する有効項目であり、一部解析に失敗しても保持されます。
+
+| status | reason_code | 意味 |
+|---|---|---|
+| `pass` | `evidence-available` | 応答の取得と全項目の解析が完了 |
+| `unverified` | `evidence-unavailable` | 通信失敗などで取得不能 |
+| `unverified` | `invalid-response` | XML、JSONまたは応答構造が不正 |
+| `unverified` | `partial-parse` | 必須項目や日時の一部を解析できない |
+
+片方でも結果欠落（未実行、異常終了、JSON欠落や出力構造の不正を含む）がある場合は、そのソースを`unverified`（`reason_code: evidence-unavailable`）として理由を記録してください。欠落結果を空の`items`や`pass`で補わないでください。
+
+GitHubの`items`にはリリースノートの全文（`body`）と URL が含まれます。以下の情報に注目して分析してください:
 
 - **コンポーネントバージョン更新**（Cilium、ingress-nginx、Konnectivity、etcd 等）とそのセキュリティ修正（CVE）
 - **Kubernetes パッチバージョン**の追加
@@ -170,7 +230,7 @@ PYEOF
 
 ## Step 4: 影響度分析
 
-Step 1〜3 の情報を照合し、**Step 1 と Step 2 で取得した全アップデートを漏れなく**以下のカテゴリに分類してください。
+Step 1〜3 の情報を照合し、**Step 1 と Step 2 の`items`に保持された全アップデートを漏れなく**以下のカテゴリに分類してください。取得不能や部分解析失敗がある場合は、確認できた範囲だけを分析し、全体を確認済みとはしないでください。
 
 ### 前提: 自動適用構成の解釈
 
@@ -213,6 +273,15 @@ Step 1〜3 の情報を照合し、**Step 1 と Step 2 で取得した全アッ�
 **分析期間**: YYYY-MM-DD 〜 YYYY-MM-DD
 **データソース**: Azure Updates RSS / GitHub AKS Changelog
 
+### データ取得状況
+
+| ソース | status | reason_code | 取得件数 | 解析失敗件数 | 対象件数 | 理由 |
+|---|---|---|---|---|---|---|
+| Azure Updates RSS（過去7日） | ... | ... | ... | ... | ... | ... |
+| GitHub AKS releases（最新5件中、過去14日） | ... | ... | ... | ... | ... | ... |
+
+`reason`と、`errors`があれば解析できなかった項目の位置と理由を記載する。取得件数が不明の場合は0ではなく「不明」とする。未確認のソースがあれば、分析が確認できた範囲に限定されることを明記する。
+
 ### リポジトリの現在構成
 | 項目 | 値 |
 |------|-----|
@@ -242,6 +311,8 @@ Step 1〜3 の情報を照合し、**Step 1 と Step 2 で取得した全アッ�
 ```
 
 **重要**:
-- 該当するアップデートがない場合でも、「今週は該当するアップデートはありませんでした」と Issue を作成してください
+- 両ソースの`status`が`pass`で、両方の`items`が空の場合のみ、「今週は該当するアップデートはありませんでした」と記載してください。上記の取得範囲も併記してください
+- 片方でも`unverified`または結果欠落がある場合は、「更新なし」と報告せず、取得状況と未確認理由を明記してください。有効項目が0件でも、更新の有無を確認できなかったことを記載してください
+- 取得結果にかかわらず週次Issueは既存の1件だけを作成し、取得失敗用のIssueを別に作成しないでください
 - テーブル内のリンクは Markdown リンク形式で記載してください
 - 分析の根拠を明確に記載してください

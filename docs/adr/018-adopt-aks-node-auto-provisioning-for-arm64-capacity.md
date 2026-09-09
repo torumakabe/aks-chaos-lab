@@ -6,10 +6,15 @@ Accepted
 
 - Date: 2026-08-21
 - Amended: 2026-09-08（既存 workflow への条件付き適用）
+- Amended: 2026-09-09（[ADR-020](020-enable-node-auto-provisioning-by-default.md) により、Context 末尾と Decision 4 の既定無効、および Decision 9 の未設定時スキップを、未設定時の既定有効へ部分変更）
+
+NAP の採用、System AgentPool 2 台固定、Cluster Autoscaler との非併用、VM SKU 候補、8 vCPU の容量目安、disruption 制約は引き続き有効とする。既存 workflow の実行順序と条件付き task、明示 false 時のスキップと既存 NodePool 等を自動削除しない方針、失敗時に後続へ進めない方針も維持する。以下の旧判断の本文は履歴として保持する。
 
 ## Context
 
 Japan Eastで特定のVM SKUを割り当てられない場合にも、Arm64の`chaos-app`を実行できる追加capacityが必要である。ノードはEphemeral OS Diskを維持する。
+
+[ADR-010](010-aks-automatic-unsupported-due-to-deployment-safeguards.md) は NAP を試すには別の lab が必要としていた。本 ADR は Arm64 User workload の追加capacity確保のため、この制約の NAP 部分を変更する。AKS Standard 上で NAP を採用し、AKS Automatic を非サポートとする判断は維持する。
 
 AKS Standardでは、NAPを有効にしても従来型のSystem AgentPoolが必要である。NAPはSystem workload用ノードも作成できるが、System AgentPoolそのものを置き換えられない。このため、NAPだけではAKS全体の割り当て耐性を確保できない。
 
@@ -52,4 +57,4 @@ NAPの採用により、Arm64 User workloadはv5とv6を追加capacityの候補�
 ## 関連 ADR
 
 - ADR-008: System AgentPoolのUbuntu 24.04指定を維持する。
-- ADR-010: AKS Automaticを採用せず、AKS Standardを維持する。
+- [ADR-010](010-aks-automatic-unsupported-due-to-deployment-safeguards.md): AKS Automaticを採用せず、AKS Standardを維持する。

@@ -40,8 +40,15 @@ real_probe_review_tool = tasks.probe_review_tool
 
 
 @pytest.fixture(autouse=True)
-def assume_review_tools_pass_preflight(monkeypatch: pytest.MonkeyPatch) -> None:
+def assume_review_tools_pass_preflight(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(tasks, "probe_review_tool", lambda _tool: None)
+    monkeypatch.setattr(
+        tasks, "user_uv_config_path", lambda: tmp_path / "missing-uv.toml"
+    )
+    for name in tasks.UNSAFE_UV_ENVIRONMENT_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
 
 
 FAST_CHECK_NAMES = tuple(check.name for check in tasks.FAST_REVIEW_CHECKS)
@@ -2582,6 +2589,104 @@ def test_compile_aw_is_unverified_without_origin_and_other_checks_continue(
         ("compile-aw", "unverified"),
         ("next", "pass"),
     ]
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    (None, "find-links", "UV_FIND_LINKS", "UV_NO_VERIFY_HASHES"),
+)
+def test_review_preparation_validates_parent_and_limits_final_credentials(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, invalid: str | None
+) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    config_path = tmp_path / "uv.toml"
+    config_path.write_text(
+        (
+            'find-links = ["https://packages.example.test/wheels"]\n'
+            if invalid == "find-links"
+            else ""
+        )
+        + '[[index]]\nname = "approved-index"\n'
+        'url = "https://packages.example.test/simple"\ndefault = true\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    if invalid is not None and invalid.startswith("UV_"):
+        monkeypatch.setenv(invalid, "1")
+    selected = {
+        "UV_INDEX_APPROVED_INDEX_USERNAME": "fixture-user",
+        "UV_INDEX_APPROVED_INDEX_PASSWORD": "fixture-secret",
+    }
+    for name, value in {
+        **selected,
+        "UV_INDEX_OTHER_USERNAME": "other-user",
+        "UV_INDEX_OTHER_PASSWORD": "other-secret",
+    }.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv(tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE, "1")
+    monkeypatch.setattr(
+        tasks, "classify_review_tools", lambda checks: (list(checks), [])
+    )
+    monkeypatch.setattr(tasks, "copy_worktree_snapshot", lambda _destination: [])
+    monkeypatch.setattr(tasks, "initialize_isolated_git_repository", lambda _root: None)
+    real_mkdtemp = tasks.tempfile.mkdtemp
+    monkeypatch.setattr(
+        tasks.tempfile,
+        "mkdtemp",
+        lambda *, prefix: real_mkdtemp(prefix=prefix, dir=tmp_path),
+    )
+    calls: list[tuple[str, dict[str, str]]] = []
+
+    def popen(
+        args: list[str], *, env: dict[str, str], **_kwargs: object
+    ) -> SimpleNamespace:
+        calls.append((args[-1], env))
+        return SimpleNamespace(wait=lambda **_kwargs: 0)
+
+    monkeypatch.setattr(tasks.subprocess, "Popen", popen)
+    results = tasks.run_review_targets_isolated(
+        (
+            tasks.ReviewCheck("qa-app", "qa-app", ("uv",)),
+            tasks.ReviewCheck("test-hooks", "test-hooks", ("uv",)),
+            tasks.ReviewCheck("other", "other", ()),
+        )
+    )
+    if invalid is not None:
+        assert [name for name, _env in calls] == ["other"]
+        assert [result.status for result in results] == [
+            "unverified",
+            "unverified",
+            "pass",
+        ]
+        assert all(invalid in result.detail for result in results[:2])
+        return
+
+    assert [name for name, _env in calls] == [
+        "prepare-review-python-env",
+        "qa-app",
+        "test-hooks",
+        "other",
+    ]
+    assert all(result.status == "pass" for result in results)
+    preparation = calls[0][1]
+    assert preparation["UV_CONFIG_FILE"] == str(config_path)
+    assert tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE not in preparation
+    for number, (_name, environment) in enumerate(calls):
+        credentials = {
+            key: value
+            for key, value in environment.items()
+            if key.upper().startswith("UV_INDEX_")
+            and key.upper().endswith(("_USERNAME", "_PASSWORD"))
+        }
+        assert credentials == (selected if number == 0 else {})
+        assert (
+            environment["UV_PROJECT_ENVIRONMENT"]
+            == preparation["UV_PROJECT_ENVIRONMENT"]
+        )
+        if number:
+            assert environment[tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE] == "1"
 
 
 def test_timed_out_process_tree_releases_isolation(tmp_path: Path) -> None:

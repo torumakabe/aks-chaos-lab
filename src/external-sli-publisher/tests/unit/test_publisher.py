@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import urllib.error
 import urllib.request
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from email.message import Message
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 
+from external_sli_publisher import publisher
 from external_sli_publisher.publisher import (
     ProbeResult,
     Settings,
@@ -337,6 +339,104 @@ def test_heartbeat_sample_uses_current_publish_timestamp() -> None:
     assert labels["test"] == "chaos-app-health"
     assert value == 1.0
     assert timestamp == 1779209529000
+
+
+@pytest.mark.parametrize(
+    ("pending_windows", "max_windows"),
+    [(2, 3), (3, 3), (4, 3), (1, 1), (2, 1), (0, 3)],
+    ids=["below-cap", "at-cap", "over-cap", "single-current", "single-missed", "idle"],
+)
+@pytest.mark.parametrize("probe_success", [True, False], ids=["probe-ok", "probe-bad"])
+@pytest.mark.parametrize(
+    "write_failure", [None, 1, 2], ids=["write-ok", "heartbeat-fails", "sli-fails"]
+)
+def test_run_once_counts_only_the_latest_window_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    pending_windows: int,
+    max_windows: int,
+    probe_success: bool,
+    write_failure: int | None,
+) -> None:
+    cfg = settings(max_catchup_windows=max_windows)
+    now = datetime(2026, 5, 19, 17, 17, 9, tzinfo=UTC)
+    target_end = datetime(2026, 5, 19, 17, 15, tzinfo=UTC)
+    last_end = target_end - timedelta(seconds=pending_windows * cfg.window_seconds)
+    blob = Mock()
+    blob.download_blob.return_value.readall.return_value = (
+        f'{{"last_published_window_end": "{last_end.isoformat()}"}}'.encode()
+    )
+    credential = Mock()
+    credential.get_token.return_value.token = "test-monitor-token"
+    monkeypatch.setattr(
+        publisher, "DefaultAzureCredential", Mock(return_value=credential)
+    )
+    blob_client = Mock()
+    blob_client.from_blob_url.return_value = blob
+    monkeypatch.setattr(publisher, "BlobClient", blob_client)
+    probe = Mock(
+        return_value=ProbeResult(
+            success=probe_success,
+            status_code=200 if probe_success else 503,
+            duration_ms=250,
+        )
+    )
+    monkeypatch.setattr(publisher, "probe_endpoint", probe)
+
+    def remote_write(*_args: object) -> None:
+        blob.upload_blob.assert_not_called()
+        if write.call_count == write_failure:
+            raise RuntimeError("remote-write failed")
+
+    write = Mock(side_effect=remote_write)
+    monkeypatch.setattr(publisher, "publish_remote_write_samples", write)
+    write_count = 2 if pending_windows else 1
+    fails = write_failure is not None and write_failure <= write_count
+    if fails:
+        with pytest.raises(RuntimeError, match="remote-write failed"):
+            publisher.run_once(cfg, now)
+    else:
+        assert publisher.run_once(cfg, now) == 0
+
+    credential.get_token.assert_called_once_with(publisher.AZURE_MONITOR_SCOPE)
+    blob_client.from_blob_url.assert_called_once_with(
+        cfg.state_blob_url, credential=credential
+    )
+    assert write.call_count == (write_failure if fails else write_count)
+    assert write.call_args_list[0].args[1] == [heartbeat_sample(cfg, now)]
+    for call in write.call_args_list:
+        token, samples, actual_cfg = call.args
+        assert token == "test-monitor-token"
+        assert actual_cfg is cfg
+        assert all(
+            timestamp == int(now.timestamp() * 1000) for *_, timestamp in samples
+        )
+    if not pending_windows or write_failure == 1:
+        probe.assert_not_called()
+    else:
+        probe.assert_called_once_with(cfg)
+        emitted = write.call_args_list[1].args[1]
+        values = {name: value for name, _, value, _ in emitted}
+        count = min(pending_windows, max_windows)
+        good = int(pending_windows <= max_windows and probe_success)
+        assert values["chaos_app_external_availability_good"] == good
+        assert values["chaos_app_external_availability_total"] == count
+        assert values["chaos_app_external_latency_total"] == count
+        assert {
+            labels["le"]: value
+            for name, labels, value, _ in emitted
+            if name == "chaos_app_external_latency_good"
+        } == {"0.1": 0, "0.25": good, "0.5": good, "1": good, "2": good, "5": good}
+
+    if fails or not pending_windows:
+        blob.upload_blob.assert_not_called()
+    else:
+        expected_end = last_end + timedelta(
+            seconds=min(pending_windows, max_windows) * cfg.window_seconds
+        )
+        blob.upload_blob.assert_called_once_with(
+            f'{{"last_published_window_end": "{publisher.format_state_datetime(expected_end)}"}}',
+            overwrite=True,
+        )
 
 
 @pytest.mark.parametrize(
