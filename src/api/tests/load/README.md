@@ -11,6 +11,8 @@
 
 ## 使用方法
 
+以下のコマンドはリポジトリ直下で実行します。
+
 ### 基本的な使用（自動検出）
 ```bash
 # BASE_URLを自動検出してbaseline負荷テスト実行
@@ -78,19 +80,21 @@ uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 ## セットアップ
 
 ### 初回実行前の準備
+
+利用する package index を確認し、[ローカル開発の同期手順](../../../../docs/deployment.md#ローカル開発)に従って workspace の依存関係を同期します。組織承認済みの package index を使う場合は、同文書の[専用手順](../../../../docs/deployment.md#組織承認済み-package-index-を使う環境)を使います。通常環境の同期コマンドは次のとおりです。
+
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
 ```
 
 ### 依存関係について
-- locustはsrc/api/pyproject.tomlのdev dependenciesで定義
-- uvが自動的に仮想環境を管理  
-- `uv run --no-project "${PWD}/scripts/tasks.py" load-*` は `src/api/` の dev dependencies を使って Locust を実行
+
+Locust はリポジトリ直下の [pyproject.toml](../../../../pyproject.toml) の `dependency-groups.dev` で定義しています。uv workspace の仮想環境を共有し、`load-*` タスクはその環境の Locust で `src/api/tests/load/locustfile.py` を実行します。
 
 ## 前提条件
 - kubectl がインストール済みでクラスタにアクセス可能
 - uv (Python package manager) がインストール済み
-- src/api/pyproject.toml に locust が dev dependency として定義済み
+- workspace の開発依存を同期済み
 
 ## 自動検出の仕組み
 BASE_URL が未設定の場合、以下の優先順で自動検出します：
@@ -110,7 +114,9 @@ uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 
 ## Gateway diagnostic metrics
 
-負荷テスト時の短期診断は ADR-004 / ADR-011 に基づき、Gateway 層 Envoy メトリクスを使います。Azure Monitor SLI の Availability / Latency は Application Insights availability test 由来の外形 signal を使うため、負荷テストのリクエスト数には依存しません。
+負荷テスト時の短期診断は [ADR-004](../../../../docs/adr/004-envoy-gateway-metrics-for-slo.md) と [ADR-009](../../../../docs/adr/009-azure-monitor-sli-and-prometheus-slo.md) に基づき、Gateway 層 Envoy メトリクスを使います。Azure Monitor SLI の Availability / Latency は、[ADR-012](../../../../docs/adr/012-functions-direct-external-sli-probe.md) と [ADR-014](../../../../docs/adr/014-histogram-bucket-latency-sli.md) に従い、Azure Functions external SLI publisher の direct HTTP probe を入力にします。
+
+Locust の成功率と応答時間はクライアント側の負荷試験結果、Gateway 指標は Gateway からバックエンドへの通信の診断に使います。Locust のリクエスト数は SLI の分母に直接入りませんが、負荷による遅延や障害は外形 probe の結果を通じて SLI に影響します。
 
 **メトリクス**:
 - `envoy_cluster_upstream_rq{response_code, cluster_name}` — ステータスコード別 HTTP リクエスト数
