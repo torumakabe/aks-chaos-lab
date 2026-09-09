@@ -108,6 +108,8 @@ Data Collection Endpoint の [`properties`](https://learn.microsoft.com/azure/te
 
 同様に、[Fleet](https://learn.microsoft.com/azure/templates/microsoft.containerservice/fleets#resource-format) の `properties.hubProfile`、[User Assigned Identity](https://learn.microsoft.com/rest/api/managedidentity/user-assigned-identities/create-or-update?view=rest-managedidentity-2024-11-30) の `properties.isolationScope`、[Monitor Account](https://learn.microsoft.com/azure/templates/microsoft.monitor/2025-10-03-preview/accounts#resource-format) の `properties.publicNetworkAccess`、[Log Analytics Table](https://learn.microsoft.com/azure/templates/microsoft.operationalinsights/2025-07-01/workspaces/tables#resource-format) の `properties.schema.columns` は設定可能な属性を含む。これらの `properties` や `schema` 全体を readOnly にしない。
 
+`Microsoft.Relationships/serviceGroupMember` の `properties.targetTenant` は、API `2023-09-01-preview` の [PUT 入力の公式例](https://github.com/Azure/azure-rest-api-specs/blob/main/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/preview/2023-09-01-preview/examples/ServiceGroupMemberRelationships_CreateOrUpdate.json)で指定する書き込み可能な属性である。親リソース型に `/providers/serviceGroupMember` を付けたパターン定義でも、`targetTenant` を readOnly にしない。
+
 ### 候補の表示と確定評価を分ける
 
 `auto_managed_patterns` の一致はパスだけを確認する。説明文にある未指定時の補完、値の等価性、サービスの動作条件を確認した結果ではないため、出力は要確認とし、説明文を実際の差分の原因として表示しない。Bicep 照合の `notDefined` も、変数やモジュールを通じた指定がないことの証明には使わない。

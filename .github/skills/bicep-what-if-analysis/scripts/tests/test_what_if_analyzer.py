@@ -275,6 +275,80 @@ class TestEvaluatePropertyChange(unittest.TestCase):
                         self.assertIn("ARM 参照式", text)
                         self.assertIn("要確認", text)
 
+    def test_service_group_member_property_evaluations_in_output(self) -> None:
+        with tempfile.TemporaryDirectory() as bicep_dir:
+            for parent_type in (
+                "Microsoft.Cache/redisEnterprise",
+                "Microsoft.ContainerRegistry/registries",
+                "Microsoft.ContainerService/managedClusters",
+                "Microsoft.Insights/components",
+                "Microsoft.Monitor/accounts",
+                "Microsoft.OperationalInsights/workspaces",
+            ):
+                for property_name in (
+                    "targetTenant",
+                    "metadata",
+                    "originInformation",
+                    "sourceId",
+                ):
+                    with self.subTest(
+                        parent_type=parent_type, property_name=property_name
+                    ):
+                        path = f"properties.{property_name}"
+                        output = build_output(
+                            {
+                                "changes": [
+                                    {
+                                        "changeType": "Modify",
+                                        "resourceId": (
+                                            "/subscriptions/sub/resourceGroups/rg/providers/"
+                                            f"{parent_type}/test-parent/providers/"
+                                            "Microsoft.Relationships/serviceGroupMember/test-member"
+                                        ),
+                                        "delta": [
+                                            {
+                                                "path": path,
+                                                "propertyChangeType": "Modify",
+                                                "before": "11111111-1111-4111-8111-111111111111",
+                                                "after": "22222222-2222-4222-8222-222222222222",
+                                            }
+                                        ],
+                                    }
+                                ]
+                            },
+                            template="infra/main.bicep",
+                            location="japaneast",
+                            bicep_dir=bicep_dir,
+                        )
+                        resource = output["changes"][0]
+                        self.assertEqual(
+                            resource["resourceType"],
+                            f"{parent_type}/providers/serviceGroupMember",
+                        )
+                        change = resource["propertyChanges"][0]
+                        self.assertEqual(change["path"], path)
+                        evaluation = change["evaluation"]
+                        text = format_azd_style_output(output)
+                        self.assertIn(path, text)
+                        if property_name == "targetTenant":
+                            self.assertEqual(evaluation["status"], "pending")
+                            self.assertIsNone(evaluation["reason"])
+                            self.assertIsNone(evaluation["confidence"])
+                            self.assertEqual(
+                                output["evaluationSummary"]["noise_confirmed"], 0
+                            )
+                            self.assertEqual(output["pendingEvaluations"]["count"], 1)
+                            self.assertNotIn("readOnly", text)
+                        else:
+                            self.assertEqual(evaluation["status"], "noise_confirmed")
+                            self.assertEqual(evaluation["reason"], "readOnly")
+                            self.assertEqual(evaluation["confidence"], "high")
+                            self.assertEqual(
+                                output["evaluationSummary"]["noise_confirmed"], 1
+                            )
+                            self.assertEqual(output["pendingEvaluations"]["count"], 0)
+                            self.assertIn("readOnly", text)
+
     def test_noeffect_and_readonly_keep_precedence_over_arm_reference(self) -> None:
         for path, change_type, reason in (
             ("properties.subnetId", "NoEffect", "noEffect"),

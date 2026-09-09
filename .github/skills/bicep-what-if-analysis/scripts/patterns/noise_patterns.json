@@ -180,15 +180,15 @@
             "known_defaults": []
         },
         "Microsoft.Cache/redisEnterprise/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ContainerRegistry/registries/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ContainerService/managedClusters/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ContainerService/managedClusters/providers/extensions": {
@@ -205,15 +205,15 @@
             "known_defaults": []
         },
         "Microsoft.Insights/components/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Monitor/accounts/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.OperationalInsights/workspaces/providers/serviceGroupMember": {
-            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$", "^targetTenant$"],
+            "readonly_patterns": ["^metadata$", "^originInformation$", "^sourceId$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Cache/redisEnterprise/databases": {
