@@ -6,6 +6,8 @@ Accepted
 
 - Date: 2026-05-21
 
+Decision 3 に関係する root lock の取得元と管理対象環境での同期方式、Decision 4 の Docker の依存構築方式、Decision 9 の post-edit hook の自動同期許可は、[ADR-017](017-approved-index-conversion-for-managed-environments.md) で具体化または一部変更した。root `uv.lock` の一本化は維持し、public PyPI source の lock をリポジトリで管理する。Docker は export と pip sync に変更し、post-edit hook は project venv の ruff を直接実行する。uv workspace によるツーリング統一とデプロイ単位の分離は引き続き有効とする。
+
 ## Context
 
 リポジトリには 3 つの Python ルート (`src/api/` FastAPI コンテナ、`src/external-sli-publisher/` Azure Functions、`scripts/` 運用スクリプト) があり、`pyproject.toml` の `[tool.ruff]` / `[tool.ty.*]` / `[tool.pytest.ini_options]` がほぼ重複している。`scripts/tasks.py` の lint/format/typecheck/test は api/publisher で 2 系統並走し、`scripts/` は `src/api` の設定を `--config pyproject.toml` で間借りしている。post-edit hook (`.github/hooks/scripts/post-edit-quality-feedback.py`) もパスごとのルーティングが必要で複雑化している。一方、コンテナと Functions のデプロイ単位独立性は ADR-009/012 で維持する方針。
