@@ -23,6 +23,7 @@ from what_if_analyzer import (
     contains_arm_reference,
     evaluate_property_change,
     extract_resource_changes,
+    extract_resource_type_from_id,
     flatten_property_changes,
     format_azd_style_output,
     get_bicep_param_names,
@@ -275,6 +276,97 @@ class TestEvaluatePropertyChange(unittest.TestCase):
                         self.assertIn("ARM 参照式", text)
                         self.assertIn("要確認", text)
 
+    def test_unverified_readonly_paths_remain_pending_in_output(self) -> None:
+        cases = (
+            (
+                "Microsoft.Monitor/accounts/monitor-test",
+                "Microsoft.Monitor/accounts",
+                "properties.endpoints",
+            ),
+            *(
+                (
+                    "Microsoft.Network/privateEndpoints/pe-test/"
+                    "privateDnsZoneGroups/group-test",
+                    "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+                    f"properties.privateDnsZoneConfigs.0.{suffix}",
+                )
+                for suffix in ("etag", "id", "type", "properties.provisioningState")
+            ),
+            (
+                "Microsoft.Network/privateEndpoints/pe-test/"
+                "privateDnsZoneGroups/group-test",
+                "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+                "properties.provisioningState",
+            ),
+        )
+        with tempfile.TemporaryDirectory() as bicep_dir:
+            for resource_path, resource_type, path in cases:
+                for nested in (False, True):
+                    with self.subTest(path=path, nested=nested):
+                        resource_id = (
+                            "/subscriptions/11111111-1111-4111-8111-111111111111/"
+                            f"resourceGroups/rg-test/providers/{resource_path}"
+                        )
+                        self.assertEqual(
+                            extract_resource_type_from_id(resource_id), resource_type
+                        )
+                        segments = path.split(".") if nested else [path]
+                        delta = {
+                            "path": segments[-1],
+                            "propertyChangeType": "Modify",
+                            "before": "Succeeded",
+                            "after": "Updating",
+                        }
+                        for segment in reversed(segments[:-1]):
+                            delta = {
+                                "path": segment,
+                                "propertyChangeType": "Modify",
+                                "children": [delta],
+                            }
+                        output = build_output(
+                            {
+                                "changes": [
+                                    {
+                                        "changeType": "Modify",
+                                        "resourceId": resource_id,
+                                        "delta": [delta],
+                                    }
+                                ]
+                            },
+                            template="infra/main.bicep",
+                            location="japaneast",
+                            bicep_dir=bicep_dir,
+                        )
+                        resource = output["changes"][0]
+                        self.assertEqual(resource["resourceType"], resource_type)
+                        self.assertEqual(len(resource["propertyChanges"]), 1)
+                        change = resource["propertyChanges"][0]
+                        self.assertEqual(change["path"], path)
+                        evaluation = change["evaluation"]
+                        text = format_azd_style_output(output)
+                        self.assertIn(resource_path.rsplit("/", 1)[-1], text)
+                        self.assertIn(f"~ {path}  ", text)
+                        self.assertNotIn("非表示", text)
+                        if path == "properties.provisioningState":
+                            self.assertEqual(evaluation["status"], "noise_confirmed")
+                            self.assertEqual(evaluation["reason"], "readOnly")
+                            self.assertEqual(evaluation["confidence"], "high")
+                            self.assertEqual(
+                                output["evaluationSummary"]["noise_confirmed"], 1
+                            )
+                            self.assertEqual(output["pendingEvaluations"]["count"], 0)
+                            self.assertIn("🔒 readOnly", text)
+                        else:
+                            self.assertEqual(evaluation["status"], "pending")
+                            self.assertIsNone(evaluation["reason"])
+                            self.assertIsNone(evaluation["confidence"])
+                            self.assertEqual(
+                                output["evaluationSummary"]["noise_confirmed"], 0
+                            )
+                            self.assertEqual(output["pendingEvaluations"]["count"], 1)
+                            self.assertIn(f"~ {path}  ❓ 未分類。確認推奨", text)
+                            self.assertNotIn("readOnly", text)
+
     def test_service_group_member_property_evaluations_in_output(self) -> None:
         with tempfile.TemporaryDirectory() as bicep_dir:
             for parent_type in (
@@ -409,7 +501,6 @@ class TestIsReadonlyProperty(unittest.TestCase):
     def test_resource_specific_readonly_is_preserved(self) -> None:
         for resource_type, path in (
             ("Microsoft.ContainerService/managedClusters", "properties.powerState"),
-            ("Microsoft.Monitor/accounts", "properties.endpoints"),
         ):
             with self.subTest(resource_type=resource_type):
                 self.assertTrue(is_readonly_property(path, resource_type))

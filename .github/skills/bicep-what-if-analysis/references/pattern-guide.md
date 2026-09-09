@@ -110,6 +110,19 @@ Data Collection Endpoint の [`properties`](https://learn.microsoft.com/azure/te
 
 `Microsoft.Relationships/serviceGroupMember` の `properties.targetTenant` は、API `2023-09-01-preview` の [PUT 入力の公式例](https://github.com/Azure/azure-rest-api-specs/blob/main/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/preview/2023-09-01-preview/examples/ServiceGroupMemberRelationships_CreateOrUpdate.json)で指定する書き込み可能な属性である。親リソース型に `/providers/serviceGroupMember` を付けたパターン定義でも、`targetTenant` を readOnly にしない。
 
+### readOnly の根拠を確認できなかった5パス
+
+次の5パスは readOnly の根拠を確認できなかったため、`readonly_patterns` から削除した。`Modify` で変更前後に ARM 参照式がない場合は、通常の未分類として `pending`（`reason` と `confidence` は `null`）を表示する。書き込み可能と確定したものではない。
+
+| リソース型 | 対象パス | 確認結果 |
+|-----------|----------|----------|
+| `Microsoft.Monitor/accounts` | `properties.endpoints` | [Accounts API `2025-10-03` stable](https://github.com/Azure/azure-rest-api-specs/blob/main/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/stable/2025-10-03/azuremonitorworkspace.json)に該当属性がない。`defaultIngestionSettings.ingestionEndpoints` は別パス |
+| `Microsoft.Network/privateEndpoints/privateDnsZoneGroups` | `properties.privateDnsZoneConfigs.<index>.etag`、`.id`、`.type`、`.properties.provisioningState` | Network API `2025-07-01` の `PrivateDnsZoneConfig` と `PrivateDnsZonePropertiesFormat` に該当する4属性がない。group 自身の `properties.provisioningState` は別パスであり、既存の readOnly 判定を維持する |
+
+定義の導入元は、Monitor がコミット `2a09bc8`、DNS zone config の4件が `aa988a1`。Monitor のコミット説明にはスキーマで裏付けたとの記述があるが、対象パスの仕様参照はなく、DNS zone config の4件にも根拠の参照はない。
+
+照合では、resource ID から子リソース型まで抽出し、delta の `children` のパスをドットで連結する。例えば子パス `0` は `privateDnsZoneConfigs.0.etag` のようになる。型別ルールは先頭の `properties.` だけを除去するため、今回の5ルールは上表のパスに適用されていた。配列の角括弧表記を数値のドット表記へ変換する処理はない。合成 delta にルールが一致することは、API response にその属性が存在することや、正式な readOnly 属性であることの根拠にはならない。共通の metadata ルールは変更していない。
+
 ### 候補の表示と確定評価を分ける
 
 `auto_managed_patterns` の一致はパスだけを確認する。説明文にある未指定時の補完、値の等価性、サービスの動作条件を確認した結果ではないため、出力は要確認とし、説明文を実際の差分の原因として表示しない。Bicep 照合の `notDefined` も、変数やモジュールを通じた指定がないことの証明には使わない。
