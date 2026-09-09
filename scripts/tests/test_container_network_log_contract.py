@@ -47,7 +47,7 @@ def test_namespace_and_app_use_distinct_endpoint_predicates(
                 "matchLabels": {
                     "app": "chaos-app",
                 }
-            }
+            },
         },
         "protocol": ["tcp", "udp", "dns"],
         "verdict": ["forwarded", "dropped"],
