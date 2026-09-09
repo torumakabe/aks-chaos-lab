@@ -555,24 +555,25 @@ def run_once(settings: Settings, now: datetime | None = None) -> int:
         return 0
 
     publish_heartbeat(monitor_token, settings, sample_time)
-    missed_window_count = max(0, len(windows) - 1)
-    current_result = probe_endpoint(settings)
-    samples = combine_sli_samples(
-        [
-            missed_window_samples(missed_window_count),
-            probe_result_to_sli_samples(current_result, settings),
-        ]
-    )
-    publish_remote_write(monitor_token, samples, settings, sample_time)
     last_window = windows[-1]
+    includes_current_probe = last_window.end == target.end
+    missed_window_count = len(windows) - int(includes_current_probe)
+    current_result = probe_endpoint(settings)
+    samples = missed_window_samples(missed_window_count)
+    if includes_current_probe:
+        samples = combine_sli_samples(
+            [samples, probe_result_to_sli_samples(current_result, settings)]
+        )
+    publish_remote_write(monitor_token, samples, settings, sample_time)
     save_last_published(blob, last_window.end)
     LOGGER.info(
-        "published external SLI probe windows start=%s end=%s count=%s sample_time=%s missed=%s status=%s duration_ms=%s availability_good=%s/%s latency_total=%s buckets=%s",
+        "published external SLI probe windows start=%s end=%s count=%s sample_time=%s missed=%s includes_current_probe=%s status=%s duration_ms=%s availability_good=%s/%s latency_total=%s buckets=%s",
         format_state_datetime(windows[0].start),
         format_state_datetime(last_window.end),
         len(windows),
         format_state_datetime(sample_time),
         missed_window_count,
+        includes_current_probe,
         current_result.status_code,
         current_result.duration_ms,
         samples.availability_good,

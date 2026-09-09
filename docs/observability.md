@@ -90,7 +90,7 @@ Application Insights の role name は Function host 名ではなく `external-s
 
 Azure Monitor SLI は上記 good / total metrics を Request-based SLI として `Sum` 集計します。既定の partitioning dimensions は `environment`, `service`, `test` です。publisher 自体の停止は `ExternalSliPublisherHeartbeatMissing` で検知します。
 
-External SLI metrics は最新の閉じた window に対する probe と、欠落 window の bad sample を合算して発行します。Azure Monitor Workspace は `OldData` として現在から 20 分より古い timestamp を拒否するため、catch-up した複数 window は publisher の実行時刻に合算します。Request-based SLI は good / total の合計で評価されるため、時間分布は圧縮されますが、rolling period 内の分子・分母は回復できます。heartbeat metric は publisher freshness を表すため、実行時刻で発行します。SLI 作成前の入力確認は Managed Prometheus の PromQL で行います。
+External SLI metrics は最新の閉じた window に対する probe と、欠落 window の bad sample を合算して発行します。catch-up 件数の上限により最新の閉じた window を含まないバッチは、すべての window を bad sample として発行します。Azure Monitor Workspace は `OldData` として現在から 20 分より古い timestamp を拒否するため、catch-up した複数 window は publisher の実行時刻に合算します。Request-based SLI は good / total の合計で評価されるため、時間分布は圧縮されますが、rolling period 内の分子・分母は回復できます。heartbeat metric は publisher freshness を表すため、実行時刻で発行します。SLI 作成前の入力確認は Managed Prometheus の PromQL で行います。
 
 Latency SLI の good / total は monotonic counter ではなく、window ごとに書き込む gauge です。成功 probe は `latency_total += 1` とし、`duration <= le` を満たす bucket の `latency_good{le="<bucket>"}` を 1 として扱います。timeout、non-2xx、network error、Function host 停止などで probe 結果を再構成できない欠損 window は、保守的に `latency_total += 1`、全 bucket の good を 0 として扱います。`externalSliProbeTimeoutSeconds` は最大 bucket の 5 秒より大きくする必要があります。
 
