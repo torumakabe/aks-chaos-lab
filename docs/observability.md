@@ -22,6 +22,12 @@ AKS control plane metrics は `azureMonitorProfile.metrics.controlPlane.enabled`
 
 ## DNS と network observability
 
+Container network logs は、`chaos-lab` namespace の `app: chaos-app` Pod を送信元または宛先とする通信を収集します。cluster-scoped の `ContainerNetworkLog` で、egress の `from` と ingress の `to` にそれぞれ `namespacedPod: ["chaos-lab/"]` と `labelSelector.matchLabels: {app: chaos-app}` を指定します。末尾の `/` は Pod 名のプレフィックスを空にし、その namespace の全 Pod に一致させます。アプリラベルも満たす Pod だけが対象となり、通信相手の namespace は制限しません。収集対象は TCP、UDP、DNS の forwarded / dropped フローです。
+
+Hubble は同じフィルタ内の `source_pod` と `source_label`（ingress は `destination_pod` と `destination_label`）を AND で評価します。一方、`source_label` / `destination_label` の配列要素は OR です。namespace ラベルをアプリラベルと別要素に変換させると、収集対象が広がります。条件の結合は [BuildFilterList](https://github.com/cilium/cilium/blob/v1.18.0/pkg/hubble/filters/filters.go)、namespace と Pod 名の照合は [filterByNamespacedName](https://github.com/cilium/cilium/blob/v1.18.0/pkg/hubble/filters/k8s.go)、ラベル配列の評価は [FilterByLabelSelectors](https://github.com/cilium/cilium/blob/v1.18.0/pkg/hubble/filters/labels.go) を参照してください。
+
+フィルタ変更時は server dry-run 後に対象 CRD だけを適用し、`kube-system/acns-flowlog-config` の生成設定で上記の AND 条件を確認します。全ノードの exporter 再読み込み後、別 namespace にある同じ `app: chaos-app` ラベルの Pod と対象外 Pod の通信が除外され、既存 chaos-app の通信が引き続き収集されることを確認してください。試験通信の成功と集約間隔を超える観測時間も確認し、`CONFIGURED` 表示や契約テストの成功だけでは収集範囲を判定しません。
+
 Local DNS が無効な構成では、クラスタの DNS 量を CoreDNS の `coredns_dns_requests_total` で観察します。Local DNS が有効な構成では、同じ指標は CoreDNS に届いた問い合わせ量を表し、ノード内キャッシュで完結した問い合わせを含みません。`ama-metrics-settings-configmap` は schema v2 で cluster metrics と control-plane metrics を分離し、CoreDNS default target を 30 秒間隔、minimal ingestion 有効で収集します。
 
 ACNS の DNS dashboard は `hubble_dns_queries_total` と `hubble_dns_responses_total` を使います。DNS rule を持つ CiliumNetworkPolicy の対象通信を観測するもので、クラスタ全体の DNS 量ではありません。counter が増えない区間の `rate()` は0となり、`> 0` で絞るパネルは No data になります。
