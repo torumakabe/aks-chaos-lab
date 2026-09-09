@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import mock_open, patch
 
 # テスト対象モジュールのパスを追加
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -529,6 +530,159 @@ class TestExtractResourceChanges(unittest.TestCase):
 
 class TestNoisePatternLoader(unittest.TestCase):
     """NoisePatternLoader のテスト"""
+
+    def _loader_with_entries(
+        self, scope: str, category: str, entries: list[object]
+    ) -> NoisePatternLoader:
+        loader = NoisePatternLoader()
+        if scope == "common":
+            loader._data = {"common": {category: entries}}
+        else:
+            loader._data = {
+                "resource_types": {"Microsoft.Test/resources": {category: entries}}
+            }
+        return loader
+
+    def test_rejects_non_string_pattern_fields(self) -> None:
+        """不正な文字列型にはカテゴリ、リソース型、添字、フィールドを示す"""
+        for scope, category, field in (
+            ("common", "readonly_patterns", None),
+            ("common", "auto_managed_patterns", "pattern"),
+            ("common", "custom_patterns", "pattern"),
+            ("resource_types.Microsoft.Test/resources", "readonly_patterns", None),
+            (
+                "resource_types.Microsoft.Test/resources",
+                "auto_managed_patterns",
+                "pattern",
+            ),
+            ("resource_types.Microsoft.Test/resources", "custom_patterns", "pattern"),
+            ("resource_types.Microsoft.Test/resources", "known_defaults", "path"),
+        ):
+            for value in (None, 42, True, [], {}):
+                with self.subTest(scope=scope, category=category, value=value):
+                    valid = {field: "valid"} if field else "valid"
+                    invalid = {field: value} if field else value
+                    loader = self._loader_with_entries(
+                        scope, category, [valid, invalid]
+                    )
+                    with self.assertRaises(ValueError) as error:
+                        loader._validate_patterns()
+                    location = f"{scope}.{category}[1]"
+                    if field:
+                        location += f".{field}"
+                    self.assertIn(location, str(error.exception))
+                    self.assertIn("文字列が必要", str(error.exception))
+
+    def test_rejects_missing_fields_and_non_object_entries(self) -> None:
+        """辞書でない項目や必須文字列の欠落を読み飛ばさない"""
+        for scope, category, field in (
+            ("common", "auto_managed_patterns", "pattern"),
+            ("common", "custom_patterns", "pattern"),
+            (
+                "resource_types.Microsoft.Test/resources",
+                "auto_managed_patterns",
+                "pattern",
+            ),
+            ("resource_types.Microsoft.Test/resources", "custom_patterns", "pattern"),
+            ("resource_types.Microsoft.Test/resources", "known_defaults", "path"),
+        ):
+            for item in (None, "pattern", [], {}):
+                with self.subTest(scope=scope, category=category, item=item):
+                    loader = self._loader_with_entries(scope, category, [item])
+                    with self.assertRaises(ValueError) as error:
+                        loader._validate_patterns()
+                    self.assertIn(
+                        f"{scope}.{category}[0].{field}", str(error.exception)
+                    )
+
+    def test_valid_patterns_keep_values_and_prefix_warning_scope(self) -> None:
+        """型別 prefix と共通の辞書形式パターンだけを警告する"""
+        for scope in ("common", "resource_types.Microsoft.Test/resources"):
+            for category, field, normal, prefixed in (
+                ("readonly_patterns", None, "^state$", "^properties\\.state$"),
+                ("auto_managed_patterns", "pattern", "^state$", "^properties\\.state$"),
+                ("custom_patterns", "pattern", "^state$", "^properties\\.state$"),
+                ("known_defaults", "path", "state", "properties.state"),
+            ):
+                for value in (normal, prefixed, ""):
+                    with self.subTest(scope=scope, category=category, value=value):
+                        entry = (
+                            {field: value, "value": True, "description": "説明"}
+                            if field
+                            else value
+                        )
+                        loader = self._loader_with_entries(scope, category, [entry])
+                        should_warn = value == prefixed and not (
+                            scope == "common"
+                            and category in ("readonly_patterns", "known_defaults")
+                        )
+                        if should_warn:
+                            with self.assertLogs(
+                                "what_if_analyzer", level="WARNING"
+                            ) as logs:
+                                loader._validate_patterns()
+                            self.assertEqual(len(logs.records), 3)
+                            self.assertIn(
+                                f"{scope}.{category}[0]", logs.records[1].getMessage()
+                            )
+                        else:
+                            with self.assertNoLogs("what_if_analyzer", level="WARNING"):
+                                loader._validate_patterns()
+                        resource_type = (
+                            "" if scope == "common" else "Microsoft.Test/resources"
+                        )
+                        if category == "readonly_patterns":
+                            self.assertEqual(
+                                loader.get_readonly_patterns(resource_type), [value]
+                            )
+                        elif category == "known_defaults":
+                            self.assertEqual(
+                                loader.get_known_defaults(resource_type),
+                                [(value, True, "説明")],
+                            )
+                        else:
+                            getter = (
+                                loader.get_auto_managed_patterns
+                                if category == "auto_managed_patterns"
+                                else loader.get_custom_patterns
+                            )
+                            self.assertEqual(getter(resource_type), [(value, "説明")])
+
+    def test_common_readonly_full_path_is_valid(self) -> None:
+        """共通 readonly の properties. フルパスは警告せず照合できる"""
+        loader = self._loader_with_entries(
+            "common", "readonly_patterns", ["^properties\\.provisioningState$"]
+        )
+        with self.assertNoLogs("what_if_analyzer", level="WARNING"):
+            patterns = loader.get_readonly_patterns()
+            loader._validate_patterns()
+        self.assertEqual(patterns, ["^properties\\.provisioningState$"])
+        with patch("what_if_analyzer.get_pattern_loader", return_value=loader):
+            self.assertTrue(is_readonly_property("properties.provisioningState"))
+
+    def test_invalid_loaded_patterns_are_not_cached_or_replaced_with_fallback(
+        self,
+    ) -> None:
+        """検証エラーは伝播し、再読み込みでも不正データを返さない"""
+        data = {"common": {"custom_patterns": [{"pattern": 42}]}}
+        loader = NoisePatternLoader()
+        with patch("builtins.open", mock_open(read_data=json.dumps(data))) as opened:
+            for _ in range(2):
+                with self.assertRaisesRegex(
+                    ValueError, r"common\.custom_patterns\[0\]\.pattern"
+                ):
+                    loader.get_custom_patterns()
+                self.assertIsNone(loader._data)
+            self.assertEqual(opened.call_count, 2)
+
+    def test_invalid_json_returns_empty(self) -> None:
+        """JSON 構文エラー時の既存 fallback を維持する"""
+        loader = NoisePatternLoader()
+        with (
+            patch("builtins.open", mock_open(read_data="{")),
+            self.assertLogs("what_if_analyzer", level="WARNING"),
+        ):
+            self.assertEqual(loader.get_readonly_patterns(), [])
 
     def test_load_default_patterns(self) -> None:
         """デフォルトパターンを読み込める"""

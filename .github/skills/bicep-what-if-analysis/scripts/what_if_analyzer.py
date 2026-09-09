@@ -87,33 +87,58 @@ class NoisePatternLoader:
         except (FileNotFoundError, json.JSONDecodeError) as e:
             logger.warning("Failed to load patterns file: %s", e)
             self._data = {"common": {}, "resource_types": {}}
+        except ValueError:
+            # 検証に失敗したデータを次回の読み込みで再利用しない。
+            self._data = None
+            raise
 
         return self._data
 
     def _validate_patterns(self) -> None:
-        """パターンファイルの内容を検証し、警告を出す。"""
+        """文字列の型を検証し、不要な properties. プレフィックスを警告する。"""
         if self._data is None:
             return
 
+        def require_string(item: Any, location: str, field: str | None = None) -> str:
+            if field is not None:
+                location = f"{location}.{field}"
+                if not isinstance(item, dict):
+                    raise ValueError(
+                        f"{location}: フィールドを含むオブジェクトが必要です "
+                        f"(実際: {type(item).__name__})"
+                    )
+                item = item.get(field)
+            if not isinstance(item, str):
+                raise ValueError(
+                    f"{location}: 文字列が必要です (実際: {type(item).__name__})"
+                )
+            return item
+
         warnings = []
+
+        # 共通 readonly はフルパスを照合するため、プレフィックスを警告しない。
+        readonly = self._data.get("common", {}).get("readonly_patterns", [])
+        if isinstance(readonly, list):
+            for idx, item in enumerate(readonly):
+                require_string(item, f"common.readonly_patterns[{idx}]")
 
         # 共通パターンの検証
         for pattern_type in [
-            "readonly_patterns",
             "auto_managed_patterns",
             "custom_patterns",
         ]:
             patterns = self._data.get("common", {}).get(pattern_type, [])
             if isinstance(patterns, list):
                 for idx, item in enumerate(patterns):
-                    if isinstance(item, dict) and "pattern" in item:
-                        pattern = item["pattern"]
-                        if pattern.startswith("^properties\\."):
-                            warnings.append(
-                                f"⚠️  common.{pattern_type}[{idx}]: パターン '{pattern}' は "
-                                f"'properties.' プレフィックスを含んでいます。スクリプトは自動的に除去するため、"
-                                f"パターンからは除いてください。"
-                            )
+                    pattern = require_string(
+                        item, f"common.{pattern_type}[{idx}]", "pattern"
+                    )
+                    if pattern.startswith("^properties\\."):
+                        warnings.append(
+                            f"⚠️  common.{pattern_type}[{idx}]: パターン '{pattern}' は "
+                            f"'properties.' プレフィックスを含んでいます。スクリプトは自動的に除去するため、"
+                            f"パターンからは除いてください。"
+                        )
 
         # リソースタイプ別パターンの検証
         for resource_type, resource_patterns in self._data.get(
@@ -122,10 +147,12 @@ class NoisePatternLoader:
             for pattern_type in ["readonly_patterns"]:
                 patterns = resource_patterns.get(pattern_type, [])
                 if isinstance(patterns, list):
-                    for idx, pattern in enumerate(patterns):
-                        if isinstance(pattern, str) and pattern.startswith(
-                            "^properties\\."
-                        ):
+                    for idx, item in enumerate(patterns):
+                        pattern = require_string(
+                            item,
+                            f"resource_types.{resource_type}.{pattern_type}[{idx}]",
+                        )
+                        if pattern.startswith("^properties\\."):
                             warnings.append(
                                 f"⚠️  resource_types.{resource_type}.{pattern_type}[{idx}]: "
                                 f"パターン '{pattern}' は 'properties.' プレフィックスを含んでいます。"
@@ -135,25 +162,31 @@ class NoisePatternLoader:
                 patterns = resource_patterns.get(pattern_type, [])
                 if isinstance(patterns, list):
                     for idx, item in enumerate(patterns):
-                        if isinstance(item, dict) and "pattern" in item:
-                            pattern = item["pattern"]
-                            if pattern.startswith("^properties\\."):
-                                warnings.append(
-                                    f"⚠️  resource_types.{resource_type}.{pattern_type}[{idx}]: "
-                                    f"パターン '{pattern}' は 'properties.' プレフィックスを含んでいます。"
-                                )
+                        pattern = require_string(
+                            item,
+                            f"resource_types.{resource_type}.{pattern_type}[{idx}]",
+                            "pattern",
+                        )
+                        if pattern.startswith("^properties\\."):
+                            warnings.append(
+                                f"⚠️  resource_types.{resource_type}.{pattern_type}[{idx}]: "
+                                f"パターン '{pattern}' は 'properties.' プレフィックスを含んでいます。"
+                            )
 
             # known_defaults の path 検証
             known_defaults = resource_patterns.get("known_defaults", [])
             if isinstance(known_defaults, list):
                 for idx, item in enumerate(known_defaults):
-                    if isinstance(item, dict) and "path" in item:
-                        path = item["path"]
-                        if path.startswith("properties."):
-                            warnings.append(
-                                f"⚠️  resource_types.{resource_type}.known_defaults[{idx}]: "
-                                f"path '{path}' は 'properties.' プレフィックスを含んでいます。"
-                            )
+                    path = require_string(
+                        item,
+                        f"resource_types.{resource_type}.known_defaults[{idx}]",
+                        "path",
+                    )
+                    if path.startswith("properties."):
+                        warnings.append(
+                            f"⚠️  resource_types.{resource_type}.known_defaults[{idx}]: "
+                            f"path '{path}' は 'properties.' プレフィックスを含んでいます。"
+                        )
 
         if warnings:
             logger.warning("=== パターンファイル検証警告 ===")
