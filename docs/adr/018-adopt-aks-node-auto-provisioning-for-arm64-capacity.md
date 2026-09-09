@@ -14,6 +14,8 @@ NAP の採用、System AgentPool 2 台固定、Cluster Autoscaler との非併�
 
 Japan Eastで特定のVM SKUを割り当てられない場合にも、Arm64の`chaos-app`を実行できる追加capacityが必要である。ノードはEphemeral OS Diskを維持する。
 
+[ADR-010](010-aks-automatic-unsupported-due-to-deployment-safeguards.md) は NAP を試すには別の lab が必要としていた。本 ADR は Arm64 User workload の追加capacity確保のため、この制約の NAP 部分を変更する。AKS Standard 上で NAP を採用し、AKS Automatic を非サポートとする判断は維持する。
+
 AKS Standardでは、NAPを有効にしても従来型のSystem AgentPoolが必要である。NAPはSystem workload用ノードも作成できるが、System AgentPoolそのものを置き換えられない。このため、NAPだけではAKS全体の割り当て耐性を確保できない。
 
 一方、NAPは`Standard_D4pds_v5`と`Standard_D4pds_v6`を別々のNodeClaimとして作成できる。両SKUはEphemeral OS Diskのplacementが異なるため、単一のVirtual Machines multi-SKU AgentPoolには混在できない。
@@ -55,4 +57,4 @@ NAPの採用により、Arm64 User workloadはv5とv6を追加capacityの候補�
 ## 関連 ADR
 
 - ADR-008: System AgentPoolのUbuntu 24.04指定を維持する。
-- ADR-010: AKS Automaticを採用せず、AKS Standardを維持する。
+- [ADR-010](010-aks-automatic-unsupported-due-to-deployment-safeguards.md): AKS Automaticを採用せず、AKS Standardを維持する。

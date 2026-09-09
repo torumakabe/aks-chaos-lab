@@ -4,6 +4,10 @@
 
 Accepted
 
+Consequences の「Node Auto Provisioning を試すには別の lab が必要」という制約は、[ADR-018](018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md) による AKS Standard 上での NAP 採用で部分変更された。NAP はその後、[ADR-020](020-enable-node-auto-provisioning-by-default.md) で既定有効となった。
+
+AKS Automatic を本リポジトリで非サポートとする判断は引き続き有効とする。NAP の node provisioning mode `Auto` は AKS Automatic の SKU とは異なる。以下の旧本文は履歴として保持し、K8s 自動アップグレードに関する記述は今回の部分変更に含めない。
+
 ## Context
 
 本リポジトリ `aks-chaos-lab` の中核機能は **AKS 上での Chaos Engineering 実演** であり、その実装は以下の 2 段で構成される:
