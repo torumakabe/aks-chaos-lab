@@ -66,6 +66,8 @@ uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_i
 
 分類は安全性の保証ではない。text 出力に非表示の変更を知らせる警告がある場合は、その制限も伝える。提供された出力に必要な詳細がなければ未確認とし、分析依頼だけで再実行しない。
 
+Create は誤検知候補も含めてリソース名を表示し、候補には要確認の注記を付ける。型の一致や状態情報の不足だけでは、正当な新規作成と誤検知を区別できない。JSON の `likelyFalsePositive` と `createFalsePositives` は候補のフラグと件数であり、作成不要と確定した結果ではない。
+
 ```
 Resources:
   Skip     : Resource group          : rg-xxx

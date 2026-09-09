@@ -1547,30 +1547,30 @@ def is_known_acr_acrpull_unsupported(change: dict[str, Any]) -> bool:
 
 def is_create_false_positive(change: dict[str, Any]) -> bool:
     """
-    Create 操作が ARM what-if の誤検知かどうかを判定する。
+    Create 操作が ARM what-if の誤検知候補かどうかを判定する。
 
     判定基準:
-    A（構造的フィルタ）: before/after 両方 null の Create は、ARM API が
-        リソース状態を返せていないことを意味する。Go SDK 経由の what-if で有効。
-        CLI 経由では after が常に populated されるため発動しない。
-    B（パターンフィルタ）: noise_patterns.json の
+    A（状態不足）: before/after 両方 null の Create。
+    B（パターン一致）: noise_patterns.json の
         create_false_positive_patterns に resourceType/resourceName/resourceId が
-        マッチする場合。CLI 経由のメイン判定手段。
+        マッチする場合。
+
+    どちらも正当な新規作成を除外できないため、表示を省略する根拠にはしない。
 
     Parameters:
         change: extract_resource_changes() で構築されたリソース変更辞書
 
     Returns:
-        True の場合、この Create は false positive と判定される
+        True の場合、この Create は誤検知の可能性があり要確認
     """
     if change.get("operation") != "Create":
         return False
 
-    # A: before/after 両方 null → 構造的 false positive
+    # A: before/after 両方 null
     if change.get("beforeState") is None and change.get("afterState") is None:
         return True
 
-    # B: パターンマッチによる false positive
+    # B: パターンマッチによる誤検知候補
     # resourceType, resourceName, resourceId のいずれかにマッチすれば true
     loader = get_pattern_loader()
     fp_patterns = loader.get_create_false_positive_patterns(
@@ -1942,23 +1942,14 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
     }
 
     # text 出力対象をフィルタリング
-    display_candidates = [
+    visible_resources = [
         c for c in output_data["changes"] if should_show_resource_in_text_output(c)
     ]
 
-    # Create false positive をフィルタ（件数は記録）
-    false_positive_count = sum(
-        1 for c in display_candidates if c.get("likelyFalsePositive", False)
-    )
-    visible_resources = [
-        c for c in display_candidates if not c.get("likelyFalsePositive", False)
-    ]
     hidden_effective_count = sum(
         1
         for c in output_data["changes"]
-        if is_effective_change(c)
-        and not should_show_resource_in_text_output(c)
-        and not c.get("likelyFalsePositive", False)
+        if is_effective_change(c) and not should_show_resource_in_text_output(c)
     )
 
     # 最大幅を計算（整列用）
@@ -1982,6 +1973,11 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
 
         lines.append(f"  {op_padded} : {type_padded} : {resource_name}")
 
+        if op == "Create" and change.get("likelyFalsePositive", False):
+            lines.append(
+                "      ⚠️ 誤検知の可能性があります。実際の新規作成かどうか要確認。"
+            )
+
         # Skip 以外はプロパティ変更を表示
         if op not in ("NoChange", "Ignore") and change.get("propertyChanges"):
             for pc in change["propertyChanges"]:
@@ -2004,13 +2000,6 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
                     lines.append(f"      {symbol} {path}  {ref_info}")
                 else:
                     lines.append(f"      {symbol} {path}")
-
-    # false positive サマリーを表示
-    if false_positive_count > 0:
-        lines.append(
-            f"  ({false_positive_count} 件の Create を非表示: "
-            "ARM what-if の既知制限による false positive)"
-        )
 
     if hidden_effective_count > 0:
         lines.append(

@@ -18,6 +18,7 @@ from what_if_analyzer import (
     DisplayConfigLoader,
     NoisePatternLoader,
     _extract_actual_provider_type,
+    build_output,
     contains_arm_reference,
     evaluate_property_change,
     extract_resource_changes,
@@ -795,10 +796,10 @@ class TestExtractResourceChangesWithFalsePositive(unittest.TestCase):
 
 
 class TestFormatAzdStyleOutputFalsePositive(unittest.TestCase):
-    """format_azd_style_output の false positive フィルタリングテスト"""
+    """誤検知候補の Create も表示して注意を促すテスト"""
 
-    def test_false_positive_create_hidden_with_summary(self) -> None:
-        """false positive の Create は非表示でサマリー行が出る"""
+    def test_possible_false_positive_create_shown_with_warning(self) -> None:
+        """誤検知候補もリソース名と要確認注記を表示する"""
         output_data = {
             "changes": [
                 {
@@ -830,9 +831,61 @@ class TestFormatAzdStyleOutputFalsePositive(unittest.TestCase):
             ]
         }
         result = format_azd_style_output(output_data)
-        self.assertNotIn("exp-aks-pod-failure", result)
+        self.assertIn("Create", result)
+        self.assertIn("exp-aks-pod-failure", result)
         self.assertIn("aks-test", result)
-        self.assertIn("1 件の Create を非表示", result)
+        self.assertIn("誤検知の可能性", result)
+        self.assertIn("要確認", result)
+        self.assertNotIn("非表示", result)
+
+    def test_create_visible_after_classification(self) -> None:
+        for resource_type, name, after, expected_flag in (
+            (
+                "Microsoft.Chaos/experiments",
+                "exp-aks-new",
+                {"type": "Microsoft.Chaos/experiments", "name": "exp-aks-new"},
+                True,
+            ),
+            ("Microsoft.Chaos/experiments", "exp-aks-unknown", None, True),
+            ("Microsoft.Network/virtualNetworks", "vnet-unknown", None, True),
+            (
+                "Microsoft.Network/virtualNetworks",
+                "vnet-new",
+                {"type": "Microsoft.Network/virtualNetworks", "name": "vnet-new"},
+                False,
+            ),
+            ("Microsoft.Authorization/roleAssignments", "role-new", None, True),
+        ):
+            with self.subTest(resource_type=resource_type, name=name):
+                output_data = build_output(
+                    {
+                        "changes": [
+                            {
+                                "changeType": "Create",
+                                "resourceId": (
+                                    "/subscriptions/sub/resourceGroups/rg/providers/"
+                                    f"{resource_type}/{name}"
+                                ),
+                                "before": None,
+                                "after": after,
+                            }
+                        ]
+                    },
+                    template="infra/main.bicep",
+                    location="japaneast",
+                )
+                self.assertEqual(output_data["summary"]["create"], 1)
+                self.assertEqual(
+                    output_data["createFalsePositives"], int(expected_flag)
+                )
+                self.assertEqual(
+                    output_data["changes"][0]["likelyFalsePositive"], expected_flag
+                )
+                result = format_azd_style_output(output_data)
+                self.assertIn("Create", result)
+                self.assertIn(name, result)
+                self.assertEqual("要確認" in result, expected_flag)
+                self.assertNotIn("非表示", result)
 
     def test_no_summary_when_no_false_positives(self) -> None:
         """false positive がない場合はサマリー行なし"""
@@ -855,6 +908,7 @@ class TestFormatAzdStyleOutputFalsePositive(unittest.TestCase):
         }
         result = format_azd_style_output(output_data)
         self.assertIn("exp-aks-new", result)
+        self.assertNotIn("要確認", result)
         self.assertNotIn("非表示", result)
 
 
