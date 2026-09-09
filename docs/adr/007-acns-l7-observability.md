@@ -14,7 +14,9 @@ ADR-001 で「HTTPChaos は Envoy 層で注入されるためアプリ層メト�
 
 これらは `hubble_http_requests_total` / `hubble_http_request_duration_seconds_*` を参照するが、本プロジェクトでは当時 `advancedNetworkPolicies: 'FQDN'` 固定であり ACNS の Container Network Security が L7 モードで動いていなかったため、系列が 0 で空のダッシュボードになっていた。ラボの主旨（「試して、データも見て」）と HTTPChaos 観測性の弱さを踏まえ、L7 可観測性を補強する価値が大きいと判断した。
 
-なお ADR-002 の「L7 フローログは対象外」は、Log Analytics の `ContainerNetworkLogs` テーブルへの L7 **フローログ**保存に関する判断であり、本 ADR で扱う Cilium Envoy 経由の L7 **メトリクス**とは別機能である。両者は共存可能。
+本 ADR は、[ADR-002](002-container-network-logs.md) の `FQDN` 設定および Istio 併用時の L7 ポリシー利用不可という前提を部分変更し、App Routing Istio 構成で L7 ポリシーと Cilium Envoy 経由の L7 メトリクスを採用する。ADR-002 の CRD ベースの保存ログ採用、Log Analytics 連携、対象 Pod のフィルタは維持する。
+
+ADR-002 の「L7 フローログは対象外」は、Log Analytics の `ContainerNetworkLogs` テーブルへの L7 フローログ保存に関する判断であり、本 ADR でも維持する。L7 メトリクスの採用は、Istio 併用時の L7 保存ログの可否を確認したことを意味しない。
 
 ## Decision
 
