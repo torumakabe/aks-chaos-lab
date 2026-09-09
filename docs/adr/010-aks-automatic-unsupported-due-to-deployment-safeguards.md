@@ -89,17 +89,13 @@ AKS Automatic で chaos-mesh を Trusted Container Add-on として allow-list �
 
 **AKS Automatic を本リポジトリで正式に非サポートとする。**
 
-### Bicep の変更
+### 許可する構成
 
-1. `infra/main.bicep` の `aksSkuName` `@allowed` から `'Automatic'` を削除。`['Base']` のみ受け付ける。
-2. `aksSkuName == 'Base'` を前提とした条件分岐 (Fleet 関連 3 箇所) を削除し、Fleet を unconditional に作成。
-3. `infra/modules/aks.bicep` から `aksAutomaticSpecificProperties` / `aksAutomaticProperties` 変数を削除し、`properties: aksBaseProperties` に簡約。
-4. パラメータ説明文から「Base モードでのみ使用」のような Automatic 前提の記述を削除。
+`aksSkuName` は `Base` のみ許可し、Automatic 専用構成を除外する。
 
-### ドキュメントの変更
+### 過去の判断の扱い
 
-- `README.md` の「Base / Automatic 両対応」記述を削除し、本 ADR へリンク。
-- ADR-008 / ADR-006 / ADR-007 内の Automatic 言及は履歴として保持 (過去 ADR の改変はしない)。
+ADR-008 / ADR-006 / ADR-007 内の Automatic に関する判断は履歴として保持する。
 
 ### 環境変数
 
@@ -110,7 +106,7 @@ AKS Automatic で chaos-mesh を Trusted Container Add-on として allow-list �
 ### 利点
 
 - **リポジトリの目的との整合**: chaos-mesh が中核である本ラボにおいて、Chaos が動かない構成を選択可能にしておくことは誤解を招くだけ。明示的に除外することで「動く構成だけが選べる」状態になる。
-- **コードの簡素化**: `aksAutomaticSpecificProperties` (~30 行) と Fleet 関連の三項演算子 (4 箇所) が削除され、`infra/main.bicep` / `infra/modules/aks.bicep` の認知負荷が下がる。
+- **コードの簡素化**: Automatic 専用プロパティと条件分岐が不要になり、構成を簡素化できる。
 - **安全側の早期失敗**: `AKS_SKU_NAME=Automatic` を誤って設定しても、`azd provision` の Bicep 検証段階で即座に拒否される (高価な AKS 作成後に chaos-mesh で失敗するのを防ぐ)。
 - **ドキュメントの一貫性**: 「9 種の Chaos 実験」と「Automatic 対応」を同時に主張する矛盾が解消される。
 
@@ -122,10 +118,6 @@ AKS Automatic で chaos-mesh を Trusted Container Add-on として allow-list �
 ### 影響範囲
 
 - 既存環境 (`eval` など Base モードで稼働中): **影響なし**。`aksSkuName='Base'` のため、Bicep の `@allowed` 縮小後も差分なし。
-- `infra/main.json` (auto-generated): `az bicep build` で再生成され、`Automatic` の文字列が消える。
-- `azure.yaml`: 変更なし (SKU を意識しない構造)。
-- `k8s/`: 変更なし。
-- 過去 ADR (008 等) の Automatic 言及: 履歴として保持。
 
 ## 代替案 (不採用)
 
