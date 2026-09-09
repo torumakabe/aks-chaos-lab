@@ -178,4 +178,5 @@ ContainerLogV2 の stdout 除外を確認する場合は、アプリ logger か�
 
 - Azure Monitor SLI の入力は publisher が Managed Prometheus に remote-write した good / total metrics です。Application Insights dependency telemetry は Application Map と診断用であり、SLI の正本ではありません。
 - `Instrumentation/chaos-app-otel` は `k8s/apps/chaos-app/instrumentation/` で app-specific に管理し、`azd deploy api-instrumentation` で `Deployment/chaos-app` より先に適用します。API deploy hook は Pod に `OTEL_EXPORTER_OTLP_*` が注入されたことを確認し、未注入なら失敗します。通常運用で `kubectl rollout restart` に依存しません。
+- Application Insights 接続文字列は `api-instrumentation` の生成設定から `Instrumentation/chaos-app-otel` の `spec.destination.applicationInsightsConnectionString` に渡し、API の `app-config` と admission 前の生成 Deployment マニフェストの明示 env には設定しません。AKS App Monitoring の admission webhook は同じ接続文字列を Deployment の Pod template env に追加するため、Pod にもその値が存在します。API は接続文字列を参照せず、注入された標準 OTLP 環境変数と標準 OTLP exporter を使います。この設定分離と基盤による注入の責任範囲は [ADR-006](adr/006-otlp-vendor-neutral-otel.md) に定義しています。
 - 標準 semconv の `http.server.active_requests` は Pod 再起動時ドリフトと no-traffic 時の series 欠落があるため、アラート基準にしません。in-flight request 数の観測にはアプリ独自の `chaos_app.active_requests` を使います。
