@@ -30,7 +30,6 @@ uv workspace を採用し、ツーリング層 (ruff/ty/pytest, dev 依存) を�
 
 - 利点: ツーリング設定の単一化、`scripts/` の間借り解消、hook 単純化、dev 体験向上
 - リスク/コスト: Dockerfile 再構成と CI/hook 修正が必要。Functions の `requirements.txt` と workspace 依存の二重管理は残る (検査で担保)
-- 検証: `uv run scripts/tasks.py qa` 全合格、`docker build -f src/api/Dockerfile .` 成功、`target_check_publisher_requirements` 合格、`azd package api` / `azd package external-sli-publisher` 成功
 
 ## 採用しなかった代替案
 
