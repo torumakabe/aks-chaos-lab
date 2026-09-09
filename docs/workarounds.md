@@ -4,6 +4,14 @@
 
 ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
+## 2026-09-09 棚卸し結果
+
+gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結果を確認した。
+
+| ID | 反映内容 | 検証結果 |
+|---|---|---|
+| D-10 | 削除 | `safe-outputs` の `noop: false` を削除した。v0.88.7 の[設定抽出処理](https://github.com/github/gh-aw/blob/v0.88.7/pkg/workflow/safe_outputs_config_extraction.go)では暗黙 noop の Issue 報告は既定で無効であり、[maintenance 判定](https://github.com/github/gh-aw/blob/v0.88.7/pkg/workflow/noop.go)でも暗黙 noop は対象外である。再生成した 3 件の lock で noop の設定と handler の Issue 報告が無効であること、`agentics-maintenance.yml` が生成されないことを確認した。ログ用 noop ツールは利用可能になるが、実行結果を毎回 create-issue で記録する本文は維持した。 |
+
 ## 2026-09-02 棚卸し結果
 
 既存の azd `eval` 環境で、API version の移行結果を確認した。
@@ -193,15 +201,6 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **解消条件**: SDK 側で全 span を Collector へ送り、Collector 側で `status=ERROR` を条件にした tail-based sampling を構成して、キーワードに依存せず ERROR trace を保持できるようになる。または OpenTelemetry SDK が span 終了時の状態に基づく sampling を提供する。
 - **確認方法**: `uv run pytest src/api/tests/unit/test_telemetry.py -k error_aware_sampler` でキーワード判定と ratio-based 判定を確認する。tail-based sampling を導入する場合は、キーワードを含まないエンドポイントでエラーを発生させ、Collector と Application Insights で該当 trace が保持されることを確認する。
 - **最終確認**: 2026-08-10、リポジトリ内に tail-based sampling 構成はなく、`ErrorAwareSampler` の単体テストはキーワード判定と ratio-based 判定を対象としている。
-
-### D-10. gh-aw v0.79.6の暗黙noop Issue報告を無効化
-
-- **概要**: Agentic Workflowの`safe-outputs`へ`noop: false`を明示し、暗黙のnoop Issue報告と`agentics-maintenance.yml`の生成を無効化する。
-- **理由**: gh-aw v0.79.6は`safe-outputs`に`noop`がない場合、noop Issue報告を暗黙に有効化する。この設定は30日の有効期限を持つため、明示的な`expires`がない場合も日次maintenance workflowを生成する。週次workflowは実行結果をcreate-issueで必ず記録するため、追加のnoop Issue報告を使用しない。
-- **場所**: `.github/workflows/aks-updates-analyzer.md`、`.github/workflows/bicep-api-version-check.md`、`.github/workflows/repository-freshness-check.md`
-- **解消条件**: gh-awを、暗黙noopの`report-as-issue`が既定で無効なバージョンへ更新し、`noop: false`を外してもmaintenance workflowが生成されないことを確認する。
-- **確認方法**: 一時コピーで`noop: false`を外して`gh aw compile`を実行し、`agentics-maintenance.yml`が生成されないことを確認する。
-- **最終確認**: 2026-08-26、gh-aw v0.79.6の公式ソースで暗黙noop Issue報告と30日の既定期限を確認した。
 
 ### D-11. Windowsでgh-awをPowerShellの子プロセスとして実行
 

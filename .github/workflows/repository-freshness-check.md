@@ -29,7 +29,6 @@ safe-outputs:
     labels: [repository-health, automation]
     close-older-issues: true
     max: 1
-  noop: false
 timeout-minutes: 15
 ---
 

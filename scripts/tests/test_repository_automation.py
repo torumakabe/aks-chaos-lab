@@ -134,7 +134,6 @@ def test_freshness_workflow_contract() -> None:
     assert "workflow_dispatch:" in source
     assert "permissions:\n  contents: read\n  copilot-requests: write" in source
     assert "safe-outputs:\n  create-issue:" in source
-    assert "  noop: false" in source
     assert "close-older-issues: true" in source
     assert "max: 1" in source
     assert "repository-freshness-checker/SKILL.md" in source
@@ -167,14 +166,34 @@ def test_freshness_workflow_contract() -> None:
         assert forbidden not in source
 
 
-def test_aks_updates_workflow_disables_implicit_noop_issues() -> None:
-    source = (
-        REPO_ROOT / ".github" / "workflows" / "aks-updates-analyzer.md"
-    ).read_text(encoding="utf-8")
+def test_weekly_workflows_disable_implicit_noop_issues() -> None:
+    for name in (
+        "aks-updates-analyzer",
+        "bicep-api-version-check",
+        "repository-freshness-check",
+    ):
+        workflow = REPO_ROOT / ".github" / "workflows" / name
+        source = workflow.with_suffix(".md").read_text(encoding="utf-8")
+        lock = workflow.with_suffix(".lock.yml").read_text(encoding="utf-8")
 
-    assert "safe-outputs:\n  create-issue:" in source
-    assert "  noop: false" in source
-    assert "expires:" not in source
+        assert "safe-outputs:\n  create-issue:" in source
+        assert "expires:" not in source
+        for variable in (
+            "GH_AW_SAFE_OUTPUTS_CONFIG",
+            "GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG",
+        ):
+            values = [
+                line.strip().removeprefix(f"{variable}: ")
+                for line in lock.splitlines()
+                if line.strip().startswith(f"{variable}: ")
+            ]
+            assert len(values) == 1, (name, variable)
+            config = json.loads(json.loads(values[0]))
+            assert config["noop"]["report-as-issue"] == "false", (name, variable)
+            assert config["create_issue"]["max"] == 1
+            assert config["create_issue"]["close_older_issues"] is True
+        assert 'GH_AW_NOOP_REPORT_AS_ISSUE: "false"' in lock
+        assert "handle_noop_message.cjs" in lock
 
 
 def test_aks_updates_workflow_reports_unverified_sources() -> None:
@@ -244,7 +263,7 @@ def test_weekly_workflows_preserve_direct_github_api_access() -> None:
         source = workflow.with_suffix(".md").read_text(encoding="utf-8")
         lock = workflow.with_suffix(".lock.yml").read_text(encoding="utf-8")
         assert '    - "api.github.com"' in source
-        assert r'\"api.github.com\"' in lock
+        assert r"\"api.github.com\"" in lock
 
 
 def test_freshness_targets_exist_in_repository_inventory() -> None:
@@ -342,7 +361,6 @@ def test_bicep_api_version_workflow_contract() -> None:
     assert "Microsoft.ContainerService/{aks|fleet}/{stable|preview}" in source
     assert "どちらからも公開情報を取得できない座標" in source
     assert "各HTTP requestを30秒以内" in source
-    assert "  noop: false" in source
     assert "close-older-issues: true" in source
     for forbidden in (
         "azure/login",

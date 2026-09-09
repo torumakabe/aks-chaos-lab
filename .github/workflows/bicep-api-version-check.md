@@ -24,7 +24,6 @@ safe-outputs:
     labels: [repository-health, automation, bicep]
     close-older-issues: true
     max: 1
-  noop: false
 timeout-minutes: 15
 ---
 
