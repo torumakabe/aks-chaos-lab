@@ -67,8 +67,8 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 - **概要**: `azd up` の workflow を `provision base` → `deploy api` → `deploy observability` → `deploy chaos-mesh` → `deploy external-sli-publisher` → `provision sli` に分割し、`sli` layer の `preprovision` で SLI 用 good / total metrics が Managed Prometheus に出るまで待つ。
 - **理由**: Azure Monitor SLI は作成時点で入力 metric と partitioning dimensions が Managed Prometheus に存在することを要求する。メトリクス materialize 前に SLI を作ると validation で失敗する。
 - **場所**: `azure.yaml`、`infra/sli/main.bicep`、`docs/adr/012-functions-direct-external-sli-probe.md`
-- **解消条件**: SLI が「将来生成されるメトリクス」を前提にした作成を許容する API になる。
-- **確認方法**: 一時環境で external SLI metrics 出現待ちなしに `infra/sli/main.bicep` を作成し、SLI が作成エラーにならないか試す。
+- **解消条件**: 必要な input metrics と partitioning dimensions が不在でも SLI 作成が受理され、その後の発行開始で評価されるようになる。この条件は metrics 待機の撤去判断に用いるものであり、base/sli layer 分離全体の廃止は別途判断する。
+- **確認方法**: 実験の承認を得た新規の一時環境で、external-sli-publisher の発行開始を SLI 作成後まで止め、必要な input metrics と partitioning dimensions が Managed Prometheus に存在しないことを確認する。不在を維持したまま metrics 待機を外して `infra/sli/main.bicep` を適用し、SLI 作成が受理されることを確認する。作成中に publisher が発行した場合や、既に入力が存在した場合の成功は撤去の根拠にしない。受理後に発行を開始し、SLI destination metric の出現で評価開始を確認する。
 - **最終確認**: 2026-05-19、入力 metric / dimensions 不在時の SLI 作成 validation failure を避けるため継続。
 
 ### A-2. `scripts/wait-for-external-sli-signals.py` で external SLI metric 出力待機
@@ -77,16 +77,16 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 - **理由**: A-1 と同じ。SLI 作成前に external SLI input metrics が materialize されている必要がある。SLI 作成後の destination metric は評価開始まで時間がかかるため、`azd up` の完了条件にしない。必要な場合は `uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination` で手動確認する。
 - **場所**: `scripts/wait-for-external-sli-signals.py`、`azure.yaml`
 - **解消条件**: A-1 と同じ。
-- **確認方法**: A-1 と同じ。destination metric の手動確認は、SLI 作成後に `uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination` を実行する。
+- **確認方法**: 入力不在の成立条件と撤去判断は A-1 と同じ。destination metric の手動確認は、SLI 作成後に `uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination` を実行する。
 
 ### A-3. AMW managed resource group 内 DCR への SLI RBAC 付与
 
 - **概要**: `MA_<amw-name>_<region>_managed` リソースグループ内の AMW と同名 DCR に対して、SLI 用 UAMI に `Monitoring Reader` と `Monitoring Metrics Publisher` を付与する。
-- **理由**: AMW 本体への RBAC だけでは SLI の storage location validation を通らない。Microsoft Learn は destination workspace default DCR の最小権限として `Monitoring Reader` を記載しているが、実機の validator は `Monitoring Metrics Publisher` も要求する。
+- **理由**: managed DCR の `Monitoring Metrics Publisher` が不足すると SLI の storage location validation が失敗することを、下記の実測で確認した。`Monitoring Reader` は Microsoft Learn に記載された SLI destination metric の読み出し要件に合わせて付与する。両ロールを維持するが、Reader を単独で外した実測は記録していない。
 - **場所**: `infra/modules/azmonitor/sli-managed-dcr-rbac.bicep`、ADR-009 §RBAC
 - **解消条件**: Microsoft 側で AMW 本体への RBAC だけで SLI が作れるよう挙動が修正される、または公式に managed RG への RBAC が必要だと文書化され、別の方法（policy / built-in role）が用意される。
-- **確認方法**: managed DCR への role assignment を一時的に外し、SLI 作成が通るか試す。
-- **最終確認**: 2026-07-24、`eval` 環境で managed DCR の `Monitoring Metrics Publisher` を外し、SLI の description 変更で PUT を発生させると `DestinationAmwAccountAccessValidator` access denied。割り当てを同じ ID で復旧し、RBAC 伝播後に provision 成功。`Monitoring Reader` と `Monitoring Metrics Publisher` は削除不可。
+- **確認方法**: 承認済みの検証環境で managed DCR のロールを一つずつ外し、他の権限を固定して RBAC 伝播後の結果を比較する。Publisher は SLI 作成と更新時の validation、Reader は公式の読み出し要件と destination metric の読み出し結果を確認する。両ロールを同時に外した結果や、PUT の成功だけで双方の不要を判断しない。
+- **最終確認**: 2026-07-24、`eval` 環境で managed DCR の `Monitoring Metrics Publisher` を外し、SLI の description 変更で PUT を発生させると `DestinationAmwAccountAccessValidator` access denied。割り当てを同じ ID で復旧し、RBAC 伝播後に provision 成功。この実測は Publisher の必要性を示すものであり、Reader の単独除去は検証していない。
 
 ### A-4. `predown` hook で Service Group scope SLI と環境別 Service Group を削除
 
@@ -146,8 +146,8 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 - **概要**: 現行 IaC では AKS `managedClusters` に `Microsoft.ContainerService/managedClusters@2026-05-02-preview` を使用する。Fleet 関連 resource type は `Microsoft.ContainerService/fleets@2026-06-01` と同 version の member / update strategy / auto upgrade profile に移行済み。
 - **理由**: AKS の GA `2026-06-01` には、現行構成の VPA addon autoscaling に必要な `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling` が存在しない。現行 preview `2026-05-02-preview` の公式 schema には同プロパティが定義されているため、preview を継続する。
 - **場所**: `infra/modules/aks.bicep` と managedClusters を参照する各 Bicep module、`infra/modules/fleet.bicep`
-- **解消条件**: AKS の VPA addon autoscaling を含む GA API バージョンが提供される。
-- **確認方法**: AKS `managedClusters` を最新の GA API に置換して `azd provision base --preview` と `azd provision base` が通るか確認する。
+- **解消条件**: GA API の公式 schema が `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling` に対応し、同 API への移行後も `addonAutoscaling: Enabled` が維持される。
+- **確認方法**: GA API の公式 schema で同プロパティへの対応を確認してから、AKS `managedClusters` の API を置換し、`azd provision base --preview` で差分を確認する。承認済みの検証環境で `azd provision base` を適用し、GET で `provisioningState: Succeeded` と `addonAutoscaling: Enabled` が維持されることを確認する。デプロイ成功だけでは preview API を撤去しない。
 - **最終確認**: 2026-09-09、公式 REST 仕様の [stable 一覧](https://github.com/Azure/azure-rest-api-specs/tree/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable)で最新 GA が `2026-06-01` であることを確認。[同 GA の定義](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-06-01/managedClusters.json)には `addonAutoscaling` がなく、[現行 preview の定義](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json)には存在する。今回は公開仕様のみを確認し、実環境への適用は行っていない。
 - **実環境での確認**: 2026-07-24、公式 schema で GA `2026-05-01` に `addonAutoscaling` がなく、preview `2026-05-02-preview` に存在することを確認。managedClusters の全参照を最新 preview へ更新し、eval の base 差分デプロイが成功した。GET では `provisioningState: Succeeded` と `addonAutoscaling: Enabled` を確認した。
 
@@ -183,15 +183,15 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 - **確認方法（撤去判断）**: 公開仕様で未作成の Instrumentation への対応を確認したうえで、実験の承認を得た新規の一時環境で比較する。先行適用と存在待機を外し、Deployment の先行適用と同時適用のそれぞれで、手動の再適用や Pod restart なしに OTel 設定が注入され、Application Insights に traces / metrics / logs が届くことを確認する。先行適用を維持した対照構成と同じ版と設定を使い、Pod 作成時刻と注入結果を比較する。既存 eval の適用順序は変更しない。
 - **最終確認**: 2026-05-20、`sli-flex-test` で `Instrumentation` が `Deployment` より 5 秒遅れて作成され API Pod の `OTEL_*` が欠落。`api-instrumentation` service と deploy hook で ordering / validation を追加。
 
-### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発（実害なし・ログノイズのみ）
+### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発（当時の観測範囲ではデータ到達への影響なし）
 
 - **概要**: `ama-metrics` Deployment の replica pod (`prometheus-collector` container) で `mdsd.err` に `[CreateSocket] Failed to connect port 12564 ... to AMACoreAgent: Connection refused` と `[OtlpTokenFetcher] AMACoreAgent tenant not started, trying to start it. DCR Contents: ...dcr-<otlp>...` が約 60 秒周期で継続出力される。
-- **理由**: replica pod の image には `amacoreagent` バイナリが同梱されているが、replica pod 内では `AMACoreAgent` プロセスが supervisor から起動されていない。同じ image を使う `ama-logs` DaemonSet 側では `AMACoreAgent` が正常起動している。
-- **実害評価**: Managed Prometheus / Container Insights / ContainerNetworkLogs / OTLP traces / logs のデータパスは正常。残る影響は `mdsd.err` のディスク消費とログノイズのみ。
+- **理由**: 当時の観測環境では、replica pod の image に `amacoreagent` バイナリが同梱されていたが、replica pod 内では `AMACoreAgent` プロセスが supervisor から起動されていなかった。同じ image を使う `ama-logs` DaemonSet 側では `AMACoreAgent` が正常起動していた。
+- **実害評価**: 当時の観測環境では Managed Prometheus / Container Insights / ContainerNetworkLogs / OTLP traces / logs のデータ到達は正常だった。この環境とデータ種別の範囲では、影響を `mdsd.err` のディスク消費とログノイズと評価した。他の環境や更新後のデータ到達を保証するものではない。
 - **場所**: AKS managed addon の `kube-system/ama-metrics-*` Deployment。リポジトリ側のコードでは制御不能。
 - **解消条件**: Microsoft 側で `prometheus-collector` image の supervisor が replica pod でも `AMACoreAgent` を起動する、あるいは OTLP DCR 配信を replica pod 対象から除外する修正が入る。
-- **確認方法**: image tag の更新後に `kubectl -n kube-system exec <ama-metrics-pod> -c prometheus-collector -- ps -ef | grep amacoreagent` と `mdsd.err` を確認する。
-- **追跡**: [#130](https://github.com/torumakabe/aks-chaos-lab/issues/130)（実害なしと判定済み・closed）。
+- **確認方法**: image tag の更新後に `kubectl -n kube-system exec <ama-metrics-pod> -c prometheus-collector -- ps -ef | grep amacoreagent` と `mdsd.err` を確認する。併せて Managed Prometheus / Container Insights / ContainerNetworkLogs / OTLP traces / logs の更新後のデータが継続して宛先に届くことを確認する。
+- **追跡**: [#130](https://github.com/torumakabe/aks-chaos-lab/issues/130)（当時の観測環境と上記データ種別の範囲ではデータ到達への影響なしと判定、closed）。
 
 ### D-9. `ErrorAwareSampler` は span 終了後の ERROR を判定できない
 
