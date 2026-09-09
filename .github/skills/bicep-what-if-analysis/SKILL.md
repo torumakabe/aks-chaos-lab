@@ -73,8 +73,8 @@ Resources:
   Skip     : Resource group          : rg-xxx
   Modify   : AKS Managed Cluster     : aks-xxx
       - tags.CostControl  ⚠️ カスタムタグは運用ポリシーに依存するため要確認
-      - properties.enableRBAC  📘 RBAC 有効化は AKS デフォルト
-      * properties.agentPoolProfiles[0].orchestratorVersion  🔒 readOnly（Azure 自動設定）
+      - properties.enableRBAC  📘 変更前が既定値: RBAC 有効化は AKS デフォルト。差分は要確認
+      * properties.provisioningState  🔒 readOnly（Azure 自動設定）
 ```
 
 | 記号 | 意味 |
@@ -83,8 +83,8 @@ Resources:
 | `+` | 追加 |
 | `*` | 変更 |
 | 🔒 | readOnly（Azure 自動設定） |
-| 📘 | Azure 自動設定/デフォルト値 |
-| ⚠️ | 要確認（人間の判断が必要） |
+| 📘 | 変更前後のどちらが既定値に一致したかを示す情報 |
+| ⚠️ | 要確認（自動設定の条件やARM参照式の解決結果を含む） |
 | ❓ | 未分類（パターン追加を検討） |
 
 ## 未分類が出た場合

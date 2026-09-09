@@ -1,7 +1,7 @@
 {
     "common": {
         "readonly_patterns": [
-            "^provisioningState$",
+            "^properties\\.provisioningState$",
             "^etag$",
             "^id$",
             "^name$",
@@ -224,7 +224,7 @@
             "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ContainerService/fleets": {
-            "readonly_patterns": ["^properties$"],
+            "readonly_patterns": [],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ContainerService/fleets/autoUpgradeProfiles": {
@@ -249,11 +249,11 @@
             "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.ManagedIdentity/userAssignedIdentities": {
-            "readonly_patterns": ["^properties$"],
+            "readonly_patterns": [],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Monitor/accounts": {
-            "readonly_patterns": ["^properties$", "^endpoints$"],
+            "readonly_patterns": ["^endpoints$"],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Insights/dataCollectionEndpoints": {
@@ -277,7 +277,7 @@
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.OperationalInsights/workspaces/tables": {
-            "readonly_patterns": ["^schema$"],
+            "readonly_patterns": [],
             "auto_managed_patterns": [
                 {"pattern": "^retentionInDays$", "description": "テーブル retention は workspace の既定値を Azure が自動継承"},
                 {"pattern": "^totalRetentionInDays$", "description": "総 retention は workspace の既定値を Azure が自動継承"}

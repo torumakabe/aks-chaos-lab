@@ -169,9 +169,15 @@ class NoisePatternLoader:
         """リソースタイプ別パターンを取得する。"""
         return self._load().get("resource_types", {}).get(resource_type, {})
 
-    def get_readonly_patterns(self, resource_type: str = "") -> list[str]:
-        """readOnly プロパティパターンを返す（共通 + リソースタイプ別）。"""
-        patterns = list(self._get_common().get("readonly_patterns", []))
+    def get_readonly_patterns(
+        self, resource_type: str = "", *, include_common: bool = True
+    ) -> list[str]:
+        """readOnly パターンを返す。共通と型別は照合するパスが異なる。"""
+        patterns = (
+            list(self._get_common().get("readonly_patterns", []))
+            if include_common
+            else []
+        )
         if resource_type:
             patterns.extend(
                 self._get_resource_type(resource_type).get("readonly_patterns", [])
@@ -391,11 +397,12 @@ def match_known_default(
     if value is None:
         return None
 
-    path_end = check_path.split(".")[-1]
     for default_path, default_value, description in known_defaults:
         if (
-            path_end == default_path or check_path.endswith(default_path)
-        ) and value == default_value:
+            check_path == default_path
+            and type(value) is type(default_value)
+            and value == default_value
+        ):
             return description
     return None
 
@@ -411,11 +418,12 @@ def get_reference_info(
     プロパティの参考情報を生成する。
 
     Bicep 照合の成否に関わらず、プロパティの性質に基づいた参考情報を優先する。
-    外部 YAML パターンファイルが利用可能な場合はそれを使用する。
+    自動設定や参照式のパターン一致は、差分が消える証明にはしない。
 
     Parameters:
         path: プロパティパス
         before: 変更前の値
+        after: 変更後の値
         bicep_definition: Bicep 定義情報
         resource_type: リソースタイプ（オプション、より精密なマッチングに使用）
 
@@ -439,19 +447,24 @@ def get_reference_info(
     if is_readonly_property(path, resource_type):
         return "🔒 readOnly（Azure 自動設定）"
 
-    # 3. Azure 自動設定の可能性が高いプロパティ
-    for pattern, description in loader.get_auto_managed_patterns(resource_type):
+    if contains_arm_reference(before) or contains_arm_reference(after):
+        return "⚠️ ARM 参照式の解決結果を比較できないため要確認"
+
+    # 3. パス一致だけでは、自動設定の条件や値の等価性を確認できない。
+    for pattern, _description in loader.get_auto_managed_patterns(resource_type):
         if re.search(pattern, check_path):
             loader.record_pattern_match(pattern, "auto_managed_patterns", resource_type)
-            return f"📘 {description}"
+            return "⚠️ 自動設定の可能性がありますが、適用条件と変更内容は要確認"
 
     # 4. 既知のデフォルト値チェック
     known_defaults = loader.get_known_defaults(resource_type)
-    default_description = match_known_default(check_path, before, known_defaults)
-    if default_description is None:
-        default_description = match_known_default(check_path, after, known_defaults)
-    if default_description is not None:
-        return f"📘 {default_description}"
+    default_matches = []
+    for side, value in (("変更前", before), ("変更後", after)):
+        description = match_known_default(check_path, value, known_defaults)
+        if description is not None:
+            default_matches.append(f"{side}が既定値: {description}")
+    if default_matches:
+        return f"📘 {' / '.join(default_matches)}。差分は要確認"
 
     # 5. Bicep 定義情報（defined の場合のみ表示）
     bicep_status = bicep_definition.get("status", "unknown")
@@ -1315,15 +1328,20 @@ def run_what_if(
 
 
 def is_readonly_property(path: str, resource_type: str = "") -> bool:
-    """パスが ARM 共通 readOnly プロパティかどうかを判定する。"""
+    """共通のリソース情報と型別プロパティを区別して readOnly を判定する。"""
     loader = get_pattern_loader()
 
-    # properties. プレフィックスを除去して判定
+    # 共通パターンは元のパスで照合し、properties 内の同名キーと区別する。
+    for pattern in loader.get_readonly_patterns():
+        if re.search(pattern, path):
+            loader.record_pattern_match(pattern, "readonly_patterns")
+            return True
+
     check_path = path
     if check_path.startswith("properties."):
         check_path = check_path[len("properties.") :]
 
-    for pattern in loader.get_readonly_patterns(resource_type):
+    for pattern in loader.get_readonly_patterns(resource_type, include_common=False):
         if re.search(pattern, check_path):
             loader.record_pattern_match(pattern, "readonly_patterns", resource_type)
             return True
@@ -1376,9 +1394,9 @@ def evaluate_property_change(
     # ARM 参照式を含む場合
     if contains_arm_reference(before) or contains_arm_reference(after):
         return {
-            "status": "noise_confirmed",
+            "status": "pending",
             "reason": "armReference",
-            "confidence": "high",
+            "confidence": None,
         }
 
     # それ以外は pending（後続ステップで評価が必要）
