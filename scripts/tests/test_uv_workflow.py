@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 from collections.abc import Iterator
@@ -434,20 +435,36 @@ def test_api_deploy_stops_on_artifact_or_deployment_failure(
     )
 
 
-@pytest.mark.parametrize("flag", [None, "false", "FALSE", "", "invalid", "1"])
+def test_nap_defaults_are_enabled_across_infrastructure_and_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
+    assert tasks.node_provisioning_enabled() is True
+    parameters = json.loads(
+        (REPO_ROOT / "infra/main.parameters.json").read_text(encoding="utf-8")
+    )
+    assert parameters["parameters"]["enableNodeAutoProvisioning"]["value"] == (
+        "${AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING:true}"
+    )
+    for path in ("infra/main.bicep", "infra/modules/aks.bicep"):
+        assert "param enableNodeAutoProvisioning bool = true" in (
+            REPO_ROOT / path
+        ).read_text(encoding="utf-8")
+    main = (REPO_ROOT / "infra/main.bicep").read_text(encoding="utf-8")
+    assert "enableNodeAutoProvisioning: enableNodeAutoProvisioning" in main
+
+
+@pytest.mark.parametrize("flag", ["false", "FALSE", "", "invalid", "1"])
 def test_nap_disabled_or_invalid_never_connects(
-    monkeypatch: pytest.MonkeyPatch, flag: str | None
+    monkeypatch: pytest.MonkeyPatch, flag: str
 ) -> None:
     monkeypatch.setattr(tasks, "deployment_environment_name", lambda _: "eval")
-    if flag is None:
-        monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
-    else:
-        monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", flag)
+    monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", flag)
     monkeypatch.setattr(
         tasks, "aks_connection", lambda **_: pytest.fail("unexpected AKS")
     )
     monkeypatch.setattr(tasks, "run", lambda _: pytest.fail("unexpected deploy"))
-    if flag in (None, "false", "FALSE"):
+    if flag in ("false", "FALSE"):
         tasks.target_deploy_node_provisioning()
     else:
         with pytest.raises(SystemExit):
@@ -456,10 +473,17 @@ def test_nap_disabled_or_invalid_never_connects(
 
 @pytest.mark.parametrize("fail_wait", [False, True])
 @pytest.mark.parametrize("kubeconfig", [None, "/prepared/cluster.kubeconfig"])
+@pytest.mark.parametrize("flag", [None, "true", "TRUE"])
 def test_nap_waits_then_deploys_only_its_service(
-    monkeypatch: pytest.MonkeyPatch, fail_wait: bool, kubeconfig: str | None
+    monkeypatch: pytest.MonkeyPatch,
+    fail_wait: bool,
+    kubeconfig: str | None,
+    flag: str | None,
 ) -> None:
-    monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", "true")
+    if flag is None:
+        monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
+    else:
+        monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", flag)
     if kubeconfig is None:
         monkeypatch.delenv("KUBECONFIG", raising=False)
     else:
@@ -514,14 +538,21 @@ def test_nap_waits_then_deploys_only_its_service(
 
 
 @pytest.mark.parametrize("name,actual", [(None, ""), ("eval", ""), ("eval", "another")])
-def test_nap_requires_resolved_environment_even_when_disabled(
-    monkeypatch: pytest.MonkeyPatch, name: str | None, actual: str
+@pytest.mark.parametrize("flag", [None, "false"])
+def test_nap_requires_resolved_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    name: str | None,
+    actual: str,
+    flag: str | None,
 ) -> None:
     if name is None:
         monkeypatch.delenv("AZURE_ENV_NAME", raising=False)
     else:
         monkeypatch.setenv("AZURE_ENV_NAME", name)
-    monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
+    if flag is None:
+        monkeypatch.delenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", raising=False)
+    else:
+        monkeypatch.setenv("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING", flag)
     monkeypatch.setattr(tasks, "run_aks_command", lambda *_args, **_kwargs: actual)
     monkeypatch.setattr(
         tasks, "aks_connection", lambda **_: pytest.fail("unexpected AKS")

@@ -13,7 +13,7 @@ param environment string = 'dev'
 param nodeVmSize string = 'Standard_D4pds_v6'
 
 @description('Enable AKS Node Auto Provisioning for user workload capacity')
-param enableNodeAutoProvisioning bool = false
+param enableNodeAutoProvisioning bool = true
 
 @description('Local DNS mode for System and Node Auto Provisioning nodes')
 @allowed([

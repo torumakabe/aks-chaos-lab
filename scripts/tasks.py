@@ -4928,10 +4928,10 @@ def deployment_environment_name(deadline: Deadline) -> str:
 
 def node_provisioning_enabled() -> bool:
     value = os.environ.get("AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING")
-    if value is None or value.lower() == "false":
-        return False
-    if value.lower() == "true":
+    if value is None or value.lower() == "true":
         return True
+    if value.lower() == "false":
+        return False
     print(
         "error: AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING must be true or false.",
         file=sys.stderr,

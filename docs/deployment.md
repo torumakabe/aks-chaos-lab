@@ -155,12 +155,11 @@ azd up -e <environment>
 
 ### Node Auto Provisioning
 
-Node Auto Provisioning（NAP）は既定で無効です。設計判断と採用条件は[ADR-018](adr/018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md)を参照してください。
+Node Auto Provisioning（NAP）は既定で有効です。`AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING` が未設定の環境も有効化対象です。設計判断と採用条件は[ADR-018](adr/018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md)、既定有効化の判断は[ADR-020](adr/020-enable-node-auto-provisioning-by-default.md)を参照してください。
 
-NAPを有効にする場合は、対象環境へ明示的に設定してからbase layerの差分を確認します。NAP有効時はSystem AgentPoolがArm64 2台固定となり、Cluster Autoscalerは無効になります。
+NAP有効時はSystem AgentPoolがArm64 2台固定となり、Cluster Autoscalerは無効になります。未設定の既存環境でも次回のbase layer適用からこの構成が要求されるため、適用前に差分を確認してください。NAPを使わない新規環境や、NAP無効の既存環境を維持する場合は、適用前に `azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING false -e "<env>"` を実行してください。明示的な `false` は引き続き無効として扱います。
 
 ```bash
-azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING true -e "<env>"
 azd provision base --preview -e "<env>"
 ```
 
@@ -178,7 +177,7 @@ System AgentPoolが2台Readyで、既存workloadが健全であることを確�
 azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-node-provisioning
 ```
 
-環境を読み込めない場合や flag が不正な場合は停止します。読み込んだ `AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING` が未設定または false なら Kubernetes に接続せずスキップします。false に戻すだけでは既存の NodePool を削除しません。
+環境を読み込めない場合や flag が空文字または不正な値の場合は停止します。読み込んだ `AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING` が未設定または true なら NAP の適用を行い、false なら Kubernetes に接続せずスキップします。false の環境で再有効化する場合は、`azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING true -e "<env>"` を実行してから差分を確認してください。false に設定するだけでは既存の NodePool を削除せず、稼働中の NAP を無効化するには次の手順が必要です。
 
 NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` を生成し、Local DNS の設定値を Kustomize へ渡すため、このファイルを手動で管理する必要はありません。
 
@@ -190,7 +189,7 @@ NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` �
 4. `az aks update --node-provisioning-mode Manual`でNAPを無効化する。
 5. `az aks nodepool update --enable-cluster-autoscaler --min-count 1 --max-count 3`でSystem AgentPoolのCluster Autoscalerを復元する。
 6. System AgentPool、既存workload、外部health endpointを確認する。
-7. `AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING`を`false`へ戻す。
+7. `azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING false -e "<env>"` で無効を明示する。未設定にすると次回の適用で再び有効化されるため、設定を削除しない。
 8. `azd provision base --preview -e "<env>"`を実行し、NAPに関する差分が解消したことを確認する。ポリシー管理のNSG関連付けは期待されたdriftとして残る場合がある。
 
 ## ローカル開発

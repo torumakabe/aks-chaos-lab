@@ -6,6 +6,9 @@ Accepted
 
 - Date: 2026-08-21
 - Amended: 2026-09-08（既存 workflow への条件付き適用）
+- Amended: 2026-09-09（[ADR-020](020-enable-node-auto-provisioning-by-default.md) により、Context 末尾と Decision 4 の既定無効、および Decision 9 の未設定時スキップを、未設定時の既定有効へ部分変更）
+
+NAP の採用、System AgentPool 2 台固定、Cluster Autoscaler との非併用、VM SKU 候補、8 vCPU の容量目安、disruption 制約は引き続き有効とする。既存 workflow の実行順序と条件付き task、明示 false 時のスキップと既存 NodePool 等を自動削除しない方針、失敗時に後続へ進めない方針も維持する。以下の旧判断の本文は履歴として保持する。
 
 ## Context
 
