@@ -1,5 +1,7 @@
 # ADR 一覧
 
+Status 列は基本 Status の要約であり、既存の個別注記は補助情報として示す。適用範囲は各 ADR 本文の Status 節と、そこから参照する後続 ADR で確認する。表記の扱いは [判断の変更と Status](README.md#判断の変更と-status) を参照する。
+
 | 番号 | タイトル | Status | 作成日 |
 |------|---------|--------|--------|
 | 001 | [マネージド NGINX から Gateway API (App Routing Istio) への移行とアプリ層メトリクスの採用](001-gateway-api-migration-and-app-level-metrics.md) | Accepted | 2026-04-01 |
