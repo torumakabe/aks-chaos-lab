@@ -15,7 +15,7 @@
 
 | カテゴリ | 用途 | 出力記号 | 例 |
 |---------|------|---------|-----|
-| `readonly_patterns` | ARM readOnly プロパティ | 🔒 | `provisioningState`, `etag`, `kind` |
+| `readonly_patterns` | ARM readOnly プロパティ | 🔒 | `provisioningState`, `etag` |
 | `arm_reference_patterns` | ARM 参照式 | 🔒 | `[reference(`, `[resourceId(` |
 | `auto_managed_patterns` | Azure 自動管理 | 📘 | `identityProfile`, `addonProfiles` |
 | `custom_patterns` | 要確認（人間の判断が必要） | ⚠️ | `orchestratorVersion`, `networkSecurityGroup` |
@@ -98,6 +98,10 @@
 
 根拠が確認できたリソースタイプとプロパティだけに一致させる。一つのリソースで確認した既定値を、他のリソースや親オブジェクト全体へ広げない。
 
+`kind` は全リソース共通の readOnly ではない。例えば Storage Account では [StorageV2 への更新](https://learn.microsoft.com/azure/storage/common/storage-account-upgrade#upgrade-an-account)に使うため、共通の `readonly_patterns` に追加しない。
+
+Data Collection Endpoint の [`properties`](https://learn.microsoft.com/azure/templates/microsoft.insights/2024-03-11/datacollectionendpoints)には、設定可能な `networkAcls.publicNetworkAccess` などが含まれる。差分が親オブジェクト単位で返る場合もあるため、`properties` 全体を readOnly にしない。
+
 ## パターン追加ワークフロー
 
 「❓ 未分類」が出た場合:
@@ -128,7 +132,7 @@ uv run --no-project python -c 'import json; from pathlib import Path; json.loads
 
 | 出力記号 | 分類 | 基準 | 例 |
 |---------|-----|-----|-----|
-| 🔒 | **readOnly** | ARM スキーマで readOnly、ユーザー制御不可 | `provisioningState`, `kind` |
+| 🔒 | **readOnly** | ARM スキーマで readOnly、ユーザー制御不可 | `provisioningState`, `etag` |
 | 📘 | **自動設定/デフォルト** | Azure が自動設定またはデフォルト値 | `identityProfile`, `enableRBAC` |
 | ⚠️ | **要確認** | 人間の判断が必要、ドリフトの可能性 | `orchestratorVersion`, `networkSecurityGroup` |
 | ❓ | **未分類** | パターンにマッチしない、調査が必要 | - |

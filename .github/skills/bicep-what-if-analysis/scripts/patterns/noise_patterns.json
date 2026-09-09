@@ -6,8 +6,7 @@
             "^id$",
             "^name$",
             "^type$",
-            "^systemData\\.",
-            "^kind$"
+            "^systemData\\."
         ],
         "arm_reference_patterns": [
             "\\[reference\\(",
@@ -258,7 +257,7 @@
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Insights/dataCollectionEndpoints": {
-            "readonly_patterns": ["^properties$"],
+            "readonly_patterns": [],
             "auto_managed_patterns": [], "custom_patterns": [], "known_defaults": []
         },
         "Microsoft.Network/privateDnsZones/virtualNetworkLinks": {

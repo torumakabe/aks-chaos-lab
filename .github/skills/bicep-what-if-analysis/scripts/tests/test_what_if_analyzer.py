@@ -38,6 +38,86 @@ from what_if_analyzer import (
 class TestEvaluatePropertyChange(unittest.TestCase):
     """evaluate_property_change のテスト"""
 
+    def test_storage_account_kind_change_remains_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as bicep_dir:
+            output = build_output(
+                {
+                    "changes": [
+                        {
+                            "changeType": "Modify",
+                            "resourceId": (
+                                "/subscriptions/sub/resourceGroups/rg/providers/"
+                                "Microsoft.Storage/storageAccounts/st-test"
+                            ),
+                            "delta": [
+                                {
+                                    "path": "kind",
+                                    "propertyChangeType": "Modify",
+                                    "before": "Storage",
+                                    "after": "StorageV2",
+                                }
+                            ],
+                        }
+                    ]
+                },
+                template="infra/main.bicep",
+                location="japaneast",
+                bicep_dir=bicep_dir,
+            )
+        change = output["changes"][0]["propertyChanges"][0]
+        self.assertEqual(change["evaluation"]["status"], "pending")
+        self.assertIsNone(change["evaluation"]["reason"])
+        self.assertEqual(output["evaluationSummary"]["noise_confirmed"], 0)
+        self.assertEqual(output["pendingEvaluations"]["count"], 1)
+        text = format_azd_style_output(output)
+        self.assertIn("kind", text)
+        self.assertNotIn("readOnly", text)
+
+    def test_dce_properties_change_remains_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as bicep_dir:
+            output = build_output(
+                {
+                    "changes": [
+                        {
+                            "changeType": "Modify",
+                            "resourceId": (
+                                "/subscriptions/sub/resourceGroups/rg/providers/"
+                                "Microsoft.Insights/dataCollectionEndpoints/dce-test"
+                            ),
+                            "delta": [
+                                {
+                                    "path": "properties",
+                                    "propertyChangeType": "Modify",
+                                    "before": {
+                                        "networkAcls": {
+                                            "publicNetworkAccess": "Disabled"
+                                        }
+                                    },
+                                    "after": {
+                                        "networkAcls": {
+                                            "publicNetworkAccess": "Enabled"
+                                        }
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                },
+                template="infra/main.bicep",
+                location="japaneast",
+                bicep_dir=bicep_dir,
+            )
+        change = output["changes"][0]["propertyChanges"][0]
+        self.assertEqual(change["path"], "properties")
+        self.assertEqual(change["evaluation"]["status"], "pending")
+        self.assertIsNone(change["evaluation"]["reason"])
+        self.assertEqual(output["evaluationSummary"]["noise_confirmed"], 0)
+        self.assertEqual(output["pendingEvaluations"]["count"], 1)
+        text = format_azd_style_output(output)
+        self.assertIn("dce-test", text)
+        self.assertIn("properties", text)
+        self.assertNotIn("readOnly", text)
+
     def test_noeffect_returns_noise_confirmed(self) -> None:
         """NoEffect は noise_confirmed を返す"""
         result = evaluate_property_change(
@@ -86,6 +166,16 @@ class TestEvaluatePropertyChange(unittest.TestCase):
 
 class TestIsReadonlyProperty(unittest.TestCase):
     """is_readonly_property のテスト"""
+
+    def test_kind_is_not_common_readonly(self) -> None:
+        for resource_type in (
+            "",
+            "Microsoft.Storage/storageAccounts",
+            "Microsoft.Web/sites",
+            "Microsoft.Example/resources",
+        ):
+            with self.subTest(resource_type=resource_type):
+                self.assertFalse(is_readonly_property("kind", resource_type))
 
     def test_provisioning_state_is_readonly(self) -> None:
         """provisioningState は readOnly"""
