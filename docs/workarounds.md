@@ -171,7 +171,8 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **理由**: Kubernetes は同一 Kustomize bundle 内の CR と Deployment の admission-time 依存を保証しない。既に admitted された Pod は後から retroactive に mutate されないため、Application Insights traces / metrics / logs と Redis dependency が欠落する。
 - **場所**: `azure.yaml` の `api-instrumentation` service、`k8s/apps/chaos-app/instrumentation/`、`scripts/check-api-otel-injection.py`、`docs/observability.md` §運用上の注意、ADR-006
 - **解消条件**: AKS App Monitoring が参照先 `Instrumentation` 未作成時でも Deployment / Pod を後から安全に再評価できる、または Kubernetes 側で CR と Deployment の admission-time ordering を宣言できる。
-- **確認方法**: `api-instrumentation` の `postdeploy` hook が Instrumentation の準備完了を待ち、`api` の `predeploy` hook がその存在を、`postdeploy` hook が Pod への OTel 設定注入を自動確認する。通常操作で確認スクリプトを別途実行する必要はない。初回の適用順序と承認済み index 向けの操作は [デプロイ手順](deployment.md) を参照する。`kubectl rollout restart` は既存の未注入 Pod を復旧する手段であり、通常のデプロイでは使わない。
+- **確認方法（現行動作）**: `api-instrumentation` の `postdeploy` hook が Instrumentation の準備完了を待ち、`api` の `predeploy` hook がその存在を、`postdeploy` hook が Pod への OTel 設定注入を自動確認する。これは先行適用を維持した構成の確認であり、撤去可能という証拠ではない。通常の適用順序と承認済み index 向けの操作は [デプロイ手順](deployment.md) を参照する。
+- **確認方法（撤去判断）**: 公開仕様で未作成の Instrumentation への対応を確認したうえで、実験の承認を得た新規の一時環境で比較する。先行適用と存在待機を外し、Deployment の先行適用と同時適用のそれぞれで、手動の再適用や Pod restart なしに OTel 設定が注入され、Application Insights に traces / metrics / logs が届くことを確認する。先行適用を維持した対照構成と同じ版と設定を使い、Pod 作成時刻と注入結果を比較する。既存 eval の適用順序は変更しない。
 - **最終確認**: 2026-05-20、`sli-flex-test` で `Instrumentation` が `Deployment` より 5 秒遅れて作成され API Pod の `OTEL_*` が欠落。`api-instrumentation` service と deploy hook で ordering / validation を追加。
 
 ### D-7. ama-metrics `mdsd.err` で `AMACoreAgent: Connection refused` が多発（実害なし・ログノイズのみ）
@@ -217,7 +218,8 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **理由**: Renovateのregex custom managerは単一の`matchStrings`が捕捉した値の更新候補を提示するだけで、別ファイルや別行のchecksumを計算して同時に書き換える機能を持たない。versionとchecksumを同じcustom managerで安全に一括更新する一般的な方法は現時点でない。
 - **場所**: `.github/workflows/ci.yml`の`LEFTHOOK_VERSION`/`LEFTHOOK_SHA256`、`scripts/tasks.py`の`check-version-pins`/`update-lefthook-pin`/`freshness-checks` task target（`.github/renovate.json`にLefthookのcustomManagerは置かない）
 - **解消条件**: RenovateがGitHub Releaseのchecksum資産から関連値を解決し、同じcustomManagerでversionとchecksumを一体更新できるようになる。その時点でLefthookをRenovate管理へ戻し、専用checkerと更新taskの必要性を再評価する。
-- **確認方法**: `freshness-checks`を実行し、pin versionが公式latest releaseと異なるとき`Lefthook` findingが`unverified`（`reason_code: update-available`）になること、pin済みchecksumが公式`lefthook_checksums.txt`と一致することを確認する。意図的に`LEFTHOOK_SHA256`を1文字削ってから`check-version-pins`を実行し、`fail`になることを確認する。
+- **確認方法（現行動作）**: `freshness-checks`の結果で、pin versionが公式latest releaseと異なるとき`Lefthook` findingが`unverified`（`reason_code: update-available`）になること、pin済みchecksumが公式`lefthook_checksums.txt`と一致することを確認する。不正値の検出は一時コピーで`LEFTHOOK_SHA256`を1文字削り、`check-version-pins`が`fail`になることを確認する。これらは専用checkerの確認であり、Renovateによる一体更新の確認ではない。
+- **確認方法（撤去判断）**: Renovateの公開仕様で、同じcustomManagerによるversionとchecksumの一体更新が提供されたことを確認する。その後、承認済みの検証用リポジトリで旧版からの更新を試し、同じPRで`LEFTHOOK_VERSION`と`LEFTHOOK_SHA256`が更新され、checksumが更新先の対象platform用公式資産と一致することを確認する。手動補正なしで既存CIが成功することを撤去判断の条件とし、versionだけの更新成功では専用処理を廃止しない。
 - **最終確認**: 2026-08-31、pin版2.1.10に対し公式GitHub latest releaseは2.1.12であり、`freshness-checks`が`unverified`（`reason_code: update-available`）を返すこと、`lefthook_2.1.10_Linux_x86_64.gz`の公式checksumがci.ymlのpin値と一致することを確認した。
 
 ### D-13. Fleet 登録後に AKS 拡張を導入する
@@ -227,7 +229,8 @@ ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 - **場所と対象範囲**: `infra/main.bicep` の同一 deployment 内の Fleet module と拡張 module。Fleet module 内の登録、更新戦略、アラートなどが失敗すると、拡張導入も開始しない。module 完了後も Azure 内部の更新が残る場合があり、内部操作の競合や別 deployment、外部操作による更新まで排他するものではない。
 - **拡張の追加と廃止**: 拡張を追加するときは、その拡張側に Fleet 完了後の依存を置く。拡張同士の AKS 更新も競合する場合は、該当する拡張間にも順序を設ける。Inspektor Gadget の廃止だけでは Fleet 側の依存を変更しない。宣言の除去と Azure 上の既存拡張の削除は別操作として扱う。
 - **解消条件**: Azure 側が Fleet 登録と拡張初期化の競合を待機または安全に処理できることを確認し、依存を外した新規環境で初回構築が成功する。
-- **確認方法**: 生成 ARM template で Fleet が AKS に、拡張が Fleet に依存することを確認する。実機では新規環境の Activity Log で Fleet module 完了後に拡張が開始し、base 作成が azd コマンドの再実行なしで成功することを確認する。既存環境への再適用だけでは初回競合の解消を実証したと扱わない。
+- **確認方法（現行動作）**: 生成 ARM template で Fleet が AKS に、拡張が Fleet に依存することを確認する。新規環境の Activity Log で Fleet module 完了後に拡張が開始し、base 作成が azd コマンドの再実行なしで成功することを確認する。これは順序制御が動くことの確認であり、その必要性がなくなったという証拠ではない。
+- **確認方法（撤去判断）**: 実験の承認を得た新規の一時環境で、拡張側の Fleet 依存だけを外した構成と、依存を維持した対照構成を比較する。region、AKSと拡張の版、その他の設定をそろえ、Fleet 登録と拡張初期化の開始時刻、完了状態、エラーを Activity Log で確認する。操作が重なった場合も base 作成が azd コマンドの再実行なしで成功することを確認し、初回構築の比較を反復する。既存 eval への再適用、操作が偶然重ならなかった実行、一度だけの成功を競合解消の証拠にしない。
 - **再試行**: module 完了後に残る内部操作との競合は、拡張サービスの再試行に任せる。失敗が deployment に返される場合は、対象リソースと最終エラーコードを確認し、Bicep の `@retryOn` による回数上限付きの再試行を検討する。
 
 ### D-14. Local DNS の API 更新が既存ノードへ反映されない場合

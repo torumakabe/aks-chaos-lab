@@ -217,6 +217,8 @@ uv run --no-project "${PWD}/scripts/tasks.py" qa-app
 
 task runnerは有効なapproved-index設定を検出すると、通常のtaskでは、各processの最初のworkspaceコマンドを実行する前に`.venv`を再構築します。同期開始からtask processの終了までは、対象venvの正規化pathから導出したprocess間lockをOSの一時領域で保持するため、同じvenvを使う通常のworkspace taskは直列に実行されます。レビュー専用環境のprocess間引渡しは[full レビューの Python 環境](#full-レビューの-python-環境)を参照してください。明示的に環境だけを準備する場合は`sync-dev-approved-index`を実行します。
 
+単一の非public `[[index]]` に `default = true` がある場合、task runnerは選択済み設定として検査します。禁止された設定や環境変数があれば、通常のworkspace実行、標準同期、レビュー準備はいずれもuv起動前に停止し、通常環境の処理へ切り替えません。設定不在やpublic indexの設定は従来どおり通常環境として扱います。TOMLを解析できない場合は選択を判定せず、uv自身の設定エラー処理に委ねます。
+
 同期処理はuser-level設定とpublic lockのsourceを検査してから、public `uv.lock`を一時requirementsへ変換し、構成済みのpackage indexから`.venv`を作成します。変換後のrequirementsも検査し、direct URL、find-links、hash検証やTLS検証を無効にする設定、projectやdependency groupを変更する環境変数を拒否します。exportと後続の`uv run`はroot projectと対象venvの絶対pathへ固定します。registry packageには`--require-hashes`を適用し、workspace sourceはindexを介さず`.pth`で参照します。通常環境と分離した`.uv-state/cache/`を使い、一時requirementsは処理後に削除します。index固有のusernameとpassword環境変数は同期processだけへ渡し、ruff、ty、pytest、アプリなどの後続processから除去します。通常のtaskでは、同じprocess内の後続コマンドに、直前に構築した環境を使う`--no-sync`を適用します。
 
 post-edit hookは依存関係の整合性を判定しません。Python編集時はprojectの`.venv`にある`ruff`を直接実行し、ruffがない場合は同期を要求します。lockと仮想環境の整合性は同期taskとCIで検証します。
@@ -359,6 +361,8 @@ uv run --no-project "${PWD}/scripts/tasks.py" qa
 ### full レビューの Python 環境
 
 `review-repo-full` は元 worktree を保護するため、隔離コピーの `.venv` を `UV_PROJECT_ENVIRONMENT` に指定し、別 process の `prepare-review-python-env` で準備します。approved-index を使う場合も上記の同期処理を通り、venv の消去、public lock と一時 requirements の検査、`--require-hashes`、専用 cache、同期前後の lock hash 照合を行います。過去に public PyPI から取得した artifact の再利用や public source への fallback は認めません。workspace source の `.pth` は隔離側の API と publisher を参照します。隔離コピーは OS sandbox ではなく、準備段階ではネットワークから package を取得する場合があります。
+
+レビュー処理は、子processの環境から変数を除去する前に、親processの環境でapproved-index設定と禁止変数を検査します。選択したindexのusernameとpasswordだけを準備processへ渡し、後続QAに共有する環境には保存しません。後続QAの子processからは、すべてのindexのusernameとpassword環境変数を除去します。
 
 準備に成功した場合だけ、レビュー処理は同じ隔離先 venv と内部マーカー `AKS_CHAOS_LAB_REVIEW_ENV_PREPARED=1` を後続 QA の子 process へ明示的に渡し、QA を逐次実行します。task runner はこのマーカーの通常の環境継承を除去し、準備 process にも渡しません。準備に失敗した場合は後続 QA を起動せず、`unverified` として報告します。
 
