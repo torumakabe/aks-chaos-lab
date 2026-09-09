@@ -38,11 +38,8 @@ ADR-001 で「HTTPChaos は Envoy 層で注入されるためアプリ層メト�
 
 - **制約 / トレードオフ**:
   - L7 rule に該当するトラフィックは Cilium Envoy を通るため、レイテンシと CPU/メモリに追加コストが発生する。Lab 規模では無視できる範囲だが、パス追加のたびに CNP の HTTP rule を維持する運用負荷がある。
-  - path を増やすと CNP を更新する必要がある。運用 endpoint は `GET /`, `GET /health`, `GET /livez`, `GET /readyz` に標準化し、source ごとに必要な subset のみ許可する。
-  - VAP `advanced-networking-validating-policy` が `FQDN` モードでは HTTP L7 rule を deny するため、本 ADR の順序として「先に Bicep で L7 化 → その後 CNP を含む app manifest apply」という順序が必須（azd provision 完了後に azd deploy api）。
+  - path を増やすと CNP を更新する必要がある。追加時も source ごとに必要な path のみ許可する。
+  - VAP `advanced-networking-validating-policy` は `FQDN` モードでは HTTP L7 rule を拒否するため、L7 有効化が対象 CNP の適用前提となる。適用順序と確認方法は[可観測性ガイドの「エンドポイントと L7 policy」](../observability.md#エンドポイントと-l7-policy)を参照する。
 
-- **検証済みの事実**:
-  - `azd provision` 後、`k8s/components/cilium-ingress-l7/` を含む `k8s/apps/chaos-app` の Kustomize 出力が VAP を通過して作成されること。
-  - 既存 pod（chaos-app × 2）が Ready を維持し、readiness / startup probe に影響がないこと。
-  - LB 経由で `/` と `/health` に 100 リクエスト送信後、`hubble_http_requests_total{destination="chaos-lab/chaos-app-*", method="get", protocol="http/1.1", status="200", reporter="server"}` が 2 系列（pod ごと）に分かれて計上されること。
-  - `hubble_http_request_duration_seconds_count` も同時に生成されレイテンシ系メトリクスが利用可能になること。
+- **当時の導入確認**:
+  - L7 有効化後に対象 CNP が VAP を通過し、既存 Pod の Ready と readiness / startup probe が維持された。LB 経由の `/` と `/health` への正常リクエストで、Hubble の HTTP request と duration の系列生成も確認した。

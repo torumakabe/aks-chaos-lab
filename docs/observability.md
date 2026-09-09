@@ -135,6 +135,18 @@ Cilium L7 policy で許可する path は以下に限定します。
 
 API の metrics は [ADR-006](adr/006-otlp-vendor-neutral-otel.md) に従って標準 OTLP exporter で送信し、scrape endpoint `/metrics` は公開しません。そのため、CNP にも API の `/metrics` 用の通信許可は設けません。Local DNS の `$NODE_IP:9253` への `/metrics` 収集は別用途として維持します。
 
+### L7 policy の適用順序と確認
+
+[ADR-007](adr/007-acns-l7-observability.md) の前提に従い、先に Bicep で ACNS の `advancedNetworkPolicies` を `L7` にし、その後に CNP を含む app manifest を適用します。`azd provision base` の完了後に `azd deploy api` を行う順序を守り、途中の Instrumentation 適用などを含む手順は[環境構築の `azd up`](deployment.md#azd-up)に従ってください。
+
+適用時は次を確認してください。
+
+- 対象 CNP が VAP `advanced-networking-validating-policy` に拒否されず作成されること。
+- 対象 Pod が Ready を維持し、readiness / startup probe が正常であること。
+- LB 経由の `/` と `/health` への正常リクエスト後に、Managed Prometheus の `hubble_http_requests_total` と `hubble_http_request_duration_seconds_count` が生成され、リクエストに伴って増加すること。
+
+L7 メトリクスは、Azure Portal の対象 AKS > Monitoring > Dashboards with Grafana にある Kubernetes / Networking / L7 Flows (Namespace / Workload) で確認します。対象を絞る際は現在の系列とラベルを確認し、chaos-app 宛ての正常応答を観測してください。
+
 ## 外形 SLI publisher
 
 SLI 用の人工トラフィックは AKS 内 CronJob ではなく、Azure Functions Timer Trigger の external SLI publisher が AKS 外から生成します。publisher は probe 結果を SLI 用 Prometheus metrics に変換し、Application Insights には Function App から chaos app への HTTP dependency telemetry も送ります。
