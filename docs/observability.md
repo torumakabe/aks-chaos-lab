@@ -124,9 +124,10 @@ Cilium L7 policy で許可する path は以下に限定します。
 | `GET /health` | 外部 health / 手動確認 | あり | 手動確認 |
 | `GET /livez` | liveness / startup | なし | Kubernetes probe |
 | `GET /readyz` | readiness | あり | Kubernetes probe |
-| `GET /metrics` | Prometheus scrape | なし | Managed Prometheus |
 
-外部 Gateway 経由では component が `GET /` を許可し、`chaos-app` 固有 patch が `GET /health` を追加します。Azure Functions external SLI publisher は通常 API の `GET /` を probe し、trace context を伝搬します。Function dependency と chaos-app Server span は `TraceId` で KQL 相関できますが、Application Map が classic table と OTel table を跨いで表示することは保証しません。`/livez`、`/readyz`、`/metrics` は内部 source のみに許可します。probe を追加する場合は、アプリ route、Kubernetes probe、CNP テンプレートまたは app 固有 patch を同時に更新してください。
+外部 Gateway 経由では component が `GET /` を許可し、`chaos-app` 固有 patch が `GET /health` を追加します。Azure Functions external SLI publisher は通常 API の `GET /` を probe し、trace context を伝搬します。Function dependency と chaos-app Server span は `TraceId` で KQL 相関できますが、Application Map が classic table と OTel table を跨いで表示することは保証しません。`/livez`、`/readyz` は内部 source のみに許可します。probe を追加する場合は、アプリ route、Kubernetes probe、CNP テンプレートまたは app 固有 patch を同時に更新してください。
+
+API の metrics は [ADR-006](adr/006-otlp-vendor-neutral-otel.md) に従って標準 OTLP exporter で送信し、scrape endpoint `/metrics` は公開しません。そのため、CNP にも API の `/metrics` 用の通信許可は設けません。Local DNS の `$NODE_IP:9253` への `/metrics` 収集は別用途として維持します。
 
 ## 外形 SLI publisher
 

@@ -21,9 +21,9 @@ ADR-001 で「HTTPChaos は Envoy 層で注入されるためアプリ層メト�
 - **ACNS の `advancedNetworkPolicies` を `'FQDN'` → `'L7'` に変更**（`infra/modules/aks.bicep`、Base / Automatic 両モード）。L7 化すると FQDN フィルタも同時に有効化される（ポータル / CLI 仕様）。これにより ACNS に同梱される `ValidatingAdmissionPolicy advanced-networking-validating-policy` の判定が変わり、`CiliumNetworkPolicy` で HTTP L7 rule を使えるようになる。
 - **chaos-app への ingress L7 CNP を追加**（テンプレート: `k8s/components/cilium-ingress-l7/`、app 固有 patch: `k8s/apps/chaos-app/kustomization.yaml`）。以下の peer / path に限定して HTTP ルールを適用し、Hubble L7 メトリクスを生成する。`GET /health` は chaos-app 固有の外部 health route として patch で追加し、業務 API path を持つ別アプリも同じ方式で追加する。
   - `gateway.networking.k8s.io/gateway-name: chaos-app`（App Routing Istio の Envoy pod） → `GET /`, `GET /health`
-  - kube-system namespace（ama-metrics 等） → `GET /metrics`
   - host / remote-node entity（kubelet probe） → `GET /livez`, `GET /readyz`
-- **運用 endpoint を標準化**する。通常 API は `GET /`、外部 health / 既存互換は `GET /health`、Redis 非依存の startup/liveness は `GET /livez`、Redis 依存の readiness は `GET /readyz`、Prometheus scrape は `GET /metrics` とし、CNP は source ごとに必要な subset のみ許可する。外部 Gateway 経由では `/` と `/health` のみ公開し、`/livez` / `/readyz` / `/metrics` は内部 source のみに許可する。Cilium の HTTP `path` は正規表現として扱われるため、`^/$` や `^/readyz$` のように anchor して意図しない prefix match を避ける。
+- **運用 endpoint を標準化**する。通常 API は `GET /`、外部 health / 既存互換は `GET /health`、Redis 非依存の startup/liveness は `GET /livez`、Redis 依存の readiness は `GET /readyz` とし、CNP は source ごとに必要な subset のみ許可する。外部 Gateway 経由では `/` と `/health` のみ公開し、`/livez` / `/readyz` は内部 source のみに許可する。Cilium の HTTP `path` は正規表現として扱われるため、`^/$` や `^/readyz$` のように anchor して意図しない prefix match を避ける。
+- **API の metrics は標準 OTLP exporter で送信する**。[ADR-004](004-envoy-gateway-metrics-for-slo.md) で旧 Prometheus 計装を除去し、[ADR-006](006-otlp-vendor-neutral-otel.md) で標準 OTLP に移行した方針を維持する。API は scrape endpoint `/metrics` を公開せず、CNP にも kube-system から API の TCP/8000 への `GET /metrics` 許可を設けない。これにより、アプリに scrape の責務を再導入せず、未使用の通信許可を残さない。
 - **広い Kubernetes NetworkPolicy は適用しない**。Gateway / kube-system から Pod への L4 allow を別途置くと、Cilium L7 の path 制限より広い許可経路になりうるため、chaos-app の ingress allowlist は CNP に集約する。
 - **egress 側の L7 HTTP 化は見送り**。chaos-app の外部依存は Redis（TCP/6380、TLS）であり HTTP ではない。また OTLP は AMA node エージェント経由でノード IP を直接叩くため、L7 HTTP の可視化対象として意味がない。
 - **ama-metrics の keep-list は既存の `networkobservabilityHubble = "hubble.*"` のまま変更しない**。`hubble_http_*` が自動で収集対象になるため追加設定不要。
@@ -38,7 +38,7 @@ ADR-001 で「HTTPChaos は Envoy 層で注入されるためアプリ層メト�
 
 - **制約 / トレードオフ**:
   - L7 rule に該当するトラフィックは Cilium Envoy を通るため、レイテンシと CPU/メモリに追加コストが発生する。Lab 規模では無視できる範囲だが、パス追加のたびに CNP の HTTP rule を維持する運用負荷がある。
-  - path を増やすと CNP を更新する必要がある。運用 endpoint は `GET /`, `GET /health`, `GET /livez`, `GET /readyz`, `GET /metrics` に標準化し、source ごとに必要な subset のみ許可する。
+  - path を増やすと CNP を更新する必要がある。運用 endpoint は `GET /`, `GET /health`, `GET /livez`, `GET /readyz` に標準化し、source ごとに必要な subset のみ許可する。
   - VAP `advanced-networking-validating-policy` が `FQDN` モードでは HTTP L7 rule を deny するため、本 ADR の順序として「先に Bicep で L7 化 → その後 CNP を含む app manifest apply」という順序が必須（azd provision 完了後に azd deploy api）。
 
 - **検証済みの事実**:

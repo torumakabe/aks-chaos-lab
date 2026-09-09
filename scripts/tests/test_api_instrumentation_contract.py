@@ -9,10 +9,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CONNECTION_ENV = "APPLICATIONINSIGHTS_CONNECTION_STRING"
 
 
-@pytest.mark.parametrize("service_name", ["api", "api-instrumentation"])
-def test_azd_connection_string_is_only_passed_to_instrumentation(
+def _render_service(
     tmp_path: Path, service_name: str
-) -> None:
+) -> tuple[dict, dict[str, str], dict[tuple[str, str], dict]]:
     if executable := shutil.which("kustomize"):
         command = [executable, "build"]
     elif executable := shutil.which("kubectl"):
@@ -48,7 +47,14 @@ def test_azd_connection_string_is_only_passed_to_instrumentation(
         (item["kind"], item["metadata"]["name"]): item
         for item in yaml.safe_load_all(result.stdout)
     }
+    return config, values, manifests
 
+
+@pytest.mark.parametrize("service_name", ["api", "api-instrumentation"])
+def test_azd_connection_string_is_only_passed_to_instrumentation(
+    tmp_path: Path, service_name: str
+) -> None:
+    config, values, manifests = _render_service(tmp_path, service_name)
     if service_name == "api":
         assert CONNECTION_ENV not in config["env"]
         app_config = manifests["ConfigMap", "app-config"]["data"]
@@ -75,3 +81,42 @@ def test_azd_connection_string_is_only_passed_to_instrumentation(
             ]
             == values[CONNECTION_ENV]
         )
+
+
+def test_api_ingress_only_allows_gateway_and_kubelet_probes(tmp_path: Path) -> None:
+    _, _, manifests = _render_service(tmp_path, "api")
+    policy = manifests["CiliumNetworkPolicy", "chaos-app-ingress-l7"]
+    assert policy["metadata"]["namespace"] == "chaos-lab"
+    assert policy["spec"]["endpointSelector"] == {"matchLabels": {"app": "chaos-app"}}
+    assert policy["spec"]["ingress"] == [
+        {
+            "fromEndpoints": [
+                {"matchLabels": {"gateway.networking.k8s.io/gateway-name": "chaos-app"}}
+            ],
+            "toPorts": [
+                {
+                    "ports": [{"port": "8000", "protocol": "TCP"}],
+                    "rules": {
+                        "http": [
+                            {"method": "GET", "path": "^/$"},
+                            {"method": "GET", "path": "^/health$"},
+                        ]
+                    },
+                }
+            ],
+        },
+        {
+            "fromEntities": ["host", "remote-node"],
+            "toPorts": [
+                {
+                    "ports": [{"port": "8000", "protocol": "TCP"}],
+                    "rules": {
+                        "http": [
+                            {"method": "GET", "path": "^/livez$"},
+                            {"method": "GET", "path": "^/readyz$"},
+                        ]
+                    },
+                }
+            ],
+        },
+    ]
