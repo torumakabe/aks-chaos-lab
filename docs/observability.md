@@ -110,6 +110,8 @@ SLI 作成後の destination metric は、SLI ARM resource の `destinationMetri
 
 Gateway Envoy 由来の `gateway:chaos_app:http_request_duration:p95` と `gateway:chaos_app:http_error_rate:ratio` は、短期診断用の recording rule として残します。Azure Monitor SLI の error budget 判定には使いません。
 
+Gateway 指標による高エラー率、遅延、無通信の短期アラートは作成せず、SLO 評価と通知には外形 SLI を使います。Managed Prometheus alerts は Kubernetes 基盤の異常検知と、`ExternalSliPublisherHeartbeatMissing` による external SLI publisher の停止検知を継続します。Gateway stats の取得方式は [ADR-004](adr/004-envoy-gateway-metrics-for-slo.md)、アラートの役割分担は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md) を参照してください。
+
 SLI / SLO 系の判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md) と [ADR-014](adr/014-histogram-bucket-latency-sli.md) を参照してください。Latency SLI のしきい値は SLI 定義 (`infra/modules/azmonitor/sli-definitions.bicep`) の `latencyThresholdLe` パラメータで決定し、publisher は単一 metric `chaos_app_external_latency_good` を `le` ラベル付きで bucket 別に emit します。
 
 ## エンドポイントと L7 policy
