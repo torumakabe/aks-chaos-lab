@@ -62,9 +62,19 @@ uv run --no-project "${PWD}/scripts/tasks.py" freshness-checks
 
 findingが`fail`または`unverified`でもJSONを出力できるように、コマンド自体は終了コード0で終了する。週次workflowは標準出力の自然言語ではなく、各findingの`status`と`reason_code`を解釈する。
 
+### AKSアップデートの取得状況
+
+[AKS Updates analyzer](../.github/workflows/aks-updates-analyzer.md)は、Azure Updates RSSの過去7日分と、GitHub AKS releasesの最新5件に含まれる過去14日分を週次Issueで分析する。各ソースの構造化JSONにある`status`、`reason_code`、`reason`、取得件数、解析失敗件数を同じIssueへ記載する。通信失敗、応答不正、項目の部分解析失敗は`unverified`とし、有効な`items`だけを分析する。結果が欠落したソースも未確認として扱い、0件で補わない。両ソースが`pass`で対象項目が空の場合だけ、取得範囲内で「更新なし」と報告する。理由コードと報告形式はworkflow本文を参照する。
+
 ### gh-awとLefthookをRenovateに載せない理由
 
-gh-awのcompiler pinは、生成物であるlock workflowのcompiler versionと一体で決まる。version単独の更新はcompile結果と矛盾するため、適用は`gh aw compile`が所有する。Lefthookはversionと配布物のSHA256を対で固定する。Renovateはchecksumを計算できないため、versionだけを更新するPull Requestは必ずCIで失敗する（[workarounds.md](workarounds.md)のD-12）。更新は次のtaskがversionとchecksumを一体で書き換える。
+gh-awのcompiler pinは、生成物であるlock workflowのcompiler versionと一体で決まる。version単独の更新はcompile結果と矛盾するため、適用は`gh aw compile`が所有する。compiler versionの定義元は[Copilot setup](../.github/workflows/copilot-setup-steps.yml)であり、生成lockと同じ版を使う。
+
+v0.88.7の編集支援ファイルは、上流の`gh aw upgrade`が生成する[agent](../.github/agents/agentic-workflows.md)と[dispatcher skill](../.github/skills/agentic-workflows/SKILL.md)である。旧`agentic-workflows.agent.md`は移行時に削除される。生成template内の参照URLは上流の`main`を指すため、compilerの対応範囲を確認するときは固定したrelease tagの資料と照合する。生成lockも含めて更新した後、`compile-aw`で再生成差分がないことを確認する。通常のActions更新を含めない場合は`gh aw upgrade --no-actions`を使う。
+
+v0.88.7ではengine由来の通信先は暗黙に許可されない。週次workflowのPythonによるGitHub REST API取得を維持するため、`network.allowed`に`api.github.com`を明示する。`repository-freshness-check`の`setup-uv`は、存在しない`v8`タグに対するcompilerの代替版選択を避けるため、従来のlockと同じv8.2.0のSHAを元workflowに固定している。
+
+Lefthookはversionと配布物のSHA256を対で固定する。Renovateはchecksumを計算できないため、versionだけを更新するPull Requestは必ずCIで失敗する（[workarounds.md](workarounds.md)のD-12）。更新は次のtaskがversionとchecksumを一体で書き換える。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" update-lefthook-pin --version <lefthook-version>

@@ -14,6 +14,7 @@ network:
   allowed:
     - defaults
     - github
+    - "api.github.com"
     - "learn.microsoft.com"
 tools:
   bash: ["uv", "python3", "git"]

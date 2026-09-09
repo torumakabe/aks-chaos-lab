@@ -14,12 +14,13 @@ network:
   allowed:
     - defaults
     - github
+    - "api.github.com"
     - "learn.microsoft.com"
 tools:
   bash: ["uv", "python3", "git", "gh"]
 pre-agent-steps:
   - name: Setup uv
-    uses: astral-sh/setup-uv@v8
+    uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
     with:
       resolution-strategy: "lowest"
 safe-outputs:

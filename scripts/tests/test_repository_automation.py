@@ -177,6 +177,28 @@ def test_aks_updates_workflow_disables_implicit_noop_issues() -> None:
     assert "expires:" not in source
 
 
+def test_aks_updates_workflow_reports_unverified_sources() -> None:
+    source = (
+        REPO_ROOT / ".github" / "workflows" / "aks-updates-analyzer.md"
+    ).read_text(encoding="utf-8")
+
+    for contract in (
+        "両ソースの`status`が`pass`で、両方の`items`が空の場合のみ",
+        "片方でも`unverified`または結果欠落がある場合",
+        "そのソースを`unverified`（`reason_code: evidence-unavailable`）",
+        "欠落結果を空の`items`や`pass`で補わない",
+        "全体を確認済みとはしない",
+        "### データ取得状況",
+        "| ソース | status | reason_code | 取得件数 | 解析失敗件数 | 対象件数 | 理由 |",
+        "週次Issueは既存の1件だけ",
+    ):
+        assert contract in source
+    assert "close-older-issues: true" in source
+    assert "max: 1" in source
+    assert "except Exception" not in source
+    assert 'print("[]")' not in source
+
+
 def test_implicit_gh_aw_maintenance_workflow_is_not_committed() -> None:
     maintenance = REPO_ROOT / ".github" / "workflows" / "agentics-maintenance.yml"
     actions_lock = json.loads(
@@ -184,7 +206,45 @@ def test_implicit_gh_aw_maintenance_workflow_is_not_committed() -> None:
     )
 
     assert not maintenance.exists()
-    assert "github/gh-aw-actions/setup-cli@v0.79.6" not in actions_lock["entries"]
+    assert not any(
+        entry.startswith("github/gh-aw-actions/setup-cli@")
+        for entry in actions_lock["entries"]
+    )
+
+
+def test_gh_aw_dispatcher_uses_current_generated_layout() -> None:
+    agent = REPO_ROOT / ".github" / "agents" / "agentic-workflows.md"
+    skill = REPO_ROOT / ".github" / "skills" / "agentic-workflows" / "SKILL.md"
+    legacy = REPO_ROOT / ".github" / "agents" / "agentic-workflows.agent.md"
+
+    assert not legacy.exists()
+    agent_source = agent.read_text(encoding="utf-8")
+    skill_source = skill.read_text(encoding="utf-8")
+    assert "name: Agentic Workflows" in agent_source
+    assert "Repository Instructions Overlay" in agent_source
+    for prompt in (
+        "upgrade-agentic-workflows.md",
+        "cli-commands.md",
+        "token-optimization.md",
+        "patterns.md",
+    ):
+        assert prompt in agent_source
+        assert prompt in skill_source
+    assert "name: agentic-workflows" in skill_source
+    assert "{{AW_FILE_LIST}}" not in skill_source
+
+
+def test_weekly_workflows_preserve_direct_github_api_access() -> None:
+    for name in (
+        "aks-updates-analyzer",
+        "bicep-api-version-check",
+        "repository-freshness-check",
+    ):
+        workflow = REPO_ROOT / ".github" / "workflows" / name
+        source = workflow.with_suffix(".md").read_text(encoding="utf-8")
+        lock = workflow.with_suffix(".lock.yml").read_text(encoding="utf-8")
+        assert '    - "api.github.com"' in source
+        assert r'\"api.github.com\"' in lock
 
 
 def test_freshness_targets_exist_in_repository_inventory() -> None:
