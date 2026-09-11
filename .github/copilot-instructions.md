@@ -47,7 +47,7 @@ build や deploy の失敗を理由に新しい経路を実装する前に、`do
 | 現在の構成から設計書を生成 | [design-snapshot](agents/design-snapshot.agent.md) |
 | リポジトリ全体の衛生点検 | [review-repo](agents/review-repo.agent.md) |
 
-`review-repo` の標準のfastはtaskによる非編集検査だけを実行する。full を明示した場合は、全 task、公開MarkdownリンクとBicep APIのcheck-only確認、文書とAI運用資産の意味評価を実行する。version候補、EOL、support範囲、互換性はscheduled workflowが担当し、full では再評価しない。指示文など特定ファイルの改善だけを依頼された場合は、総合点検へ拡張せず対象を直接扱う。
+`review-repo` の標準のfastはtaskによる非編集検査だけを実行する。full を明示した場合は、全 task、公開Markdownリンク、Docker base imageのEOL、Azure Functions extension bundleのsupport範囲、Bicep APIのcheck-only確認、文書とAI運用資産の意味評価を実行する。version更新候補はRenovateとnon-Renovate tool workflowが担当し、full では再検出しない。指示文など特定ファイルの改善だけを依頼された場合は、総合点検へ拡張せず対象を直接扱う。
 
 `.github/skills/` のスキルは対象タスクのときだけ読み込む。確認と更新の区別、実環境への照会、生成ファイルなどの副作用は各スキルの契約に従う。利用できないツールを前提に進めず、既存の代替経路または未実施の範囲を示す。
 

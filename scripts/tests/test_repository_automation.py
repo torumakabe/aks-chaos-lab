@@ -9,13 +9,7 @@ from typing import Any, cast
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRESHNESS_SUBJECTS = (
     "gh-aw",
-    "Lefthook",
-    "actionlint",
-    "kubeconform",
-    "azd",
-    "Chaos Mesh Helm chart",
-    "Docker base imageのEOLとdigest固定状況",
-    "Azure Functions extension bundleのsupport範囲",
+    "lefthook",
 )
 
 
@@ -83,7 +77,7 @@ def test_renovate_covers_the_scheduled_update_targets() -> None:
 
 
 def test_scheduled_and_review_detection_do_not_overlap() -> None:
-    """Only what Renovate cannot reach is left to the scheduled checker.
+    """Only what Renovate cannot update safely is left to the scheduled workflow.
 
     The freshness workflow must not re-detect a Renovate-owned coordinate, and
     the offline review layer must not detect update candidates at all.
@@ -93,14 +87,12 @@ def test_scheduled_and_review_detection_do_not_overlap() -> None:
         manager["depNameTemplate"] for manager in config["customManagers"]
     }
     workflow = (
-        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.md"
+        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.yml"
     ).read_text(encoding="utf-8")
 
     assert renovate_owned.isdisjoint({"evilmartians/lefthook", "github/gh-aw"})
-    assert "Renovateが構造上扱えない3対象だけ" in workflow or (
-        "Renovateが検出できない3対象だけ" in workflow
-    )
-    assert "同じ最新版検出を繰り返さず" in workflow
+    assert "freshness-checks" in workflow
+    assert "update-non-renovate-tool" in workflow
 
 
 def test_ci_runs_repository_health_check() -> None:
@@ -127,51 +119,51 @@ def test_ci_reuses_kubernetes_and_helm_validation_targets() -> None:
 
 def test_freshness_workflow_contract() -> None:
     source = (
-        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.md"
+        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.yml"
     ).read_text(encoding="utf-8")
 
-    assert "schedule: weekly" in source
+    assert 'cron: "0 0 * * 3"' in source
     assert "workflow_dispatch:" in source
-    assert "permissions:\n  contents: read\n  copilot-requests: write" in source
-    assert "safe-outputs:" in source
-    assert "  create-issue:" in source
-    assert "close-older-issues: true" in source
-    assert "max: 1" in source
-    assert "repository-freshness-checker/SKILL.md" in source
-    assert 'scripts/tasks.py" inventory-repo --format json' in source
-    assert 'scripts/tasks.py" freshness-checks' in source
+    assert "concurrency:" in source
+    assert "contents: write" in source
+    assert "pull-requests: write" in source
+    assert "actions: write" in source
+    assert "freshness-checks --output" in source
+    assert "update-non-renovate-tool" in source
     assert "reason_code" in source
     assert "update-available" in source
-    assert "evidence-unavailable" in source
-    assert "scripts/repo_health.py" not in source
-
-    for subject in FRESHNESS_SUBJECTS:
-        assert subject in source
-    assert f"{len(FRESHNESS_SUBJECTS)}つ" in source
-    for boundary in (
-        "Renovate（`.github/renovate.json`）",
-        "azdはRenovateがminimum versionを安定版releaseと比較",
-        "Azure Functions extension bundleのsupport範囲はlatestと比較して更新する対象ではない",
-    ):
-        assert boundary in source
-    # Bicep CLI updates moved to Renovate; unrelated scheduled workflows remain.
-    assert "bicep-version-check.yml" not in source
+    assert "pinned-ahead" not in source
+    assert "gh workflow run ci.yml --ref" in source
+    assert "automation/update-${TOOL}-${VERSION}" in source
+    assert "gh pr list --state all --head" in source
+    assert "gh pr create" in source
+    assert "Install target Lefthook" in source
+    assert "GH_TOKEN: ${{ github.token }}" in source
+    assert "git status --porcelain" in source
+    assert "ref: ${{ github.event.repository.default_branch }}" in source
+    assert "GITHUB_STEP_SUMMARY" in source
 
     for forbidden in (
         "azure/login",
         "az login",
-        "create-pull-request:",
-        "push-to-pr-branch:",
-        "contents: write",
+        "copilot-requests:",
+        "create-issue",
+        "issues: write",
+        "repository-freshness-checker",
     ):
         assert forbidden not in source
+    assert not (
+        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.md"
+    ).exists()
+    assert not (
+        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.lock.yml"
+    ).exists()
 
 
 def test_weekly_workflows_disable_operational_failure_issues() -> None:
     for name in (
         "aks-updates-analyzer",
         "bicep-api-version-check",
-        "repository-freshness-check",
     ):
         workflow = REPO_ROOT / ".github" / "workflows" / name
         source = workflow.with_suffix(".md").read_text(encoding="utf-8")
@@ -281,7 +273,6 @@ def test_weekly_workflows_preserve_direct_github_api_access() -> None:
     for name in (
         "aks-updates-analyzer",
         "bicep-api-version-check",
-        "repository-freshness-check",
     ):
         workflow = REPO_ROOT / ".github" / "workflows" / name
         source = workflow.with_suffix(".md").read_text(encoding="utf-8")
@@ -346,8 +337,7 @@ def test_freshness_targets_exist_in_repository_inventory() -> None:
 
 def test_freshness_scope_is_identical_across_declarations() -> None:
     paths = (
-        REPO_ROOT / ".github/workflows/repository-freshness-check.md",
-        REPO_ROOT / ".github/skills/repository-freshness-checker/SKILL.md",
+        REPO_ROOT / ".github/workflows/repository-freshness-check.yml",
         REPO_ROOT / "docs/dependency-management.md",
     )
 
@@ -357,17 +347,15 @@ def test_freshness_scope_is_identical_across_declarations() -> None:
             assert subject in content, f"{subject!r} is missing from {path}"
 
 
-def test_freshness_workflow_is_compiled() -> None:
-    lock = (
-        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.lock.yml"
+def test_freshness_workflow_is_not_agentic() -> None:
+    workflow = (
+        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.yml"
     ).read_text(encoding="utf-8")
 
-    assert "automatically generated by gh-aw" in lock
-    assert "schedule:" in lock
-    assert "workflow_dispatch:" in lock
-    assert "issues: write" in lock
-    assert "pull-requests: write" not in lock
-    assert "id-token: write" not in lock
+    assert "Update non-Renovate tools" in workflow
+    assert "automatically generated by gh-aw" not in workflow
+    assert "copilot-requests" not in workflow
+    assert "issues: write" not in workflow
 
 
 def test_bicep_api_version_workflow_contract() -> None:
@@ -440,22 +428,19 @@ def test_documentation_exposes_maintenance_entry_points() -> None:
     )
 
     assert ".github/renovate.json" in dependencies
-    assert "repository-freshness-check.md" in dependencies
+    assert "repository-freshness-check.yml" in dependencies
     assert "refresh-uv-lock.yml" in dependencies
     assert "`.github/dependabot.yml`は存在せず" in dependencies
     assert "## fastとfullの境界" in dependencies
     assert "`review-repo-fast`はオフラインで完結する" in dependencies
-    assert "version候補、EOL、support範囲、互換性はscheduled workflowが担当" in (
-        dependencies
-    )
-    assert "fullは再評価しない" in dependencies
+    assert "Docker base imageのEOL" in dependencies
+    assert "review-repo full" in dependencies
     assert "--results-json" in dependencies
 
     assert "標準のfastはtaskによる非編集検査だけを実行する" in instructions
-    assert "公開MarkdownリンクとBicep APIのcheck-only確認" in instructions
-    assert "version候補、EOL、support範囲、互換性はscheduled workflowが担当" in (
-        instructions
-    )
+    assert "公開Markdownリンク" in instructions
+    assert "Bicep APIのcheck-only確認" in instructions
+    assert "Docker base imageのEOL" in instructions
     assert "文書とAI運用資産の意味評価を実行する" in instructions
 
     assert "Renovateはworkspaceの依存について更新候補の検出だけ" in deployment
