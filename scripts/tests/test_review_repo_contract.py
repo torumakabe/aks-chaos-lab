@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import email.message
 import hashlib
 import importlib.util
 import json
@@ -9,7 +8,6 @@ import stat
 import subprocess
 import sys
 import tomllib
-import urllib.error
 from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -396,6 +394,23 @@ def test_evaluate_lefthook_pin_passes_when_current_and_checksum_match(
     assert finding.reason_code == tasks.FRESHNESS_REASON_CURRENT
 
 
+def test_evaluate_lefthook_pin_never_proposes_a_downgrade(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    _write_ci_workflow(repository, "2.1.12", "a" * 64)
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
+    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", lambda: "2.1.10")
+
+    finding = tasks.evaluate_lefthook_pin()
+
+    assert finding.status == "unverified"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_PINNED_AHEAD
+    assert "no automated downgrade" in finding.detail
+
+
 def test_fetch_lefthook_latest_release_strips_v_prefix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -406,6 +421,21 @@ def test_fetch_lefthook_latest_release_strips_v_prefix(
     )
 
     assert tasks.fetch_lefthook_latest_release() == "2.1.12"
+
+
+def test_fetch_lefthook_latest_release_rejects_malformed_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        tasks,
+        "open_github_url",
+        lambda _url, _timeout: _FakeChecksumResponse(
+            b'{"tag_name": "v2.1.12; echo unexpected"}'
+        ),
+    )
+
+    with pytest.raises(tasks.LefthookReleaseUnavailableError):
+        tasks.fetch_lefthook_latest_release()
 
 
 def test_update_lefthook_pin_rewrites_version_and_checksum_together(
@@ -717,8 +747,8 @@ def test_renovate_does_not_manage_lefthook_or_gh_aw() -> None:
 
     Renovate cannot regenerate LEFTHOOK_SHA256 in the same change (workarounds
     D-12), and the gh-aw compiler pin is decided together with the workflow
-    locks that ``gh aw compile`` generates. The scheduled checker detects both
-    update candidates instead.
+    locks that ``gh aw compile`` generates. The non-Renovate tool workflow
+    detects both update candidates instead.
     """
     config = tasks.load_renovate_config()
     serialized = json.dumps(config)
@@ -733,7 +763,10 @@ def test_renovate_does_not_manage_lefthook_or_gh_aw() -> None:
     assert set(tasks.FRESHNESS_CHECK_SUBJECTS) == {
         tasks.FRESHNESS_SUBJECT_GH_AW,
         tasks.FRESHNESS_SUBJECT_LEFTHOOK,
-        tasks.FRESHNESS_SUBJECT_RENOVATE_ACTIVITY,
+    }
+    assert {tool.tool_id for tool in tasks.NON_RENOVATE_TOOLS} == {
+        "gh-aw",
+        "lefthook",
     }
 
 
@@ -873,468 +906,6 @@ def test_check_renovate_config_reports_an_extraction_mismatch(
     assert "--dry-run=extract result does not match" in capsys.readouterr().err
 
 
-def test_check_renovate_activity_reports_only_the_activity_finding(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setattr(
-        tasks,
-        "evaluate_renovate_activity",
-        lambda: tasks.FreshnessFinding(
-            "Renovate app activity",
-            ".github/renovate.json",
-            "unverified",
-            tasks.FRESHNESS_REASON_RENOVATE_NOT_OBSERVED,
-            "owner/repo",
-            None,
-            (),
-            "Renovate app activity could not be confirmed",
-        ),
-    )
-
-    with pytest.raises(SystemExit) as error:
-        tasks.target_check_renovate_activity()
-
-    assert error.value.code == 1
-    output = capsys.readouterr()
-    assert "Renovate app activity: unverified (renovate-not-observed)" in output.out
-    assert "Renovate custom managers" not in output.out + output.err
-
-
-def _dashboard_issue(
-    updated_at: str,
-    *,
-    title: str = tasks.RENOVATE_DASHBOARD_TITLE,
-    login: str = "renovate[bot]",
-    user_type: str = "Bot",
-    pull_request: bool = False,
-) -> dict[str, Any]:
-    issue: dict[str, Any] = {
-        "title": title,
-        "updated_at": updated_at,
-        "html_url": "https://github.com/owner/repo/issues/1",
-        "user": {"login": login, "type": user_type},
-    }
-    if pull_request:
-        issue["pull_request"] = {"url": "https://example.invalid/pull/1"}
-    return issue
-
-
-def _renovate_pull_request(
-    updated_at: str,
-    created_at: str | None = None,
-    *,
-    number: int = 7,
-    login: str = "renovate[bot]",
-    user_type: str = "Bot",
-    is_pull_request: bool = True,
-) -> dict[str, Any]:
-    item: dict[str, Any] = {
-        "title": "Update dependency rhysd/actionlint",
-        "created_at": created_at if created_at is not None else updated_at,
-        "updated_at": updated_at,
-        "html_url": f"https://github.com/owner/repo/pull/{number}",
-        "user": {"login": login, "type": user_type},
-    }
-    if is_pull_request:
-        item["pull_request"] = {
-            "html_url": f"https://github.com/owner/repo/pull/{number}"
-        }
-    return item
-
-
-def _iso_days_ago(days: float) -> str:
-    moment = tasks.datetime.datetime.now(
-        tz=tasks.datetime.UTC
-    ) - tasks.datetime.timedelta(days=days)
-    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _issues_url(page: int, repository: str = "owner/repo") -> str:
-    return tasks.renovate_dashboard_issues_urls(repository)[page - 1]
-
-
-def _search_url(repository: str = "owner/repo") -> str:
-    return tasks.renovate_pull_requests_search_url(repository)
-
-
-def _search_payload(
-    items: list[dict[str, Any]], *, incomplete: bool = False
-) -> dict[str, Any]:
-    return {
-        "total_count": len(items),
-        "incomplete_results": incomplete,
-        "items": items,
-    }
-
-
-def _stub_github_json(
-    monkeypatch: pytest.MonkeyPatch, responses: dict[str, object]
-) -> list[str]:
-    """Serve one canned JSON payload (or exception) per URL, recording calls."""
-    requested: list[str] = []
-
-    def open_url(url: str, _timeout: int) -> _FakeChecksumResponse:
-        requested.append(url)
-        if url not in responses:
-            pytest.fail(f"unexpected GitHub request: {url}")
-        payload = responses[url]
-        if isinstance(payload, Exception):
-            raise payload
-        return _FakeChecksumResponse(json.dumps(payload).encode())
-
-    monkeypatch.setattr(tasks, "open_github_url", open_url)
-    monkeypatch.setattr(tasks, "resolve_github_repository", lambda: "owner/repo")
-    return requested
-
-
-def test_renovate_activity_passes_on_a_recent_dashboard_update(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _stub_github_json(
-        monkeypatch,
-        {
-            _issues_url(1): [_dashboard_issue(_iso_days_ago(1))],
-            _search_url(): _search_payload([]),
-        },
-    )
-
-    finding = tasks.evaluate_renovate_activity()
-
-    assert finding.status == "pass"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_OBSERVED
-    assert "https://github.com/owner/repo/issues/1" in finding.evidence
-
-
-def test_renovate_activity_passes_on_a_recent_pull_request_without_a_dashboard(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Renovate only writes the dashboard when it has something to change.
-
-    A repository with no open dashboard can still be actively served by the
-    app, so a recent Renovate-authored pull request is on its own enough.
-    """
-    _stub_github_json(
-        monkeypatch,
-        {
-            _issues_url(1): [],
-            _search_url(): _search_payload(
-                [_renovate_pull_request(_iso_days_ago(2), _iso_days_ago(3))]
-            ),
-        },
-    )
-
-    finding = tasks.evaluate_renovate_activity()
-
-    assert finding.status == "pass"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_OBSERVED
-    assert "Renovate pull request" in finding.detail
-    assert "https://github.com/owner/repo/pull/7" in finding.evidence
-
-
-def test_renovate_activity_takes_the_newest_of_every_observed_signal(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A long-untouched dashboard is not evidence of an inactive app."""
-    _stub_github_json(
-        monkeypatch,
-        {
-            _issues_url(1): [
-                _dashboard_issue(
-                    _iso_days_ago(tasks.RENOVATE_ACTIVITY_WINDOW_DAYS + 90)
-                )
-            ],
-            _search_url(): _search_payload(
-                [_renovate_pull_request(_iso_days_ago(3), _iso_days_ago(400))]
-            ),
-        },
-    )
-
-    finding = tasks.evaluate_renovate_activity()
-
-    assert finding.status == "pass"
-    assert finding.published == _iso_days_ago(3)
-
-
-def test_renovate_activity_is_unverified_when_nothing_was_ever_observed(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _stub_github_json(
-        monkeypatch,
-        {_issues_url(1): [], _search_url(): _search_payload([])},
-    )
-
-    finding = tasks.evaluate_renovate_activity()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_RENOVATE_NOT_OBSERVED
-    assert "activity could not be confirmed" in finding.detail
-
-
-def test_renovate_activity_outside_the_window_does_not_claim_the_app_stopped(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    stale = _iso_days_ago(tasks.RENOVATE_ACTIVITY_WINDOW_DAYS + 1)
-    _stub_github_json(
-        monkeypatch,
-        {
-            _issues_url(1): [_dashboard_issue(stale)],
-            _search_url(): _search_payload([_renovate_pull_request(stale)]),
-        },
-    )
-
-    finding = tasks.evaluate_renovate_activity()
-
-    assert tasks.RENOVATE_ACTIVITY_WINDOW_DAYS == 14
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_UNOBSERVED
-    assert "could not be confirmed from recent public activity" in finding.detail
-    assert "does not establish that the app was removed or disabled" in finding.detail
-
-
-def test_renovate_activity_accepts_the_boundary_of_the_observation_window(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fresh = _iso_days_ago(tasks.RENOVATE_ACTIVITY_WINDOW_DAYS - 0.5)
-    _stub_github_json(
-        monkeypatch,
-        {
-            _issues_url(1): [_dashboard_issue(fresh)],
-            _search_url(): _search_payload([]),
-        },
-    )
-
-    finding = tasks.evaluate_renovate_activity()
-
-    assert finding.status == "pass"
-
-
-def test_renovate_activity_is_unverified_when_a_lookup_is_rate_limited(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A throttled API says nothing about Renovate, so it is an evidence gap."""
-    _stub_github_json(
-        monkeypatch,
-        {
-            _issues_url(1): [],
-            _search_url(): urllib.error.HTTPError(
-                _search_url(), 403, "rate limit exceeded", email.message.Message(), None
-            ),
-        },
-    )
-
-    finding = tasks.evaluate_renovate_activity()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE
-    assert "rate limit" in finding.detail
-
-
-def test_renovate_activity_prefers_a_fresh_observation_over_a_partial_gap(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """One failing endpoint cannot erase activity the other one proved."""
-    _stub_github_json(
-        monkeypatch,
-        {
-            _issues_url(1): [_dashboard_issue(_iso_days_ago(1))],
-            _search_url(): urllib.error.HTTPError(
-                _search_url(), 429, "too many requests", email.message.Message(), None
-            ),
-        },
-    )
-
-    finding = tasks.evaluate_renovate_activity()
-
-    assert finding.status == "pass"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_OBSERVED
-
-
-def test_renovate_activity_is_unverified_when_the_repository_is_unknown(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def unavailable() -> str:
-        raise tasks.RenovateEvidenceUnavailableError("no origin remote")
-
-    monkeypatch.setattr(tasks, "resolve_github_repository", unavailable)
-
-    finding = tasks.evaluate_renovate_activity()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE
-    assert "freshness evidence was unavailable" in finding.detail
-
-
-def test_renovate_activity_never_reports_fail_for_configuration_defects(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Configuration is check-renovate-config's business, not this target's.
-
-    The activity evaluator must not even read renovate.json: doing so gave one
-    defect two owners and let an external observation return ``fail``.
-    """
-
-    def unreadable() -> dict[str, Any]:
-        pytest.fail("evaluate_renovate_activity must not read renovate.json")
-
-    monkeypatch.setattr(tasks, "load_renovate_config", unreadable)
-    _stub_github_json(
-        monkeypatch,
-        {_issues_url(1): [], _search_url(): _search_payload([])},
-    )
-
-    finding = tasks.evaluate_renovate_activity()
-
-    assert finding.status != "fail"
-
-
-def test_renovate_dashboard_lookup_pages_past_a_full_first_page(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A busy issue tracker must not make a present dashboard look absent."""
-    filler = [
-        _dashboard_issue(_iso_days_ago(1), title=f"unrelated {index}", login="someone")
-        for index in range(tasks.RENOVATE_ISSUES_PER_PAGE)
-    ]
-    requested = _stub_github_json(
-        monkeypatch,
-        {
-            _issues_url(1): filler,
-            _issues_url(2): [_dashboard_issue(_iso_days_ago(1))],
-        },
-    )
-
-    issue = tasks.fetch_renovate_dashboard_issue("owner/repo")
-
-    assert issue is not None
-    assert requested == [_issues_url(1), _issues_url(2)]
-
-
-def test_renovate_dashboard_lookup_is_unverified_when_pages_run_out(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    filler = [
-        _dashboard_issue(_iso_days_ago(1), title=f"unrelated {index}", login="someone")
-        for index in range(tasks.RENOVATE_ISSUES_PER_PAGE)
-    ]
-    _stub_github_json(
-        monkeypatch,
-        {
-            _issues_url(page): filler
-            for page in range(1, tasks.RENOVATE_ISSUES_MAX_PAGES + 1)
-        },
-    )
-
-    with pytest.raises(tasks.RenovateEvidenceUnavailableError):
-        tasks.fetch_renovate_dashboard_issue("owner/repo")
-
-
-def test_renovate_dashboard_lookup_rejects_impostor_issues(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Only the Renovate app's own dashboard issue counts as an observation."""
-    payload = [
-        _dashboard_issue(_iso_days_ago(1), pull_request=True),
-        _dashboard_issue(_iso_days_ago(1), login="someone", user_type="User"),
-        _dashboard_issue(_iso_days_ago(1), login="other[bot]"),
-        _dashboard_issue(_iso_days_ago(1), title="Dependency Dashboard (draft)"),
-    ]
-    _stub_github_json(monkeypatch, {_issues_url(1): payload})
-
-    assert tasks.fetch_renovate_dashboard_issue("owner/repo") is None
-
-    payload.append(_dashboard_issue(_iso_days_ago(2)))
-
-    issue = tasks.fetch_renovate_dashboard_issue("owner/repo")
-
-    assert issue is not None
-    assert issue["user"]["login"] == "renovate[bot]"
-
-
-def test_renovate_pull_request_lookup_rejects_non_renovate_results(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Search results are re-checked, so only Renovate-authored PRs count."""
-    _stub_github_json(
-        monkeypatch,
-        {
-            _search_url(): _search_payload(
-                [
-                    _renovate_pull_request(_iso_days_ago(1), is_pull_request=False),
-                    _renovate_pull_request(
-                        _iso_days_ago(1), login="someone", user_type="User"
-                    ),
-                    _renovate_pull_request(_iso_days_ago(1), login="other[bot]"),
-                    _renovate_pull_request(_iso_days_ago(5), number=9),
-                ]
-            )
-        },
-    )
-
-    matched = tasks.fetch_renovate_pull_requests("owner/repo")
-
-    assert [item["html_url"] for item in matched] == [
-        "https://github.com/owner/repo/pull/9"
-    ]
-
-
-def test_renovate_pull_request_lookup_is_unverified_on_incomplete_results(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A truncated search cannot establish that Renovate never opened a PR."""
-    _stub_github_json(
-        monkeypatch,
-        {_search_url(): _search_payload([], incomplete=True)},
-    )
-
-    with pytest.raises(tasks.RenovateEvidenceUnavailableError):
-        tasks.fetch_renovate_pull_requests("owner/repo")
-
-
-def test_renovate_activity_lookup_never_prints_the_token(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    monkeypatch.setenv("GITHUB_TOKEN", "secret-token-value")
-    _stub_github_json(
-        monkeypatch,
-        {
-            _issues_url(1): [_dashboard_issue(_iso_days_ago(1))],
-            _search_url(): _search_payload([]),
-        },
-    )
-
-    headers = tasks.github_api_request_headers()
-    finding = tasks.evaluate_renovate_activity()
-
-    assert "secret-token-value" in headers["Authorization"]
-    output = capsys.readouterr()
-    assert "secret-token-value" not in output.out + output.err
-    assert "secret-token-value" not in finding.detail + " ".join(finding.evidence)
-
-
-def test_resolve_github_repository_prefers_the_environment_then_origin(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/from-env")
-
-    assert tasks.resolve_github_repository() == "owner/from-env"
-
-    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
-    monkeypatch.setattr(
-        tasks,
-        "command_output",
-        lambda *_args, **_kwargs: "https://github.com/owner/from-remote.git\n",
-    )
-
-    assert tasks.resolve_github_repository() == "owner/from-remote"
-
-    monkeypatch.setattr(tasks, "command_output", lambda *_args, **_kwargs: "")
-
-    with pytest.raises(tasks.RenovateEvidenceUnavailableError):
-        tasks.resolve_github_repository()
-
-
 def test_freshness_checks_output_stays_exit_zero_for_fail_and_unverified(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1348,14 +919,14 @@ def test_freshness_checks_output_stays_exit_zero_for_fail_and_unverified(
         "collect_freshness_findings",
         lambda: [
             tasks.FreshnessFinding(
-                "Renovate app activity",
-                ".github/renovate.json",
+                "gh-aw",
+                ".github/workflows/copilot-setup-steps.yml",
                 "unverified",
-                tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_UNOBSERVED,
+                tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
                 None,
                 None,
                 (),
-                "activity could not be confirmed",
+                "release evidence unavailable",
             ),
             tasks.FreshnessFinding(
                 "Lefthook",
@@ -1376,7 +947,7 @@ def test_freshness_checks_output_stays_exit_zero_for_fail_and_unverified(
     document = json.loads(output.read_text(encoding="utf-8"))
     assert document["status"] == "fail"
     assert {finding["reason_code"] for finding in document["findings"]} == {
-        "renovate-activity-unobserved",
+        "evidence-unavailable",
         "checksum-mismatch",
     }
 
@@ -1462,6 +1033,7 @@ def test_freshness_document_serializes_reason_codes_and_evidence() -> None:
     entry = document["findings"][0]
 
     assert entry["reason_code"] == "update-available"
+    assert entry["tool"] == "lefthook"
     assert entry["current"] == "2.1.10"
     assert entry["published"] == "2.1.12"
     assert entry["evidence"] == ["https://example.invalid/releases"]
@@ -1493,6 +1065,26 @@ def test_freshness_checks_target_is_registered() -> None:
     assert "freshness-checks" in tasks.TARGETS
 
 
+def test_update_non_renovate_tool_dispatches_registered_updater(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        tasks, "target_update_lefthook_pin", lambda version: calls.append(version)
+    )
+
+    tasks.target_update_non_renovate_tool("lefthook", "2.1.12")
+
+    assert calls == ["2.1.12"]
+
+
+def test_update_non_renovate_tool_rejects_unknown_tool() -> None:
+    with pytest.raises(SystemExit) as error:
+        tasks.target_update_non_renovate_tool("unknown", "1.0.0")
+
+    assert error.value.code == 1
+
+
 def test_classify_gh_aw_compiler_pin_rejects_known_stale_example() -> None:
     """Pin the known real-world gap (pinned v0.79.6, latest v0.86.2).
 
@@ -1515,6 +1107,26 @@ def test_classify_gh_aw_compiler_pin_passes_when_versions_match() -> None:
 
     assert status == "pass"
     assert "matches the latest stable release" in message
+
+
+def test_classify_gh_aw_compiler_pin_never_proposes_a_downgrade() -> None:
+    status, message = tasks.classify_gh_aw_compiler_pin("v0.88.7", "v0.88.6")
+
+    assert status == "unverified"
+    assert "no automated downgrade" in message
+
+
+def test_evaluate_gh_aw_pin_marks_pinned_ahead_without_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tasks, "read_gh_aw_setup_version", lambda: "v0.88.7")
+    monkeypatch.setattr(tasks, "fetch_gh_aw_latest_release", lambda: "v0.88.6")
+
+    finding = tasks.evaluate_gh_aw_pin()
+
+    assert finding.status == "unverified"
+    assert finding.reason_code == tasks.FRESHNESS_REASON_PINNED_AHEAD
+    assert "no automated downgrade" in finding.detail
 
 
 def test_classify_gh_aw_compiler_pin_fails_on_malformed_version() -> None:
@@ -1574,6 +1186,82 @@ def test_fetch_gh_aw_latest_release_raises_when_tag_name_missing(
 
     with pytest.raises(tasks.GhAwReleaseUnavailableError):
         tasks.fetch_gh_aw_latest_release()
+
+
+def test_fetch_gh_aw_actions_sha_peels_annotated_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = iter(
+        (
+            _FakeChecksumResponse(
+                json.dumps({"object": {"type": "tag", "sha": "a" * 40}}).encode()
+            ),
+            _FakeChecksumResponse(
+                json.dumps({"object": {"type": "commit", "sha": "b" * 40}}).encode()
+            ),
+        )
+    )
+    monkeypatch.setattr(
+        tasks.urllib.request,
+        "urlopen",
+        lambda _request, timeout=None: next(responses),
+    )
+
+    assert tasks.fetch_gh_aw_actions_sha("v0.88.7") == "b" * 40
+
+
+def test_update_gh_aw_setup_pin_updates_sha_comment_and_version(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(tasks, "ROOT", tmp_path)
+    path = tmp_path / tasks.GH_AW_SETUP_WORKFLOW
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "steps:\n"
+        "  - uses: github/gh-aw-actions/setup-cli@" + "a" * 40 + " # v0.1.0\n"
+        "    with:\n"
+        "      version: v0.1.0\n",
+        encoding="utf-8",
+    )
+
+    tasks.update_gh_aw_setup_pin("v0.2.0", "b" * 40)
+
+    updated = path.read_text(encoding="utf-8")
+    assert f"setup-cli@{'b' * 40} # v0.2.0" in updated
+    assert "version: v0.2.0" in updated
+
+
+def test_update_gh_aw_updater_action_pin_updates_sha_and_comment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(tasks, "ROOT", tmp_path)
+    path = tmp_path / tasks.GH_AW_UPDATER_WORKFLOW
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "steps:\n"
+        "  - uses: github/gh-aw-actions/setup-cli@" + "a" * 40 + " # v0.1.0\n"
+        "    with:\n"
+        "      version: ${{ matrix.update.version }}\n",
+        encoding="utf-8",
+    )
+
+    tasks.update_gh_aw_updater_action_pin("v0.2.0", "b" * 40)
+
+    updated = path.read_text(encoding="utf-8")
+    assert f"setup-cli@{'b' * 40} # v0.2.0" in updated
+    assert "version: ${{ matrix.update.version }}" in updated
+
+
+def test_update_gh_aw_requires_the_requested_cli_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tasks, "target_check_gh_aw", lambda: None)
+    monkeypatch.setattr(tasks, "installed_gh_aw_version", lambda: "v0.1.0")
+
+    with pytest.raises(SystemExit) as error:
+        tasks.target_update_gh_aw("v0.2.0")
+
+    assert error.value.code == 1
 
 
 def _write_range_fixture(repository: Path, azd_range: str, bundle_version: str) -> None:
@@ -4080,8 +3768,7 @@ def test_review_repo_agent_contract() -> None:
     assert "（finally相当）" in body
     assert "`review-repo-fast`の全検査" in body
     assert "Bicep parameter JSON" in body
-    # Fast is the offline layer. It must not claim any external lookup, and the
-    # scheduled mechanisms must stay named as the owners of update detection.
+    # Fast is the offline layer. It must not claim any external lookup.
     fast_row = body.split("| `review-repo-fast` task target |", 1)[1].split(
         "| review-repo agentのfastモード |", 1
     )[0]
@@ -4091,10 +3778,7 @@ def test_review_repo_agent_contract() -> None:
     assert "隔離copyでしか実行できない検査だけを追加する" in body
     assert "fastが判定済みのversion契約も再実行しない" in body
     assert "`review-repo-fast`はオフラインで完結し、外部APIもDockerも使わない" in body
-    assert (
-        "最新版候補の検出はscheduledな仕組みへ委譲済みであり、fastでは実行しない"
-        in body
-    )
+    assert "最新版候補の検出はscheduledな仕組みへ委譲済み" in body
     assert "全Kubernetes YAML" in body
     assert "Chaos Mesh chart" in body
     assert "`kubernetes-schema-exclusion`座標で`excluded`" in body
@@ -4127,11 +3811,11 @@ def test_review_repo_agent_contract() -> None:
     assert "`repository-freshness-checker`" in execution_steps
     assert "`bicep-api-version-updater`のcheck-onlyモード" in execution_steps
     assert "手順2と同じinventory JSON" in execution_steps
-    assert "`documentation-external-link`座標だけを全件処理" in execution_steps
-    assert "scheduled workflowが担当するversion関連の意味評価は実行しない" in (
-        execution_steps
-    )
-    assert "意味評価はfull" not in body
+    assert (
+        "`documentation-external-link`、`docker-base-image`、"
+        "`function-extension-bundle`座標を全件処理"
+    ) in execution_steps
+    assert "version更新候補は再検出しない" in execution_steps
     assert "Bicep resource APIの結果が返らない場合" in execution_steps
     assert "その領域を`unverified`とする" in execution_steps
     assert "pass" in body
@@ -4175,29 +3859,25 @@ def test_repository_freshness_skill_contract() -> None:
     assert frontmatter["name"] == "repository-freshness-checker"
     assert "review-repo full" in frontmatter["description"]
     assert "check-only" in body
-    assert "repo health inventory JSON" in body
+    assert "inventory JSON" in body
     assert (
         "review-repo-full --inventory-json <absolute-path> "
         "--results-json <absolute-path>" in body
     )
-    assert "inventory-repo --format json" in body
     assert "別のinventory生成コマンドを実行せず" in body
-    assert "同じ検出・検証をこのスキルがやり直さない" in body
-    for subject in (
-        "gh-aw",
-        "Lefthook",
-        "actionlint",
-        "kubeconform",
-        "azd",
-        "Chaos Mesh Helm chart",
-        "Docker base image",
-        "Azure Functions extension bundle",
-    ):
+    assert "同じ更新候補を再検出しない" in body
+    for subject in ("Docker base image", "Azure Functions extension bundle"):
         assert subject in body
+    for category in (
+        "`documentation-external-link`",
+        "`docker-base-image`",
+        "`function-extension-bundle`",
+    ):
+        assert category in body
     for boundary in (
         "check-version-pins",
-        "check-renovate-config",
-        "freshness-checks",
+        "repository-freshness-check.yml",
+        "bicep-api-version-updater",
     ):
         assert boundary in body
     assert "bicep-version-check.yml" not in body
@@ -4245,7 +3925,6 @@ def test_each_skill_directory_contains_skill_document() -> None:
 ONLINE_TARGET_NAMES = (
     "freshness-checks",
     "check-renovate-config",
-    "check-renovate-activity",
     "update-lefthook-pin",
 )
 
@@ -4397,9 +4076,7 @@ def test_version_ranges_are_never_compared_against_a_latest_release() -> None:
     assert tasks.functions_bundle_support_range().startswith("[")
     assert "azd" not in tasks.FRESHNESS_CHECK_SUBJECTS
     assert "Azure Functions extension bundle" not in tasks.FRESHNESS_CHECK_SUBJECTS
-    assert "scheduled freshness workflow" in (
-        tasks.azd_minimum_version_range.__doc__ or ""
-    )
+    assert "exact pin" in (tasks.azd_minimum_version_range.__doc__ or "")
     renovate_targets = {
         item.target_path for item in tasks.RENOVATE_MANAGER_EXPECTATIONS
     }
@@ -4411,7 +4088,7 @@ def test_scheduled_checker_reports_exactly_the_non_renovate_subjects(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """The scheduled JSON carries gh-aw, Lefthook, and Renovate app activity."""
+    """The scheduled JSON carries only tools Renovate cannot update safely."""
     monkeypatch.setattr(
         tasks,
         "evaluate_gh_aw_pin",
@@ -4433,20 +4110,6 @@ def test_scheduled_checker_reports_exactly_the_non_renovate_subjects(
             "d",
         ),
     )
-    monkeypatch.setattr(
-        tasks,
-        "evaluate_renovate_activity",
-        lambda: tasks.FreshnessFinding(
-            tasks.FRESHNESS_SUBJECT_RENOVATE_ACTIVITY,
-            "c",
-            "pass",
-            tasks.FRESHNESS_REASON_RENOVATE_ACTIVITY_OBSERVED,
-            None,
-            None,
-            (),
-            "d",
-        ),
-    )
     output = tmp_path / "freshness.json"
 
     tasks.target_freshness_checks(output)
@@ -4455,6 +4118,9 @@ def test_scheduled_checker_reports_exactly_the_non_renovate_subjects(
     assert [finding["subject"] for finding in document["findings"]] == [
         "gh-aw",
         "Lefthook",
-        "Renovate app activity",
+    ]
+    assert [finding["tool"] for finding in document["findings"]] == [
+        "gh-aw",
+        "lefthook",
     ]
     assert document["status"] == "unverified"

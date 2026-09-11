@@ -1,0 +1,204 @@
+name: Update non-Renovate tools
+
+on:
+  schedule:
+    - cron: "0 0 * * 3"
+  workflow_dispatch:
+
+concurrency:
+  group: repository-freshness-check
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check tool updates
+    runs-on: ubuntu-latest
+    outputs:
+      updates: ${{ steps.updates.outputs.updates }}
+      update_count: ${{ steps.updates.outputs.update_count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Setup uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          resolution-strategy: "lowest"
+          python-version: "3.14"
+      - name: Check non-Renovate tools
+        run: >-
+          uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py"
+          freshness-checks --output "${RUNNER_TEMP}/freshness.json"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Validate check results
+        run: >-
+          jq -e
+          'all(.findings[];
+          (.reason_code == "current" or .reason_code == "update-available") and
+          (.published | type == "string") and
+          (if .tool == "gh-aw" then
+             (.published | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))
+           elif .tool == "lefthook" then
+             (.published | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
+           else
+             false
+           end))'
+          "${RUNNER_TEMP}/freshness.json"
+      - name: Select update candidates
+        id: updates
+        shell: bash
+        run: |
+          updates="$(
+            jq -c '[
+              .findings[]
+              | select(.reason_code == "update-available")
+              | {tool: .tool, version: .published}
+            ]' "${RUNNER_TEMP}/freshness.json"
+          )"
+          update_count="$(jq 'length' <<<"${updates}")"
+          echo "updates=${updates}" >>"${GITHUB_OUTPUT}"
+          echo "update_count=${update_count}" >>"${GITHUB_OUTPUT}"
+          {
+            echo "## Non-Renovate tool updates"
+            echo
+            if [[ "${update_count}" == "0" ]]; then
+              echo "No updates are available."
+            else
+              jq -r '.[] | "- \(.tool): \(.version)"' <<<"${updates}"
+            fi
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+  update:
+    name: Update ${{ matrix.update.tool }}
+    if: needs.check.outputs.update_count != '0'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TOOL: ${{ matrix.update.tool }}
+      VERSION: ${{ matrix.update.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        update: ${{ fromJSON(needs.check.outputs.updates) }}
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Setup uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          resolution-strategy: "lowest"
+          python-version: "3.14"
+      - name: Install target gh-aw
+        if: matrix.update.tool == 'gh-aw'
+        uses: github/gh-aw-actions/setup-cli@5e508589e03a7757a7e05b26e834292f5445bfb6 # v0.88.7
+        with:
+          version: ${{ matrix.update.version }}
+      - name: Update tool
+        run: >-
+          uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py"
+          update-non-renovate-tool
+          --tool "${TOOL}"
+          --version "${VERSION}"
+      - name: Install target Lefthook
+        if: matrix.update.tool == 'lefthook'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pinned_version="$(
+            sed -n 's/^[[:space:]]*LEFTHOOK_VERSION=\([0-9.]*\)$/\1/p' \
+              .github/workflows/ci.yml
+          )"
+          pinned_checksum="$(
+            sed -n 's/^[[:space:]]*LEFTHOOK_SHA256=\([0-9a-f]*\)$/\1/p' \
+              .github/workflows/ci.yml
+          )"
+          [[ "${pinned_version}" == "${VERSION}" ]]
+          [[ "${pinned_checksum}" =~ ^[0-9a-f]{64}$ ]]
+          mkdir -p "${HOME}/.local/bin"
+          curl -fsSL -o "${RUNNER_TEMP}/lefthook.gz" \
+            "https://github.com/evilmartians/lefthook/releases/download/v${pinned_version}/lefthook_${pinned_version}_Linux_x86_64.gz"
+          echo "${pinned_checksum}  ${RUNNER_TEMP}/lefthook.gz" | sha256sum -c -
+          gzip -dc "${RUNNER_TEMP}/lefthook.gz" >"${HOME}/.local/bin/lefthook"
+          chmod +x "${HOME}/.local/bin/lefthook"
+          echo "${HOME}/.local/bin" >>"${GITHUB_PATH}"
+      - name: Validate update
+        shell: bash
+        run: |
+          case "${TOOL}" in
+            gh-aw)
+              uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py" check-repo-health
+              uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py" compile-aw
+              ;;
+            lefthook)
+              uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py" check-version-pins
+              uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py" test-hooks
+              ;;
+            *)
+              echo "Unsupported tool: ${TOOL}" >&2
+              exit 1
+              ;;
+          esac
+      - name: Create update pull request
+        id: pull-request
+        shell: bash
+        env:
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="automation/update-${TOOL}-${VERSION}"
+          title="chore(deps): update ${TOOL} to ${VERSION}"
+          existing_pr="$(
+            gh pr list --state all --head "${branch}" --json url \
+              --jq '.[0].url // empty'
+          )"
+
+          if [[ -n "${existing_pr}" ]]; then
+            echo "Existing pull request: ${existing_pr}" >>"${GITHUB_STEP_SUMMARY}"
+            echo "created=false" >>"${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
+            echo "Branch ${branch} already exists without an open pull request." >&2
+            exit 1
+          fi
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "The updater produced no changes for ${TOOL} ${VERSION}." >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "${branch}"
+          git add --all
+          git commit -m "${title}"
+          git push --set-upstream origin "${branch}"
+          pr_url="$(
+            gh pr create \
+              --base "${BASE_BRANCH}" \
+              --head "${branch}" \
+              --title "${title}" \
+              --body "Updates ${TOOL} to ${VERSION}. The scheduled updater validated the generated changes before opening this pull request."
+          )"
+          echo "Pull request: ${pr_url}" >>"${GITHUB_STEP_SUMMARY}"
+          echo "branch=${branch}" >>"${GITHUB_OUTPUT}"
+          echo "created=true" >>"${GITHUB_OUTPUT}"
+      - name: Run CI on update branch
+        if: steps.pull-request.outputs.created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref "${{ steps.pull-request.outputs.branch }}"

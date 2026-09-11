@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import codecs
-import datetime
 import hashlib
 import importlib
 import json
@@ -23,7 +22,6 @@ import tempfile
 import time
 import tomllib
 import urllib.error
-import urllib.parse
 import urllib.request
 from collections.abc import Callable, Sequence
 from contextlib import suppress
@@ -119,37 +117,6 @@ RENOVATE_VALIDATOR_TIMEOUT_SECONDS = 300
 # error, so its presence separates "the validator ran and rejected the config"
 # (a repository defect) from "the container never got that far" (evidence gap).
 RENOVATE_VALIDATOR_RAN_MARKER = "Validating"
-# A valid renovate.json says nothing about the hosted Renovate app being
-# installed and enabled, so the app's *public activity* on this repository is
-# observed separately. Renovate does not publish a heartbeat: the Dependency
-# Dashboard issue is only rewritten when Renovate has something to change, so
-# its updated_at is a lower bound on activity, not a per-run ping. The
-# observable facts are therefore combined -- the Dependency Dashboard issue's
-# updated_at plus the created_at/updated_at of pull requests authored by the
-# Renovate app (open and closed) -- and the most recent of them is compared
-# against an observation window. Nothing here proves the app is stopped; a
-# window with no observations is "unverified", never "fail".
-RENOVATE_DASHBOARD_TITLE = "Dependency Dashboard"
-RENOVATE_BOT_LOGINS = ("renovate[bot]", "renovate-bot")
-RENOVATE_ACTIVITY_WINDOW_DAYS = 14
-RENOVATE_ISSUES_PER_PAGE = 100
-# Open-issue listing is paginated explicitly instead of trusting one page: a
-# repository with more open issues than a single page would otherwise let a
-# present dashboard look absent.
-RENOVATE_ISSUES_MAX_PAGES = 10
-RENOVATE_ISSUES_API_TEMPLATE = (
-    "https://api.github.com/repos/{repository}/issues"
-    "?state=open&per_page={per_page}&sort=updated&direction=desc&page={page}"
-)
-# The search API is used for pull requests because it can filter by the
-# Renovate app author across open and closed pull requests and return them
-# newest-updated first, so one request bounds the most recent activity.
-RENOVATE_PULLS_SEARCH_QUERY = "repo:{repository} is:pr author:app/renovate"
-RENOVATE_PULLS_SEARCH_API_TEMPLATE = (
-    "https://api.github.com/search/issues"
-    "?q={query}&sort=updated&order=desc&per_page=100&advanced_search=true"
-)
-RENOVATE_ACTIVITY_TIMEOUT_SECONDS = 15
 LEFTHOOK_CI_WORKFLOW = Path(".github/workflows/ci.yml")
 LEFTHOOK_RELEASES_API = (
     "https://api.github.com/repos/evilmartians/lefthook/releases/latest"
@@ -161,12 +128,9 @@ LEFTHOOK_CHECKSUMS_URL_TEMPLATE = (
 LEFTHOOK_LINUX_ASSET_TEMPLATE = "lefthook_{version}_Linux_x86_64.gz"
 LEFTHOOK_NETWORK_TIMEOUT_SECONDS = 15
 APPROVED_INDEX_CACHE_DIRECTORY = Path(".uv-state") / "cache"
-# Subjects of the scheduled freshness evaluators. Every one of them needs an
-# external lookup, so they belong to the scheduled workflow only; the offline
-# review layer never re-runs them.
+# Subjects of tool update checks that Renovate cannot safely complete.
 FRESHNESS_SUBJECT_GH_AW = "gh-aw"
 FRESHNESS_SUBJECT_LEFTHOOK = "Lefthook"
-FRESHNESS_SUBJECT_RENOVATE_ACTIVITY = "Renovate app activity"
 REVIEW_MAX_UNTRACKED_FILE_BYTES = 10 * 1024 * 1024
 REVIEW_CHECK_TIMEOUT_SECONDS = 300
 REVIEW_GIT_TIMEOUT_SECONDS = 30
@@ -2841,32 +2805,20 @@ def target_install_tools() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Scheduled freshness checks
+# Non-Renovate tool update checks
 #
-# These are the update candidates Renovate cannot detect here: the gh-aw
-# compiler pin, the Lefthook version/checksum pair, and whether the Renovate app
-# itself still shows public activity. They all need an external lookup, so they
-# run from the scheduled workflow only and never from a review. ``status``
-# follows the review vocabulary (pass/fail/unverified/excluded);
-# ``reason_code`` separates a maintainer-review-gated update
-# ("update-available") from missing public evidence ("evidence-unavailable").
+# These checks own only tools whose update cannot be completed safely by
+# Renovate. They emit structured evidence for an ordinary scheduled Actions
+# workflow, which opens a validated pull request for each update candidate.
 # ---------------------------------------------------------------------------
 FRESHNESS_SCHEMA_VERSION = 1
 FRESHNESS_REASON_CURRENT = "current"
 FRESHNESS_REASON_UPDATE_AVAILABLE = "update-available"
+FRESHNESS_REASON_PINNED_AHEAD = "pinned-ahead"
 FRESHNESS_REASON_EVIDENCE_UNAVAILABLE = "evidence-unavailable"
 FRESHNESS_REASON_COORDINATE_ANOMALY = "coordinate-anomaly"
 FRESHNESS_REASON_CHECKSUM_MISMATCH = "checksum-mismatch"
 FRESHNESS_REASON_VERSION_MALFORMED = "version-malformed"
-# The Renovate app runs outside this repository, so its observable public
-# activity has its own reason codes: "renovate-not-observed" means GitHub shows
-# no Dependency Dashboard and no Renovate-authored pull request at all,
-# "renovate-activity-unobserved" means the newest observable activity predates
-# the observation window (which does not prove the app stopped), and both are
-# distinct from "evidence-unavailable" (the lookup itself could not run).
-FRESHNESS_REASON_RENOVATE_ACTIVITY_OBSERVED = "renovate-activity-observed"
-FRESHNESS_REASON_RENOVATE_NOT_OBSERVED = "renovate-not-observed"
-FRESHNESS_REASON_RENOVATE_ACTIVITY_UNOBSERVED = "renovate-activity-unobserved"
 FRESHNESS_STATUSES = frozenset({"pass", "fail", "unverified", "excluded"})
 
 # Fixed phrases that keep an evidence gap distinguishable from a repository
@@ -2953,6 +2905,7 @@ def freshness_document(findings: Sequence[FreshnessFinding]) -> dict[str, Any]:
         "coverage": coverage,
         "findings": [
             {
+                "tool": non_renovate_tool_id(finding.subject),
                 "subject": finding.subject,
                 "coordinate": finding.coordinate,
                 "status": finding.status,
@@ -3006,6 +2959,13 @@ def _replace_pin_value(match: re.Match[str], value: str) -> str:
     """
     text = match.string
     start, end = match.span("value")
+    return text[:start] + value + text[end:]
+
+
+def _replace_match_group(
+    text: str, match: re.Match[str], group: str, value: str
+) -> str:
+    start, end = match.span(group)
     return text[:start] + value + text[end:]
 
 
@@ -3070,7 +3030,12 @@ def fetch_lefthook_latest_release() -> str:
         raise LefthookReleaseUnavailableError(
             f"{LEFTHOOK_RELEASES_API} response did not include a tag_name"
         )
-    return tag.lstrip("v")
+    version = tag.removeprefix("v")
+    if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
+        raise LefthookReleaseUnavailableError(
+            f"{LEFTHOOK_RELEASES_API} returned malformed tag_name {tag!r}"
+        )
+    return version
 
 
 def evaluate_lefthook_pin() -> FreshnessFinding:
@@ -3146,7 +3111,20 @@ def evaluate_lefthook_pin() -> FreshnessFinding:
             FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE.format(subject=subject)
             + f": {error}",
         )
-    if latest != version:
+    current_parsed = parse_gh_aw_version(version)
+    latest_parsed = parse_gh_aw_version(latest)
+    if current_parsed is None or latest_parsed is None:
+        return FreshnessFinding(
+            subject,
+            coordinate,
+            "unverified",
+            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
+            version,
+            latest,
+            (LEFTHOOK_RELEASES_API,),
+            f"could not compare Lefthook versions {version!r} and {latest!r}",
+        )
+    if latest_parsed > current_parsed:
         return FreshnessFinding(
             subject,
             coordinate,
@@ -3158,6 +3136,18 @@ def evaluate_lefthook_pin() -> FreshnessFinding:
             f"pinned Lefthook {version} differs from the latest stable release "
             f"{latest}; the pinned checksum is valid, but bumping the pin "
             f"{FRESHNESS_UPDATE_AVAILABLE_PHRASE}",
+        )
+    if current_parsed > latest_parsed:
+        return FreshnessFinding(
+            subject,
+            coordinate,
+            "unverified",
+            FRESHNESS_REASON_PINNED_AHEAD,
+            version,
+            latest,
+            (LEFTHOOK_RELEASES_API,),
+            f"pinned Lefthook {version} is newer than the latest stable release "
+            f"{latest}; no automated downgrade will be created",
         )
     return FreshnessFinding(
         subject,
@@ -3244,10 +3234,28 @@ def target_update_lefthook_pin(version: str) -> None:
 
 
 GH_AW_SETUP_WORKFLOW = Path(".github/workflows/copilot-setup-steps.yml")
+GH_AW_UPDATER_WORKFLOW = Path(".github/workflows/repository-freshness-check.yml")
 GH_AW_RELEASES_API = "https://api.github.com/repos/github/gh-aw/releases/latest"
+GH_AW_ACTIONS_TAG_API_TEMPLATE = (
+    "https://api.github.com/repos/github/gh-aw-actions/git/ref/tags/{version}"
+)
+GH_AW_ACTIONS_ANNOTATED_TAG_API_TEMPLATE = (
+    "https://api.github.com/repos/github/gh-aw-actions/git/tags/{sha}"
+)
 GH_AW_NETWORK_TIMEOUT_SECONDS = 15
 _GH_AW_VERSION_PATTERN = re.compile(
     r"^v?(?P<major>[0-9]+)\.(?P<minor>[0-9]+)\.(?P<patch>[0-9]+)$"
+)
+_GH_AW_SETUP_ACTION_PATTERN = re.compile(
+    r"^(?P<prefix>[ \t]*(?:-[ \t]+)?uses:[ \t]+github/gh-aw-actions/setup-cli@)"
+    r"(?P<sha>[0-9a-f]{40})(?P<comment_prefix>[ \t]+#[ \t]+)"
+    r"(?P<comment_version>v[0-9]+\.[0-9]+\.[0-9]+)(?P<suffix>[ \t]*)$",
+    re.MULTILINE,
+)
+_GH_AW_SETUP_VERSION_PATTERN = re.compile(
+    r"^(?P<prefix>[ \t]*version:[ \t]+)(?P<version>v[0-9]+\.[0-9]+\.[0-9]+)"
+    r"(?P<suffix>[ \t]*)$",
+    re.MULTILINE,
 )
 
 
@@ -3313,11 +3321,140 @@ def fetch_gh_aw_latest_release() -> str:
     return tag
 
 
+def fetch_gh_aw_actions_sha(version: str) -> str:
+    """Resolve a gh-aw-actions release tag to its immutable commit SHA."""
+    url = GH_AW_ACTIONS_TAG_API_TEMPLATE.format(version=version)
+    try:
+        with open_github_url(url, GH_AW_NETWORK_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8", errors="replace"))
+        object_value = payload.get("object") if isinstance(payload, dict) else None
+        if not isinstance(object_value, dict):
+            raise ValueError("tag response did not include an object")
+        object_type = object_value.get("type")
+        object_sha = object_value.get("sha")
+        if object_type == "commit" and isinstance(object_sha, str):
+            return object_sha
+        if object_type != "tag" or not isinstance(object_sha, str):
+            raise ValueError("tag response did not reference a tag or commit")
+        annotated_url = GH_AW_ACTIONS_ANNOTATED_TAG_API_TEMPLATE.format(sha=object_sha)
+        with open_github_url(annotated_url, GH_AW_NETWORK_TIMEOUT_SECONDS) as response:
+            annotated = json.loads(response.read().decode("utf-8", errors="replace"))
+        annotated_object = (
+            annotated.get("object") if isinstance(annotated, dict) else None
+        )
+        if (
+            not isinstance(annotated_object, dict)
+            or annotated_object.get("type") != "commit"
+            or not isinstance(annotated_object.get("sha"), str)
+        ):
+            raise ValueError("annotated tag did not reference a commit")
+        return cast(str, annotated_object["sha"])
+    except (
+        urllib.error.URLError,
+        TimeoutError,
+        OSError,
+        json.JSONDecodeError,
+        ValueError,
+    ) as error:
+        raise GhAwReleaseUnavailableError(
+            f"could not resolve the gh-aw-actions tag {version}: {error}"
+        ) from error
+
+
 def parse_gh_aw_version(value: str) -> tuple[int, int, int] | None:
     match = _GH_AW_VERSION_PATTERN.match(value)
     if match is None:
         return None
     return (int(match["major"]), int(match["minor"]), int(match["patch"]))
+
+
+def installed_gh_aw_version() -> str:
+    output = command_output(["gh", "aw", "--version"]).strip()
+    match = re.search(r"\bv(?P<version>[0-9]+\.[0-9]+\.[0-9]+)\b", output)
+    if match is None:
+        print(
+            f"error: could not parse the installed gh-aw version from {output!r}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return f"v{match['version']}"
+
+
+def update_gh_aw_setup_pin(version: str, action_sha: str) -> None:
+    path = ROOT / GH_AW_SETUP_WORKFLOW
+    text = path.read_text(encoding="utf-8", newline="")
+    action_matches = list(_GH_AW_SETUP_ACTION_PATTERN.finditer(text))
+    version_matches = list(_GH_AW_SETUP_VERSION_PATTERN.finditer(text))
+    if len(action_matches) != 1 or len(version_matches) != 1:
+        print(
+            "error: expected exactly one gh-aw setup action and version in "
+            f"{GH_AW_SETUP_WORKFLOW}; found {len(action_matches)} and "
+            f"{len(version_matches)}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    updated = _replace_match_group(text, action_matches[0], "sha", action_sha)
+    action_match = _GH_AW_SETUP_ACTION_PATTERN.search(updated)
+    if action_match is None:
+        raise AssertionError("gh-aw setup action disappeared after SHA replacement")
+    updated = _replace_match_group(updated, action_match, "comment_version", version)
+    version_match = _GH_AW_SETUP_VERSION_PATTERN.search(updated)
+    if version_match is None:
+        raise AssertionError("gh-aw setup version disappeared during replacement")
+    updated = _replace_match_group(updated, version_match, "version", version)
+    _atomic_write_text(path, updated)
+
+
+def update_gh_aw_updater_action_pin(version: str, action_sha: str) -> None:
+    path = ROOT / GH_AW_UPDATER_WORKFLOW
+    text = path.read_text(encoding="utf-8", newline="")
+    action_matches = list(_GH_AW_SETUP_ACTION_PATTERN.finditer(text))
+    if len(action_matches) != 1:
+        print(
+            "error: expected exactly one gh-aw setup action in "
+            f"{GH_AW_UPDATER_WORKFLOW}; found {len(action_matches)}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    updated = _replace_match_group(text, action_matches[0], "sha", action_sha)
+    action_match = _GH_AW_SETUP_ACTION_PATTERN.search(updated)
+    if action_match is None:
+        raise AssertionError("gh-aw updater action disappeared after SHA replacement")
+    updated = _replace_match_group(updated, action_match, "comment_version", version)
+    _atomic_write_text(path, updated)
+
+
+def target_update_gh_aw(version: str) -> None:
+    print_step(f"Updating gh-aw to {version}")
+    if parse_gh_aw_version(version) is None or not version.startswith("v"):
+        print(
+            f"error: --version must be a vX.Y.Z gh-aw release version, got {version!r}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    target_check_gh_aw()
+    installed = installed_gh_aw_version()
+    if installed != version:
+        print(
+            f"error: installed gh-aw is {installed}, expected {version}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    try:
+        action_sha = fetch_gh_aw_actions_sha(version)
+    except GhAwReleaseUnavailableError as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    update_gh_aw_setup_pin(version, action_sha)
+    update_gh_aw_updater_action_pin(version, action_sha)
+    run(["gh", "aw", "upgrade", "--no-actions"])
+    if read_gh_aw_setup_version() != version:
+        print(
+            f"error: gh-aw setup pin did not remain at {version} after upgrade",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    print_success(f"Updated gh-aw and compiler-managed files to {version}")
 
 
 def classify_gh_aw_compiler_pin(pinned: str, latest: str) -> tuple[str, str]:
@@ -3340,19 +3477,18 @@ def classify_gh_aw_compiler_pin(pinned: str, latest: str) -> tuple[str, str]:
         )
     if pinned_parsed == latest_parsed:
         return ("pass", f"pinned gh-aw {pinned} matches the latest stable release")
+    if pinned_parsed > latest_parsed:
+        return (
+            "unverified",
+            f"pinned gh-aw {pinned} is newer than the latest stable release {latest}; "
+            "no automated downgrade will be created",
+        )
     return (
         "unverified",
         f"pinned gh-aw {pinned} differs from the latest stable release {latest}; "
         "bumping the gh-aw compiler pin requires maintainer review of workflow "
         "compatibility before it is updated",
     )
-
-
-_GH_AW_REASON_BY_STATUS = {
-    "pass": FRESHNESS_REASON_CURRENT,
-    "unverified": FRESHNESS_REASON_UPDATE_AVAILABLE,
-    "fail": FRESHNESS_REASON_VERSION_MALFORMED,
-}
 
 
 def evaluate_gh_aw_pin() -> FreshnessFinding:
@@ -3394,11 +3530,25 @@ def evaluate_gh_aw_pin() -> FreshnessFinding:
             + f": {error}",
         )
     status, message = classify_gh_aw_compiler_pin(pinned, latest)
+    pinned_parsed = parse_gh_aw_version(pinned)
+    latest_parsed = parse_gh_aw_version(latest)
+    if status == "pass":
+        reason_code = FRESHNESS_REASON_CURRENT
+    elif status == "fail":
+        reason_code = FRESHNESS_REASON_VERSION_MALFORMED
+    elif (
+        pinned_parsed is not None
+        and latest_parsed is not None
+        and pinned_parsed > latest_parsed
+    ):
+        reason_code = FRESHNESS_REASON_PINNED_AHEAD
+    else:
+        reason_code = FRESHNESS_REASON_UPDATE_AVAILABLE
     return FreshnessFinding(
         subject,
         coordinate,
         status,
-        _GH_AW_REASON_BY_STATUS[status],
+        reason_code,
         pinned,
         latest,
         (GH_AW_RELEASES_API,),
@@ -3423,10 +3573,10 @@ DEPENDABOT_CONFIG_PATH = Path(".github/dependabot.yml")
 def azd_minimum_version_range() -> str:
     """Return the single azd minimum-version range declared in azure.yaml.
 
-    The azd coordinate is a deliberate lower bound (``>= X.Y.Z``), not an exact
-    pin, so it is never compared against a latest release. Only its syntax and
-    its uniqueness are repository invariants; interpreting the range against the
-    current schema is the scheduled freshness workflow's responsibility.
+    The azd coordinate is a deliberate lower bound (``>= X.Y.Z``), not an exact pin,
+    so it is never compared against a latest release. Only its syntax and
+    uniqueness are repository invariants. Renovate owns update candidates for the
+    lower bound.
     """
     text = (ROOT / AZURE_YAML_PATH).read_text(encoding="utf-8")
     matches = list(_AZD_REQUIRED_VERSION_RANGE_PATTERN.finditer(text))
@@ -3471,7 +3621,7 @@ def lefthook_pin_coordinates() -> tuple[str, str]:
     Only the shape of the pin is checked here: exactly one version and exactly
     one 64-hex checksum, so ``update-lefthook-pin`` always has an unambiguous
     pair to rewrite. Whether the checksum matches the published release asset
-    needs the official download and belongs to the scheduled checker.
+    needs the official download and belongs to the non-Renovate tool workflow.
     """
     text = (ROOT / LEFTHOOK_CI_WORKFLOW).read_text(encoding="utf-8")
     version_matches, checksum_matches = _lefthook_pin_matches(text)
@@ -4219,427 +4369,61 @@ def target_check_renovate_config() -> None:
     )
 
 
-def target_check_renovate_activity() -> None:
-    """Report the Renovate app's observable public activity as one status.
-
-    A schema-valid configuration proves nothing about the hosted app still
-    being installed and enabled, so this is observed separately and reported by
-    the scheduled checker. Configuration defects belong to
-    ``check-renovate-config``, so this target never fails the repository.
-    """
-    print_step("Checking observable Renovate app activity on this repository")
-    finding = evaluate_renovate_activity()
-    print(f"  {finding.subject}: {finding.status} ({finding.reason_code})")
-    if finding.status == "pass":
-        print_success(finding.detail)
-        return
-    print(f"error: {finding.detail}", file=sys.stderr)
-    raise SystemExit(1)
-
-
-def resolve_github_repository() -> str:
-    """Resolve this checkout's ``owner/repo`` for read-only GitHub API lookups.
-
-    Prefers ``GITHUB_REPOSITORY`` (set by Actions) and otherwise parses the
-    ``origin`` remote, so the same evaluator works in the weekly workflow and
-    on a maintainer's machine. A checkout without a GitHub origin raises
-    RenovateEvidenceUnavailableError, which is an evidence gap rather than a
-    repository defect.
-    """
-    configured = os.environ.get("GITHUB_REPOSITORY", "").strip()
-    if configured:
-        return configured
-    remote = command_output(
-        ["git", "remote", "get-url", "origin"],
-        allow_failure=True,
-        quiet_stderr=True,
-    ).strip()
-    if not remote:
-        raise RenovateEvidenceUnavailableError(
-            "no GITHUB_REPOSITORY value and no git origin remote to resolve the "
-            "repository for the Renovate activity lookup"
-        )
-    match = re.search(
-        r"github\.com[/:](?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$", remote
-    )
-    if match is None:
-        raise RenovateEvidenceUnavailableError(
-            f"the origin remote {remote!r} is not a github.com repository URL"
-        )
-    return f"{match['owner']}/{match['repo']}"
-
-
-def is_renovate_bot_author(entry: dict[str, Any]) -> bool:
-    """Return True when a GitHub item was authored by the Renovate app bot."""
-    user = entry.get("user")
-    if not isinstance(user, dict):
-        return False
-    author = cast(dict[str, Any], user)
-    return author.get("type") == "Bot" and author.get("login") in RENOVATE_BOT_LOGINS
-
-
-def is_renovate_dashboard_issue(item: object) -> bool:
-    """Return True only for the Renovate app's own Dependency Dashboard issue.
-
-    Pull requests are rejected (the issues endpoint returns them too), the
-    title must match Renovate's default dashboard title exactly, and the author
-    must be a GitHub App bot account with one of Renovate's own logins, so an
-    unrelated human-authored issue with the same title is never counted.
-    """
-    if not isinstance(item, dict):
-        return False
-    entry = cast(dict[str, Any], item)
-    if "pull_request" in entry:
-        return False
-    if entry.get("title") != RENOVATE_DASHBOARD_TITLE:
-        return False
-    return is_renovate_bot_author(entry)
-
-
-def is_renovate_pull_request(item: object) -> bool:
-    """Return True only for a pull request authored by the Renovate app.
-
-    The search query already filters by author, but the identity is re-checked
-    on every returned item so a query-syntax change or a search-side match on
-    something else cannot be counted as Renovate activity. The ``pull_request``
-    key is what distinguishes a pull request from an issue in search results.
-    """
-    if not isinstance(item, dict):
-        return False
-    entry = cast(dict[str, Any], item)
-    if "pull_request" not in entry:
-        return False
-    return is_renovate_bot_author(entry)
-
-
-def read_github_json(url: str, description: str) -> Any:
-    """Read a GitHub REST response as JSON, or raise an evidence gap.
-
-    Every transport, HTTP, and decoding failure -- including the rate-limit
-    responses GitHub returns unauthenticated -- becomes
-    RenovateEvidenceUnavailableError, so a lookup that could not run is never
-    mistaken for an observation that Renovate is idle.
-    """
-    try:
-        with open_github_url(url, RENOVATE_ACTIVITY_TIMEOUT_SECONDS) as response:
-            return json.loads(response.read().decode("utf-8", errors="replace"))
-    except urllib.error.HTTPError as error:
-        limited = " (GitHub API rate limit)" if error.code in {403, 429} else ""
-        raise RenovateEvidenceUnavailableError(
-            f"could not read {description} from {url}: HTTP {error.code}{limited}"
-        ) from error
-    except (
-        urllib.error.URLError,
-        TimeoutError,
-        OSError,
-        json.JSONDecodeError,
-    ) as error:
-        raise RenovateEvidenceUnavailableError(
-            f"could not read {description} from {url}: {error}"
-        ) from error
-
-
-def renovate_dashboard_issues_urls(repository: str) -> list[str]:
-    """Return the paged open-issue URLs the dashboard lookup may request."""
-    return [
-        RENOVATE_ISSUES_API_TEMPLATE.format(
-            repository=repository, per_page=RENOVATE_ISSUES_PER_PAGE, page=page
-        )
-        for page in range(1, RENOVATE_ISSUES_MAX_PAGES + 1)
-    ]
-
-
-def renovate_pull_requests_search_url(repository: str) -> str:
-    query = RENOVATE_PULLS_SEARCH_QUERY.format(repository=repository)
-    return RENOVATE_PULLS_SEARCH_API_TEMPLATE.format(
-        query=urllib.parse.quote_plus(query)
-    )
-
-
-def fetch_renovate_dashboard_issue(repository: str) -> dict[str, Any] | None:
-    """Return the Renovate Dependency Dashboard issue, or None when absent.
-
-    Walks the open issues page by page instead of trusting a single response,
-    because a repository with more open issues than one page would otherwise
-    make a present dashboard look absent. Returning None therefore means the
-    listing was exhausted; running out of pages first is an evidence gap, not
-    an absence.
-    """
-    for url in renovate_dashboard_issues_urls(repository):
-        payload = read_github_json(url, "open issues")
-        if not isinstance(payload, list):
-            raise RenovateEvidenceUnavailableError(
-                f"{url} did not return a list of issues"
-            )
-        for item in payload:
-            if is_renovate_dashboard_issue(item):
-                return cast(dict[str, Any], item)
-        if len(payload) < RENOVATE_ISSUES_PER_PAGE:
-            return None
-    raise RenovateEvidenceUnavailableError(
-        f"more than {RENOVATE_ISSUES_MAX_PAGES * RENOVATE_ISSUES_PER_PAGE} open "
-        f"issues in {repository} were listed without reaching the end, so the "
-        "absence of a Renovate Dependency Dashboard could not be established"
-    )
-
-
-def fetch_renovate_pull_requests(repository: str) -> list[dict[str, Any]]:
-    """Return pull requests authored by the Renovate app, newest updated first.
-
-    Uses the search API so closed and merged pull requests count as observable
-    activity too, and so one request bounds the most recent one. Truncated
-    search results with nothing usable in them are an evidence gap rather than
-    an observation that Renovate never opened a pull request.
-    """
-    url = renovate_pull_requests_search_url(repository)
-    payload = read_github_json(url, "Renovate app pull requests")
-    if not isinstance(payload, dict):
-        raise RenovateEvidenceUnavailableError(
-            f"{url} did not return a search result object"
-        )
-    items = payload.get("items")
-    if not isinstance(items, list):
-        raise RenovateEvidenceUnavailableError(f"{url} returned no search items list")
-    matched = [
-        cast(dict[str, Any], item) for item in items if is_renovate_pull_request(item)
-    ]
-    if not matched and payload.get("incomplete_results") is True:
-        raise RenovateEvidenceUnavailableError(
-            f"{url} reported incomplete search results, so the absence of "
-            "Renovate app pull requests could not be established"
-        )
-    return matched
-
-
-@dataclass(frozen=True)
-class RenovateActivityObservation:
-    """One publicly observable Renovate timestamp and where it came from."""
-
-    label: str
-    timestamp: str
-    age_days: float
-    url: str | None
-
-
-def github_timestamp_age_days(timestamp: str) -> float:
-    """Return how many days ago a GitHub ISO-8601 UTC timestamp occurred."""
-    moment = datetime.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ").replace(
-        tzinfo=datetime.UTC
-    )
-    return (datetime.datetime.now(tz=datetime.UTC) - moment).total_seconds() / 86400
-
-
-def renovate_activity_observations(
-    label: str, item: dict[str, Any], fields: Sequence[str]
-) -> list[RenovateActivityObservation]:
-    """Turn the named timestamp fields of one GitHub item into observations.
-
-    Unparsable or missing timestamps are skipped rather than guessed at, so a
-    malformed payload can only reduce the observed activity, never invent it.
-    """
-    url = item.get("html_url")
-    observations: list[RenovateActivityObservation] = []
-    for field in fields:
-        value = item.get(field)
-        if not isinstance(value, str):
-            continue
-        try:
-            age_days = github_timestamp_age_days(value)
-        except ValueError:
-            continue
-        observations.append(
-            RenovateActivityObservation(
-                f"{label} {field}",
-                value,
-                age_days,
-                url if isinstance(url, str) else None,
-            )
-        )
-    return observations
-
-
-def collect_renovate_activity(
-    repository: str,
-) -> tuple[list[RenovateActivityObservation], list[str], list[str]]:
-    """Gather Renovate's observable public activity and any lookup gaps.
-
-    Returns the observations, the API URLs that were queried, and a description
-    of every lookup that could not run. Both sources are attempted so a single
-    failing endpoint cannot be read as "Renovate never did anything". Only the
-    queried API URLs are collected here; the caller adds the single item URL
-    behind the newest observation, so the evidence list stays bounded no matter
-    how many pull requests the search returns.
-    """
-    observations: list[RenovateActivityObservation] = []
-    evidence: list[str] = []
-    gaps: list[str] = []
-    try:
-        issue = fetch_renovate_dashboard_issue(repository)
-    except RenovateEvidenceUnavailableError as error:
-        gaps.append(f"the Dependency Dashboard issue lookup ({error})")
-    else:
-        evidence.append(renovate_dashboard_issues_urls(repository)[0])
-        if issue is not None:
-            observations.extend(
-                renovate_activity_observations(
-                    "Dependency Dashboard issue", issue, ("updated_at",)
-                )
-            )
-    try:
-        pull_requests = fetch_renovate_pull_requests(repository)
-    except RenovateEvidenceUnavailableError as error:
-        gaps.append(f"the Renovate app pull request lookup ({error})")
-    else:
-        evidence.append(renovate_pull_requests_search_url(repository))
-        for pull_request in pull_requests:
-            observations.extend(
-                renovate_activity_observations(
-                    "Renovate pull request",
-                    pull_request,
-                    ("updated_at", "created_at"),
-                )
-            )
-    return observations, evidence, gaps
-
-
-def renovate_activity_evidence(
-    evidence: Sequence[str], latest: RenovateActivityObservation | None
-) -> tuple[str, ...]:
-    """Return the queried API URLs plus the newest observation's own URL."""
-    if latest is None or latest.url is None or latest.url in evidence:
-        return tuple(evidence)
-    return (*evidence, latest.url)
-
-
-def evaluate_renovate_activity() -> FreshnessFinding:
-    """Evaluate the Renovate app's observable public activity on this repository.
-
-    A schema-valid, contract-valid ``renovate.json`` proves nothing about the
-    hosted Renovate app being installed and enabled: if the app is removed or
-    disabled, the actionlint, kubeconform, and Chaos Mesh update notifications
-    silently stop while every configuration check still passes. Renovate does
-    not publish a per-run ping, so this combines the facts GitHub does expose --
-    the Dependency Dashboard issue's ``updated_at`` and the created/updated
-    timestamps of pull requests the Renovate app authored, open or closed --
-    and takes the most recent as the newest observable activity.
-
-    The day count is an observation window, not a heartbeat interval: activity
-    inside it is a ``pass`` (``renovate-activity-observed``); no dashboard and
-    no Renovate pull request at all is ``unverified``
-    (``renovate-not-observed``); activity that exists but predates the window is
-    ``unverified`` (``renovate-activity-unobserved``) and is deliberately not
-    treated as proof that the app stopped; a lookup that could not run is
-    ``unverified`` (``evidence-unavailable``). Configuration defects belong to
-    ``check-renovate-config``, so this evaluator never reports ``fail``.
-    """
-    subject = FRESHNESS_SUBJECT_RENOVATE_ACTIVITY
-    coordinate = str(RENOVATE_CONFIG_PATH)
-    window = RENOVATE_ACTIVITY_WINDOW_DAYS
-    try:
-        repository = resolve_github_repository()
-    except RenovateEvidenceUnavailableError as error:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-            None,
-            None,
-            (),
-            FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE.format(subject="Renovate app")
-            + f": {error}",
-        )
-    observations, queried, gaps = collect_renovate_activity(repository)
-    latest = min(observations, key=lambda item: item.age_days, default=None)
-    evidence = renovate_activity_evidence(queried, latest)
-    if latest is not None and latest.age_days <= window:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "pass",
-            FRESHNESS_REASON_RENOVATE_ACTIVITY_OBSERVED,
-            repository,
-            latest.timestamp,
-            evidence,
-            f"the most recent public Renovate app activity in {repository} is the "
-            f"{latest.label} {latest.age_days:.1f} days ago, within the "
-            f"{window}-day public activity observation window",
-        )
-    if gaps:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-            repository,
-            latest.timestamp if latest is not None else None,
-            evidence,
-            FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE.format(subject="Renovate app")
-            + ": "
-            + " and ".join(gaps)
-            + " could not run",
-        )
-    if latest is None:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_RENOVATE_NOT_OBSERVED,
-            repository,
-            None,
-            evidence,
-            f"no {RENOVATE_DASHBOARD_TITLE!r} issue and no pull request authored "
-            f"by the Renovate app have ever been observed in {repository}, so "
-            "Renovate app activity could not be confirmed; install or re-enable "
-            "the Renovate app and let it run once",
-        )
-    return FreshnessFinding(
-        subject,
-        coordinate,
-        "unverified",
-        FRESHNESS_REASON_RENOVATE_ACTIVITY_UNOBSERVED,
-        repository,
-        latest.timestamp,
-        evidence,
-        f"the most recent public Renovate app activity in {repository} is the "
-        f"{latest.label} {latest.age_days:.1f} days ago, outside the "
-        f"{window}-day public activity observation window, so Renovate app "
-        "activity could not be confirmed from recent public activity; Renovate "
-        "only acts when it has something to change, so this does not establish "
-        "that the app was removed or disabled",
-    )
-
-
 FRESHNESS_CHECK_SUBJECTS = (
     FRESHNESS_SUBJECT_GH_AW,
     FRESHNESS_SUBJECT_LEFTHOOK,
-    FRESHNESS_SUBJECT_RENOVATE_ACTIVITY,
 )
 
 
-def collect_freshness_findings() -> list[FreshnessFinding]:
-    """Run every scheduled freshness evaluator once, in subject order.
+@dataclass(frozen=True)
+class NonRenovateTool:
+    tool_id: str
+    subject: str
+    evaluator_name: str
+    updater_name: str
 
-    These are exactly the coordinates Renovate cannot detect for this
-    repository: the gh-aw compiler pin, the Lefthook version/checksum pair, and
-    the observable public activity that decides whether Renovate's own
-    notifications are still arriving. Everything Renovate does cover is left to
-    Renovate, so no update candidate is discovered twice.
+
+NON_RENOVATE_TOOLS = (
+    NonRenovateTool(
+        "gh-aw",
+        FRESHNESS_SUBJECT_GH_AW,
+        "evaluate_gh_aw_pin",
+        "target_update_gh_aw",
+    ),
+    NonRenovateTool(
+        "lefthook",
+        FRESHNESS_SUBJECT_LEFTHOOK,
+        "evaluate_lefthook_pin",
+        "target_update_lefthook_pin",
+    ),
+)
+
+
+def non_renovate_tool_id(subject: str) -> str | None:
+    return next(
+        (tool.tool_id for tool in NON_RENOVATE_TOOLS if tool.subject == subject),
+        None,
+    )
+
+
+def collect_freshness_findings() -> list[FreshnessFinding]:
+    """Run every non-Renovate tool update evaluator once, in registry order.
+
+    A tool belongs here only when Renovate cannot safely produce its complete
+    update. Everything Renovate does cover is left to Renovate, so no update
+    candidate is discovered twice.
     """
     return [
-        evaluate_gh_aw_pin(),
-        evaluate_lefthook_pin(),
-        evaluate_renovate_activity(),
+        cast(Callable[[], FreshnessFinding], globals()[tool.evaluator_name])()
+        for tool in NON_RENOVATE_TOOLS
     ]
 
 
 def target_freshness_checks(output: Path | None = None) -> None:
     """Emit the deterministic freshness findings as machine-readable JSON.
 
-    The weekly repository-freshness workflow runs this and feeds the JSON to
-    the repository-freshness-checker skill, so the skill aggregates structured
-    ``status``/``reason_code`` results (fail-first, then unverified) instead of
-    parsing natural-language stdout.
+    The ordinary scheduled workflow uses structured ``status``/``reason_code``
+    values to select update candidates without invoking an AI agent.
     """
     document = freshness_document(collect_freshness_findings())
     text = json.dumps(document, ensure_ascii=True, indent=2, sort_keys=True) + "\n"
@@ -4647,6 +4431,22 @@ def target_freshness_checks(output: Path | None = None) -> None:
         output.write_text(text, encoding="utf-8")
     else:
         sys.stdout.write(text)
+
+
+def target_update_non_renovate_tool(tool_id: str, version: str) -> None:
+    tool = next(
+        (candidate for candidate in NON_RENOVATE_TOOLS if candidate.tool_id == tool_id),
+        None,
+    )
+    if tool is None:
+        supported = ", ".join(candidate.tool_id for candidate in NON_RENOVATE_TOOLS)
+        print(
+            f"error: unsupported non-Renovate tool {tool_id!r}; expected one of "
+            f"{supported}",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    cast(Callable[[str], None], globals()[tool.updater_name])(version)
 
 
 def target_check_uv_version() -> None:
@@ -5204,7 +5004,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "check-lefthook": target_check_lefthook,
     "check-publisher-requirements": target_check_publisher_requirements,
     "check-public-lock": target_check_public_lock,
-    "check-renovate-activity": target_check_renovate_activity,
     "check-renovate-config": target_check_renovate_config,
     "check-repo-health": target_check_repo_health,
     "check-uv-version": target_check_uv_version,
@@ -5304,6 +5103,13 @@ def main(argv: Sequence[str]) -> int:
         parser.add_argument("--version", required=True)
         args = parser.parse_args(argv[1:])
         target_update_lefthook_pin(args.version)
+        return 0
+    if target == "update-non-renovate-tool":
+        parser = argparse.ArgumentParser(prog="tasks.py update-non-renovate-tool")
+        parser.add_argument("--tool", required=True)
+        parser.add_argument("--version", required=True)
+        args = parser.parse_args(argv[1:])
+        target_update_non_renovate_tool(args.tool, args.version)
         return 0
     if target in {"review-repo-fast", "review-repo-full"}:
         parser = argparse.ArgumentParser(prog=f"tasks.py {target}")

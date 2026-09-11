@@ -1,12 +1,12 @@
 # 依存パッケージとツールの更新管理
 
-この文書は、依存パッケージと開発ツールの更新候補を誰が検出し、どの機械検査が何を保証するかを定める正本である。環境構築とデプロイの手順は[deployment.md](deployment.md)、継続中の制約と解消条件は[workarounds.md](workarounds.md)を参照する。
+この文書は、依存パッケージと開発ツールの更新候補を誰が検出し、どの機械検査が何を保証するかを定める。環境構築とデプロイの手順は[deployment.md](deployment.md)、継続中の制約と解消条件は[workarounds.md](workarounds.md)を参照する。
 
 ## 原則
 
 更新候補の検出と意味評価を分ける。検出は定期実行（scheduled）が担い、意味評価はレビューが担う。
 
-- **scheduledが第一**: 通常のversion更新候補はRenovateが検出する。Renovateが構造上扱えない対象だけを、`freshness-checks` task targetが検出して週次Issueへ集約する。
+- **scheduledが第一**: 通常のversion更新候補はRenovateが検出する。Renovateが安全な更新PRを完結できないツールだけを、`freshness-checks` task targetと通常のGitHub Actions workflowが更新する。
 - **レビューは重複しない**: `review-repo`のfastとfullは、scheduledが検出済みの更新候補を再検出しない。fastはリポジトリ内で完結する不変条件だけを検査し、fullは決定論化できない意味評価だけを追加する。
 
 ## 更新責務
@@ -15,18 +15,18 @@
 |---|---|---|
 | workspaceのPython依存 | Renovate（pep621。Dependency Dashboardの承認制） | `check-public-lock`、`check-publisher-requirements` |
 | GitHub Actions | Renovate（github-actions） | `lint-workflows`、`compile-aw` |
-| Docker base imageのEOLとdigest固定状況 | Renovate（dockerfile） | `check-uv-version`、`docker-base-digest`ルール |
+| Docker base imageのtagとdigest | Renovate（dockerfile） | `check-uv-version`、`docker-base-digest`ルール |
 | uv本体のpin | Renovate（custom manager + dockerfileを1 PRへ集約） | `check-uv-version` |
 | actionlint、kubeconform、Renovate validator image | Renovate（custom manager） | `check-version-pins`、`check-renovate-config` |
 | Chaos Mesh Helm chart | Renovate（custom manager） | `check-version-pins`、`validate-helm-values` |
 | Bicep CLI | Renovate（custom manager） | `build-bicep` |
-| gh-aw | scheduled checker（`freshness-checks`） | `gh-aw-compiler-version`ルール、`compile-aw` |
-| Lefthook | scheduled checker（`freshness-checks`） | `check-version-pins`、`test-hooks` |
-| Renovate app自体の稼働 | scheduled checker（`freshness-checks`） | なし（外部appの公開活動の観測） |
+| gh-aw | non-Renovate tool updater（`freshness-checks`） | `gh-aw-compiler-version`ルール、`compile-aw` |
+| Lefthook | non-Renovate tool updater（`freshness-checks`） | `check-version-pins`、`test-hooks` |
 | azd minimum version range | Renovate（custom manager） | `check-version-pins`（構文と座標数） |
-| Azure Functions extension bundleのsupport範囲 | latestとの比較対象外 | `check-version-pins`（構文と座標数） |
+| Docker base imageのEOL | `review-repo full`の意味評価 | `repository-freshness-checker` |
+| Azure Functions extension bundleのsupport範囲 | `review-repo full`の意味評価 | `check-version-pins`（構文と座標数）、`repository-freshness-checker` |
 
-正本は[Renovate設定](../.github/renovate.json)と[Repository freshness check workflow](../.github/workflows/repository-freshness-check.md)である。
+管理元は[Renovate設定](../.github/renovate.json)と[non-Renovate tool updater](../.github/workflows/repository-freshness-check.yml)である。
 
 ## Renovate
 
@@ -50,23 +50,21 @@ uvのpinはroot `pyproject.toml`の`required-version`下限、`src/api/Dockerfil
 uv run --no-project "${PWD}/scripts/tasks.py" check-renovate-config
 ```
 
-Renovate appが停止すると、設定が正しいままRenovate担当対象の通知だけが静かに止まる。`check-renovate-activity`はDependency Dashboard issueとRenovate app authoredのPull Requestの更新日時を観測し、14日の観測窓と比べる。Renovateは定期的なpingを公開しないため、この窓はheartbeatの間隔ではない。観測が窓より古い場合はapp停止と断定せず、最近の公開活動から稼働を確認できないと記録する。
+## non-Renovate tool updater
 
-## scheduled checker
-
-`freshness-checks`は、Renovateが構造上扱えない3対象だけを検出する。gh-awのpinと公式latest releaseの比較、Lefthookのpin versionと公式latest releaseの比較およびpin versionの公式checksum照合、Renovate appの公開活動の観測である。Renovateが担当する対象のlatestを、このcheckerが再取得することはない。
+`freshness-checks`は、Renovateが安全な更新PRを完結できないツールだけを検出する。初期対象は、gh-awのpinと公式latest releaseの比較、Lefthookのpin versionと公式latest releaseの比較およびpin versionの公式checksum照合である。Renovateが担当する対象のlatestを、このcheckerが再取得することはない。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" freshness-checks
 ```
 
-findingが`fail`または`unverified`でもJSONを出力できるように、コマンド自体は終了コード0で終了する。週次workflowは標準出力の自然言語ではなく、各findingの`status`と`reason_code`を解釈する。
+findingが`fail`または`unverified`でもJSONを出力できるように、コマンド自体は終了コード0で終了する。週次workflowは標準出力の自然言語ではなく、各findingの`tool`、`status`、`reason_code`、`published`を解釈する。公式latest releaseがpinより古い場合は`pinned-ahead`として更新せず、workflowを失敗させて公開情報とpinを確認する。
 
-### 週次workflowのIssue通知
+### 週次workflowの更新PR
 
-3件のgh-aw週次workflowは、実行結果を`create-issue`で1件だけ記録し、`close-older-issues: true`で前回の結果を閉じる。GitHub Actionsの実行失敗、custom jobの失敗、必要なツールやデータの不足、処理未完了を理由とする別Issueは作成しない。失敗はGitHub Actionsのrunで確認する。
+`.github/workflows/repository-freshness-check.yml`は更新候補ごとに更新taskと対象検証を実行し、gh-awとLefthookを別のPull Requestとして作成する。同じtoolとversionのPull Requestがopen、closed、mergedのいずれかで存在する場合、またはPull Requestを持たない同名branchがある場合は重複作成しない。更新候補がない場合はActions Summaryへ結果を記録して終了する。
 
-脅威検査はagent jobが成功した場合だけ実行する。gh-aw v0.88.7は脅威検査のwarningまたはfailureを`[aw] Detection Runs` Issueへ記録し、この記録だけを無効化する設定を提供していない。脅威検査を維持するため、agent job成功後の検査結果はこのIssueへ記録する。
+公開情報を取得できない場合、更新taskが失敗した場合、検証が失敗した場合はActions runを失敗させる。成功または失敗を報告するIssueは作成しない。`GITHUB_TOKEN`で作成したPull Requestは`pull_request` workflowを自動起動しないため、更新branchを指定してCIの`workflow_dispatch`を明示的に実行する。
 
 ### AKSアップデートの取得状況
 
@@ -78,9 +76,9 @@ gh-awのcompiler pinは、生成物であるlock workflowのcompiler versionと�
 
 v0.88.7の編集支援ファイルは、上流の`gh aw upgrade`が生成する[agent](../.github/agents/agentic-workflows.md)と[dispatcher skill](../.github/skills/agentic-workflows/SKILL.md)である。旧`agentic-workflows.agent.md`は移行時に削除される。生成template内の参照URLは上流の`main`を指すため、compilerの対応範囲を確認するときは固定したrelease tagの資料と照合する。生成lockも含めて更新した後、`compile-aw`で再生成差分がないことを確認する。通常のActions更新を含めない場合は`gh aw upgrade --no-actions`を使う。
 
-v0.88.7ではengine由来の通信先は暗黙に許可されない。週次workflowのPythonによるGitHub REST API取得を維持するため、`network.allowed`に`api.github.com`を明示する。`repository-freshness-check`の`setup-uv`は、存在しない`v8`タグに対するcompilerの代替版選択を避けるため、従来のlockと同じv8.2.0のSHAを元workflowに固定している。
+gh-awの更新jobは更新先versionのCLIをインストールし、`github/gh-aw-actions`の同じrelease tagをcommit SHAへ解決する。`copilot-setup-steps.yml`のaction SHAとversion、およびnon-Renovate tool updater自身が使うsetup actionのSHAを更新した後、`gh aw upgrade --no-actions`でdispatcher、codemod、lock workflowを更新し、`compile-aw`で再生成差分がないことを確認する。
 
-Lefthookはversionと配布物のSHA256を対で固定する。Renovateはchecksumを計算できないため、versionだけを更新するPull Requestは必ずCIで失敗する（[workarounds.md](workarounds.md)のD-12）。更新は次のtaskがversionとchecksumを一体で書き換える。
+Lefthookはversionと配布物のSHA256を対で固定する。Renovateはchecksumを計算できないため、versionだけを更新するPull Requestは必ずCIで失敗する（[workarounds.md](workarounds.md)のD-12）。更新jobは次のtaskでversionとchecksumを一体で書き換え、更新後のchecksumを検証して対象versionのLefthookを導入してからhook testを実行する。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" update-lefthook-pin --version <lefthook-version>
@@ -100,7 +98,7 @@ fastが実行するversion関連の検査は`check-version-pins`である。検�
 
 uv pinの内部整合は`check-uv-version`が、gh-aw pinとlock fileの`compiler_version`の整合は`check-repo-health`の`gh-aw-compiler-version`ルールが検査する。どちらもfastが実行する。
 
-`review-repo-full`はfastを一度だけ実行して結果を再利用し、隔離copyでしか実行できない検査（application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-aw compile）と、文書およびAI運用資産の意味評価を追加する。version候補、EOL、support範囲、互換性はscheduled workflowが担当するため、fullは再評価しない。
+`review-repo-full`はfastを一度だけ実行して結果を再利用し、隔離copyでしか実行できない検査（application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-aw compile）と、文書およびAI運用資産の意味評価を追加する。version更新候補はRenovateとnon-Renovate tool updaterが担当するため再検出しない。Docker base imageのEOLとAzure Functions extension bundleのsupport範囲はfullで意味評価する。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast --results-json <path>
