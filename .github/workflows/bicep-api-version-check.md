@@ -24,6 +24,16 @@ pre-agent-steps:
     with:
       resolution-strategy: "lowest"
 safe-outputs:
+  report-failure-as-issue: false
+  report-failed-jobs: false
+  threat-detection:
+    enabled: ${{ needs.agent.result == 'success' }}
+  missing-tool:
+    create-issue: false
+  missing-data:
+    create-issue: false
+  report-incomplete:
+    create-issue: false
   create-issue:
     title-prefix: "[Bicep API Versions] "
     labels: [repository-health, automation, bicep]

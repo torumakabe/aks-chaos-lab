@@ -133,7 +133,8 @@ def test_freshness_workflow_contract() -> None:
     assert "schedule: weekly" in source
     assert "workflow_dispatch:" in source
     assert "permissions:\n  contents: read\n  copilot-requests: write" in source
-    assert "safe-outputs:\n  create-issue:" in source
+    assert "safe-outputs:" in source
+    assert "  create-issue:" in source
     assert "close-older-issues: true" in source
     assert "max: 1" in source
     assert "repository-freshness-checker/SKILL.md" in source
@@ -166,7 +167,7 @@ def test_freshness_workflow_contract() -> None:
         assert forbidden not in source
 
 
-def test_weekly_workflows_disable_implicit_noop_issues() -> None:
+def test_weekly_workflows_disable_operational_failure_issues() -> None:
     for name in (
         "aks-updates-analyzer",
         "bicep-api-version-check",
@@ -176,8 +177,18 @@ def test_weekly_workflows_disable_implicit_noop_issues() -> None:
         source = workflow.with_suffix(".md").read_text(encoding="utf-8")
         lock = workflow.with_suffix(".lock.yml").read_text(encoding="utf-8")
 
-        assert "safe-outputs:\n  create-issue:" in source
+        assert "safe-outputs:" in source
+        assert "  create-issue:" in source
         assert "expires:" not in source
+        for setting in (
+            "report-failure-as-issue: false",
+            "report-failed-jobs: false",
+            "enabled: ${{ needs.agent.result == 'success' }}",
+            "missing-tool:\n    create-issue: false",
+            "missing-data:\n    create-issue: false",
+            "report-incomplete:\n    create-issue: false",
+        ):
+            assert setting in source, (name, setting)
         for variable in (
             "GH_AW_SAFE_OUTPUTS_CONFIG",
             "GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG",
@@ -192,7 +203,20 @@ def test_weekly_workflows_disable_implicit_noop_issues() -> None:
             assert config["noop"]["report-as-issue"] == "false", (name, variable)
             assert config["create_issue"]["max"] == 1
             assert config["create_issue"]["close_older_issues"] is True
+            assert config["missing_tool"] == {}
+            assert config["missing_data"] == {}
+            assert config["report_incomplete"] == {}
         assert 'GH_AW_NOOP_REPORT_AS_ISSUE: "false"' in lock
+        assert 'GH_AW_FAILURE_REPORT_AS_ISSUE: "false"' in lock
+        assert "Report failed jobs" not in lock
+        assert 'GH_AW_MISSING_TOOL_CREATE_ISSUE: "false"' in lock
+        assert 'GH_AW_REPORT_INCOMPLETE_CREATE_ISSUE: "false"' in lock
+        assert (
+            "if: always() && needs.agent.result != 'skipped' && "
+            "(needs.agent.result == 'success')"
+        ) in lock
+        assert "needs.detection.result == 'success' ||" in lock
+        assert "needs.detection.result == 'skipped'" in lock
         assert "handle_noop_message.cjs" in lock
 
 
