@@ -361,6 +361,9 @@ def test_bicep_api_version_workflow_contract() -> None:
     assert "Microsoft.ContainerService/{aks|fleet}/{stable|preview}" in source
     assert "どちらからも公開情報を取得できない座標" in source
     assert "各HTTP requestを30秒以内" in source
+    assert "pre-agent-steps:" in source
+    assert "astral-sh/setup-uv@" in source
+    assert 'resolution-strategy: "lowest"' in source
     assert "close-older-issues: true" in source
     for forbidden in (
         "azure/login",
