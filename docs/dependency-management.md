@@ -62,6 +62,12 @@ uv run --no-project "${PWD}/scripts/tasks.py" freshness-checks
 
 findingが`fail`または`unverified`でもJSONを出力できるように、コマンド自体は終了コード0で終了する。週次workflowは標準出力の自然言語ではなく、各findingの`status`と`reason_code`を解釈する。
 
+### 週次workflowのIssue通知
+
+3件のgh-aw週次workflowは、実行結果を`create-issue`で1件だけ記録し、`close-older-issues: true`で前回の結果を閉じる。GitHub Actionsの実行失敗、custom jobの失敗、必要なツールやデータの不足、処理未完了を理由とする別Issueは作成しない。失敗はGitHub Actionsのrunで確認する。
+
+脅威検査はagent jobが成功した場合だけ実行する。gh-aw v0.88.7は脅威検査のwarningまたはfailureを`[aw] Detection Runs` Issueへ記録し、この記録だけを無効化する設定を提供していない。脅威検査を維持するため、agent job成功後の検査結果はこのIssueへ記録する。
+
 ### AKSアップデートの取得状況
 
 [AKS Updates analyzer](../.github/workflows/aks-updates-analyzer.md)は、Azure Updates RSSの過去7日分と、GitHub AKS releasesの最新5件に含まれる過去14日分を週次Issueで分析する。各ソースの構造化JSONにある`status`、`reason_code`、`reason`、取得件数、解析失敗件数を同じIssueへ記載する。通信失敗、応答不正、項目の部分解析失敗は`unverified`とし、有効な`items`だけを分析する。結果が欠落したソースも未確認として扱い、0件で補わない。両ソースが`pass`で対象項目が空の場合だけ、取得範囲内で「更新なし」と報告する。理由コードと報告形式はworkflow本文を参照する。
