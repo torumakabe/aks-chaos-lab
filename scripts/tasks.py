@@ -617,13 +617,6 @@ def target_help() -> None:
         print(f"  {name}")
 
 
-def target_install() -> None:
-    ensure_standard_sync_allowed()
-    print_step("Installing workspace development dependencies")
-    run(["uv", "sync", "--project", str(ROOT), "--all-packages", "--all-groups"])
-    print_success("Dependencies installed")
-
-
 def target_sync() -> None:
     ensure_standard_sync_allowed()
     print_step("Syncing workspace dependencies (runtime only)")
@@ -830,12 +823,6 @@ def target_test_all() -> None:
 # ---------------------------------------------------------------------------
 # QA aggregates
 # ---------------------------------------------------------------------------
-
-
-def target_check() -> None:
-    target_lint()
-    target_typecheck()
-    target_test()
 
 
 def target_qa_app(*, check_publisher_requirements: bool = True) -> None:
@@ -4990,14 +4977,9 @@ def target_load_spike() -> None:
     run_load_profile("spike")
 
 
-def target_test_load() -> None:
-    target_load_smoke()
-
-
 TARGETS: dict[str, Callable[[], None]] = {
     "build": target_build,
     "build-bicep": target_build_bicep,
-    "check": target_check,
     "check-az": target_check_az,
     "check-docker": target_check_docker,
     "check-gh-aw": target_check_gh_aw,
@@ -5015,7 +4997,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "format-check": target_format_check,
     "freshness-checks": target_freshness_checks,
     "help": target_help,
-    "install": target_install,
     "install-tools": target_install_tools,
     "inventory-repo": target_inventory_repo,
     "lint": target_lint,
@@ -5045,7 +5026,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "test-cov": target_test_cov,
     "test-integration": target_test_integration,
     "test-hooks": target_test_hooks,
-    "test-load": target_test_load,
     "test-publisher": target_test_publisher,
     "typecheck": target_typecheck,
     "validate-bicep-parameters": target_validate_bicep_parameters,

@@ -137,7 +137,7 @@ def test_approved_index_lock_is_keyed_by_absolute_environment(
 
 @pytest.mark.parametrize(
     "target_name",
-    ("target_install", "target_sync", "target_sync_dev"),
+    ("target_sync", "target_sync_dev"),
 )
 def test_standard_sync_targets_reject_approved_index(
     monkeypatch: pytest.MonkeyPatch,
@@ -186,7 +186,6 @@ def test_non_approved_config_is_deferred_to_uv(
     (
         "run_uv",
         "run_uv_in",
-        "target_install",
         "target_sync",
         "target_sync_dev",
         "target_prepare_review_python_environment",

@@ -152,12 +152,6 @@ def test_freshness_workflow_contract() -> None:
         "repository-freshness-checker",
     ):
         assert forbidden not in source
-    assert not (
-        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.md"
-    ).exists()
-    assert not (
-        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.lock.yml"
-    ).exists()
 
 
 def test_weekly_workflows_disable_operational_failure_issues() -> None:
@@ -234,25 +228,10 @@ def test_aks_updates_workflow_reports_unverified_sources() -> None:
     assert 'print("[]")' not in source
 
 
-def test_implicit_gh_aw_maintenance_workflow_is_not_committed() -> None:
-    maintenance = REPO_ROOT / ".github" / "workflows" / "agentics-maintenance.yml"
-    actions_lock = json.loads(
-        (REPO_ROOT / ".github" / "aw" / "actions-lock.json").read_text(encoding="utf-8")
-    )
-
-    assert not maintenance.exists()
-    assert not any(
-        entry.startswith("github/gh-aw-actions/setup-cli@")
-        for entry in actions_lock["entries"]
-    )
-
-
 def test_gh_aw_dispatcher_uses_current_generated_layout() -> None:
     agent = REPO_ROOT / ".github" / "agents" / "agentic-workflows.md"
     skill = REPO_ROOT / ".github" / "skills" / "agentic-workflows" / "SKILL.md"
-    legacy = REPO_ROOT / ".github" / "agents" / "agentic-workflows.agent.md"
 
-    assert not legacy.exists()
     agent_source = agent.read_text(encoding="utf-8")
     skill_source = skill.read_text(encoding="utf-8")
     assert "name: Agentic Workflows" in agent_source

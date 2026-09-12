@@ -74,7 +74,7 @@ findingが`fail`または`unverified`でもJSONを出力できるように、コ
 
 gh-awのcompiler pinは、生成物であるlock workflowのcompiler versionと一体で決まる。version単独の更新はcompile結果と矛盾するため、適用は`gh aw compile`が所有する。compiler versionの定義元は[Copilot setup](../.github/workflows/copilot-setup-steps.yml)であり、生成lockと同じ版を使う。
 
-v0.88.7の編集支援ファイルは、上流の`gh aw upgrade`が生成する[agent](../.github/agents/agentic-workflows.md)と[dispatcher skill](../.github/skills/agentic-workflows/SKILL.md)である。旧`agentic-workflows.agent.md`は移行時に削除される。生成template内の参照URLは上流の`main`を指すため、compilerの対応範囲を確認するときは固定したrelease tagの資料と照合する。生成lockも含めて更新した後、`compile-aw`で再生成差分がないことを確認する。通常のActions更新を含めない場合は`gh aw upgrade --no-actions`を使う。
+v0.88.7の編集支援ファイルは、上流の`gh aw upgrade`が生成する[agent](../.github/agents/agentic-workflows.md)と[dispatcher skill](../.github/skills/agentic-workflows/SKILL.md)である。生成template内の参照URLは上流の`main`を指すため、compilerの対応範囲を確認するときは固定したrelease tagの資料と照合する。生成lockも含めて更新した後、`compile-aw`で再生成差分がないことを確認する。通常のActions更新を含めない場合は`gh aw upgrade --no-actions`を使う。
 
 gh-awの更新jobは更新先versionのCLIをインストールし、`github/gh-aw-actions`の同じrelease tagをcommit SHAへ解決する。`copilot-setup-steps.yml`のaction SHAとversion、およびnon-Renovate tool updater自身が使うsetup actionのSHAを更新した後、`gh aw upgrade --no-actions`でdispatcher、codemod、lock workflowを更新し、`compile-aw`で再生成差分がないことを確認する。
 

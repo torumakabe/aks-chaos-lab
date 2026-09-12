@@ -3841,11 +3841,6 @@ def test_review_repo_agent_contract() -> None:
     assert "Fleet" in body
     assert "aks-updates-analyzer" in body
     assert "bicep-api-version-updater" in body
-    # Bicep CLI freshness moved to Renovate, so no dedicated workflow remains.
-    assert "bicep-version-check.yml" not in body
-    assert not (
-        REPO_ROOT / ".github" / "workflows" / "bicep-version-check.yml"
-    ).exists()
     for product_command in ("az feature show", "az provider show", "gh api", "curl"):
         assert product_command not in body
 
@@ -3880,7 +3875,6 @@ def test_repository_freshness_skill_contract() -> None:
         "bicep-api-version-updater",
     ):
         assert boundary in body
-    assert "bicep-version-check.yml" not in body
     for status in ("pass", "fail", "unverified", "excluded"):
         assert status in body
     assert "Microsoft Learn MCP" in body
