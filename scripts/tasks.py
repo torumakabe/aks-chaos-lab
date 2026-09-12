@@ -1998,15 +1998,10 @@ REVIEW_WORKSPACE_DIRECTORY_NAME = "workspace"
 def _review_workspace_manifest_path(workspace_root: Path) -> Path:
     """Manifest path for a workspace directory, deliberately a sibling of it.
 
-    ``workspace_root`` is copied into a throwaway git repository so that
-    checks run from inside it (for example this project's own
-    ``review-repo-full``, when it is itself run from inside an outer
-    isolated workspace) can inspect it with ``git``. A manifest file placed
-    *inside* that copy would be committed as, or left behind as, an
-    untracked file with no ``repo-health.toml`` coverage entry, which the
-    repo-health inventory classifies as a ``true_gap`` and fails the review
-    it is supposed to be isolating. Keeping the manifest beside
-    ``workspace_root`` instead removes it from that scan entirely.
+    ``workspace_root`` is copied into a throwaway git repository so checks run
+    from inside it can inspect the copy with ``git``. Keeping the manifest
+    beside ``workspace_root`` prevents review metadata from becoming part of
+    the repository under inspection.
     """
     return workspace_root.parent / REVIEW_WORKSPACE_MANIFEST_FILENAME
 

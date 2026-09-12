@@ -36,7 +36,7 @@ inventoryのschema versionと対象commitを記録し、次の座標だけを処
 
 - Python依存、GitHub Actions、Docker image tag、actionlint、kubeconform、Chaos Mesh Helm chart、Renovate validator image、Bicep CLI、uv、azdの更新候補はRenovateが検出する。
 - gh-awは明示的な`gh aw upgrade`で更新する。Lefthookは`update-lefthook-pin`でversionとchecksumを一体更新する。
-- リポジトリ内のversion契約は`check-version-pins`、Docker base imageのdigest固定は`.github/repo-health.toml`の`docker-base-digest`ルールが検証する。
+- リポジトリ内のversion契約は`check-version-pins`、Docker base imageのdigest固定は`check-repo-health`が検証する。
 - Bicep resource API versionは`bicep-api-version-updater`のcheck-onlyモードが担当する。
 - 公開Markdownリンクの内容が現在の実装と一致するかは、review-repo agentが文書種別の評価基準に従って判断する。
 

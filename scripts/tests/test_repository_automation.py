@@ -200,7 +200,7 @@ def test_weekly_workflows_preserve_direct_github_api_access() -> None:
         assert r"\"api.github.com\"" in lock
 
 
-def test_freshness_targets_exist_in_repository_inventory() -> None:
+def test_public_review_inputs_exist_in_repository_inventory() -> None:
     completed = subprocess.run(
         [
             sys.executable,
@@ -215,18 +215,8 @@ def test_freshness_targets_exist_in_repository_inventory() -> None:
         text=True,
     )
     inventory = json.loads(completed.stdout)["inventory"]
-    tool_versions = {
-        item["location"].rpartition(":")[2]
-        for item in inventory
-        if item["category"] == "tool-version"
-    }
-    helm_charts = {
-        item["value"] for item in inventory if item["category"] == "helm-chart"
-    }
-    gh_aw_versions = {
-        item["value"]
-        for item in inventory
-        if item["location"].endswith(("gh-aw-setup", "compiler-version"))
+    bicep_resources = {
+        item["value"] for item in inventory if item["category"] == "bicep-resource-api"
     }
     docker_images = {
         item["value"] for item in inventory if item["category"] == "docker-base-image"
@@ -242,9 +232,10 @@ def test_freshness_targets_exist_in_repository_inventory() -> None:
         if item["category"] == "documentation-external-link"
     }
 
-    assert {"lefthook", "actionlint", "kubeconform", "azd"} <= tool_versions
-    assert "chaos-mesh/chaos-mesh" in helm_charts
-    assert gh_aw_versions
+    assert any(
+        value.startswith("Microsoft.ContainerService/managedClusters@")
+        for value in bicep_resources
+    )
     assert any(image.startswith("python:3.14-slim@sha256:") for image in docker_images)
     assert any(
         image.startswith("ghcr.io/astral-sh/uv:") and "@sha256:" in image

@@ -2541,10 +2541,9 @@ def test_review_workspace_create_writes_a_correct_manifest_and_leaves_repository
 
 def test_review_workspace_create_produces_a_real_isolated_workspace() -> None:
     """Real, unpatched create_review_workspace against this repository:
-    the manifest must sit beside, not inside, the workspace (else it's an
-    untracked true_gap that fails check-repo-health from inside the
-    workspace), and ROOT must resolve to the copied workspace rather than
-    back to this repository, so nested isolation is safe by construction."""
+    the manifest must sit beside, not inside, the workspace, and ROOT must
+    resolve to the copied workspace rather than back to this repository, so
+    nested isolation is safe by construction."""
     workspace = tasks.create_review_workspace()
     workspace_path = Path(workspace["workspace_path"])
     try:
@@ -2565,10 +2564,7 @@ def test_review_workspace_create_produces_a_real_isolated_workspace() -> None:
             "check-repo-health failed inside the isolated review workspace:\n"
             f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
         )
-        assert "0 true gaps" in completed.stdout, (
-            "expected zero true gaps (the manifest must not be an untracked, "
-            f"unrecognized file inside the workspace); got:\n{completed.stdout}"
-        )
+        assert "Repository health checks passed" in completed.stdout
 
         copied_tasks_path = workspace_path / "scripts" / "tasks.py"
         spec = importlib.util.spec_from_file_location(
@@ -3270,7 +3266,7 @@ def test_review_repo_agent_contract() -> None:
     assert "最新版候補はRenovateまたは明示的な保守作業で確認" in body
     assert "全Kubernetes YAML" in body
     assert "Chaos Mesh chart" in body
-    assert "`kubernetes-schema-exclusion`座標で`excluded`" in body
+    assert "`.github/repo-health.toml`の一覧に基づいて`excluded`" in body
     assert "## fullモードの文書とAI運用資産の評価基準" in body
     assert "文書とAI運用資産の意味評価および専門skillは実行しない" in body
     assert "文書とAI運用資産の意味評価を実行する" in body
@@ -3311,13 +3307,7 @@ def test_review_repo_agent_contract() -> None:
     assert "fail" in body
     assert "unverified" in body
     assert "excluded" in body
-    assert "coverage" in body
-    for category in (
-        "covered_by_other_check",
-        "intentionally_excluded",
-        "true_gap",
-    ):
-        assert category in body
+    assert "inventory categoryごとの対象数" in body
     assert "今回の走査範囲では" in body
     assert "追跡ファイルを編集しない" in body
     assert "git status --short" not in body

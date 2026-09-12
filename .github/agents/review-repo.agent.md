@@ -13,7 +13,7 @@ description: リポジトリ全体の衛生状態を非編集で点検する。�
 
 - この文書でtask targetと呼ぶ名前は、すべて`scripts/tasks.py`の実行対象である。
 - 指定がない場合は`review-repo-fast` task targetを実行する。
-- `fast`では、`review-repo-fast`と内容指紋のtask targetだけを実行し、構造化inventoryに記録されたcoverageと検査結果を報告する。`review-repo-fast`はオフラインで完結し、外部APIもDockerも使わない。version関連では、リポジトリ内で完結する不変条件（Renovateの座標とmatch数、Dependabot version updateの停止、uv pinの内部整合、Lefthookの座標とchecksum形式、azdとFunctions bundleのrange構文、gh-aw pinとlockの整合）だけを検査する。最新版候補はRenovateまたは明示的な保守作業で確認し、fastでは検出しない。「fullモードの文書とAI運用資産の評価基準」は適用せず、専門skillを呼び出さない。
+- `fast`では、`review-repo-fast`と内容指紋のtask targetだけを実行し、公開情報の確認に使うinventoryの対象数と検査結果を報告する。`review-repo-fast`はオフラインで完結し、外部APIもDockerも使わない。version関連では、リポジトリ内で完結する不変条件（Renovateの座標とmatch数、Dependabot version updateの停止、uv pinの内部整合、Lefthookの座標とchecksum形式、azdとFunctions bundleのrange構文、gh-aw pinとlockの整合）だけを検査する。最新版候補はRenovateまたは明示的な保守作業で確認し、fastでは検出しない。「fullモードの文書とAI運用資産の評価基準」は適用せず、専門skillを呼び出さない。
 - ユーザーが`full`、全検査、鮮度確認のいずれかを明示した場合だけ`review-repo-full` task targetを実行する。
 - `full`では、`review-repo-full`の全検査に加えて、文書とAI運用資産の意味評価を実行する。`review-repo-full`は`review-repo-fast`を唯一の基礎入口として内包し、同じ決定論的検査を再実行しない。同じrepo health inventory JSONと`--results-json`が出力した検査結果JSONを`repository-freshness-checker`の公開Markdownリンク、Docker base imageのEOL、Azure Functions extension bundleのsupport範囲の確認と、`bicep-api-version-updater`のcheck-onlyモードへ渡す。通常のversion更新候補はRenovateが担当し、gh-awとLefthookは明示的な保守作業で更新するため再検出しない。決定論的検査が出した`status`と`reason_code`をそのまま採用し、標準出力の自然言語から再解釈しない。公開情報を取得できない項目は`unverified`とする。
 - `full`では、現在のworktreeを直接検査しない。`review-workspace create` task targetが作成した隔離workspaceへ`review-repo-full`と両専門skillの実行をすべて委譲し、現在のworktreeは実行前後の内容指紋の取得だけに用いる。
@@ -38,8 +38,8 @@ description: リポジトリ全体の衛生状態を非編集で点検する。�
 | 層 | 内包する検査 | 次の層で追加する検査 |
 |---|---|---|
 | `review-repo-fast` task target | repo health JSON生成と整合性、Bicep parameter JSON、uv version、public lock、publisher requirements、リポジトリ内で完結するversion契約（`check-version-pins`） | なし |
-| review-repo agentのfastモード | 内容指紋の取得と比較、`review-repo-fast` task targetの全検査 | 構造化inventoryのcoverageとtask結果の報告だけを行う。文書とAI運用資産の意味評価および専門skillは実行しない |
-| `review-repo-full` task target | `review-repo-fast`の全検査 | 隔離copyでしか実行できない検査だけを追加する。隔離したapplication QA、hook test、Bicep build、全Kubernetes YAMLのlint、固定versionのChaos Mesh chartによるvalues render、workflow lint、gh-aw compile。Kubernetes schemaを取得できないkindは`.github/repo-health.toml`の一覧とinventoryの`kubernetes-schema-exclusion`座標で`excluded`として数える。application QAではfastで完了したpublisher requirementsを再実行せず、fastが判定済みのversion契約も再実行しない |
+| review-repo agentのfastモード | 内容指紋の取得と比較、`review-repo-fast` task targetの全検査 | inventoryの対象数とtask結果の報告だけを行う。文書とAI運用資産の意味評価および専門skillは実行しない |
+| `review-repo-full` task target | `review-repo-fast`の全検査 | 隔離copyでしか実行できない検査だけを追加する。隔離したapplication QA、hook test、Bicep build、全Kubernetes YAMLのlint、固定versionのChaos Mesh chartによるvalues render、workflow lint、gh-aw compile。Kubernetes schemaを取得できないkindは`.github/repo-health.toml`の一覧に基づいて`excluded`として数える。application QAではfastで完了したpublisher requirementsを再実行せず、fastが判定済みのversion契約も再実行しない |
 | review-repo agentのfullモード | 内容指紋の取得と比較、`review-workspace create`による隔離workspace作成、隔離workspace内から呼び出した`review-repo-full` task targetの全検査、`review-workspace cleanup`によるworkspace削除 | 文書とAI運用資産の意味評価、同じinventory JSONと検査結果JSONを入力にしたfreshness skillによる公開Markdownリンク、Docker base imageのEOL、Functions extension bundleのsupport範囲の確認、`bicep-api-version-updater`のcheck-onlyモード |
 
 ## fullモードの文書とAI運用資産の評価基準
@@ -88,11 +88,11 @@ fullの隔離と実行順は実行インターフェースと包含関係の表�
 
 1. 対象commitと実行モードを記録し、`review-fingerprint capture`で実行前の内容指紋を取得する。
 2. fastの場合は`review-repo-fast`を、リポジトリ外の`--inventory-json`出力先と`--results-json`出力先を指定して現在のworktreeへ一度だけ実行する。fullの場合は`review-workspace create`で隔離workspaceを作成し、`uv run --no-project "<workspace>/scripts/tasks.py" review-repo-full`を、現在のリポジトリと隔離workspaceの両方の外にある`--inventory-json`出力先と`--results-json`出力先を指定して一度だけ実行する。task targetがツールを事前分類し、実行可能な検査を継続する。
-3. task targetが生成したinventory JSONからcoverageと内部整合性を確認する。file coverageは`covered_by_other_check`、`intentionally_excluded`、`true_gap`を区別し、`true_gap`を未対応数として扱う。`inventory-repo`や`check-repo-health`を重複実行しない。
+3. task targetが生成したinventory JSONから、公開情報の確認対象数と内部整合性を確認する。inventoryはBicep resource API、公開Markdownリンク、Docker base image、Functions extension bundle、Kubernetes manifestだけを記録する。`inventory-repo`や`check-repo-health`を重複実行しない。
 4. fullの場合だけ、「fullモードの文書とAI運用資産の評価基準」を種類ごとに適用し、inventoryへの出現だけで`pass`にしない。手順2と同じinventory JSON（隔離workspace内のpathを指す）と手順2が出力した検査結果JSONを`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyモードへ渡し、既存の専門手順の結果と集約する。決定論的検査が出した`status`と`reason_code`を再解釈しない。freshness skillは`documentation-external-link`、`docker-base-image`、`function-extension-bundle`の各項目を全件処理し、取得不能を`unverified`とする。Renovateまたは明示的な保守作業が担当するversion更新候補は再検出しない。Bicep resource APIの結果が返らない場合、その領域を`unverified`とする。
 5. fullの場合だけ、手順4までの検査結果にかかわらず`review-workspace cleanup`を実行し、手順2で作成した隔離workspaceを削除する。削除に失敗した場合はその旨を報告に含め、現在のworktreeへの影響がないことを確認する。
 6. `review-fingerprint capture`で実行後の内容指紋を取得し、`review-fingerprint compare`で実行前との差を確認する。
-7. 状態分類、coverage、環境制約、修正計画を報告する。fastでは、決定論的検査の結果を`status`と`reason_code`とともに列挙し、full専用検査を個別の`unverified`として列挙せず実行モードの対象外であることを示す。
+7. 状態分類、inventoryの対象数、環境制約、修正計画を報告する。fastでは、決定論的検査の結果を`status`と`reason_code`とともに列挙し、full専用検査を個別の`unverified`として列挙せず実行モードの対象外であることを示す。
 
 ## 既存経路との責務境界
 
@@ -120,7 +120,7 @@ fullの隔離と実行順は実行インターフェースと包含関係の表�
 
 1. 実行モード、対象commit、走査時点
 2. 状態別の検査結果と根拠
-3. coverageとして、追跡済みファイル数、未追跡ファイル数、走査ファイル数、認識座標数、検査済み座標数、除外数、別検査で対応するファイル数、意図的除外数、真の未対応数
+3. inventory categoryごとの対象数と、Kubernetes schema検査の除外対象数
 4. `unverified`と`excluded`の対象、理由、環境制約
 5. 問題のあるファイル、影響、修正担当、利用するagentまたはskill
 6. 問題がある場合の修正計画と、追加の判断が必要な範囲
