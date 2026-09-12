@@ -300,13 +300,11 @@ def test_documentation_exposes_maintenance_entry_points() -> None:
     assert "review-repo-fast" in readme
     assert "review-repo-full" in readme
     assert "fastモードは" in readme
-    assert "意味評価や専門skillは実行しません" in readme
     assert "fullモードは" in readme
-    assert "文書とAI運用資産の意味評価を実行します" in readme
+    assert "文書、AI運用資産を追加で確認します" in readme
     assert "docs/dependency-management.md" in readme
-    assert "唯一の上位実行入口" in readme
-    assert "構造化inventory" in readme
-    assert "オフラインで完結する検査だけを実行します" in readme
+    assert "専用worktree" in readme
+    assert "task内部で別のsnapshotや一時Git repositoryは作成しません" in readme
     # README stays a short entry point: the responsibility split lives in the
     # dependency-management document.
     assert (

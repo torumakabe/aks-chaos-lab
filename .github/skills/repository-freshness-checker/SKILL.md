@@ -9,7 +9,7 @@ description: review-repo fullが生成したinventoryを使い、公開Markdown�
 
 ## 入力と確認範囲
 
-入力は、隔離workspaceで実行した次のコマンドが生成するinventory JSONと検査結果JSONである。
+入力は、専用worktreeで実行した次のコマンドが生成するinventory JSONと検査結果JSONである。
 
 ```text
 review-repo-full --inventory-json <absolute-path> --results-json <absolute-path>

@@ -47,7 +47,6 @@ def isolate_uv_configuration(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     )
     for name in tasks.UNSAFE_UV_ENVIRONMENT_VARIABLES:
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.delenv(tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE, raising=False)
 
 
 def configure_root(
@@ -188,7 +187,6 @@ def test_non_approved_config_is_deferred_to_uv(
         "run_uv_in",
         "target_sync",
         "target_sync_dev",
-        "target_prepare_review_python_environment",
     ),
 )
 @pytest.mark.parametrize(
@@ -255,46 +253,6 @@ def test_invalid_default_index_url_is_not_a_normal_environment(
         tasks.approved_index_run_flags()
 
 
-@pytest.mark.parametrize("python_exists", (True, False))
-def test_review_handoff_only_reuses_environment_with_python(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, python_exists: bool
-) -> None:
-    configure_root(monkeypatch, tmp_path)
-    monkeypatch.setenv(tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE, "1")
-    python = tasks.environment_python_path()
-    if python_exists:
-        python.parent.mkdir(parents=True)
-        python.touch()
-    monkeypatch.setattr(
-        tasks,
-        "selected_approved_index_config",
-        lambda: pytest.fail("review handoff must not reselect or synchronize"),
-    )
-    if python_exists:
-        assert tasks.approved_index_run_flags() == ["--no-sync"]
-    else:
-        with pytest.raises(SystemExit):
-            tasks.approved_index_run_flags()
-
-
-@pytest.mark.parametrize("approved", (True, False))
-def test_review_preparation_selects_matching_sync(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, approved: bool
-) -> None:
-    configure_root(monkeypatch, tmp_path)
-    if approved:
-        config_path = tmp_path / "uv.toml"
-        write_approved_config(config_path)
-        monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
-    calls: list[str] = []
-    monkeypatch.setattr(tasks, "target_sync_dev", lambda: calls.append("standard"))
-    monkeypatch.setattr(
-        tasks, "target_sync_dev_approved_index", lambda: calls.append("approved")
-    )
-    tasks.target_prepare_review_python_environment()
-    assert calls == ["approved" if approved else "standard"]
-
-
 def test_approved_index_config_requires_one_non_public_default(
     tmp_path: Path,
 ) -> None:
@@ -351,19 +309,12 @@ def test_child_environment_removes_unsafe_uv_overrides_and_credentials(
     monkeypatch.setenv("UV_PROJECT", "/not-a-project")
     monkeypatch.setenv("UV_NO_DEV", "1")
     monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_USERNAME", "username")
-    monkeypatch.setenv(tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE, "1")
 
     environment = tasks.child_env()
 
     assert "UV_PROJECT" not in environment
     assert "UV_NO_DEV" not in environment
     assert "UV_INDEX_APPROVED_INDEX_USERNAME" not in environment
-    assert tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE not in environment
-
-    review_environment = tasks.child_env(
-        {tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE: "1"}
-    )
-    assert review_environment[tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE] == "1"
 
 
 def test_package_api_approved_index_delegates_validated_build(

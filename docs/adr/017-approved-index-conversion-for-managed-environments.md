@@ -6,6 +6,7 @@ Accepted
 
 - Date: 2026-08-08
 - Amended: 2026-09-08（明示 task の限定 lock 修復と API 成果物の受け渡し）
+- Amended by [ADR-021](021-run-full-review-directly-in-dedicated-worktree.md): Decision 4 の `review-repo-full` 専用隔離コピーと準備済み環境の process 間引渡しを廃止する。各 task process が approved-index 同期を実行する判断と、それ以外の approved-index 保証は引き続き有効とする。
 
 ## Context
 Public GitHub repository では public PyPI source の root `uv.lock` を唯一の正本とする。一方、public PyPI へ直接アクセスできず、organization-approved package index の使用を必須とする管理対象環境では、ADR-013 の依存関係同期方式を適用できない。
@@ -36,6 +37,7 @@ Public GitHub repository では public PyPI source の root `uv.lock` を唯一�
 ## Consequences
 - 管理対象環境は public lock と bit-identical な依存関係を再現できる。
 - 一時requirementsの生成と通常のtask processごとの再同期が必要になる。full レビューでは、隔離先での準備成功を確認したレビュー処理が後続 QA への引渡しを担う。approved-indexが成立条件を満たさない場合、環境構築は失敗する。
+- Decision 4 の `review-repo-full` 専用隔離コピー、準備済み環境の引渡し、および旧デプロイ文書アンカーへの参照は、専用 worktree で既存 task を直接実行する構成と責務が重複するため、ADR-021 で廃止した。Decision 本文は旧方式の判断履歴として残す。
 - 明示した2つの task は、限定条件に合致する場合に限り `uv.lock` を修復する副作用を持つ。排他に協調しない外部プロセスの書き込みを完全には防げない。
 - 成果物の同一性は適用後の確認時点を対象とする。将来の外部操作によるタグの上書きと再 pull まで不変性を保証しない。
 

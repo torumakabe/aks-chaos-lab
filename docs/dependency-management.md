@@ -83,7 +83,7 @@ fastが実行するversion関連の検査は`check-version-pins`である。検�
 
 uv pinの内部整合は`check-uv-version`が、gh-aw pinとlock fileの`compiler_version`の整合は`check-repo-health`の`gh-aw-compiler-version`ルールが検査する。どちらもfastが実行する。
 
-`review-repo-full`はfastを一度だけ実行して結果を再利用し、隔離copyでしか実行できない検査（application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-aw compile）と、文書およびAI運用資産の意味評価を追加する。version更新候補はRenovateまたは明示的な保守作業が担当するため再検出しない。Docker base imageのEOLとAzure Functions extension bundleのsupport範囲はfullで意味評価する。
+`review-repo-full`は専用worktreeでfastを一度だけ実行し、application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-awの非書き込み検証を追加する。生成lockの更新と差分検査には、手動またはCIで`compile-aw`を実行する。version更新候補はRenovateまたは明示的な保守作業が担当するため再検出しない。Docker base imageのEOLとAzure Functions extension bundleのsupport範囲はfullで意味評価する。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast --results-json <path>
