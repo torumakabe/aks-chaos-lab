@@ -299,145 +299,6 @@ def _write_ci_workflow(repository: Path, version: str, checksum: str) -> Path:
     return workflow_path
 
 
-def test_evaluate_lefthook_pin_reports_update_available_when_release_is_newer(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.10", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
-    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", lambda: "2.1.12")
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_UPDATE_AVAILABLE
-    assert finding.current == "2.1.10"
-    assert finding.published == "2.1.12"
-    assert "requires maintainer review before updating" in finding.detail
-
-
-def test_evaluate_lefthook_pin_fails_on_checksum_mismatch_before_release_lookup(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.10", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "b" * 64)
-
-    def _fail_release() -> str:
-        raise AssertionError("must not query the latest release on a mismatch")
-
-    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", _fail_release)
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "fail"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_CHECKSUM_MISMATCH
-
-
-def test_evaluate_lefthook_pin_marks_missing_checksum_evidence_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.10", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-
-    def _raise(_version: str) -> str:
-        raise tasks.LefthookChecksumUnavailableError("network down")
-
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", _raise)
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE
-    assert "official Lefthook freshness evidence was unavailable" in finding.detail
-
-
-def test_evaluate_lefthook_pin_marks_missing_release_evidence_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.10", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
-
-    def _raise() -> str:
-        raise tasks.LefthookReleaseUnavailableError("network down")
-
-    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", _raise)
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE
-
-
-def test_evaluate_lefthook_pin_passes_when_current_and_checksum_match(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.12", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
-    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", lambda: "2.1.12")
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "pass"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_CURRENT
-
-
-def test_evaluate_lefthook_pin_never_proposes_a_downgrade(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.12", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
-    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", lambda: "2.1.10")
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_PINNED_AHEAD
-    assert "no automated downgrade" in finding.detail
-
-
-def test_fetch_lefthook_latest_release_strips_v_prefix(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        tasks,
-        "open_github_url",
-        lambda _url, _timeout: _FakeChecksumResponse(b'{"tag_name": "v2.1.12"}'),
-    )
-
-    assert tasks.fetch_lefthook_latest_release() == "2.1.12"
-
-
-def test_fetch_lefthook_latest_release_rejects_malformed_tag(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        tasks,
-        "open_github_url",
-        lambda _url, _timeout: _FakeChecksumResponse(
-            b'{"tag_name": "v2.1.12; echo unexpected"}'
-        ),
-    )
-
-    with pytest.raises(tasks.LefthookReleaseUnavailableError):
-        tasks.fetch_lefthook_latest_release()
-
-
 def test_update_lefthook_pin_rewrites_version_and_checksum_together(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -743,13 +604,7 @@ def test_renovate_manager_expectations_match_exactly_one_coordinate_each() -> No
 
 
 def test_renovate_does_not_manage_lefthook_or_gh_aw() -> None:
-    """Both pins are deliberately excluded from Renovate.
-
-    Renovate cannot regenerate LEFTHOOK_SHA256 in the same change (workarounds
-    D-12), and the gh-aw compiler pin is decided together with the workflow
-    locks that ``gh aw compile`` generates. The non-Renovate tool workflow
-    detects both update candidates instead.
-    """
+    """Pins that require coupled generated changes remain manual updates."""
     config = tasks.load_renovate_config()
     serialized = json.dumps(config)
 
@@ -760,14 +615,6 @@ def test_renovate_does_not_manage_lefthook_or_gh_aw() -> None:
     assert "gh_aw_setup" not in serialized
     assert config["packageRules"][0]["enabled"] is False
     assert "github/gh-aw-actions" in config["packageRules"][0]["matchPackageNames"]
-    assert set(tasks.FRESHNESS_CHECK_SUBJECTS) == {
-        tasks.FRESHNESS_SUBJECT_GH_AW,
-        tasks.FRESHNESS_SUBJECT_LEFTHOOK,
-    }
-    assert {tool.tool_id for tool in tasks.NON_RENOVATE_TOOLS} == {
-        "gh-aw",
-        "lefthook",
-    }
 
 
 # An independent renovate --dry-run=extract JSON fixture, hand-written rather
@@ -904,364 +751,6 @@ def test_check_renovate_config_reports_an_extraction_mismatch(
 
     assert error.value.code == 1
     assert "--dry-run=extract result does not match" in capsys.readouterr().err
-
-
-def test_freshness_checks_output_stays_exit_zero_for_fail_and_unverified(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """The weekly workflow must still receive a JSON document to report on.
-
-    Exiting non-zero here would abort the workflow step before the skill could
-    read the findings, hiding the very failures the run exists to surface.
-    """
-    monkeypatch.setattr(
-        tasks,
-        "collect_freshness_findings",
-        lambda: [
-            tasks.FreshnessFinding(
-                "gh-aw",
-                ".github/workflows/copilot-setup-steps.yml",
-                "unverified",
-                tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-                None,
-                None,
-                (),
-                "release evidence unavailable",
-            ),
-            tasks.FreshnessFinding(
-                "Lefthook",
-                ".github/workflows/ci.yml",
-                "fail",
-                tasks.FRESHNESS_REASON_CHECKSUM_MISMATCH,
-                None,
-                None,
-                (),
-                "checksum mismatch",
-            ),
-        ],
-    )
-    output = tmp_path / "freshness.json"
-
-    tasks.target_freshness_checks(output)
-
-    document = json.loads(output.read_text(encoding="utf-8"))
-    assert document["status"] == "fail"
-    assert {finding["reason_code"] for finding in document["findings"]} == {
-        "evidence-unavailable",
-        "checksum-mismatch",
-    }
-
-
-def test_freshness_document_status_is_fail_first_then_unverified() -> None:
-    def _finding(status: str) -> tasks.FreshnessFinding:
-        return tasks.FreshnessFinding("s", "c", status, "r", None, None, (), "detail")
-
-    fail_doc = tasks.freshness_document(
-        [_finding("pass"), _finding("unverified"), _finding("fail")]
-    )
-    assert fail_doc["status"] == "fail"
-    assert fail_doc["coverage"] == {
-        "total": 3,
-        "pass": 1,
-        "fail": 1,
-        "unverified": 1,
-        "excluded": 0,
-    }
-
-    unverified_doc = tasks.freshness_document(
-        [_finding("pass"), _finding("unverified")]
-    )
-    assert unverified_doc["status"] == "unverified"
-
-    pass_doc = tasks.freshness_document([_finding("pass"), _finding("pass")])
-    assert pass_doc["status"] == "pass"
-
-
-def test_freshness_document_empty_input_is_unverified() -> None:
-    document = tasks.freshness_document([])
-
-    assert document["status"] == "unverified"
-    assert document["coverage"] == {
-        "total": 0,
-        "pass": 0,
-        "fail": 0,
-        "unverified": 0,
-        "excluded": 0,
-    }
-
-
-def test_freshness_finding_rejects_unknown_status() -> None:
-    with pytest.raises(ValueError, match="unsupported freshness status"):
-        tasks.FreshnessFinding(
-            "subject",
-            "coordinate",
-            "unknown",
-            "reason",
-            None,
-            None,
-            (),
-            "detail",
-        )
-
-
-def test_freshness_finding_rejects_empty_reason_code() -> None:
-    with pytest.raises(ValueError, match="reason_code must not be empty"):
-        tasks.FreshnessFinding(
-            "subject",
-            "coordinate",
-            "pass",
-            "",
-            None,
-            None,
-            (),
-            "detail",
-        )
-
-
-def test_freshness_document_serializes_reason_codes_and_evidence() -> None:
-    finding = tasks.FreshnessFinding(
-        "Lefthook",
-        ".github/workflows/ci.yml",
-        "unverified",
-        tasks.FRESHNESS_REASON_UPDATE_AVAILABLE,
-        "2.1.10",
-        "2.1.12",
-        ("https://example.invalid/releases",),
-        "newer release available",
-    )
-    document = tasks.freshness_document([finding])
-    entry = document["findings"][0]
-
-    assert entry["reason_code"] == "update-available"
-    assert entry["tool"] == "lefthook"
-    assert entry["current"] == "2.1.10"
-    assert entry["published"] == "2.1.12"
-    assert entry["evidence"] == ["https://example.invalid/releases"]
-    assert document["schema_version"] == tasks.FRESHNESS_SCHEMA_VERSION
-
-
-def test_freshness_checks_target_writes_json(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(
-        tasks,
-        "collect_freshness_findings",
-        lambda: [
-            tasks.FreshnessFinding(
-                "gh-aw", "c", "unverified", "update-available", "a", "b", (), "d"
-            )
-        ],
-    )
-    output = tmp_path / "freshness.json"
-
-    tasks.target_freshness_checks(output)
-
-    document = json.loads(output.read_text(encoding="utf-8"))
-    assert document["status"] == "unverified"
-    assert document["findings"][0]["reason_code"] == "update-available"
-
-
-def test_freshness_checks_target_is_registered() -> None:
-    assert "freshness-checks" in tasks.TARGETS
-
-
-def test_update_non_renovate_tool_dispatches_registered_updater(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[str] = []
-    monkeypatch.setattr(
-        tasks, "target_update_lefthook_pin", lambda version: calls.append(version)
-    )
-
-    tasks.target_update_non_renovate_tool("lefthook", "2.1.12")
-
-    assert calls == ["2.1.12"]
-
-
-def test_update_non_renovate_tool_rejects_unknown_tool() -> None:
-    with pytest.raises(SystemExit) as error:
-        tasks.target_update_non_renovate_tool("unknown", "1.0.0")
-
-    assert error.value.code == 1
-
-
-def test_classify_gh_aw_compiler_pin_rejects_known_stale_example() -> None:
-    """Pin the known real-world gap (pinned v0.79.6, latest v0.86.2).
-
-    Confirming *a* current release exists upstream is not evidence the pin
-    is current. This must not report "pass" for a real, confirmed version
-    difference -- it reports "unverified" because bumping the gh-aw compiler
-    pin is a deliberate, human-reviewed maintenance decision in this
-    repository, not an automatic latest-wins update.
-    """
-    status, message = tasks.classify_gh_aw_compiler_pin("v0.79.6", "v0.86.2")
-
-    assert status == "unverified"
-    assert "v0.79.6" in message
-    assert "v0.86.2" in message
-    assert "requires maintainer review of workflow compatibility" in message
-
-
-def test_classify_gh_aw_compiler_pin_passes_when_versions_match() -> None:
-    status, message = tasks.classify_gh_aw_compiler_pin("v0.79.6", "v0.79.6")
-
-    assert status == "pass"
-    assert "matches the latest stable release" in message
-
-
-def test_classify_gh_aw_compiler_pin_never_proposes_a_downgrade() -> None:
-    status, message = tasks.classify_gh_aw_compiler_pin("v0.88.7", "v0.88.6")
-
-    assert status == "unverified"
-    assert "no automated downgrade" in message
-
-
-def test_evaluate_gh_aw_pin_marks_pinned_ahead_without_update(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(tasks, "read_gh_aw_setup_version", lambda: "v0.88.7")
-    monkeypatch.setattr(tasks, "fetch_gh_aw_latest_release", lambda: "v0.88.6")
-
-    finding = tasks.evaluate_gh_aw_pin()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_PINNED_AHEAD
-    assert "no automated downgrade" in finding.detail
-
-
-def test_classify_gh_aw_compiler_pin_fails_on_malformed_version() -> None:
-    status, message = tasks.classify_gh_aw_compiler_pin("not-a-version", "v0.86.2")
-
-    assert status == "fail"
-    assert "not a valid vX.Y.Z version" in message
-
-
-def test_parse_gh_aw_version_accepts_with_or_without_v_prefix() -> None:
-    assert tasks.parse_gh_aw_version("v0.79.6") == (0, 79, 6)
-    assert tasks.parse_gh_aw_version("0.79.6") == (0, 79, 6)
-    assert tasks.parse_gh_aw_version("v0.79") is None
-    assert tasks.parse_gh_aw_version("") is None
-
-
-def test_read_gh_aw_setup_version_matches_the_real_pin() -> None:
-    pinned = tasks.read_gh_aw_setup_version()
-
-    assert tasks.parse_gh_aw_version(pinned) is not None
-
-
-def test_fetch_gh_aw_latest_release_parses_tag_name(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    payload = json.dumps({"tag_name": "v0.86.2"}).encode("utf-8")
-    monkeypatch.setattr(
-        tasks.urllib.request,
-        "urlopen",
-        lambda _url, timeout=None: _FakeChecksumResponse(payload),
-    )
-
-    assert tasks.fetch_gh_aw_latest_release() == "v0.86.2"
-
-
-def test_fetch_gh_aw_latest_release_raises_on_network_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def raise_network_error(_url: str, timeout: float | None = None) -> None:
-        raise tasks.urllib.error.URLError("simulated DNS failure")
-
-    monkeypatch.setattr(tasks.urllib.request, "urlopen", raise_network_error)
-
-    with pytest.raises(tasks.GhAwReleaseUnavailableError, match="network"):
-        tasks.fetch_gh_aw_latest_release()
-
-
-def test_fetch_gh_aw_latest_release_raises_when_tag_name_missing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    payload = json.dumps({"name": "no tag_name field"}).encode("utf-8")
-    monkeypatch.setattr(
-        tasks.urllib.request,
-        "urlopen",
-        lambda _url, timeout=None: _FakeChecksumResponse(payload),
-    )
-
-    with pytest.raises(tasks.GhAwReleaseUnavailableError):
-        tasks.fetch_gh_aw_latest_release()
-
-
-def test_fetch_gh_aw_actions_sha_peels_annotated_tag(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    responses = iter(
-        (
-            _FakeChecksumResponse(
-                json.dumps({"object": {"type": "tag", "sha": "a" * 40}}).encode()
-            ),
-            _FakeChecksumResponse(
-                json.dumps({"object": {"type": "commit", "sha": "b" * 40}}).encode()
-            ),
-        )
-    )
-    monkeypatch.setattr(
-        tasks.urllib.request,
-        "urlopen",
-        lambda _request, timeout=None: next(responses),
-    )
-
-    assert tasks.fetch_gh_aw_actions_sha("v0.88.7") == "b" * 40
-
-
-def test_update_gh_aw_setup_pin_updates_sha_comment_and_version(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(tasks, "ROOT", tmp_path)
-    path = tmp_path / tasks.GH_AW_SETUP_WORKFLOW
-    path.parent.mkdir(parents=True)
-    path.write_text(
-        "steps:\n"
-        "  - uses: github/gh-aw-actions/setup-cli@" + "a" * 40 + " # v0.1.0\n"
-        "    with:\n"
-        "      version: v0.1.0\n",
-        encoding="utf-8",
-    )
-
-    tasks.update_gh_aw_setup_pin("v0.2.0", "b" * 40)
-
-    updated = path.read_text(encoding="utf-8")
-    assert f"setup-cli@{'b' * 40} # v0.2.0" in updated
-    assert "version: v0.2.0" in updated
-
-
-def test_update_gh_aw_updater_action_pin_updates_sha_and_comment(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(tasks, "ROOT", tmp_path)
-    path = tmp_path / tasks.GH_AW_UPDATER_WORKFLOW
-    path.parent.mkdir(parents=True)
-    path.write_text(
-        "steps:\n"
-        "  - uses: github/gh-aw-actions/setup-cli@" + "a" * 40 + " # v0.1.0\n"
-        "    with:\n"
-        "      version: ${{ matrix.update.version }}\n",
-        encoding="utf-8",
-    )
-
-    tasks.update_gh_aw_updater_action_pin("v0.2.0", "b" * 40)
-
-    updated = path.read_text(encoding="utf-8")
-    assert f"setup-cli@{'b' * 40} # v0.2.0" in updated
-    assert "version: ${{ matrix.update.version }}" in updated
-
-
-def test_update_gh_aw_requires_the_requested_cli_version(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(tasks, "target_check_gh_aw", lambda: None)
-    monkeypatch.setattr(tasks, "installed_gh_aw_version", lambda: "v0.1.0")
-
-    with pytest.raises(SystemExit) as error:
-        tasks.target_update_gh_aw("v0.2.0")
-
-    assert error.value.code == 1
 
 
 def _write_range_fixture(repository: Path, azd_range: str, bundle_version: str) -> None:
@@ -3778,7 +3267,7 @@ def test_review_repo_agent_contract() -> None:
     assert "隔離copyでしか実行できない検査だけを追加する" in body
     assert "fastが判定済みのversion契約も再実行しない" in body
     assert "`review-repo-fast`はオフラインで完結し、外部APIもDockerも使わない" in body
-    assert "最新版候補の検出はscheduledな仕組みへ委譲済み" in body
+    assert "最新版候補はRenovateまたは明示的な保守作業で確認" in body
     assert "全Kubernetes YAML" in body
     assert "Chaos Mesh chart" in body
     assert "`kubernetes-schema-exclusion`座標で`excluded`" in body
@@ -3813,7 +3302,7 @@ def test_review_repo_agent_contract() -> None:
     assert "手順2と同じinventory JSON" in execution_steps
     assert (
         "`documentation-external-link`、`docker-base-image`、"
-        "`function-extension-bundle`座標を全件処理"
+        "`function-extension-bundle`の各項目を全件処理"
     ) in execution_steps
     assert "version更新候補は再検出しない" in execution_steps
     assert "Bicep resource APIの結果が返らない場合" in execution_steps
@@ -3860,7 +3349,7 @@ def test_repository_freshness_skill_contract() -> None:
         "--results-json <absolute-path>" in body
     )
     assert "別のinventory生成コマンドを実行せず" in body
-    assert "同じ更新候補を再検出しない" in body
+    assert "version更新候補を検出しない" in body
     for subject in ("Docker base image", "Azure Functions extension bundle"):
         assert subject in body
     for category in (
@@ -3871,7 +3360,7 @@ def test_repository_freshness_skill_contract() -> None:
         assert category in body
     for boundary in (
         "check-version-pins",
-        "repository-freshness-check.yml",
+        "update-lefthook-pin",
         "bicep-api-version-updater",
     ):
         assert boundary in body
@@ -3917,7 +3406,6 @@ def test_each_skill_directory_contains_skill_document() -> None:
 
 
 ONLINE_TARGET_NAMES = (
-    "freshness-checks",
     "check-renovate-config",
     "update-lefthook-pin",
 )
@@ -4068,53 +3556,9 @@ def test_version_ranges_are_never_compared_against_a_latest_release() -> None:
     """No evaluator may treat azd or the Functions bundle as an exact pin."""
     assert tasks.azd_minimum_version_range().startswith(">= ")
     assert tasks.functions_bundle_support_range().startswith("[")
-    assert "azd" not in tasks.FRESHNESS_CHECK_SUBJECTS
-    assert "Azure Functions extension bundle" not in tasks.FRESHNESS_CHECK_SUBJECTS
     assert "exact pin" in (tasks.azd_minimum_version_range.__doc__ or "")
     renovate_targets = {
         item.target_path for item in tasks.RENOVATE_MANAGER_EXPECTATIONS
     }
     assert "azure.yaml" in renovate_targets
     assert "src/external-sli-publisher/host.json" not in renovate_targets
-
-
-def test_scheduled_checker_reports_exactly_the_non_renovate_subjects(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """The scheduled JSON carries only tools Renovate cannot update safely."""
-    monkeypatch.setattr(
-        tasks,
-        "evaluate_gh_aw_pin",
-        lambda: tasks.FreshnessFinding(
-            tasks.FRESHNESS_SUBJECT_GH_AW, "c", "pass", "current", None, None, (), "d"
-        ),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "evaluate_lefthook_pin",
-        lambda: tasks.FreshnessFinding(
-            tasks.FRESHNESS_SUBJECT_LEFTHOOK,
-            "c",
-            "unverified",
-            tasks.FRESHNESS_REASON_UPDATE_AVAILABLE,
-            "2.1.10",
-            "2.1.12",
-            (),
-            "d",
-        ),
-    )
-    output = tmp_path / "freshness.json"
-
-    tasks.target_freshness_checks(output)
-
-    document = json.loads(output.read_text(encoding="utf-8"))
-    assert [finding["subject"] for finding in document["findings"]] == [
-        "gh-aw",
-        "Lefthook",
-    ]
-    assert [finding["tool"] for finding in document["findings"]] == [
-        "gh-aw",
-        "lefthook",
-    ]
-    assert document["status"] == "unverified"

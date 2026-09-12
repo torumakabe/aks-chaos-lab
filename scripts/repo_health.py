@@ -1709,7 +1709,7 @@ def build_result(root: Path, *, include_checks: bool) -> dict[str, Any]:
                 "reason": (
                     "This scanner only records version coordinates. Comparing "
                     "them against published versions is delegated to Renovate "
-                    "and to the scheduled freshness-checks target."
+                    "or an explicit maintenance operation."
                 ),
             },
             {

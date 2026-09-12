@@ -56,11 +56,7 @@ from public_lock import (  # noqa: E402
     validate_exported_requirements,
     validate_public_lock,
 )
-from repo_health import (  # noqa: E402
-    RepoHealthError,
-    extract_gh_aw_setup_version,
-    load_kubernetes_schema_excluded_kinds,
-)
+from repo_health import load_kubernetes_schema_excluded_kinds  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -118,9 +114,6 @@ RENOVATE_VALIDATOR_TIMEOUT_SECONDS = 300
 # (a repository defect) from "the container never got that far" (evidence gap).
 RENOVATE_VALIDATOR_RAN_MARKER = "Validating"
 LEFTHOOK_CI_WORKFLOW = Path(".github/workflows/ci.yml")
-LEFTHOOK_RELEASES_API = (
-    "https://api.github.com/repos/evilmartians/lefthook/releases/latest"
-)
 LEFTHOOK_CHECKSUMS_URL_TEMPLATE = (
     "https://github.com/evilmartians/lefthook/releases/download/"
     "v{version}/lefthook_checksums.txt"
@@ -128,9 +121,6 @@ LEFTHOOK_CHECKSUMS_URL_TEMPLATE = (
 LEFTHOOK_LINUX_ASSET_TEMPLATE = "lefthook_{version}_Linux_x86_64.gz"
 LEFTHOOK_NETWORK_TIMEOUT_SECONDS = 15
 APPROVED_INDEX_CACHE_DIRECTORY = Path(".uv-state") / "cache"
-# Subjects of tool update checks that Renovate cannot safely complete.
-FRESHNESS_SUBJECT_GH_AW = "gh-aw"
-FRESHNESS_SUBJECT_LEFTHOOK = "Lefthook"
 REVIEW_MAX_UNTRACKED_FILE_BYTES = 10 * 1024 * 1024
 REVIEW_CHECK_TIMEOUT_SECONDS = 300
 REVIEW_GIT_TIMEOUT_SECONDS = 30
@@ -992,10 +982,9 @@ REVIEW_REASON_ORIGIN_UNAVAILABLE = "origin-unavailable"
 # The fast review is offline by contract. Every check here reaches its verdict
 # from repository content alone, so it never queries a release API, a registry,
 # or the Docker daemon, and it never re-discovers an update candidate that the
-# scheduled automation already owns. Detecting newer versions belongs to
-# Renovate and to the scheduled ``freshness-checks`` target; what fast verifies
-# is that this repository still states the invariants those mechanisms depend
-# on.
+# update automation owns. Detecting newer versions belongs to Renovate or an
+# explicit maintenance operation; fast verifies only the repository invariants
+# those update procedures depend on.
 FAST_REVIEW_CHECKS = (
     ReviewCheck("repo-health", "check-repo-health", ("git",)),
     ReviewCheck("uv-version", "check-uv-version", ("uv",)),
@@ -2791,61 +2780,11 @@ def target_install_tools() -> None:
     print_success("All required external tools are available")
 
 
-# ---------------------------------------------------------------------------
-# Non-Renovate tool update checks
-#
-# These checks own only tools whose update cannot be completed safely by
-# Renovate. They emit structured evidence for an ordinary scheduled Actions
-# workflow, which opens a validated pull request for each update candidate.
-# ---------------------------------------------------------------------------
-FRESHNESS_SCHEMA_VERSION = 1
-FRESHNESS_REASON_CURRENT = "current"
-FRESHNESS_REASON_UPDATE_AVAILABLE = "update-available"
-FRESHNESS_REASON_PINNED_AHEAD = "pinned-ahead"
-FRESHNESS_REASON_EVIDENCE_UNAVAILABLE = "evidence-unavailable"
-FRESHNESS_REASON_COORDINATE_ANOMALY = "coordinate-anomaly"
-FRESHNESS_REASON_CHECKSUM_MISMATCH = "checksum-mismatch"
-FRESHNESS_REASON_VERSION_MALFORMED = "version-malformed"
-FRESHNESS_STATUSES = frozenset({"pass", "fail", "unverified", "excluded"})
-
-# Fixed phrases that keep an evidence gap distinguishable from a repository
-# defect in the scheduled findings, whatever the underlying platform error text
-# happens to be.
-FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE = (
-    "official {subject} freshness evidence was unavailable"
-)
-FRESHNESS_UPDATE_AVAILABLE_PHRASE = "requires maintainer review before updating"
-
-
-@dataclass(frozen=True)
-class FreshnessFinding:
-    subject: str
-    coordinate: str
-    status: str
-    reason_code: str
-    current: str | None
-    published: str | None
-    evidence: tuple[str, ...]
-    detail: str
-
-    def __post_init__(self) -> None:
-        if self.status not in FRESHNESS_STATUSES:
-            raise ValueError(f"unsupported freshness status: {self.status}")
-        if not self.reason_code:
-            raise ValueError("freshness reason_code must not be empty")
-
-
 def github_api_request_headers() -> dict[str, str]:
-    """Build GitHub request headers, adding a bearer token when one is set.
-
-    Uses ``GITHUB_TOKEN``/``GH_TOKEN`` when available so the release-metadata
-    lookups avoid the unauthenticated rate limit in CI. The token is only ever
-    placed in the request header and is never printed, so it does not leak into
-    logs or the freshness JSON.
-    """
+    """Build GitHub request headers for an explicit maintenance command."""
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "aks-chaos-lab-freshness-check",
+        "User-Agent": "aks-chaos-lab-maintenance",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
@@ -2857,54 +2796,6 @@ def github_api_request_headers() -> dict[str, str]:
 def open_github_url(url: str, timeout: int) -> Any:
     request = urllib.request.Request(url, headers=github_api_request_headers())
     return urllib.request.urlopen(request, timeout=timeout)
-
-
-def freshness_document(findings: Sequence[FreshnessFinding]) -> dict[str, Any]:
-    """Aggregate findings into the machine-readable freshness JSON document.
-
-    The overall ``status`` is fail-first, then ``unverified``, then ``pass``,
-    matching the review vocabulary and the repository-freshness-checker skill's
-    aggregation rule, so a single missing-evidence coordinate never lets the
-    document report ``pass``.
-    """
-    statuses = {finding.status for finding in findings}
-    if not findings:
-        overall = "unverified"
-    elif "fail" in statuses:
-        overall = "fail"
-    elif "unverified" in statuses:
-        overall = "unverified"
-    elif findings and statuses == {"excluded"}:
-        overall = "excluded"
-    else:
-        overall = "pass"
-    coverage = {
-        "total": len(findings),
-        "pass": sum(1 for finding in findings if finding.status == "pass"),
-        "fail": sum(1 for finding in findings if finding.status == "fail"),
-        "unverified": sum(1 for finding in findings if finding.status == "unverified"),
-        "excluded": sum(1 for finding in findings if finding.status == "excluded"),
-    }
-    return {
-        "schema_version": FRESHNESS_SCHEMA_VERSION,
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "status": overall,
-        "coverage": coverage,
-        "findings": [
-            {
-                "tool": non_renovate_tool_id(finding.subject),
-                "subject": finding.subject,
-                "coordinate": finding.coordinate,
-                "status": finding.status,
-                "reason_code": finding.reason_code,
-                "current": finding.current,
-                "published": finding.published,
-                "evidence": list(finding.evidence),
-                "detail": finding.detail,
-            }
-            for finding in findings
-        ],
-    }
 
 
 _LEFTHOOK_VERSION_PATTERN = re.compile(
@@ -2920,10 +2811,6 @@ _LEFTHOOK_CHECKSUM_LINE_PATTERN = re.compile(
 
 
 class LefthookChecksumUnavailableError(RuntimeError):
-    pass
-
-
-class LefthookReleaseUnavailableError(RuntimeError):
     pass
 
 
@@ -2949,20 +2836,13 @@ def _replace_pin_value(match: re.Match[str], value: str) -> str:
     return text[:start] + value + text[end:]
 
 
-def _replace_match_group(
-    text: str, match: re.Match[str], group: str, value: str
-) -> str:
-    start, end = match.span(group)
-    return text[:start] + value + text[end:]
-
-
 def fetch_lefthook_checksum(version: str) -> str:
     """Fetch the official Linux x86_64 checksum for a Lefthook release.
 
     Reads evilmartians/lefthook's published `lefthook_checksums.txt` release
     asset. Network failures raise LefthookChecksumUnavailableError instead of
-    falling back silently, so callers can fail (or mark the check
-    unverified) instead of assuming the pinned checksum is still correct.
+    falling back silently, so the maintenance command fails instead of writing
+    an unverified checksum.
     """
     url = LEFTHOOK_CHECKSUMS_URL_TEMPLATE.format(version=version)
     try:
@@ -2985,168 +2865,6 @@ def fetch_lefthook_checksum(version: str) -> str:
             f"found {len(matches)}"
         )
     return matches[0].group("checksum")
-
-
-def fetch_lefthook_latest_release() -> str:
-    """Fetch evilmartians/lefthook's latest stable release as a bare X.Y.Z tag.
-
-    Queries the same official GitHub Releases API endpoint the gh-aw compiler
-    pin check uses, so Lefthook freshness is a deterministic version comparison
-    (current pin versus latest release) rather than something the aggregating
-    skill has to rediscover. Failures raise LefthookReleaseUnavailableError so
-    the caller reports "evidence-unavailable" instead of assuming the pin is
-    current.
-    """
-    try:
-        with open_github_url(
-            LEFTHOOK_RELEASES_API, LEFTHOOK_NETWORK_TIMEOUT_SECONDS
-        ) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="replace"))
-    except (
-        urllib.error.URLError,
-        TimeoutError,
-        OSError,
-        json.JSONDecodeError,
-    ) as error:
-        raise LefthookReleaseUnavailableError(
-            "could not resolve host or network unreachable while fetching "
-            f"{LEFTHOOK_RELEASES_API}: {error}"
-        ) from error
-    tag = payload.get("tag_name") if isinstance(payload, dict) else None
-    if not isinstance(tag, str) or not tag:
-        raise LefthookReleaseUnavailableError(
-            f"{LEFTHOOK_RELEASES_API} response did not include a tag_name"
-        )
-    version = tag.removeprefix("v")
-    if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
-        raise LefthookReleaseUnavailableError(
-            f"{LEFTHOOK_RELEASES_API} returned malformed tag_name {tag!r}"
-        )
-    return version
-
-
-def evaluate_lefthook_pin() -> FreshnessFinding:
-    """Evaluate the Lefthook version/checksum pin into a FreshnessFinding.
-
-    Reports a maintainer-review-gated newer release as ``update-available``
-    (unverified) and any missing GitHub evidence as ``evidence-unavailable``
-    (unverified); only a corrupt pin -- an ambiguous coordinate count or a
-    checksum that disagrees with the official release asset for the pinned
-    version -- is a ``fail``. Renovate deliberately does not manage this pin,
-    because it cannot regenerate LEFTHOOK_SHA256 in the same change, so this
-    deterministic check (not a red Renovate PR) is the freshness signal.
-    """
-    subject = FRESHNESS_SUBJECT_LEFTHOOK
-    coordinate = str(LEFTHOOK_CI_WORKFLOW)
-    text = (ROOT / LEFTHOOK_CI_WORKFLOW).read_text(encoding="utf-8")
-    version_matches, checksum_matches = _lefthook_pin_matches(text)
-    if len(version_matches) != 1 or len(checksum_matches) != 1:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "fail",
-            FRESHNESS_REASON_COORDINATE_ANOMALY,
-            None,
-            None,
-            (),
-            f"expected exactly one LEFTHOOK_VERSION= and one LEFTHOOK_SHA256= in "
-            f"{LEFTHOOK_CI_WORKFLOW}; found {len(version_matches)} and "
-            f"{len(checksum_matches)}",
-        )
-    version = version_matches[0].group("value")
-    checksum = checksum_matches[0].group("value")
-    checksums_url = LEFTHOOK_CHECKSUMS_URL_TEMPLATE.format(version=version)
-    try:
-        published_checksum = fetch_lefthook_checksum(version)
-    except LefthookChecksumUnavailableError as error:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-            version,
-            None,
-            (checksums_url,),
-            FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE.format(subject=subject)
-            + f": {error}",
-        )
-    if published_checksum != checksum:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "fail",
-            FRESHNESS_REASON_CHECKSUM_MISMATCH,
-            version,
-            version,
-            (checksums_url,),
-            "pinned LEFTHOOK_SHA256 does not match the official "
-            f"lefthook_checksums.txt for v{version} (pinned={checksum}, "
-            f"published={published_checksum}); run 'update-lefthook-pin "
-            "--version <version>' to refresh the version and checksum together",
-        )
-    try:
-        latest = fetch_lefthook_latest_release()
-    except LefthookReleaseUnavailableError as error:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-            version,
-            None,
-            (LEFTHOOK_RELEASES_API,),
-            FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE.format(subject=subject)
-            + f": {error}",
-        )
-    current_parsed = parse_gh_aw_version(version)
-    latest_parsed = parse_gh_aw_version(latest)
-    if current_parsed is None or latest_parsed is None:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-            version,
-            latest,
-            (LEFTHOOK_RELEASES_API,),
-            f"could not compare Lefthook versions {version!r} and {latest!r}",
-        )
-    if latest_parsed > current_parsed:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_UPDATE_AVAILABLE,
-            version,
-            latest,
-            (LEFTHOOK_RELEASES_API,),
-            f"pinned Lefthook {version} differs from the latest stable release "
-            f"{latest}; the pinned checksum is valid, but bumping the pin "
-            f"{FRESHNESS_UPDATE_AVAILABLE_PHRASE}",
-        )
-    if current_parsed > latest_parsed:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_PINNED_AHEAD,
-            version,
-            latest,
-            (LEFTHOOK_RELEASES_API,),
-            f"pinned Lefthook {version} is newer than the latest stable release "
-            f"{latest}; no automated downgrade will be created",
-        )
-    return FreshnessFinding(
-        subject,
-        coordinate,
-        "pass",
-        FRESHNESS_REASON_CURRENT,
-        version,
-        latest,
-        (LEFTHOOK_RELEASES_API, checksums_url),
-        f"pinned Lefthook {version} matches the latest stable release and its "
-        "official checksum",
-    )
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -3220,329 +2938,6 @@ def target_update_lefthook_pin(version: str) -> None:
     )
 
 
-GH_AW_SETUP_WORKFLOW = Path(".github/workflows/copilot-setup-steps.yml")
-GH_AW_UPDATER_WORKFLOW = Path(".github/workflows/repository-freshness-check.yml")
-GH_AW_RELEASES_API = "https://api.github.com/repos/github/gh-aw/releases/latest"
-GH_AW_ACTIONS_TAG_API_TEMPLATE = (
-    "https://api.github.com/repos/github/gh-aw-actions/git/ref/tags/{version}"
-)
-GH_AW_ACTIONS_ANNOTATED_TAG_API_TEMPLATE = (
-    "https://api.github.com/repos/github/gh-aw-actions/git/tags/{sha}"
-)
-GH_AW_NETWORK_TIMEOUT_SECONDS = 15
-_GH_AW_VERSION_PATTERN = re.compile(
-    r"^v?(?P<major>[0-9]+)\.(?P<minor>[0-9]+)\.(?P<patch>[0-9]+)$"
-)
-_GH_AW_SETUP_ACTION_PATTERN = re.compile(
-    r"^(?P<prefix>[ \t]*(?:-[ \t]+)?uses:[ \t]+github/gh-aw-actions/setup-cli@)"
-    r"(?P<sha>[0-9a-f]{40})(?P<comment_prefix>[ \t]+#[ \t]+)"
-    r"(?P<comment_version>v[0-9]+\.[0-9]+\.[0-9]+)(?P<suffix>[ \t]*)$",
-    re.MULTILINE,
-)
-_GH_AW_SETUP_VERSION_PATTERN = re.compile(
-    r"^(?P<prefix>[ \t]*version:[ \t]+)(?P<version>v[0-9]+\.[0-9]+\.[0-9]+)"
-    r"(?P<suffix>[ \t]*)$",
-    re.MULTILINE,
-)
-
-
-class GhAwReleaseUnavailableError(RuntimeError):
-    pass
-
-
-def read_gh_aw_setup_version() -> str:
-    """Read the pinned gh-aw compiler version from copilot-setup-steps.yml.
-
-    Reuses repo_health's extractor -- the same one `.github/repo-health.toml`'s
-    gh-aw-compiler-version rule uses -- so the pinned coordinate has a single
-    authored extraction path instead of a second hand-written regex.
-    """
-    try:
-        coordinates = extract_gh_aw_setup_version(
-            ROOT, str(GH_AW_SETUP_WORKFLOW), "gh-aw-setup-version"
-        )
-    except RepoHealthError as error:
-        print(f"error: {error}", file=sys.stderr)
-        raise SystemExit(1) from error
-    if len(coordinates) != 1:
-        print(
-            "error: expected exactly one gh-aw setup version in "
-            f"{GH_AW_SETUP_WORKFLOW}, found {len(coordinates)}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    return coordinates[0].value
-
-
-def fetch_gh_aw_latest_release() -> str:
-    """Fetch github/gh-aw's latest stable release tag from its official API.
-
-    `gh extension upgrade aw --dry-run` refuses to check pinned extensions
-    (it prints "pinned extensions can not be upgraded" for this repository's
-    installation), and `gh aw compile`'s built-in `--no-check-update`-gated
-    freshness check has no documented, stable output to parse. This queries
-    the same official GitHub releases API endpoint `bicep-version-check.yml`
-    already uses for Bicep CLI, so the comparison stays deterministic and
-    testable instead of depending on either of those.
-    """
-    try:
-        with open_github_url(
-            GH_AW_RELEASES_API, GH_AW_NETWORK_TIMEOUT_SECONDS
-        ) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="replace"))
-    except (
-        urllib.error.URLError,
-        TimeoutError,
-        OSError,
-        json.JSONDecodeError,
-    ) as error:
-        raise GhAwReleaseUnavailableError(
-            "could not resolve host or network unreachable while fetching "
-            f"{GH_AW_RELEASES_API}: {error}"
-        ) from error
-    tag = payload.get("tag_name") if isinstance(payload, dict) else None
-    if not isinstance(tag, str) or not tag:
-        raise GhAwReleaseUnavailableError(
-            f"{GH_AW_RELEASES_API} response did not include a tag_name"
-        )
-    return tag
-
-
-def fetch_gh_aw_actions_sha(version: str) -> str:
-    """Resolve a gh-aw-actions release tag to its immutable commit SHA."""
-    url = GH_AW_ACTIONS_TAG_API_TEMPLATE.format(version=version)
-    try:
-        with open_github_url(url, GH_AW_NETWORK_TIMEOUT_SECONDS) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="replace"))
-        object_value = payload.get("object") if isinstance(payload, dict) else None
-        if not isinstance(object_value, dict):
-            raise ValueError("tag response did not include an object")
-        object_type = object_value.get("type")
-        object_sha = object_value.get("sha")
-        if object_type == "commit" and isinstance(object_sha, str):
-            return object_sha
-        if object_type != "tag" or not isinstance(object_sha, str):
-            raise ValueError("tag response did not reference a tag or commit")
-        annotated_url = GH_AW_ACTIONS_ANNOTATED_TAG_API_TEMPLATE.format(sha=object_sha)
-        with open_github_url(annotated_url, GH_AW_NETWORK_TIMEOUT_SECONDS) as response:
-            annotated = json.loads(response.read().decode("utf-8", errors="replace"))
-        annotated_object = (
-            annotated.get("object") if isinstance(annotated, dict) else None
-        )
-        if (
-            not isinstance(annotated_object, dict)
-            or annotated_object.get("type") != "commit"
-            or not isinstance(annotated_object.get("sha"), str)
-        ):
-            raise ValueError("annotated tag did not reference a commit")
-        return cast(str, annotated_object["sha"])
-    except (
-        urllib.error.URLError,
-        TimeoutError,
-        OSError,
-        json.JSONDecodeError,
-        ValueError,
-    ) as error:
-        raise GhAwReleaseUnavailableError(
-            f"could not resolve the gh-aw-actions tag {version}: {error}"
-        ) from error
-
-
-def parse_gh_aw_version(value: str) -> tuple[int, int, int] | None:
-    match = _GH_AW_VERSION_PATTERN.match(value)
-    if match is None:
-        return None
-    return (int(match["major"]), int(match["minor"]), int(match["patch"]))
-
-
-def installed_gh_aw_version() -> str:
-    output = command_output(["gh", "aw", "--version"]).strip()
-    match = re.search(r"\bv(?P<version>[0-9]+\.[0-9]+\.[0-9]+)\b", output)
-    if match is None:
-        print(
-            f"error: could not parse the installed gh-aw version from {output!r}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    return f"v{match['version']}"
-
-
-def update_gh_aw_setup_pin(version: str, action_sha: str) -> None:
-    path = ROOT / GH_AW_SETUP_WORKFLOW
-    text = path.read_text(encoding="utf-8", newline="")
-    action_matches = list(_GH_AW_SETUP_ACTION_PATTERN.finditer(text))
-    version_matches = list(_GH_AW_SETUP_VERSION_PATTERN.finditer(text))
-    if len(action_matches) != 1 or len(version_matches) != 1:
-        print(
-            "error: expected exactly one gh-aw setup action and version in "
-            f"{GH_AW_SETUP_WORKFLOW}; found {len(action_matches)} and "
-            f"{len(version_matches)}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    updated = _replace_match_group(text, action_matches[0], "sha", action_sha)
-    action_match = _GH_AW_SETUP_ACTION_PATTERN.search(updated)
-    if action_match is None:
-        raise AssertionError("gh-aw setup action disappeared after SHA replacement")
-    updated = _replace_match_group(updated, action_match, "comment_version", version)
-    version_match = _GH_AW_SETUP_VERSION_PATTERN.search(updated)
-    if version_match is None:
-        raise AssertionError("gh-aw setup version disappeared during replacement")
-    updated = _replace_match_group(updated, version_match, "version", version)
-    _atomic_write_text(path, updated)
-
-
-def update_gh_aw_updater_action_pin(version: str, action_sha: str) -> None:
-    path = ROOT / GH_AW_UPDATER_WORKFLOW
-    text = path.read_text(encoding="utf-8", newline="")
-    action_matches = list(_GH_AW_SETUP_ACTION_PATTERN.finditer(text))
-    if len(action_matches) != 1:
-        print(
-            "error: expected exactly one gh-aw setup action in "
-            f"{GH_AW_UPDATER_WORKFLOW}; found {len(action_matches)}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    updated = _replace_match_group(text, action_matches[0], "sha", action_sha)
-    action_match = _GH_AW_SETUP_ACTION_PATTERN.search(updated)
-    if action_match is None:
-        raise AssertionError("gh-aw updater action disappeared after SHA replacement")
-    updated = _replace_match_group(updated, action_match, "comment_version", version)
-    _atomic_write_text(path, updated)
-
-
-def target_update_gh_aw(version: str) -> None:
-    print_step(f"Updating gh-aw to {version}")
-    if parse_gh_aw_version(version) is None or not version.startswith("v"):
-        print(
-            f"error: --version must be a vX.Y.Z gh-aw release version, got {version!r}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    target_check_gh_aw()
-    installed = installed_gh_aw_version()
-    if installed != version:
-        print(
-            f"error: installed gh-aw is {installed}, expected {version}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    try:
-        action_sha = fetch_gh_aw_actions_sha(version)
-    except GhAwReleaseUnavailableError as error:
-        print(f"error: {error}", file=sys.stderr)
-        raise SystemExit(1) from error
-    update_gh_aw_setup_pin(version, action_sha)
-    update_gh_aw_updater_action_pin(version, action_sha)
-    run(["gh", "aw", "upgrade", "--no-actions"])
-    if read_gh_aw_setup_version() != version:
-        print(
-            f"error: gh-aw setup pin did not remain at {version} after upgrade",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    print_success(f"Updated gh-aw and compiler-managed files to {version}")
-
-
-def classify_gh_aw_compiler_pin(pinned: str, latest: str) -> tuple[str, str]:
-    """Compare the pinned gh-aw compiler version against the latest release.
-
-    Always performs the actual numeric comparison; a well-formed "latest"
-    value existing is never enough on its own to report "pass" -- the pinned
-    version must actually match it. A real difference (for example the
-    pinned v0.79.6 against the latest v0.86.2) is reported as "unverified"
-    rather than "fail": bumping the gh-aw compiler pin is a deliberate,
-    human-reviewed maintenance decision in this repository (like Lefthook,
-    uv, and Bicep), not an automatic latest-wins update.
-    """
-    pinned_parsed = parse_gh_aw_version(pinned)
-    latest_parsed = parse_gh_aw_version(latest)
-    if pinned_parsed is None or latest_parsed is None:
-        return (
-            "fail",
-            f"pinned={pinned!r} or latest={latest!r} is not a valid vX.Y.Z version",
-        )
-    if pinned_parsed == latest_parsed:
-        return ("pass", f"pinned gh-aw {pinned} matches the latest stable release")
-    if pinned_parsed > latest_parsed:
-        return (
-            "unverified",
-            f"pinned gh-aw {pinned} is newer than the latest stable release {latest}; "
-            "no automated downgrade will be created",
-        )
-    return (
-        "unverified",
-        f"pinned gh-aw {pinned} differs from the latest stable release {latest}; "
-        "bumping the gh-aw compiler pin requires maintainer review of workflow "
-        "compatibility before it is updated",
-    )
-
-
-def evaluate_gh_aw_pin() -> FreshnessFinding:
-    """Evaluate the gh-aw compiler pin into a FreshnessFinding.
-
-    Reuses read_gh_aw_setup_version, fetch_gh_aw_latest_release, and
-    classify_gh_aw_compiler_pin -- the same functions target_check_gh_aw_-
-    compiler_pin uses -- so the JSON target and the review check share one
-    comparison. A real newer release is ``update-available`` (unverified),
-    missing release metadata is ``evidence-unavailable`` (unverified).
-    """
-    subject = FRESHNESS_SUBJECT_GH_AW
-    coordinate = str(GH_AW_SETUP_WORKFLOW)
-    try:
-        pinned = read_gh_aw_setup_version()
-    except SystemExit:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "fail",
-            FRESHNESS_REASON_COORDINATE_ANOMALY,
-            None,
-            None,
-            (),
-            f"could not read exactly one gh-aw setup version pin in {coordinate}",
-        )
-    try:
-        latest = fetch_gh_aw_latest_release()
-    except GhAwReleaseUnavailableError as error:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-            pinned,
-            None,
-            (GH_AW_RELEASES_API,),
-            FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE.format(subject=subject)
-            + f": {error}",
-        )
-    status, message = classify_gh_aw_compiler_pin(pinned, latest)
-    pinned_parsed = parse_gh_aw_version(pinned)
-    latest_parsed = parse_gh_aw_version(latest)
-    if status == "pass":
-        reason_code = FRESHNESS_REASON_CURRENT
-    elif status == "fail":
-        reason_code = FRESHNESS_REASON_VERSION_MALFORMED
-    elif (
-        pinned_parsed is not None
-        and latest_parsed is not None
-        and pinned_parsed > latest_parsed
-    ):
-        reason_code = FRESHNESS_REASON_PINNED_AHEAD
-    else:
-        reason_code = FRESHNESS_REASON_UPDATE_AVAILABLE
-    return FreshnessFinding(
-        subject,
-        coordinate,
-        status,
-        reason_code,
-        pinned,
-        latest,
-        (GH_AW_RELEASES_API,),
-        message,
-    )
-
-
 AZURE_YAML_PATH = Path("azure.yaml")
 FUNCTIONS_HOST_JSON_PATH = Path("src/external-sli-publisher/host.json")
 _AZD_REQUIRED_VERSION_RANGE_PATTERN = re.compile(
@@ -3607,8 +3002,8 @@ def lefthook_pin_coordinates() -> tuple[str, str]:
 
     Only the shape of the pin is checked here: exactly one version and exactly
     one 64-hex checksum, so ``update-lefthook-pin`` always has an unambiguous
-    pair to rewrite. Whether the checksum matches the published release asset
-    needs the official download and belongs to the non-Renovate tool workflow.
+    pair to rewrite. ``update-lefthook-pin`` obtains the official checksum when
+    a maintainer explicitly updates the pin.
     """
     text = (ROOT / LEFTHOOK_CI_WORKFLOW).read_text(encoding="utf-8")
     version_matches, checksum_matches = _lefthook_pin_matches(text)
@@ -4356,86 +3751,6 @@ def target_check_renovate_config() -> None:
     )
 
 
-FRESHNESS_CHECK_SUBJECTS = (
-    FRESHNESS_SUBJECT_GH_AW,
-    FRESHNESS_SUBJECT_LEFTHOOK,
-)
-
-
-@dataclass(frozen=True)
-class NonRenovateTool:
-    tool_id: str
-    subject: str
-    evaluator_name: str
-    updater_name: str
-
-
-NON_RENOVATE_TOOLS = (
-    NonRenovateTool(
-        "gh-aw",
-        FRESHNESS_SUBJECT_GH_AW,
-        "evaluate_gh_aw_pin",
-        "target_update_gh_aw",
-    ),
-    NonRenovateTool(
-        "lefthook",
-        FRESHNESS_SUBJECT_LEFTHOOK,
-        "evaluate_lefthook_pin",
-        "target_update_lefthook_pin",
-    ),
-)
-
-
-def non_renovate_tool_id(subject: str) -> str | None:
-    return next(
-        (tool.tool_id for tool in NON_RENOVATE_TOOLS if tool.subject == subject),
-        None,
-    )
-
-
-def collect_freshness_findings() -> list[FreshnessFinding]:
-    """Run every non-Renovate tool update evaluator once, in registry order.
-
-    A tool belongs here only when Renovate cannot safely produce its complete
-    update. Everything Renovate does cover is left to Renovate, so no update
-    candidate is discovered twice.
-    """
-    return [
-        cast(Callable[[], FreshnessFinding], globals()[tool.evaluator_name])()
-        for tool in NON_RENOVATE_TOOLS
-    ]
-
-
-def target_freshness_checks(output: Path | None = None) -> None:
-    """Emit the deterministic freshness findings as machine-readable JSON.
-
-    The ordinary scheduled workflow uses structured ``status``/``reason_code``
-    values to select update candidates without invoking an AI agent.
-    """
-    document = freshness_document(collect_freshness_findings())
-    text = json.dumps(document, ensure_ascii=True, indent=2, sort_keys=True) + "\n"
-    if output is not None:
-        output.write_text(text, encoding="utf-8")
-    else:
-        sys.stdout.write(text)
-
-
-def target_update_non_renovate_tool(tool_id: str, version: str) -> None:
-    tool = next(
-        (candidate for candidate in NON_RENOVATE_TOOLS if candidate.tool_id == tool_id),
-        None,
-    )
-    if tool is None:
-        supported = ", ".join(candidate.tool_id for candidate in NON_RENOVATE_TOOLS)
-        print(
-            f"error: unsupported non-Renovate tool {tool_id!r}; expected one of "
-            f"{supported}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    cast(Callable[[str], None], globals()[tool.updater_name])(version)
-
-
 def target_check_uv_version() -> None:
     root_pyproject = tomllib.loads(
         (ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -4995,7 +4310,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "deploy-node-provisioning": target_deploy_node_provisioning,
     "format": target_format,
     "format-check": target_format_check,
-    "freshness-checks": target_freshness_checks,
     "help": target_help,
     "install-tools": target_install_tools,
     "inventory-repo": target_inventory_repo,
@@ -5072,24 +4386,11 @@ def main(argv: Sequence[str]) -> int:
         args = parser.parse_args(argv[1:])
         target_check_repo_health(args.inventory_json)
         return 0
-    if target == "freshness-checks":
-        parser = argparse.ArgumentParser(prog="tasks.py freshness-checks")
-        parser.add_argument("--output", type=Path)
-        args = parser.parse_args(argv[1:])
-        target_freshness_checks(args.output)
-        return 0
     if target == "update-lefthook-pin":
         parser = argparse.ArgumentParser(prog="tasks.py update-lefthook-pin")
         parser.add_argument("--version", required=True)
         args = parser.parse_args(argv[1:])
         target_update_lefthook_pin(args.version)
-        return 0
-    if target == "update-non-renovate-tool":
-        parser = argparse.ArgumentParser(prog="tasks.py update-non-renovate-tool")
-        parser.add_argument("--tool", required=True)
-        parser.add_argument("--version", required=True)
-        args = parser.parse_args(argv[1:])
-        target_update_non_renovate_tool(args.tool, args.version)
         return 0
     if target in {"review-repo-fast", "review-repo-full"}:
         parser = argparse.ArgumentParser(prog=f"tasks.py {target}")

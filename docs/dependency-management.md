@@ -4,10 +4,11 @@
 
 ## 原則
 
-更新候補の検出と意味評価を分ける。検出は定期実行（scheduled）が担い、意味評価はレビューが担う。
+更新候補の検出と意味評価を分ける。Renovateが扱える対象は定期実行で検出し、生成物やchecksumとの一体更新が必要な対象は保守者が明示的に更新する。
 
-- **scheduledが第一**: 通常のversion更新候補はRenovateが検出する。Renovateが安全な更新PRを完結できないツールだけを、`freshness-checks` task targetと通常のGitHub Actions workflowが更新する。
-- **レビューは重複しない**: `review-repo`のfastとfullは、scheduledが検出済みの更新候補を再検出しない。fastはリポジトリ内で完結する不変条件だけを検査し、fullは決定論化できない意味評価だけを追加する。
+- **定期検出はRenovateに限定する**: 通常のversion更新候補はRenovateが検出する。
+- **複合更新は明示的に実行する**: gh-awはcompilerと生成物を、Lefthookはversionとchecksumを同じ変更で更新する。
+- **レビューは重複しない**: `review-repo`のfastとfullはversion更新候補を再検出しない。fastはリポジトリ内で完結する不変条件だけを検査し、fullは決定論化できない意味評価だけを追加する。
 
 ## 更新責務
 
@@ -20,13 +21,13 @@
 | actionlint、kubeconform、Renovate validator image | Renovate（custom manager） | `check-version-pins`、`check-renovate-config` |
 | Chaos Mesh Helm chart | Renovate（custom manager） | `check-version-pins`、`validate-helm-values` |
 | Bicep CLI | Renovate（custom manager） | `build-bicep` |
-| gh-aw | non-Renovate tool updater（`freshness-checks`） | `gh-aw-compiler-version`ルール、`compile-aw` |
-| Lefthook | non-Renovate tool updater（`freshness-checks`） | `check-version-pins`、`test-hooks` |
+| gh-aw | 保守者が`gh aw upgrade --no-actions`を実行 | `gh-aw-compiler-version`ルール、`compile-aw` |
+| Lefthook | 保守者が`update-lefthook-pin`を実行 | `check-version-pins`、`test-hooks` |
 | azd minimum version range | Renovate（custom manager） | `check-version-pins`（構文と座標数） |
 | Docker base imageのEOL | `review-repo full`の意味評価 | `repository-freshness-checker` |
 | Azure Functions extension bundleのsupport範囲 | `review-repo full`の意味評価 | `check-version-pins`（構文と座標数）、`repository-freshness-checker` |
 
-管理元は[Renovate設定](../.github/renovate.json)と[non-Renovate tool updater](../.github/workflows/repository-freshness-check.yml)である。
+定期更新の管理元は[Renovate設定](../.github/renovate.json)である。gh-awとLefthookの更新手順は、この文書の「gh-awとLefthookをRenovateに含めない理由」で定める。
 
 ## Renovate
 
@@ -50,35 +51,19 @@ uvのpinはroot `pyproject.toml`の`required-version`下限、`src/api/Dockerfil
 uv run --no-project "${PWD}/scripts/tasks.py" check-renovate-config
 ```
 
-## non-Renovate tool updater
-
-`freshness-checks`は、Renovateが安全な更新PRを完結できないツールだけを検出する。初期対象は、gh-awのpinと公式latest releaseの比較、Lefthookのpin versionと公式latest releaseの比較およびpin versionの公式checksum照合である。Renovateが担当する対象のlatestを、このcheckerが再取得することはない。
-
-```bash
-uv run --no-project "${PWD}/scripts/tasks.py" freshness-checks
-```
-
-findingが`fail`または`unverified`でもJSONを出力できるように、コマンド自体は終了コード0で終了する。週次workflowは標準出力の自然言語ではなく、各findingの`tool`、`status`、`reason_code`、`published`を解釈する。公式latest releaseがpinより古い場合は`pinned-ahead`として更新せず、workflowを失敗させて公開情報とpinを確認する。
-
-### 週次workflowの更新PR
-
-`.github/workflows/repository-freshness-check.yml`は更新候補ごとに更新taskと対象検証を実行し、gh-awとLefthookを別のPull Requestとして作成する。同じtoolとversionのPull Requestがopen、closed、mergedのいずれかで存在する場合、またはPull Requestを持たない同名branchがある場合は重複作成しない。更新候補がない場合はActions Summaryへ結果を記録して終了する。
-
-公開情報を取得できない場合、更新taskが失敗した場合、検証が失敗した場合はActions runを失敗させる。成功または失敗を報告するIssueは作成しない。`GITHUB_TOKEN`で作成したPull Requestは`pull_request` workflowを自動起動しないため、更新branchを指定してCIの`workflow_dispatch`を明示的に実行する。
-
-### AKSアップデートの取得状況
+## AKSアップデートの取得状況
 
 [AKS Updates analyzer](../.github/workflows/aks-updates-analyzer.md)は、Azure Updates RSSの過去7日分と、GitHub AKS releasesの最新5件に含まれる過去14日分を週次Issueで分析する。各ソースの構造化JSONにある`status`、`reason_code`、`reason`、取得件数、解析失敗件数を同じIssueへ記載する。通信失敗、応答不正、項目の部分解析失敗は`unverified`とし、有効な`items`だけを分析する。結果が欠落したソースも未確認として扱い、0件で補わない。両ソースが`pass`で対象項目が空の場合だけ、取得範囲内で「更新なし」と報告する。理由コードと報告形式はworkflow本文を参照する。
 
-### gh-awとLefthookをRenovateに載せない理由
+## gh-awとLefthookをRenovateに含めない理由
 
 gh-awのcompiler pinは、生成物であるlock workflowのcompiler versionと一体で決まる。version単独の更新はcompile結果と矛盾するため、適用は`gh aw compile`が所有する。compiler versionの定義元は[Copilot setup](../.github/workflows/copilot-setup-steps.yml)であり、生成lockと同じ版を使う。
 
 v0.88.7の編集支援ファイルは、上流の`gh aw upgrade`が生成する[agent](../.github/agents/agentic-workflows.md)と[dispatcher skill](../.github/skills/agentic-workflows/SKILL.md)である。生成template内の参照URLは上流の`main`を指すため、compilerの対応範囲を確認するときは固定したrelease tagの資料と照合する。生成lockも含めて更新した後、`compile-aw`で再生成差分がないことを確認する。通常のActions更新を含めない場合は`gh aw upgrade --no-actions`を使う。
 
-gh-awの更新jobは更新先versionのCLIをインストールし、`github/gh-aw-actions`の同じrelease tagをcommit SHAへ解決する。`copilot-setup-steps.yml`のaction SHAとversion、およびnon-Renovate tool updater自身が使うsetup actionのSHAを更新した後、`gh aw upgrade --no-actions`でdispatcher、codemod、lock workflowを更新し、`compile-aw`で再生成差分がないことを確認する。
+更新時は対象versionのCLIを使用し、`github/gh-aw-actions`の同じrelease tagをcommit SHAへ解決する。`copilot-setup-steps.yml`のaction SHAとversionを更新した後、`gh aw upgrade --no-actions`でdispatcher、codemod、lock workflowを更新し、`compile-aw`で再生成差分がないことを確認する。
 
-Lefthookはversionと配布物のSHA256を対で固定する。Renovateはchecksumを計算できないため、versionだけを更新するPull Requestは必ずCIで失敗する（[workarounds.md](workarounds.md)のD-12）。更新jobは次のtaskでversionとchecksumを一体で書き換え、更新後のchecksumを検証して対象versionのLefthookを導入してからhook testを実行する。
+Lefthookはversionと配布物のSHA256を対で固定する。Renovateはchecksumを計算できないため、versionだけを更新するPull Requestは必ずCIで失敗する（[workarounds.md](workarounds.md)のD-12）。更新時は次のtaskでversionとchecksumを一体で書き換え、`check-version-pins`と`test-hooks`を実行する。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" update-lefthook-pin --version <lefthook-version>
@@ -98,7 +83,7 @@ fastが実行するversion関連の検査は`check-version-pins`である。検�
 
 uv pinの内部整合は`check-uv-version`が、gh-aw pinとlock fileの`compiler_version`の整合は`check-repo-health`の`gh-aw-compiler-version`ルールが検査する。どちらもfastが実行する。
 
-`review-repo-full`はfastを一度だけ実行して結果を再利用し、隔離copyでしか実行できない検査（application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-aw compile）と、文書およびAI運用資産の意味評価を追加する。version更新候補はRenovateとnon-Renovate tool updaterが担当するため再検出しない。Docker base imageのEOLとAzure Functions extension bundleのsupport範囲はfullで意味評価する。
+`review-repo-full`はfastを一度だけ実行して結果を再利用し、隔離copyでしか実行できない検査（application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-aw compile）と、文書およびAI運用資産の意味評価を追加する。version更新候補はRenovateまたは明示的な保守作業が担当するため再検出しない。Docker base imageのEOLとAzure Functions extension bundleのsupport範囲はfullで意味評価する。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast --results-json <path>
@@ -115,6 +100,6 @@ uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast --results-json <p
 | `unverified` | 更新候補の互換性判断が必要、または検証根拠を取得できなかった |
 | `excluded` | 理由を記録したうえで検査対象から除外した |
 
-`unverified`は`reason_code`で理由を区別する。`update-available`は更新候補を検出済みだが保守者の判断を待つ状態、`evidence-unavailable`はネットワーク障害やAPI制限などで根拠を取得できない状態を表す。現在versionのreleaseが存在することや、取得できた公開値が現在値と同じであることだけでは、検査範囲全体を`pass`にしない。
+`unverified`は`reason_code`で理由を区別する。`evidence-unavailable`はネットワーク障害やAPI制限などで根拠を取得できない状態を表す。現在versionのreleaseが存在することや、取得できた公開値が現在値と同じであることだけでは、検査範囲全体を`pass`にしない。
 
 全体の状態は`fail`を優先し、`fail`がなく`unverified`がある場合は`unverified`とする。

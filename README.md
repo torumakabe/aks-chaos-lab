@@ -127,7 +127,7 @@ AI 運用の参考資料は [Reducing Friction for AI-Assisted Development](http
 
 日常の点検には`review-repo`エージェントのfastモードを使います。fastモードは`scripts/tasks.py`の`review-repo-fast` task targetを唯一の上位実行入口として呼び、内容指紋taskとオフラインで完結する検査だけを実行します。文書とAI運用資産の意味評価や専門skillは実行しません。全検査ではfullモードを指定します。fullモードは`review-repo-full` task targetの全検査に加えて、構造化inventoryを使った公開Markdownリンク、Docker base imageのEOL、Azure Functions extension bundleのsupport範囲、Bicep APIのcheck-only確認、文書とAI運用資産の意味評価を実行します。version更新候補は再検出しません。完全な呼び出し、出力、副作用、検査の包含関係は[review-repoエージェント](.github/agents/review-repo.agent.md)を参照してください。
 
-通常のversion更新候補は[Renovate](.github/renovate.json)が検出します。Renovateが安全な更新PRを完結できないgh-awとLefthookは、週次の[non-Renovate tool updater](.github/workflows/repository-freshness-check.yml)が更新候補を検出し、検証済みの個別PRを作成します。責務の境界、機械検査の対象、fast / fullレビューとの関係は[依存パッケージとツールの更新管理](docs/dependency-management.md)を参照してください。
+通常のversion更新候補は[Renovate](.github/renovate.json)が検出します。gh-awは明示的なupgrade時に更新し、Lefthookはversionとchecksumを`update-lefthook-pin`で一体更新します。責務の境界、機械検査の対象、fast / fullレビューとの関係は[依存パッケージとツールの更新管理](docs/dependency-management.md)を参照してください。
 
 ## リポジトリ構造
 
