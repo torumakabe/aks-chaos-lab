@@ -12,7 +12,6 @@ import importlib
 import json
 import os
 import re
-import secrets
 import shutil
 import signal
 import stat
@@ -26,7 +25,7 @@ import urllib.request
 from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO, TextIO, cast
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -56,11 +55,7 @@ from public_lock import (  # noqa: E402
     validate_exported_requirements,
     validate_public_lock,
 )
-from repo_health import (  # noqa: E402
-    RepoHealthError,
-    extract_gh_aw_setup_version,
-    load_kubernetes_schema_excluded_kinds,
-)
+from repo_health import load_kubernetes_schema_excluded_kinds  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -118,9 +113,6 @@ RENOVATE_VALIDATOR_TIMEOUT_SECONDS = 300
 # (a repository defect) from "the container never got that far" (evidence gap).
 RENOVATE_VALIDATOR_RAN_MARKER = "Validating"
 LEFTHOOK_CI_WORKFLOW = Path(".github/workflows/ci.yml")
-LEFTHOOK_RELEASES_API = (
-    "https://api.github.com/repos/evilmartians/lefthook/releases/latest"
-)
 LEFTHOOK_CHECKSUMS_URL_TEMPLATE = (
     "https://github.com/evilmartians/lefthook/releases/download/"
     "v{version}/lefthook_checksums.txt"
@@ -128,22 +120,14 @@ LEFTHOOK_CHECKSUMS_URL_TEMPLATE = (
 LEFTHOOK_LINUX_ASSET_TEMPLATE = "lefthook_{version}_Linux_x86_64.gz"
 LEFTHOOK_NETWORK_TIMEOUT_SECONDS = 15
 APPROVED_INDEX_CACHE_DIRECTORY = Path(".uv-state") / "cache"
-# Subjects of tool update checks that Renovate cannot safely complete.
-FRESHNESS_SUBJECT_GH_AW = "gh-aw"
-FRESHNESS_SUBJECT_LEFTHOOK = "Lefthook"
-REVIEW_MAX_UNTRACKED_FILE_BYTES = 10 * 1024 * 1024
 REVIEW_CHECK_TIMEOUT_SECONDS = 300
-REVIEW_GIT_TIMEOUT_SECONDS = 30
-REVIEW_PYTHON_ENVIRONMENT_TIMEOUT_SECONDS = 600
 REVIEW_TOOL_PREFLIGHT_TIMEOUT_SECONDS = 10
 REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS = 10
 REVIEW_GH_AW_COMPILE_TIMEOUT_SECONDS = 60
 REVIEW_RESULTS_SCHEMA_VERSION = 1
-REVIEW_FINGERPRINT_SCHEMA_VERSION = 1
 REVIEW_LOG_TAIL_BYTES = 64 * 1024
 REVIEW_LOG_STREAM_CHUNK_BYTES = 64 * 1024
 REVIEW_GH_AW_LIST_COMMAND = ("gh", "extension", "list")
-REVIEW_PREPARED_ENVIRONMENT_VARIABLE = "AKS_CHAOS_LAB_REVIEW_ENV_PREPARED"
 GH_AW_MANAGED_PATHS = (
     ".github/aw/actions-lock.json",
     ".github/dependabot.yml",
@@ -188,7 +172,6 @@ def resolve_command(args: Sequence[str]) -> list[str]:
 def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = os.environ.copy()
     env.pop("VIRTUAL_ENV", None)
-    env.pop(REVIEW_PREPARED_ENVIRONMENT_VARIABLE, None)
     for name in UNSAFE_UV_ENVIRONMENT_VARIABLES:
         env.pop(name, None)
     for name in tuple(env):
@@ -422,15 +405,6 @@ def approved_index_run_flags() -> list[str]:
 
     if _approved_index_environment_prepared:
         return ["--no-sync"]
-    if os.environ.get(REVIEW_PREPARED_ENVIRONMENT_VARIABLE) == "1":
-        if not environment_python_path().is_file():
-            print(
-                "error: prepared review environment does not contain Python",
-                file=sys.stderr,
-            )
-            raise SystemExit(1)
-        return ["--no-sync"]
-
     if selected_approved_index_config() is None:
         return []
 
@@ -609,19 +583,10 @@ def target_help() -> None:
     for name in sorted(
         {
             *TARGETS,
-            "review-fingerprint",
-            "review-workspace",
             "deploy-api-approved-index",
         }
     ):
         print(f"  {name}")
-
-
-def target_install() -> None:
-    ensure_standard_sync_allowed()
-    print_step("Installing workspace development dependencies")
-    run(["uv", "sync", "--project", str(ROOT), "--all-packages", "--all-groups"])
-    print_success("Dependencies installed")
 
 
 def target_sync() -> None:
@@ -725,14 +690,6 @@ def target_sync_dev_approved_index(*, allow_lock_repair: bool = False) -> None:
             release_approved_index_lock()
 
 
-def target_prepare_review_python_environment() -> None:
-    if selected_approved_index_config() is None:
-        target_sync_dev()
-    else:
-        target_sync_dev_approved_index()
-    print_success("Review Python environment prepared")
-
-
 # ---------------------------------------------------------------------------
 # Lint / format / typecheck — unified workspace invocations
 # ---------------------------------------------------------------------------
@@ -830,12 +787,6 @@ def target_test_all() -> None:
 # ---------------------------------------------------------------------------
 # QA aggregates
 # ---------------------------------------------------------------------------
-
-
-def target_check() -> None:
-    target_lint()
-    target_typecheck()
-    target_test()
 
 
 def target_qa_app(*, check_publisher_requirements: bool = True) -> None:
@@ -985,10 +936,6 @@ class ReviewResult:
             raise ValueError("review result reason_code must not be empty")
 
 
-class ReviewSnapshotError(RuntimeError):
-    pass
-
-
 REVIEW_RESULT_STATUSES = frozenset({"pass", "fail", "unverified", "excluded"})
 REVIEW_REASON_CHECK_PASSED = "check-passed"
 REVIEW_REASON_TOOL_PREFLIGHT_FAILED = "tool-preflight-failed"
@@ -997,18 +944,14 @@ REVIEW_REASON_CHECK_START_FAILED = "check-start-failed"
 REVIEW_REASON_REPOSITORY_FAILURE = "repository-failure"
 REVIEW_REASON_ENVIRONMENT_FAILURE = "environment-failure"
 REVIEW_REASON_CHECK_FAILED = "check-failed"
-REVIEW_REASON_ISOLATION_UNAVAILABLE = "isolation-unavailable"
-REVIEW_REASON_SNAPSHOT_INCOMPLETE = "snapshot-incomplete"
-REVIEW_REASON_ORIGIN_UNAVAILABLE = "origin-unavailable"
 
 
 # The fast review is offline by contract. Every check here reaches its verdict
 # from repository content alone, so it never queries a release API, a registry,
 # or the Docker daemon, and it never re-discovers an update candidate that the
-# scheduled automation already owns. Detecting newer versions belongs to
-# Renovate and to the scheduled ``freshness-checks`` target; what fast verifies
-# is that this repository still states the invariants those mechanisms depend
-# on.
+# update automation owns. Detecting newer versions belongs to Renovate or an
+# explicit maintenance operation; fast verifies only the repository invariants
+# those update procedures depend on.
 FAST_REVIEW_CHECKS = (
     ReviewCheck("repo-health", "check-repo-health", ("git",)),
     ReviewCheck("uv-version", "check-uv-version", ("uv",)),
@@ -1021,9 +964,8 @@ FAST_REVIEW_CHECKS = (
     ReviewCheck("version-pins", "check-version-pins", ()),
 )
 
-# The full review adds only the deterministic checks that cannot run against the
-# current worktree because they build, generate, or rewrite files and therefore
-# need the isolated copy. It never repeats a fast check.
+# The full review adds deterministic checks that need optional local tools. It
+# runs in a caller-provided worktree and never repeats a fast check.
 FULL_REVIEW_CHECKS = (
     ReviewCheck(
         "qa-app",
@@ -1040,7 +982,7 @@ FULL_REVIEW_CHECKS = (
         ("helm",),
     ),
     ReviewCheck("lint-workflows", "lint-workflows", ("git", "docker")),
-    ReviewCheck("compile-aw", "compile-aw", ("git", "gh"), 60),
+    ReviewCheck("compile-aw", "validate-aw", ("git", "gh"), 60),
 )
 
 
@@ -1057,7 +999,7 @@ def probe_review_tool(tool: str) -> str | None:
     if command is None:
         return f"{tool} has no configured non-interactive version probe"
     try:
-        completed = run_isolated_review_command(
+        completed = run_review_command(
             command,
             cwd=ROOT,
             env={},
@@ -1106,7 +1048,7 @@ def classify_review_tools(
             continue
         if check.name == "compile-aw":
             try:
-                completed = run_isolated_review_command(
+                completed = run_review_command(
                     REVIEW_GH_AW_LIST_COMMAND,
                     cwd=ROOT,
                     env={},
@@ -1172,7 +1114,7 @@ def run_fast_review_checks(
         if check.name == "repo-health" and inventory_json is not None:
             arguments.extend(["--inventory-json", str(inventory_json)])
         try:
-            completed = run_isolated_review_command(
+            completed = run_review_command(
                 arguments,
                 cwd=ROOT,
                 env={},
@@ -1314,7 +1256,7 @@ def stop_review_process_tree(process: subprocess.Popen[bytes]) -> None:
     process.wait()
 
 
-def run_isolated_review_command(
+def run_review_command(
     args: Sequence[str],
     *,
     cwd: Path,
@@ -1529,979 +1471,58 @@ def target_review_repo_fast(
     )
 
 
-def safe_snapshot_path(relative_text: str) -> Path:
-    posix_path = PurePosixPath(relative_text)
-    windows_path = PureWindowsPath(relative_text)
-    if (
-        relative_text in {"", "."}
-        or posix_path.is_absolute()
-        or windows_path.is_absolute()
-        or windows_path.drive
-        or ".." in posix_path.parts
-        or ".." in windows_path.parts
-    ):
-        raise ReviewSnapshotError(f"unsafe repository path rejected: {relative_text!r}")
-    return Path(relative_text)
-
-
-def review_fingerprint_git_output(root: Path, *args: str) -> bytes:
-    try:
-        completed = subprocess.run(
-            resolve_command(["git", *args]),
-            cwd=root,
-            env=child_env(),
-            check=False,
-            capture_output=True,
-            timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired as error:
-        print(
-            f"error: git {' '.join(args)} exceeded the "
-            f"{REVIEW_GIT_TIMEOUT_SECONDS}-second limit",
-            file=sys.stderr,
-        )
-        raise SystemExit(1) from error
-    if completed.returncode != 0:
-        if completed.stderr:
-            sys.stderr.buffer.write(completed.stderr)
-            sys.stderr.flush()
-        raise SystemExit(completed.returncode)
-    return completed.stdout
-
-
-def fingerprint_sha256(value: object) -> str:
-    serialized = json.dumps(
-        value,
-        ensure_ascii=True,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
-    return hashlib.sha256(serialized).hexdigest()
-
-
-def fingerprint_worktree_path(root: Path, relative_text: str) -> Path:
-    relative_path = safe_snapshot_path(relative_text)
-    root_resolved = root.resolve()
-    candidate = root / relative_path
-    if not candidate.parent.resolve().is_relative_to(root_resolved):
-        raise ReviewSnapshotError(
-            f"repository path resolves outside the worktree: {relative_text!r}"
-        )
-    return candidate
-
-
-def fingerprint_worktree_content(
-    root: Path, relative_text: str
-) -> tuple[str, str | None]:
-    path = fingerprint_worktree_path(root, relative_text)
-    try:
-        before = path.lstat()
-    except FileNotFoundError:
-        return "deleted", None
-    if stat.S_ISLNK(before.st_mode):
-        target = os.readlink(path)
-        digest = hashlib.sha256(os.fsencode(target)).hexdigest()
-        after = path.lstat()
-        kind = "symlink"
-    elif stat.S_ISREG(before.st_mode):
-        content_digest = hashlib.sha256()
-        with path.open("rb") as file:
-            for chunk in iter(lambda: file.read(1024 * 1024), b""):
-                content_digest.update(chunk)
-        digest = content_digest.hexdigest()
-        after = path.lstat()
-        kind = "file"
-    else:
-        raise ReviewSnapshotError(
-            f"unsupported repository file type: {relative_text!r}"
-        )
-    before_identity = (
-        before.st_mode,
-        before.st_size,
-        before.st_mtime_ns,
-        before.st_ino,
-    )
-    after_identity = (
-        after.st_mode,
-        after.st_size,
-        after.st_mtime_ns,
-        after.st_ino,
-    )
-    if before_identity != after_identity:
-        raise ReviewSnapshotError(
-            f"repository file changed while fingerprinting: {relative_text!r}"
-        )
-    return kind, digest
-
-
-def parse_review_index_entries(output: bytes) -> list[tuple[str, str, int, str]]:
-    entries: list[tuple[str, str, int, str]] = []
-    for record in output.split(b"\0"):
-        if not record:
-            continue
-        header, separator, path_bytes = record.partition(b"\t")
-        if not separator:
-            raise ReviewSnapshotError("git index entry is missing its path separator")
-        try:
-            mode_bytes, oid_bytes, stage_bytes = header.split(b" ", 2)
-            mode = mode_bytes.decode("ascii")
-            oid = oid_bytes.decode("ascii")
-            stage = int(stage_bytes.decode("ascii"))
-        except (UnicodeDecodeError, ValueError) as error:
-            raise ReviewSnapshotError(
-                "git index entry has an invalid header"
-            ) from error
-        entries.append(
-            (
-                os.fsdecode(path_bytes),
-                mode,
-                stage,
-                oid,
-            )
-        )
-    return entries
-
-
-def parse_review_paths(output: bytes) -> list[str]:
-    return [os.fsdecode(path) for path in output.split(b"\0") if path]
-
-
-def capture_review_fingerprint(root: Path | None = None) -> dict[str, Any]:
-    fingerprint_root = ROOT if root is None else root
-    worktree_cache: dict[str, tuple[str, str | None]] = {}
-    tracked_index: list[dict[str, object]] = []
-    for relative_text, mode, stage, oid in parse_review_index_entries(
-        review_fingerprint_git_output(fingerprint_root, "ls-files", "--stage", "-z")
-    ):
-        if relative_text not in worktree_cache:
-            worktree_cache[relative_text] = fingerprint_worktree_content(
-                fingerprint_root,
-                relative_text,
-            )
-        worktree = worktree_cache[relative_text]
-        entry: dict[str, object] = {
-            "path": relative_text,
-            "mode": mode,
-            "stage": stage,
-            "oid": oid,
-            "worktree_kind": worktree[0],
-            "content_sha256": worktree[1],
-        }
-        entry["entry_sha256"] = fingerprint_sha256(entry)
-        tracked_index.append(entry)
-
-    untracked: list[dict[str, object]] = []
-    for relative_text in parse_review_paths(
-        review_fingerprint_git_output(
-            fingerprint_root,
-            "ls-files",
-            "--others",
-            "--exclude-standard",
-            "-z",
-        )
-    ):
-        kind, digest = fingerprint_worktree_content(fingerprint_root, relative_text)
-        if digest is None:
-            raise ReviewSnapshotError(
-                f"untracked file disappeared while fingerprinting: {relative_text!r}"
-            )
-        entry = {
-            "path": relative_text,
-            "worktree_kind": kind,
-            "content_sha256": digest,
-        }
-        entry["entry_sha256"] = fingerprint_sha256(entry)
-        untracked.append(entry)
-
-    content = {
-        "tracked_index": sorted(
-            tracked_index,
-            key=lambda item: (cast(str, item["path"]), cast(int, item["stage"])),
-        ),
-        "untracked": sorted(
-            untracked,
-            key=lambda item: cast(str, item["path"]),
-        ),
-    }
-    return {
-        "schema_version": REVIEW_FINGERPRINT_SCHEMA_VERSION,
-        "repository_root": str(fingerprint_root.resolve()),
-        **content,
-        "fingerprint_sha256": fingerprint_sha256(content),
-    }
-
-
-def write_review_fingerprint(output_path: Path) -> None:
-    destination = validate_review_output(output_path, "--output")
-    fingerprint = capture_review_fingerprint()
-    destination.write_text(
-        json.dumps(fingerprint, ensure_ascii=True, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    print(
-        json.dumps(
-            {
-                "status": "pass",
-                "output": str(destination),
-                "fingerprint_sha256": fingerprint["fingerprint_sha256"],
-            },
-            sort_keys=True,
-        )
-    )
-
-
-def load_review_fingerprint(path: Path) -> dict[str, Any]:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ReviewSnapshotError(
-            f"could not read fingerprint {path}: {error}"
-        ) from error
-    if not isinstance(value, dict):
-        raise ReviewSnapshotError(f"fingerprint {path} must contain a JSON object")
-    if value.get("schema_version") != REVIEW_FINGERPRINT_SCHEMA_VERSION:
-        raise ReviewSnapshotError(
-            f"fingerprint {path} has an unsupported schema version"
-        )
-    if not isinstance(value.get("tracked_index"), list) or not isinstance(
-        value.get("untracked"), list
-    ):
-        raise ReviewSnapshotError(f"fingerprint {path} has invalid entry lists")
-    if not isinstance(value.get("repository_root"), str):
-        raise ReviewSnapshotError(f"fingerprint {path} has no repository root")
-    stored_hash = value.get("fingerprint_sha256")
-    if not isinstance(stored_hash, str):
-        raise ReviewSnapshotError(f"fingerprint {path} has no aggregate hash")
-    for category in ("tracked_index", "untracked"):
-        for raw_entry in value[category]:
-            if not isinstance(raw_entry, dict):
-                raise ReviewSnapshotError(
-                    f"fingerprint {category} entry must be a JSON object"
-                )
-            stored_entry_hash = raw_entry.get("entry_sha256")
-            if not isinstance(stored_entry_hash, str):
-                raise ReviewSnapshotError(f"fingerprint {category} entry has no hash")
-            entry_without_hash = {
-                key: entry_value
-                for key, entry_value in raw_entry.items()
-                if key != "entry_sha256"
-            }
-            if fingerprint_sha256(entry_without_hash) != stored_entry_hash:
-                raise ReviewSnapshotError(
-                    f"fingerprint {category} entry hash does not match"
-                )
-    content = {
-        "tracked_index": value["tracked_index"],
-        "untracked": value["untracked"],
-    }
-    if fingerprint_sha256(content) != stored_hash:
-        raise ReviewSnapshotError(f"fingerprint {path} aggregate hash does not match")
-    return value
-
-
-def review_fingerprint_path_hashes(fingerprint: dict[str, Any]) -> dict[str, str]:
-    grouped: dict[str, list[str]] = {}
-    for category in ("tracked_index", "untracked"):
-        for raw_entry in fingerprint[category]:
-            if not isinstance(raw_entry, dict):
-                raise ReviewSnapshotError(
-                    f"fingerprint {category} entry must be a JSON object"
-                )
-            path = raw_entry.get("path")
-            entry_hash = raw_entry.get("entry_sha256")
-            if not isinstance(path, str) or not isinstance(entry_hash, str):
-                raise ReviewSnapshotError(
-                    f"fingerprint {category} entry has invalid path or hash"
-                )
-            grouped.setdefault(path, []).append(f"{category}:{entry_hash}")
-    return {
-        path: fingerprint_sha256(sorted(entry_hashes))
-        for path, entry_hashes in grouped.items()
-    }
-
-
-def compare_review_fingerprints(before_path: Path, after_path: Path) -> None:
-    before = load_review_fingerprint(before_path)
-    after = load_review_fingerprint(after_path)
-    if before["repository_root"] != after["repository_root"]:
-        raise ReviewSnapshotError(
-            "fingerprints were captured from different repositories"
-        )
-    if before["fingerprint_sha256"] == after["fingerprint_sha256"]:
-        print(
-            json.dumps(
-                {
-                    "status": "pass",
-                    "fingerprint_sha256": after["fingerprint_sha256"],
-                    "changes": [],
-                },
-                sort_keys=True,
-            )
-        )
-        return
-
-    before_paths = review_fingerprint_path_hashes(before)
-    after_paths = review_fingerprint_path_hashes(after)
-    changed_paths = sorted(before_paths.keys() | after_paths.keys())
-    changes = [
-        {
-            "path": path,
-            "before_sha256": before_paths.get(path),
-            "after_sha256": after_paths.get(path),
-        }
-        for path in changed_paths
-        if before_paths.get(path) != after_paths.get(path)
-    ]
-    print(
-        json.dumps(
-            {
-                "status": "fail",
-                "before_sha256": before["fingerprint_sha256"],
-                "after_sha256": after["fingerprint_sha256"],
-                "changes": changes,
-            },
-            ensure_ascii=True,
-            sort_keys=True,
-        ),
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
-
-
-def target_review_fingerprint_capture(output_path: Path) -> None:
-    try:
-        write_review_fingerprint(output_path)
-    except ReviewSnapshotError as error:
-        print(f"error: {error}", file=sys.stderr)
-        raise SystemExit(1) from error
-
-
-def target_review_fingerprint_compare(
-    before_path: Path,
-    after_path: Path,
-) -> None:
-    try:
-        compare_review_fingerprints(before_path, after_path)
-    except ReviewSnapshotError as error:
-        print(f"error: {error}", file=sys.stderr)
-        raise SystemExit(1) from error
-
-
-def snapshot_file_paths() -> tuple[list[str], set[str]]:
-    tracked = command_nul_output(
-        ["git", "ls-files", "-z"],
-        cwd=ROOT,
-        timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-    )
-    untracked = set(
-        command_nul_output(
-            ["git", "ls-files", "--others", "--exclude-standard", "-z"],
-            cwd=ROOT,
-            timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-        )
-    )
-    return sorted(set(tracked) | untracked), untracked
-
-
-def copy_worktree_snapshot(destination: Path) -> list[str]:
-    relative_texts, untracked = snapshot_file_paths()
-    root_resolved = ROOT.resolve()
-    destination_resolved = destination.resolve()
-    issues: list[str] = []
-    for relative_text in relative_texts:
-        relative_path = safe_snapshot_path(relative_text)
-        source = ROOT / relative_path
-        if source.is_symlink():
-            issues.append(
-                f"symlink cannot be safely isolated and was skipped: {relative_text}"
-            )
-            continue
-        if not source.exists():
-            continue
-        source_resolved = source.resolve()
-        if not source_resolved.is_relative_to(root_resolved):
-            raise ReviewSnapshotError(
-                f"repository path resolves outside the worktree: {relative_text!r}"
-            )
-        source_stat = source.stat(follow_symlinks=False)
-        if not stat.S_ISREG(source_stat.st_mode):
-            issues.append(
-                f"non-regular file cannot be safely isolated and was skipped: "
-                f"{relative_text}"
-            )
-            continue
-        if (
-            relative_text in untracked
-            and source_stat.st_size > REVIEW_MAX_UNTRACKED_FILE_BYTES
-        ):
-            issues.append(
-                f"untracked file exceeds the "
-                f"{REVIEW_MAX_UNTRACKED_FILE_BYTES}-byte snapshot limit and was "
-                f"skipped: {relative_text}"
-            )
-            continue
-        target = destination / relative_path
-        target_resolved = target.resolve()
-        if not target_resolved.is_relative_to(destination_resolved):
-            raise ReviewSnapshotError(
-                f"snapshot destination escapes isolation: {relative_text!r}"
-            )
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, target, follow_symlinks=False)
-    return issues
-
-
-def initialize_isolated_git_repository(isolated_root: Path) -> str:
-    """Turn a copied worktree snapshot into a throwaway git repository.
-
-    Checks that run inside an isolated copy (for example ``lint-workflows``
-    and ``compile-aw``) shell out to ``git`` to enumerate files, so the copy
-    must itself be a repository. The temporary commit makes HEAD represent
-    the exact tracked and untracked files that ``copy_worktree_snapshot``
-    copied; ``origin`` is read from the real repository (``ROOT``) so gh-aw
-    can resolve the workflow schedule from inside the copy. Raises
-    ``OSError``/``SystemExit`` on failure, matching ``run``/``command_output``.
-    """
-    run(
-        ["git", "init", "--quiet"],
-        cwd=isolated_root,
-        timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-    )
-    try:
-        origin_url = command_output(
-            ["git", "remote", "get-url", "origin"],
-            cwd=ROOT,
-            allow_failure=True,
-            quiet_stderr=True,
-            timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-        )
-    except OSError:
-        origin_url = ""
-    if origin_url:
-        run(
-            ["git", "remote", "add", "origin", origin_url],
-            cwd=isolated_root,
-            timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-        )
-    # The temporary commit makes HEAD represent the exact tracked and
-    # untracked files under review. --force includes copied files that
-    # are ignored only because the snapshot started as a new repository.
-    run(
-        ["git", "add", "--force", "--all"],
-        cwd=isolated_root,
-        timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-    )
-    run(
-        [
-            "git",
-            "-c",
-            "user.name=Repository Review",
-            "-c",
-            "user.email=repository-review@localhost",
-            "commit",
-            "--quiet",
-            "--no-verify",
-            "--no-gpg-sign",
-            "-m",
-            "Isolated review snapshot",
-        ],
-        cwd=isolated_root,
-        timeout=REVIEW_GIT_TIMEOUT_SECONDS,
-    )
-    return origin_url
-
-
-REVIEW_WORKSPACE_MANIFEST_FILENAME = ".review-workspace-manifest.json"
-REVIEW_WORKSPACE_SCHEMA_VERSION = "aks-chaos-lab-review-workspace/1"
-# The isolated worktree copy lives one level below the directory
-# review-workspace create hands out as its parent, so the manifest can sit
-# beside it instead of inside it. See _review_workspace_manifest_path.
-REVIEW_WORKSPACE_DIRECTORY_NAME = "workspace"
-
-
-def _review_workspace_manifest_path(workspace_root: Path) -> Path:
-    """Manifest path for a workspace directory, deliberately a sibling of it.
-
-    ``workspace_root`` is copied into a throwaway git repository so that
-    checks run from inside it (for example this project's own
-    ``review-repo-full``, when it is itself run from inside an outer
-    isolated workspace) can inspect it with ``git``. A manifest file placed
-    *inside* that copy would be committed as, or left behind as, an
-    untracked file with no ``repo-health.toml`` coverage entry, which the
-    repo-health inventory classifies as a ``true_gap`` and fails the review
-    it is supposed to be isolating. Keeping the manifest beside
-    ``workspace_root`` instead removes it from that scan entirely.
-    """
-    return workspace_root.parent / REVIEW_WORKSPACE_MANIFEST_FILENAME
-
-
-# The only two shutil.rmtree onexc callbacks the stdlib ever invokes with
-# nothing but the failing path (see cpython's shutil._rmtree_unsafe and
-# _rmtree_safe_fd_step). Every other callback it can pass -- os.lstat,
-# os.path.islink, os.scandir, os.open, os.close -- expects different
-# arguments (a file descriptor, flags, and so on), so calling it as
-# function(path) would raise an unrelated TypeError instead of retrying
-# the operation that actually failed. Checked as `os.unlink`/`os.rmdir`
-# (a live module attribute lookup) rather than a tuple captured once at
-# import time, matching how shutil.rmtree itself resolves those names
-# freshly at every call.
-def _review_workspace_rmtree_onexc(
-    function: Callable[[str], object], path: str, exc: BaseException
-) -> None:
-    """``shutil.rmtree`` ``onexc`` handler for read-only Git files on Windows.
-
-    Git leaves packed object files (and sometimes the ``.git`` directory
-    itself) read-only there, which makes the ``os.unlink``/``os.rmdir``
-    calls ``shutil.rmtree`` performs internally fail with
-    ``PermissionError``. Clearing the read-only bit and retrying the exact
-    failing operation once resolves that without weakening cleanup
-    elsewhere -- but only when ``function`` is ``os.unlink`` or
-    ``os.rmdir``: any other callback is never invoked, and the original
-    exception ``exc`` (not a new one) is re-raised unchanged, so a callback
-    this handler does not understand cannot be mis-called with the wrong
-    arguments. When retrying, the read-only bit is cleared by OR-ing
-    ``stat.S_IWRITE`` into the path's *existing* mode rather than replacing
-    the mode outright, so directory execute/read bits needed to keep
-    traversing the rest of a POSIX tree are never stripped. If the retry
-    itself still fails, that new exception (not swallowed) propagates out
-    of ``shutil.rmtree`` so cleanup fails loudly instead of silently
-    leaving files behind.
-    """
-    if function is not os.unlink and function is not os.rmdir:
-        raise exc
-    os.chmod(path, stat.S_IMODE(os.stat(path).st_mode) | stat.S_IWRITE)
-    function(path)
-
-
-def _remove_review_workspace_tree(parent_root: Path) -> None:
-    shutil.rmtree(parent_root, onexc=_review_workspace_rmtree_onexc)
-
-
-def create_review_workspace() -> dict[str, object]:
-    """Create an isolated, git-initialized copy of the worktree outside the repository.
-
-    This is the standalone lifecycle counterpart of the isolation
-    ``run_review_targets_isolated`` already performs internally for
-    write-risky checks: it reuses the same ``copy_worktree_snapshot`` (safe
-    copy, path-traversal and symlink rejection) and
-    ``initialize_isolated_git_repository`` (git bootstrap) helpers, but keeps
-    the resulting directory alive after this call returns so a caller such as
-    the review-repo agent can run several tools against it before explicitly
-    removing it with ``cleanup_review_workspace``.
-
-    The returned ``workspace_path`` is a ``workspace`` subdirectory of a
-    private temporary parent; the manifest binding that workspace to a
-    single-use token is written as a sibling of it inside that same parent
-    (see ``_review_workspace_manifest_path``), never inside the workspace
-    itself. ``cleanup_review_workspace`` removes the whole parent, so the
-    workspace and its manifest are always deleted together.
-
-    Preparation runs entirely inside a ``try``/``except BaseException`` so
-    that a timeout (``subprocess.TimeoutExpired``), an interactive
-    interrupt (``KeyboardInterrupt``), or any other failure while the
-    workspace is only partially built -- including a failure while writing
-    the manifest itself -- still removes the temporary parent before
-    propagating: there is no manifest until preparation has fully
-    succeeded, so nothing is left behind that ``cleanup_review_workspace``
-    could later be pointed at. Token generation and the manifest write are
-    therefore inside the same guarded block as the snapshot copy and git
-    bootstrap, not after it. ``KeyboardInterrupt`` and ``SystemExit`` are
-    re-raised unchanged after cleanup so their existing control-flow meaning
-    (interactive interrupt, subprocess exit code) is preserved; every other
-    exception is translated into ``ReviewSnapshotError`` so callers only
-    need to handle one failure type.
-    """
-    root_resolved = ROOT.resolve()
-    parent_root = Path(tempfile.mkdtemp(prefix="review-repo-workspace-")).resolve()
-    if parent_root.is_relative_to(root_resolved) or root_resolved.is_relative_to(
-        parent_root
-    ):
-        with suppress(OSError):
-            _remove_review_workspace_tree(parent_root)
-        raise ReviewSnapshotError(
-            "operating-system temporary directory is inside the repository"
-        )
-    workspace_root = parent_root / REVIEW_WORKSPACE_DIRECTORY_NAME
-    try:
-        workspace_root.mkdir()
-        snapshot_issues = copy_worktree_snapshot(workspace_root)
-        if snapshot_issues:
-            raise ReviewSnapshotError(
-                "worktree snapshot copy reported issues that would leave the "
-                "isolated review workspace incomplete: " + "; ".join(snapshot_issues)
-            )
-        initialize_isolated_git_repository(workspace_root)
-        token = secrets.token_hex(16)
-        manifest = {
-            "schema": REVIEW_WORKSPACE_SCHEMA_VERSION,
-            "token": token,
-            "repository_root": str(root_resolved),
-            "workspace_path": str(workspace_root),
-        }
-        manifest_path = _review_workspace_manifest_path(workspace_root)
-        manifest_path.write_text(
-            json.dumps(manifest, ensure_ascii=True, sort_keys=True),
-            encoding="utf-8",
-        )
-    except BaseException as error:
-        with suppress(OSError):
-            _remove_review_workspace_tree(parent_root)
-        if isinstance(error, (KeyboardInterrupt, SystemExit, ReviewSnapshotError)):
-            raise
-        raise ReviewSnapshotError(
-            f"failed to prepare the isolated review workspace: {error}"
-        ) from error
-    return {
-        "workspace_path": str(workspace_root),
-        "token": token,
-        "manifest_path": str(manifest_path),
-        "snapshot_issues": [],
-    }
-
-
-def _reject_unsafe_removal_target(candidate: Path, root_resolved: Path) -> None:
-    """Raise unless ``candidate`` is safely disjoint from the repository root.
-
-    Shared by ``cleanup_review_workspace`` for both the workspace directory
-    it is asked to remove and, separately, that workspace's parent (the
-    private temporary directory that actually gets deleted): ``candidate``
-    may not equal, contain (be an ancestor of), or be contained by (be a
-    descendant of) ``root_resolved``.
-    """
-    if candidate == root_resolved or root_resolved.is_relative_to(candidate):
-        raise ReviewSnapshotError(
-            "refusing to remove the repository root or one of its ancestors"
-        )
-    if candidate.is_relative_to(root_resolved):
-        raise ReviewSnapshotError(
-            "refusing to remove a path inside the repository worktree"
-        )
-
-
-def cleanup_review_workspace(workspace_path: Path, token: str) -> str:
-    """Remove a workspace created by ``create_review_workspace``.
-
-    Deletion proceeds only when the manifest beside ``workspace_path`` (its
-    sibling inside the private temporary parent ``create_review_workspace``
-    allocated, never inside ``workspace_path`` itself) proves the directory
-    was created for this repository with the given token. A missing
-    directory, a missing or mismatched manifest, a token mismatch, or a
-    workspace that equals, contains, or is contained by the repository root
-    are all rejected instead of silently succeeding. In particular, cleaning
-    up an already-removed workspace fails explicitly (the manifest is gone
-    with the directory) rather than being treated as an idempotent no-op,
-    because a missing directory cannot prove it was ever ours to remove.
-
-    ``workspace_path`` is resolved (following any symlink) before any of
-    these checks run, and every check and the final removal operate on that
-    resolved path, so substituting a symlink for the workspace directory
-    between creation and cleanup cannot redirect cleanup onto an unrelated,
-    unproven directory: the manifest lookup and its content checks below are
-    performed against wherever the resolved path actually points, and fail
-    unless that location was the one this function's own token and
-    ``workspace_path``/``repository_root`` fields describe.
-    """
-    root_resolved = ROOT.resolve()
-    try:
-        workspace_resolved = workspace_path.resolve(strict=True)
-    except OSError as error:
-        raise ReviewSnapshotError(
-            f"review workspace path does not exist: {workspace_path}"
-        ) from error
-    _reject_unsafe_removal_target(workspace_resolved, root_resolved)
-    manifest_path = _review_workspace_manifest_path(workspace_resolved)
-    try:
-        manifest_text = manifest_path.read_text(encoding="utf-8")
-    except OSError as error:
-        raise ReviewSnapshotError(
-            "review workspace manifest is missing or unreadable (already "
-            f"removed, or not created by review-workspace create): {manifest_path}"
-        ) from error
-    try:
-        manifest = json.loads(manifest_text)
-    except json.JSONDecodeError as error:
-        raise ReviewSnapshotError(
-            f"review workspace manifest is not valid JSON: {manifest_path}"
-        ) from error
-    if not isinstance(manifest, dict):
-        raise ReviewSnapshotError(
-            f"review workspace manifest is not a JSON object: {manifest_path}"
-        )
-    if manifest.get("schema") != REVIEW_WORKSPACE_SCHEMA_VERSION:
-        raise ReviewSnapshotError("review workspace manifest schema is not recognized")
-    # The manifest is a plaintext file inside a directory this function
-    # already proved (via the checks above and below) was created by
-    # ``create_review_workspace`` for this exact repository and workspace
-    # path; the token only distinguishes that call from a concurrent one; it
-    # is not a secret and does not authenticate anything, so ordinary string
-    # equality is sufficient. ``manifest_token`` still has to be checked
-    # with ``isinstance`` first: it is attacker/corruption-controlled JSON
-    # content, and comparing a non-``str`` (``None``, a number, a list, ...)
-    # to ``token`` must fail closed rather than raise ``TypeError``.
-    manifest_token = manifest.get("token")
-    if not isinstance(manifest_token, str) or manifest_token != token:
-        raise ReviewSnapshotError("review workspace token does not match the manifest")
-    if manifest.get("repository_root") != str(root_resolved):
-        raise ReviewSnapshotError(
-            "review workspace was not created for this repository"
-        )
-    if manifest.get("workspace_path") != str(workspace_resolved):
-        raise ReviewSnapshotError(
-            "review workspace manifest does not match the requested path"
-        )
-    # Defense in depth: re-check the parent we are about to remove (which
-    # holds both the workspace and its manifest) against the same
-    # repository-root boundaries as workspace_resolved above. The checks on
-    # workspace_resolved only prove that workspace_resolved itself is
-    # disjoint from root_resolved; they do not prove the same for its
-    # parent, which could still equal root_resolved, contain it, or be
-    # contained by it -- for example if this workspace and the repository
-    # happen to be separate children of the same enclosing directory (such
-    # as a shared operating-system temporary directory).
-    parent_resolved = workspace_resolved.parent
-    _reject_unsafe_removal_target(parent_resolved, root_resolved)
-    _remove_review_workspace_tree(parent_resolved)
-    return str(workspace_resolved)
-
-
-def target_review_workspace_create() -> None:
-    try:
-        workspace = create_review_workspace()
-    except (ReviewSnapshotError, OSError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        raise SystemExit(1) from error
-    print(json.dumps(workspace, ensure_ascii=True, sort_keys=True))
-
-
-def target_review_workspace_cleanup(workspace_path: Path, token: str) -> None:
-    try:
-        removed_path = cleanup_review_workspace(workspace_path, token)
-    except (ReviewSnapshotError, OSError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        raise SystemExit(1) from error
-    print(
-        json.dumps(
-            {"status": "removed", "workspace_path": removed_path},
-            ensure_ascii=True,
-            sort_keys=True,
-        )
-    )
-
-
-def run_review_targets_isolated(
-    checks: Sequence[ReviewCheck],
-) -> list[ReviewResult]:
+def run_review_checks(checks: Sequence[ReviewCheck]) -> list[ReviewResult]:
+    """Run review targets in the current dedicated worktree."""
     runnable, results = classify_review_tools(checks)
-    if not runnable:
-        return results
-
-    isolated_root = Path(tempfile.mkdtemp(prefix="review-repo-")).resolve()
-    try:
-        root_resolved = ROOT.resolve()
-        if isolated_root.is_relative_to(root_resolved):
-            result = ReviewResult(
-                "snapshot",
-                "unverified",
-                "operating-system temporary directory is inside the repository",
-                REVIEW_REASON_ISOLATION_UNAVAILABLE,
-            )
-            print_review_result(result)
-            results.append(result)
-            for check in runnable:
-                result = ReviewResult(
-                    check.name,
-                    "unverified",
-                    "check skipped because isolation was unavailable",
-                    REVIEW_REASON_ISOLATION_UNAVAILABLE,
-                )
-                print_review_result(result)
-                results.append(result)
-            return results
-
-        print_step(f"Preparing isolated review copy at {isolated_root}")
-        try:
-            snapshot_issues = copy_worktree_snapshot(isolated_root)
-        except (OSError, ReviewSnapshotError, SystemExit) as error:
-            result = ReviewResult(
-                "snapshot",
-                "unverified",
-                f"isolated worktree could not be prepared: {error}",
-                REVIEW_REASON_ISOLATION_UNAVAILABLE,
-            )
-            print_review_result(result)
-            results.append(result)
-            for check in runnable:
-                result = ReviewResult(
-                    check.name,
-                    "unverified",
-                    "check skipped because isolation was unavailable",
-                    REVIEW_REASON_ISOLATION_UNAVAILABLE,
-                )
-                print_review_result(result)
-                results.append(result)
-            return results
-
-        for issue in snapshot_issues:
-            result = ReviewResult(
-                "snapshot",
-                "unverified",
-                issue,
-                REVIEW_REASON_SNAPSHOT_INCOMPLETE,
-            )
-            print_review_result(result)
-            results.append(result)
-        if snapshot_issues:
-            for check in runnable:
-                result = ReviewResult(
-                    check.name,
-                    "unverified",
-                    "check skipped because the isolated snapshot was incomplete",
-                    REVIEW_REASON_SNAPSHOT_INCOMPLETE,
-                )
-                print_review_result(result)
-                results.append(result)
-            return results
-        try:
-            origin_url = initialize_isolated_git_repository(isolated_root)
-        except (OSError, SystemExit) as error:
-            result = ReviewResult(
-                "snapshot",
-                "unverified",
-                f"isolated worktree could not be prepared: {error}",
-                REVIEW_REASON_ISOLATION_UNAVAILABLE,
-            )
-            print_review_result(result)
-            results.append(result)
-            for check in runnable:
-                result = ReviewResult(
-                    check.name,
-                    "unverified",
-                    "check skipped because isolation was unavailable",
-                    REVIEW_REASON_ISOLATION_UNAVAILABLE,
-                )
-                print_review_result(result)
-                results.append(result)
-            return results
-
-        isolated_environment = {
-            "PYTHONUNBUFFERED": "1",
-            "UV_PROJECT_ENVIRONMENT": str(isolated_root / ".venv"),
+    config_path = selected_approved_index_config()
+    task_environment = (
+        {}
+        if config_path is None
+        else {
+            "UV_CONFIG_FILE": str(config_path),
+            **approved_index_credentials(config_path),
         }
-        python_check_names = {"qa-app", "test-hooks"}
-        python_preparation_failure: tuple[str, str, str] | None = None
-        if any(check.name in python_check_names for check in runnable):
-            preparation_check = ReviewCheck(
-                "python-environment",
-                "prepare-review-python-env",
-                ("uv",),
-                REVIEW_PYTHON_ENVIRONMENT_TIMEOUT_SECONDS,
+    )
+    for check in runnable:
+        try:
+            completed = run_review_command(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "tasks.py"),
+                    check.target_name,
+                    *check.target_arguments,
+                ],
+                cwd=ROOT,
+                env=task_environment,
+                timeout=check.timeout_seconds,
             )
-            try:
-                config_path = selected_approved_index_config()
-                preparation_environment = {
-                    **isolated_environment,
-                    **(
-                        {
-                            "UV_CONFIG_FILE": str(config_path),
-                            **approved_index_credentials(config_path),
-                        }
-                        if config_path is not None
-                        else {}
-                    ),
-                }
-                completed = run_isolated_review_command(
-                    [
-                        sys.executable,
-                        str(isolated_root / "scripts" / "tasks.py"),
-                        preparation_check.target_name,
-                    ],
-                    cwd=isolated_root,
-                    env=preparation_environment,
-                    timeout=preparation_check.timeout_seconds,
-                )
-            except SystemExit as error:
-                python_preparation_failure = (
-                    "unverified",
-                    REVIEW_REASON_CHECK_FAILED,
-                    str(error),
-                )
-            except subprocess.TimeoutExpired:
-                python_preparation_failure = (
-                    "unverified",
-                    REVIEW_REASON_CHECK_TIMEOUT,
-                    "Python environment preparation exceeded the "
-                    f"{preparation_check.timeout_seconds}-second isolation limit",
-                )
+        except subprocess.TimeoutExpired:
+            result = ReviewResult(
+                check.name,
+                "unverified",
+                f"check exceeded the {check.timeout_seconds}-second limit",
+                REVIEW_REASON_CHECK_TIMEOUT,
+            )
+        except OSError as error:
+            result = ReviewResult(
+                check.name,
+                "unverified",
+                f"check could not be started: {error}",
+                REVIEW_REASON_CHECK_START_FAILED,
+            )
+        else:
+            if completed.returncode != 0:
+                status, reason_code, detail = classify_review_failure(check, completed)
+                result = ReviewResult(check.name, status, detail, reason_code)
             else:
-                if completed.returncode != 0:
-                    python_preparation_failure = classify_review_failure(
-                        preparation_check,
-                        completed,
-                    )
-                else:
-                    isolated_environment[REVIEW_PREPARED_ENVIRONMENT_VARIABLE] = "1"
-
-        for check in runnable:
-            if (
-                check.name in python_check_names
-                and python_preparation_failure is not None
-            ):
-                (
-                    preparation_status,
-                    preparation_reason_code,
-                    preparation_detail,
-                ) = python_preparation_failure
                 result = ReviewResult(
                     check.name,
-                    preparation_status,
-                    "Python environment preparation failed: " + preparation_detail,
-                    preparation_reason_code,
+                    "pass",
+                    "check passed",
+                    REVIEW_REASON_CHECK_PASSED,
                 )
-                print_review_result(result)
-                results.append(result)
-                continue
-            if check.name == "compile-aw" and not origin_url:
-                result = ReviewResult(
-                    check.name,
-                    "unverified",
-                    "origin remote is required to reproduce gh-aw schedule generation",
-                    REVIEW_REASON_ORIGIN_UNAVAILABLE,
-                )
-                print_review_result(result)
-                results.append(result)
-                continue
-            try:
-                completed = run_isolated_review_command(
-                    [
-                        sys.executable,
-                        str(isolated_root / "scripts" / "tasks.py"),
-                        check.target_name,
-                        *check.target_arguments,
-                    ],
-                    cwd=isolated_root,
-                    env=isolated_environment,
-                    timeout=check.timeout_seconds,
-                )
-            except subprocess.TimeoutExpired:
-                status = "unverified"
-                reason_code = REVIEW_REASON_CHECK_TIMEOUT
-                detail = (
-                    f"check exceeded the {check.timeout_seconds}-second isolation limit"
-                )
-            else:
-                if completed.returncode != 0:
-                    status, reason_code, detail = classify_review_failure(
-                        check, completed
-                    )
-                else:
-                    status = "pass"
-                    reason_code = REVIEW_REASON_CHECK_PASSED
-                    detail = "check passed"
-            result = ReviewResult(check.name, status, detail, reason_code)
-            print_review_result(result)
-            results.append(result)
-    finally:
-        _remove_review_workspace_tree(isolated_root)
+        print_review_result(result)
+        results.append(result)
     return results
 
 
@@ -2511,11 +1532,9 @@ def target_review_repo_full(
 ) -> None:
     """Run the fast deterministic layer, then only what it cannot cover.
 
-    Fast is the single deterministic entry point, so this adds just the checks
-    that need the isolated copy because they build, generate, or rewrite files.
-    The semantic evaluation (freshness meaning, Bicep API versions, documents
-    and AI operating assets) belongs to the review-repo agent, which consumes
-    these structured results instead of repeating any check.
+    The caller runs this target in a dedicated worktree. The semantic evaluation
+    belongs to the review-repo agent, which consumes these structured results
+    instead of repeating any check.
     """
     print_step("Running full repository review")
     results = (
@@ -2523,7 +1542,7 @@ def target_review_repo_full(
         if inventory_json is None
         else run_fast_review_checks(inventory_json)
     )
-    results.extend(run_review_targets_isolated(FULL_REVIEW_CHECKS))
+    results.extend(run_review_checks(FULL_REVIEW_CHECKS))
     write_review_results("full", results, results_json)
     finish_review(results, "Full repository review passed")
 
@@ -2532,7 +1551,7 @@ def target_build_bicep() -> None:
     target_check_az()
     for template in ("infra/main.bicep", "infra/sli/main.bicep"):
         print_step(f"Building Bicep template {template}")
-        run(["az", "bicep", "build", "--file", template])
+        command_output(["az", "bicep", "build", "--file", template, "--stdout"])
     print_success("Bicep build passed")
 
 
@@ -2652,9 +1671,10 @@ def target_lint_workflows() -> None:
     print_success("Workflow lint passed")
 
 
-def run_gh_aw_compile() -> None:
+def run_gh_aw_compile(*arguments: str) -> None:
+    command = ["gh", "aw", "compile", *arguments]
     if os.name != "nt":
-        run(["gh", "aw", "compile"])
+        run(command)
         return
 
     powershell = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
@@ -2666,10 +1686,13 @@ def run_gh_aw_compile() -> None:
         raise SystemExit(1)
 
     gh_path = resolve_command(["gh"])[0]
+    powershell_arguments = ", ".join(
+        "'" + argument.replace("'", "''") + "'" for argument in command[1:]
+    )
     script = (
         "$process = Start-Process "
         "-FilePath $env:GH_AW_GH_PATH "
-        "-ArgumentList @('aw', 'compile') "
+        f"-ArgumentList @({powershell_arguments}) "
         "-WorkingDirectory $env:GH_AW_ROOT "
         "-RedirectStandardInput $env:GH_AW_STDIN "
         "-RedirectStandardOutput $env:GH_AW_STDOUT "
@@ -2683,7 +1706,7 @@ def run_gh_aw_compile() -> None:
         stdout_path = temporary_root / "stdout.txt"
         stderr_path = temporary_root / "stderr.txt"
         stdin_path.touch()
-        completed = run_isolated_review_command(
+        completed = run_review_command(
             [
                 powershell,
                 "-NoProfile",
@@ -2710,6 +1733,13 @@ def run_gh_aw_compile() -> None:
                 stream.flush()
     if completed.returncode != 0:
         raise SystemExit(completed.returncode)
+
+
+def target_validate_aw() -> None:
+    target_check_gh_aw()
+    print_step("Validating agentic workflows without writing generated files")
+    run_gh_aw_compile("--no-emit", "--no-check-update")
+    print_success("gh-aw source validation passed")
 
 
 def gh_aw_managed_file_digests() -> dict[str, str]:
@@ -2804,61 +1834,11 @@ def target_install_tools() -> None:
     print_success("All required external tools are available")
 
 
-# ---------------------------------------------------------------------------
-# Non-Renovate tool update checks
-#
-# These checks own only tools whose update cannot be completed safely by
-# Renovate. They emit structured evidence for an ordinary scheduled Actions
-# workflow, which opens a validated pull request for each update candidate.
-# ---------------------------------------------------------------------------
-FRESHNESS_SCHEMA_VERSION = 1
-FRESHNESS_REASON_CURRENT = "current"
-FRESHNESS_REASON_UPDATE_AVAILABLE = "update-available"
-FRESHNESS_REASON_PINNED_AHEAD = "pinned-ahead"
-FRESHNESS_REASON_EVIDENCE_UNAVAILABLE = "evidence-unavailable"
-FRESHNESS_REASON_COORDINATE_ANOMALY = "coordinate-anomaly"
-FRESHNESS_REASON_CHECKSUM_MISMATCH = "checksum-mismatch"
-FRESHNESS_REASON_VERSION_MALFORMED = "version-malformed"
-FRESHNESS_STATUSES = frozenset({"pass", "fail", "unverified", "excluded"})
-
-# Fixed phrases that keep an evidence gap distinguishable from a repository
-# defect in the scheduled findings, whatever the underlying platform error text
-# happens to be.
-FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE = (
-    "official {subject} freshness evidence was unavailable"
-)
-FRESHNESS_UPDATE_AVAILABLE_PHRASE = "requires maintainer review before updating"
-
-
-@dataclass(frozen=True)
-class FreshnessFinding:
-    subject: str
-    coordinate: str
-    status: str
-    reason_code: str
-    current: str | None
-    published: str | None
-    evidence: tuple[str, ...]
-    detail: str
-
-    def __post_init__(self) -> None:
-        if self.status not in FRESHNESS_STATUSES:
-            raise ValueError(f"unsupported freshness status: {self.status}")
-        if not self.reason_code:
-            raise ValueError("freshness reason_code must not be empty")
-
-
 def github_api_request_headers() -> dict[str, str]:
-    """Build GitHub request headers, adding a bearer token when one is set.
-
-    Uses ``GITHUB_TOKEN``/``GH_TOKEN`` when available so the release-metadata
-    lookups avoid the unauthenticated rate limit in CI. The token is only ever
-    placed in the request header and is never printed, so it does not leak into
-    logs or the freshness JSON.
-    """
+    """Build GitHub request headers for an explicit maintenance command."""
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "aks-chaos-lab-freshness-check",
+        "User-Agent": "aks-chaos-lab-maintenance",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
@@ -2870,54 +1850,6 @@ def github_api_request_headers() -> dict[str, str]:
 def open_github_url(url: str, timeout: int) -> Any:
     request = urllib.request.Request(url, headers=github_api_request_headers())
     return urllib.request.urlopen(request, timeout=timeout)
-
-
-def freshness_document(findings: Sequence[FreshnessFinding]) -> dict[str, Any]:
-    """Aggregate findings into the machine-readable freshness JSON document.
-
-    The overall ``status`` is fail-first, then ``unverified``, then ``pass``,
-    matching the review vocabulary and the repository-freshness-checker skill's
-    aggregation rule, so a single missing-evidence coordinate never lets the
-    document report ``pass``.
-    """
-    statuses = {finding.status for finding in findings}
-    if not findings:
-        overall = "unverified"
-    elif "fail" in statuses:
-        overall = "fail"
-    elif "unverified" in statuses:
-        overall = "unverified"
-    elif findings and statuses == {"excluded"}:
-        overall = "excluded"
-    else:
-        overall = "pass"
-    coverage = {
-        "total": len(findings),
-        "pass": sum(1 for finding in findings if finding.status == "pass"),
-        "fail": sum(1 for finding in findings if finding.status == "fail"),
-        "unverified": sum(1 for finding in findings if finding.status == "unverified"),
-        "excluded": sum(1 for finding in findings if finding.status == "excluded"),
-    }
-    return {
-        "schema_version": FRESHNESS_SCHEMA_VERSION,
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "status": overall,
-        "coverage": coverage,
-        "findings": [
-            {
-                "tool": non_renovate_tool_id(finding.subject),
-                "subject": finding.subject,
-                "coordinate": finding.coordinate,
-                "status": finding.status,
-                "reason_code": finding.reason_code,
-                "current": finding.current,
-                "published": finding.published,
-                "evidence": list(finding.evidence),
-                "detail": finding.detail,
-            }
-            for finding in findings
-        ],
-    }
 
 
 _LEFTHOOK_VERSION_PATTERN = re.compile(
@@ -2933,10 +1865,6 @@ _LEFTHOOK_CHECKSUM_LINE_PATTERN = re.compile(
 
 
 class LefthookChecksumUnavailableError(RuntimeError):
-    pass
-
-
-class LefthookReleaseUnavailableError(RuntimeError):
     pass
 
 
@@ -2962,20 +1890,13 @@ def _replace_pin_value(match: re.Match[str], value: str) -> str:
     return text[:start] + value + text[end:]
 
 
-def _replace_match_group(
-    text: str, match: re.Match[str], group: str, value: str
-) -> str:
-    start, end = match.span(group)
-    return text[:start] + value + text[end:]
-
-
 def fetch_lefthook_checksum(version: str) -> str:
     """Fetch the official Linux x86_64 checksum for a Lefthook release.
 
     Reads evilmartians/lefthook's published `lefthook_checksums.txt` release
     asset. Network failures raise LefthookChecksumUnavailableError instead of
-    falling back silently, so callers can fail (or mark the check
-    unverified) instead of assuming the pinned checksum is still correct.
+    falling back silently, so the maintenance command fails instead of writing
+    an unverified checksum.
     """
     url = LEFTHOOK_CHECKSUMS_URL_TEMPLATE.format(version=version)
     try:
@@ -2998,168 +1919,6 @@ def fetch_lefthook_checksum(version: str) -> str:
             f"found {len(matches)}"
         )
     return matches[0].group("checksum")
-
-
-def fetch_lefthook_latest_release() -> str:
-    """Fetch evilmartians/lefthook's latest stable release as a bare X.Y.Z tag.
-
-    Queries the same official GitHub Releases API endpoint the gh-aw compiler
-    pin check uses, so Lefthook freshness is a deterministic version comparison
-    (current pin versus latest release) rather than something the aggregating
-    skill has to rediscover. Failures raise LefthookReleaseUnavailableError so
-    the caller reports "evidence-unavailable" instead of assuming the pin is
-    current.
-    """
-    try:
-        with open_github_url(
-            LEFTHOOK_RELEASES_API, LEFTHOOK_NETWORK_TIMEOUT_SECONDS
-        ) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="replace"))
-    except (
-        urllib.error.URLError,
-        TimeoutError,
-        OSError,
-        json.JSONDecodeError,
-    ) as error:
-        raise LefthookReleaseUnavailableError(
-            "could not resolve host or network unreachable while fetching "
-            f"{LEFTHOOK_RELEASES_API}: {error}"
-        ) from error
-    tag = payload.get("tag_name") if isinstance(payload, dict) else None
-    if not isinstance(tag, str) or not tag:
-        raise LefthookReleaseUnavailableError(
-            f"{LEFTHOOK_RELEASES_API} response did not include a tag_name"
-        )
-    version = tag.removeprefix("v")
-    if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
-        raise LefthookReleaseUnavailableError(
-            f"{LEFTHOOK_RELEASES_API} returned malformed tag_name {tag!r}"
-        )
-    return version
-
-
-def evaluate_lefthook_pin() -> FreshnessFinding:
-    """Evaluate the Lefthook version/checksum pin into a FreshnessFinding.
-
-    Reports a maintainer-review-gated newer release as ``update-available``
-    (unverified) and any missing GitHub evidence as ``evidence-unavailable``
-    (unverified); only a corrupt pin -- an ambiguous coordinate count or a
-    checksum that disagrees with the official release asset for the pinned
-    version -- is a ``fail``. Renovate deliberately does not manage this pin,
-    because it cannot regenerate LEFTHOOK_SHA256 in the same change, so this
-    deterministic check (not a red Renovate PR) is the freshness signal.
-    """
-    subject = FRESHNESS_SUBJECT_LEFTHOOK
-    coordinate = str(LEFTHOOK_CI_WORKFLOW)
-    text = (ROOT / LEFTHOOK_CI_WORKFLOW).read_text(encoding="utf-8")
-    version_matches, checksum_matches = _lefthook_pin_matches(text)
-    if len(version_matches) != 1 or len(checksum_matches) != 1:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "fail",
-            FRESHNESS_REASON_COORDINATE_ANOMALY,
-            None,
-            None,
-            (),
-            f"expected exactly one LEFTHOOK_VERSION= and one LEFTHOOK_SHA256= in "
-            f"{LEFTHOOK_CI_WORKFLOW}; found {len(version_matches)} and "
-            f"{len(checksum_matches)}",
-        )
-    version = version_matches[0].group("value")
-    checksum = checksum_matches[0].group("value")
-    checksums_url = LEFTHOOK_CHECKSUMS_URL_TEMPLATE.format(version=version)
-    try:
-        published_checksum = fetch_lefthook_checksum(version)
-    except LefthookChecksumUnavailableError as error:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-            version,
-            None,
-            (checksums_url,),
-            FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE.format(subject=subject)
-            + f": {error}",
-        )
-    if published_checksum != checksum:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "fail",
-            FRESHNESS_REASON_CHECKSUM_MISMATCH,
-            version,
-            version,
-            (checksums_url,),
-            "pinned LEFTHOOK_SHA256 does not match the official "
-            f"lefthook_checksums.txt for v{version} (pinned={checksum}, "
-            f"published={published_checksum}); run 'update-lefthook-pin "
-            "--version <version>' to refresh the version and checksum together",
-        )
-    try:
-        latest = fetch_lefthook_latest_release()
-    except LefthookReleaseUnavailableError as error:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-            version,
-            None,
-            (LEFTHOOK_RELEASES_API,),
-            FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE.format(subject=subject)
-            + f": {error}",
-        )
-    current_parsed = parse_gh_aw_version(version)
-    latest_parsed = parse_gh_aw_version(latest)
-    if current_parsed is None or latest_parsed is None:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-            version,
-            latest,
-            (LEFTHOOK_RELEASES_API,),
-            f"could not compare Lefthook versions {version!r} and {latest!r}",
-        )
-    if latest_parsed > current_parsed:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_UPDATE_AVAILABLE,
-            version,
-            latest,
-            (LEFTHOOK_RELEASES_API,),
-            f"pinned Lefthook {version} differs from the latest stable release "
-            f"{latest}; the pinned checksum is valid, but bumping the pin "
-            f"{FRESHNESS_UPDATE_AVAILABLE_PHRASE}",
-        )
-    if current_parsed > latest_parsed:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_PINNED_AHEAD,
-            version,
-            latest,
-            (LEFTHOOK_RELEASES_API,),
-            f"pinned Lefthook {version} is newer than the latest stable release "
-            f"{latest}; no automated downgrade will be created",
-        )
-    return FreshnessFinding(
-        subject,
-        coordinate,
-        "pass",
-        FRESHNESS_REASON_CURRENT,
-        version,
-        latest,
-        (LEFTHOOK_RELEASES_API, checksums_url),
-        f"pinned Lefthook {version} matches the latest stable release and its "
-        "official checksum",
-    )
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -3233,329 +1992,6 @@ def target_update_lefthook_pin(version: str) -> None:
     )
 
 
-GH_AW_SETUP_WORKFLOW = Path(".github/workflows/copilot-setup-steps.yml")
-GH_AW_UPDATER_WORKFLOW = Path(".github/workflows/repository-freshness-check.yml")
-GH_AW_RELEASES_API = "https://api.github.com/repos/github/gh-aw/releases/latest"
-GH_AW_ACTIONS_TAG_API_TEMPLATE = (
-    "https://api.github.com/repos/github/gh-aw-actions/git/ref/tags/{version}"
-)
-GH_AW_ACTIONS_ANNOTATED_TAG_API_TEMPLATE = (
-    "https://api.github.com/repos/github/gh-aw-actions/git/tags/{sha}"
-)
-GH_AW_NETWORK_TIMEOUT_SECONDS = 15
-_GH_AW_VERSION_PATTERN = re.compile(
-    r"^v?(?P<major>[0-9]+)\.(?P<minor>[0-9]+)\.(?P<patch>[0-9]+)$"
-)
-_GH_AW_SETUP_ACTION_PATTERN = re.compile(
-    r"^(?P<prefix>[ \t]*(?:-[ \t]+)?uses:[ \t]+github/gh-aw-actions/setup-cli@)"
-    r"(?P<sha>[0-9a-f]{40})(?P<comment_prefix>[ \t]+#[ \t]+)"
-    r"(?P<comment_version>v[0-9]+\.[0-9]+\.[0-9]+)(?P<suffix>[ \t]*)$",
-    re.MULTILINE,
-)
-_GH_AW_SETUP_VERSION_PATTERN = re.compile(
-    r"^(?P<prefix>[ \t]*version:[ \t]+)(?P<version>v[0-9]+\.[0-9]+\.[0-9]+)"
-    r"(?P<suffix>[ \t]*)$",
-    re.MULTILINE,
-)
-
-
-class GhAwReleaseUnavailableError(RuntimeError):
-    pass
-
-
-def read_gh_aw_setup_version() -> str:
-    """Read the pinned gh-aw compiler version from copilot-setup-steps.yml.
-
-    Reuses repo_health's extractor -- the same one `.github/repo-health.toml`'s
-    gh-aw-compiler-version rule uses -- so the pinned coordinate has a single
-    authored extraction path instead of a second hand-written regex.
-    """
-    try:
-        coordinates = extract_gh_aw_setup_version(
-            ROOT, str(GH_AW_SETUP_WORKFLOW), "gh-aw-setup-version"
-        )
-    except RepoHealthError as error:
-        print(f"error: {error}", file=sys.stderr)
-        raise SystemExit(1) from error
-    if len(coordinates) != 1:
-        print(
-            "error: expected exactly one gh-aw setup version in "
-            f"{GH_AW_SETUP_WORKFLOW}, found {len(coordinates)}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    return coordinates[0].value
-
-
-def fetch_gh_aw_latest_release() -> str:
-    """Fetch github/gh-aw's latest stable release tag from its official API.
-
-    `gh extension upgrade aw --dry-run` refuses to check pinned extensions
-    (it prints "pinned extensions can not be upgraded" for this repository's
-    installation), and `gh aw compile`'s built-in `--no-check-update`-gated
-    freshness check has no documented, stable output to parse. This queries
-    the same official GitHub releases API endpoint `bicep-version-check.yml`
-    already uses for Bicep CLI, so the comparison stays deterministic and
-    testable instead of depending on either of those.
-    """
-    try:
-        with open_github_url(
-            GH_AW_RELEASES_API, GH_AW_NETWORK_TIMEOUT_SECONDS
-        ) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="replace"))
-    except (
-        urllib.error.URLError,
-        TimeoutError,
-        OSError,
-        json.JSONDecodeError,
-    ) as error:
-        raise GhAwReleaseUnavailableError(
-            "could not resolve host or network unreachable while fetching "
-            f"{GH_AW_RELEASES_API}: {error}"
-        ) from error
-    tag = payload.get("tag_name") if isinstance(payload, dict) else None
-    if not isinstance(tag, str) or not tag:
-        raise GhAwReleaseUnavailableError(
-            f"{GH_AW_RELEASES_API} response did not include a tag_name"
-        )
-    return tag
-
-
-def fetch_gh_aw_actions_sha(version: str) -> str:
-    """Resolve a gh-aw-actions release tag to its immutable commit SHA."""
-    url = GH_AW_ACTIONS_TAG_API_TEMPLATE.format(version=version)
-    try:
-        with open_github_url(url, GH_AW_NETWORK_TIMEOUT_SECONDS) as response:
-            payload = json.loads(response.read().decode("utf-8", errors="replace"))
-        object_value = payload.get("object") if isinstance(payload, dict) else None
-        if not isinstance(object_value, dict):
-            raise ValueError("tag response did not include an object")
-        object_type = object_value.get("type")
-        object_sha = object_value.get("sha")
-        if object_type == "commit" and isinstance(object_sha, str):
-            return object_sha
-        if object_type != "tag" or not isinstance(object_sha, str):
-            raise ValueError("tag response did not reference a tag or commit")
-        annotated_url = GH_AW_ACTIONS_ANNOTATED_TAG_API_TEMPLATE.format(sha=object_sha)
-        with open_github_url(annotated_url, GH_AW_NETWORK_TIMEOUT_SECONDS) as response:
-            annotated = json.loads(response.read().decode("utf-8", errors="replace"))
-        annotated_object = (
-            annotated.get("object") if isinstance(annotated, dict) else None
-        )
-        if (
-            not isinstance(annotated_object, dict)
-            or annotated_object.get("type") != "commit"
-            or not isinstance(annotated_object.get("sha"), str)
-        ):
-            raise ValueError("annotated tag did not reference a commit")
-        return cast(str, annotated_object["sha"])
-    except (
-        urllib.error.URLError,
-        TimeoutError,
-        OSError,
-        json.JSONDecodeError,
-        ValueError,
-    ) as error:
-        raise GhAwReleaseUnavailableError(
-            f"could not resolve the gh-aw-actions tag {version}: {error}"
-        ) from error
-
-
-def parse_gh_aw_version(value: str) -> tuple[int, int, int] | None:
-    match = _GH_AW_VERSION_PATTERN.match(value)
-    if match is None:
-        return None
-    return (int(match["major"]), int(match["minor"]), int(match["patch"]))
-
-
-def installed_gh_aw_version() -> str:
-    output = command_output(["gh", "aw", "--version"]).strip()
-    match = re.search(r"\bv(?P<version>[0-9]+\.[0-9]+\.[0-9]+)\b", output)
-    if match is None:
-        print(
-            f"error: could not parse the installed gh-aw version from {output!r}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    return f"v{match['version']}"
-
-
-def update_gh_aw_setup_pin(version: str, action_sha: str) -> None:
-    path = ROOT / GH_AW_SETUP_WORKFLOW
-    text = path.read_text(encoding="utf-8", newline="")
-    action_matches = list(_GH_AW_SETUP_ACTION_PATTERN.finditer(text))
-    version_matches = list(_GH_AW_SETUP_VERSION_PATTERN.finditer(text))
-    if len(action_matches) != 1 or len(version_matches) != 1:
-        print(
-            "error: expected exactly one gh-aw setup action and version in "
-            f"{GH_AW_SETUP_WORKFLOW}; found {len(action_matches)} and "
-            f"{len(version_matches)}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    updated = _replace_match_group(text, action_matches[0], "sha", action_sha)
-    action_match = _GH_AW_SETUP_ACTION_PATTERN.search(updated)
-    if action_match is None:
-        raise AssertionError("gh-aw setup action disappeared after SHA replacement")
-    updated = _replace_match_group(updated, action_match, "comment_version", version)
-    version_match = _GH_AW_SETUP_VERSION_PATTERN.search(updated)
-    if version_match is None:
-        raise AssertionError("gh-aw setup version disappeared during replacement")
-    updated = _replace_match_group(updated, version_match, "version", version)
-    _atomic_write_text(path, updated)
-
-
-def update_gh_aw_updater_action_pin(version: str, action_sha: str) -> None:
-    path = ROOT / GH_AW_UPDATER_WORKFLOW
-    text = path.read_text(encoding="utf-8", newline="")
-    action_matches = list(_GH_AW_SETUP_ACTION_PATTERN.finditer(text))
-    if len(action_matches) != 1:
-        print(
-            "error: expected exactly one gh-aw setup action in "
-            f"{GH_AW_UPDATER_WORKFLOW}; found {len(action_matches)}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    updated = _replace_match_group(text, action_matches[0], "sha", action_sha)
-    action_match = _GH_AW_SETUP_ACTION_PATTERN.search(updated)
-    if action_match is None:
-        raise AssertionError("gh-aw updater action disappeared after SHA replacement")
-    updated = _replace_match_group(updated, action_match, "comment_version", version)
-    _atomic_write_text(path, updated)
-
-
-def target_update_gh_aw(version: str) -> None:
-    print_step(f"Updating gh-aw to {version}")
-    if parse_gh_aw_version(version) is None or not version.startswith("v"):
-        print(
-            f"error: --version must be a vX.Y.Z gh-aw release version, got {version!r}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    target_check_gh_aw()
-    installed = installed_gh_aw_version()
-    if installed != version:
-        print(
-            f"error: installed gh-aw is {installed}, expected {version}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    try:
-        action_sha = fetch_gh_aw_actions_sha(version)
-    except GhAwReleaseUnavailableError as error:
-        print(f"error: {error}", file=sys.stderr)
-        raise SystemExit(1) from error
-    update_gh_aw_setup_pin(version, action_sha)
-    update_gh_aw_updater_action_pin(version, action_sha)
-    run(["gh", "aw", "upgrade", "--no-actions"])
-    if read_gh_aw_setup_version() != version:
-        print(
-            f"error: gh-aw setup pin did not remain at {version} after upgrade",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    print_success(f"Updated gh-aw and compiler-managed files to {version}")
-
-
-def classify_gh_aw_compiler_pin(pinned: str, latest: str) -> tuple[str, str]:
-    """Compare the pinned gh-aw compiler version against the latest release.
-
-    Always performs the actual numeric comparison; a well-formed "latest"
-    value existing is never enough on its own to report "pass" -- the pinned
-    version must actually match it. A real difference (for example the
-    pinned v0.79.6 against the latest v0.86.2) is reported as "unverified"
-    rather than "fail": bumping the gh-aw compiler pin is a deliberate,
-    human-reviewed maintenance decision in this repository (like Lefthook,
-    uv, and Bicep), not an automatic latest-wins update.
-    """
-    pinned_parsed = parse_gh_aw_version(pinned)
-    latest_parsed = parse_gh_aw_version(latest)
-    if pinned_parsed is None or latest_parsed is None:
-        return (
-            "fail",
-            f"pinned={pinned!r} or latest={latest!r} is not a valid vX.Y.Z version",
-        )
-    if pinned_parsed == latest_parsed:
-        return ("pass", f"pinned gh-aw {pinned} matches the latest stable release")
-    if pinned_parsed > latest_parsed:
-        return (
-            "unverified",
-            f"pinned gh-aw {pinned} is newer than the latest stable release {latest}; "
-            "no automated downgrade will be created",
-        )
-    return (
-        "unverified",
-        f"pinned gh-aw {pinned} differs from the latest stable release {latest}; "
-        "bumping the gh-aw compiler pin requires maintainer review of workflow "
-        "compatibility before it is updated",
-    )
-
-
-def evaluate_gh_aw_pin() -> FreshnessFinding:
-    """Evaluate the gh-aw compiler pin into a FreshnessFinding.
-
-    Reuses read_gh_aw_setup_version, fetch_gh_aw_latest_release, and
-    classify_gh_aw_compiler_pin -- the same functions target_check_gh_aw_-
-    compiler_pin uses -- so the JSON target and the review check share one
-    comparison. A real newer release is ``update-available`` (unverified),
-    missing release metadata is ``evidence-unavailable`` (unverified).
-    """
-    subject = FRESHNESS_SUBJECT_GH_AW
-    coordinate = str(GH_AW_SETUP_WORKFLOW)
-    try:
-        pinned = read_gh_aw_setup_version()
-    except SystemExit:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "fail",
-            FRESHNESS_REASON_COORDINATE_ANOMALY,
-            None,
-            None,
-            (),
-            f"could not read exactly one gh-aw setup version pin in {coordinate}",
-        )
-    try:
-        latest = fetch_gh_aw_latest_release()
-    except GhAwReleaseUnavailableError as error:
-        return FreshnessFinding(
-            subject,
-            coordinate,
-            "unverified",
-            FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-            pinned,
-            None,
-            (GH_AW_RELEASES_API,),
-            FRESHNESS_EVIDENCE_UNAVAILABLE_PHRASE.format(subject=subject)
-            + f": {error}",
-        )
-    status, message = classify_gh_aw_compiler_pin(pinned, latest)
-    pinned_parsed = parse_gh_aw_version(pinned)
-    latest_parsed = parse_gh_aw_version(latest)
-    if status == "pass":
-        reason_code = FRESHNESS_REASON_CURRENT
-    elif status == "fail":
-        reason_code = FRESHNESS_REASON_VERSION_MALFORMED
-    elif (
-        pinned_parsed is not None
-        and latest_parsed is not None
-        and pinned_parsed > latest_parsed
-    ):
-        reason_code = FRESHNESS_REASON_PINNED_AHEAD
-    else:
-        reason_code = FRESHNESS_REASON_UPDATE_AVAILABLE
-    return FreshnessFinding(
-        subject,
-        coordinate,
-        status,
-        reason_code,
-        pinned,
-        latest,
-        (GH_AW_RELEASES_API,),
-        message,
-    )
-
-
 AZURE_YAML_PATH = Path("azure.yaml")
 FUNCTIONS_HOST_JSON_PATH = Path("src/external-sli-publisher/host.json")
 _AZD_REQUIRED_VERSION_RANGE_PATTERN = re.compile(
@@ -3620,8 +2056,8 @@ def lefthook_pin_coordinates() -> tuple[str, str]:
 
     Only the shape of the pin is checked here: exactly one version and exactly
     one 64-hex checksum, so ``update-lefthook-pin`` always has an unambiguous
-    pair to rewrite. Whether the checksum matches the published release asset
-    needs the official download and belongs to the non-Renovate tool workflow.
+    pair to rewrite. ``update-lefthook-pin`` obtains the official checksum when
+    a maintainer explicitly updates the pin.
     """
     text = (ROOT / LEFTHOOK_CI_WORKFLOW).read_text(encoding="utf-8")
     version_matches, checksum_matches = _lefthook_pin_matches(text)
@@ -4369,86 +2805,6 @@ def target_check_renovate_config() -> None:
     )
 
 
-FRESHNESS_CHECK_SUBJECTS = (
-    FRESHNESS_SUBJECT_GH_AW,
-    FRESHNESS_SUBJECT_LEFTHOOK,
-)
-
-
-@dataclass(frozen=True)
-class NonRenovateTool:
-    tool_id: str
-    subject: str
-    evaluator_name: str
-    updater_name: str
-
-
-NON_RENOVATE_TOOLS = (
-    NonRenovateTool(
-        "gh-aw",
-        FRESHNESS_SUBJECT_GH_AW,
-        "evaluate_gh_aw_pin",
-        "target_update_gh_aw",
-    ),
-    NonRenovateTool(
-        "lefthook",
-        FRESHNESS_SUBJECT_LEFTHOOK,
-        "evaluate_lefthook_pin",
-        "target_update_lefthook_pin",
-    ),
-)
-
-
-def non_renovate_tool_id(subject: str) -> str | None:
-    return next(
-        (tool.tool_id for tool in NON_RENOVATE_TOOLS if tool.subject == subject),
-        None,
-    )
-
-
-def collect_freshness_findings() -> list[FreshnessFinding]:
-    """Run every non-Renovate tool update evaluator once, in registry order.
-
-    A tool belongs here only when Renovate cannot safely produce its complete
-    update. Everything Renovate does cover is left to Renovate, so no update
-    candidate is discovered twice.
-    """
-    return [
-        cast(Callable[[], FreshnessFinding], globals()[tool.evaluator_name])()
-        for tool in NON_RENOVATE_TOOLS
-    ]
-
-
-def target_freshness_checks(output: Path | None = None) -> None:
-    """Emit the deterministic freshness findings as machine-readable JSON.
-
-    The ordinary scheduled workflow uses structured ``status``/``reason_code``
-    values to select update candidates without invoking an AI agent.
-    """
-    document = freshness_document(collect_freshness_findings())
-    text = json.dumps(document, ensure_ascii=True, indent=2, sort_keys=True) + "\n"
-    if output is not None:
-        output.write_text(text, encoding="utf-8")
-    else:
-        sys.stdout.write(text)
-
-
-def target_update_non_renovate_tool(tool_id: str, version: str) -> None:
-    tool = next(
-        (candidate for candidate in NON_RENOVATE_TOOLS if candidate.tool_id == tool_id),
-        None,
-    )
-    if tool is None:
-        supported = ", ".join(candidate.tool_id for candidate in NON_RENOVATE_TOOLS)
-        print(
-            f"error: unsupported non-Renovate tool {tool_id!r}; expected one of "
-            f"{supported}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    cast(Callable[[str], None], globals()[tool.updater_name])(version)
-
-
 def target_check_uv_version() -> None:
     root_pyproject = tomllib.loads(
         (ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -4990,14 +3346,9 @@ def target_load_spike() -> None:
     run_load_profile("spike")
 
 
-def target_test_load() -> None:
-    target_load_smoke()
-
-
 TARGETS: dict[str, Callable[[], None]] = {
     "build": target_build,
     "build-bicep": target_build_bicep,
-    "check": target_check,
     "check-az": target_check_az,
     "check-docker": target_check_docker,
     "check-gh-aw": target_check_gh_aw,
@@ -5013,9 +3364,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "deploy-node-provisioning": target_deploy_node_provisioning,
     "format": target_format,
     "format-check": target_format_check,
-    "freshness-checks": target_freshness_checks,
     "help": target_help,
-    "install": target_install,
     "install-tools": target_install_tools,
     "inventory-repo": target_inventory_repo,
     "lint": target_lint,
@@ -5027,7 +3376,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "load-spike": target_load_spike,
     "load-stress": target_load_stress,
     "package-api-approved-index": target_package_api_approved_index,
-    "prepare-review-python-env": target_prepare_review_python_environment,
     "qa": target_qa,
     "qa-app": target_qa_app,
     "qa-platform": target_qa_platform,
@@ -5045,9 +3393,9 @@ TARGETS: dict[str, Callable[[], None]] = {
     "test-cov": target_test_cov,
     "test-integration": target_test_integration,
     "test-hooks": target_test_hooks,
-    "test-load": target_test_load,
     "test-publisher": target_test_publisher,
     "typecheck": target_typecheck,
+    "validate-aw": target_validate_aw,
     "validate-bicep-parameters": target_validate_bicep_parameters,
     "validate-helm-values": target_validate_helm_values,
 }
@@ -5092,24 +3440,11 @@ def main(argv: Sequence[str]) -> int:
         args = parser.parse_args(argv[1:])
         target_check_repo_health(args.inventory_json)
         return 0
-    if target == "freshness-checks":
-        parser = argparse.ArgumentParser(prog="tasks.py freshness-checks")
-        parser.add_argument("--output", type=Path)
-        args = parser.parse_args(argv[1:])
-        target_freshness_checks(args.output)
-        return 0
     if target == "update-lefthook-pin":
         parser = argparse.ArgumentParser(prog="tasks.py update-lefthook-pin")
         parser.add_argument("--version", required=True)
         args = parser.parse_args(argv[1:])
         target_update_lefthook_pin(args.version)
-        return 0
-    if target == "update-non-renovate-tool":
-        parser = argparse.ArgumentParser(prog="tasks.py update-non-renovate-tool")
-        parser.add_argument("--tool", required=True)
-        parser.add_argument("--version", required=True)
-        args = parser.parse_args(argv[1:])
-        target_update_non_renovate_tool(args.tool, args.version)
         return 0
     if target in {"review-repo-fast", "review-repo-full"}:
         parser = argparse.ArgumentParser(prog=f"tasks.py {target}")
@@ -5133,34 +3468,6 @@ def main(argv: Sequence[str]) -> int:
         args = parser.parse_args(argv[1:])
         target_qa_app(check_publisher_requirements=not args.skip_publisher_requirements)
         return 0
-    if target == "review-fingerprint":
-        parser = argparse.ArgumentParser(prog="tasks.py review-fingerprint")
-        subparsers = parser.add_subparsers(dest="operation", required=True)
-        capture_parser = subparsers.add_parser("capture")
-        capture_parser.add_argument("--output", type=Path, required=True)
-        compare_parser = subparsers.add_parser("compare")
-        compare_parser.add_argument("--before", type=Path, required=True)
-        compare_parser.add_argument("--after", type=Path, required=True)
-        args = parser.parse_args(argv[1:])
-        if args.operation == "capture":
-            target_review_fingerprint_capture(args.output)
-        else:
-            target_review_fingerprint_compare(args.before, args.after)
-        return 0
-    if target == "review-workspace":
-        parser = argparse.ArgumentParser(prog="tasks.py review-workspace")
-        subparsers = parser.add_subparsers(dest="operation", required=True)
-        subparsers.add_parser("create")
-        cleanup_parser = subparsers.add_parser("cleanup")
-        cleanup_parser.add_argument("--workspace-path", type=Path, required=True)
-        cleanup_parser.add_argument("--token", required=True)
-        args = parser.parse_args(argv[1:])
-        if args.operation == "create":
-            target_review_workspace_create()
-        else:
-            target_review_workspace_cleanup(args.workspace_path, args.token)
-        return 0
-
     handler = TARGETS.get(target)
     if handler is None:
         print(f"error: Unknown target: {target}", file=sys.stderr)

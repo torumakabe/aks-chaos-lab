@@ -161,8 +161,6 @@ SLI 用の人工トラフィックは AKS 内 CronJob ではなく、Azure Funct
 
 Latency SLI のしきい値は publisher の設定ではなく、SLI 定義で選択します。設定手順は [Latency SLI のしきい値変更](#latency-sli-のしきい値変更) を参照してください。
 
-既存環境に残る AKS 内 synthetic traffic などは `uv run scripts/cleanup-legacy-sli-sources.py` で dry-run 確認し、必要に応じて `--execute` を付けて削除します。
-
 ## OTLP logs
 
 アプリは traces / metrics に加えて logs も OTLP で export します。`logging.getLogger("app")` 配下 (`app.main`, `app.telemetry`, `app.redis_client`) の log のみを export し、third-party logger や uvicorn 独自 logging は巻き込みません。

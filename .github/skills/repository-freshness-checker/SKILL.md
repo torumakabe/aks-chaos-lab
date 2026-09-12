@@ -5,11 +5,11 @@ description: review-repo fullが生成したinventoryを使い、公開Markdown�
 
 # Repository Freshness Checker
 
-`review-repo full`の決定論的検査結果を引き継ぎ、公開情報が必要な項目だけを確認する。通常のversion更新候補はRenovate、Renovateが安全な更新PRを完結できないツールは通常のGitHub Actions workflowが担当する。このスキルは同じ更新候補を再検出しない。
+`review-repo full`の決定論的検査結果を引き継ぎ、公開情報が必要な項目だけを確認する。通常のversion更新候補はRenovateが担当し、gh-awとLefthookは明示的な保守作業で更新する。このスキルはversion更新候補を検出しない。
 
 ## 入力と確認範囲
 
-入力は、隔離workspaceで実行した次のコマンドが生成するinventory JSONと検査結果JSONである。
+入力は、専用worktreeで実行した次のコマンドが生成するinventory JSONと検査結果JSONである。
 
 ```text
 review-repo-full --inventory-json <absolute-path> --results-json <absolute-path>
@@ -35,8 +35,8 @@ inventoryのschema versionと対象commitを記録し、次の座標だけを処
 ## 責務の境界
 
 - Python依存、GitHub Actions、Docker image tag、actionlint、kubeconform、Chaos Mesh Helm chart、Renovate validator image、Bicep CLI、uv、azdの更新候補はRenovateが検出する。
-- gh-awとLefthookの更新候補、更新処理、PR作成は`.github/workflows/repository-freshness-check.yml`が担当する。
-- リポジトリ内のversion契約は`check-version-pins`、Docker base imageのdigest固定は`.github/repo-health.toml`の`docker-base-digest`ルールが検証する。
+- gh-awは明示的な`gh aw upgrade`で更新する。Lefthookは`update-lefthook-pin`でversionとchecksumを一体更新する。
+- リポジトリ内のversion契約は`check-version-pins`、Docker base imageのdigest固定は`check-repo-health`が検証する。
 - Bicep resource API versionは`bicep-api-version-updater`のcheck-onlyモードが担当する。
 - 公開Markdownリンクの内容が現在の実装と一致するかは、review-repo agentが文書種別の評価基準に従って判断する。
 

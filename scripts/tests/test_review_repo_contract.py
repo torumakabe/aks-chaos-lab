@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-import hashlib
 import importlib.util
 import json
 import os
-import stat
 import subprocess
 import sys
 import tomllib
 from collections.abc import Callable
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import ModuleType
 from typing import Any, cast
 
 import pytest
@@ -61,7 +59,7 @@ def review_command_stub(
     ]
     | None = None,
 ) -> Callable[..., subprocess.CompletedProcess[bytes]]:
-    """Build a run_isolated_review_command stub that records each target."""
+    """Build a run_review_command stub that records each target."""
 
     def run_check(
         args: list[str] | tuple[str, ...],
@@ -81,6 +79,7 @@ def review_command_stub(
 def test_review_targets_are_registered() -> None:
     assert tasks.TARGETS["review-repo-fast"] is tasks.target_review_repo_fast
     assert tasks.TARGETS["review-repo-full"] is tasks.target_review_repo_full
+    assert tasks.TARGETS["validate-aw"] is tasks.target_validate_aw
     assert (
         tasks.TARGETS["validate-bicep-parameters"]
         is tasks.target_validate_bicep_parameters
@@ -99,11 +98,12 @@ def test_build_bicep_checks_both_layers_and_propagates_failure(
 
     def build(args: list[str]) -> None:
         assert args[:4] == ["az", "bicep", "build", "--file"]
+        assert args[5] == "--stdout"
         calls.append(args[4])
         if args[4] == failing_template:
             raise SystemExit(1)
 
-    monkeypatch.setattr(tasks, "run", build)
+    monkeypatch.setattr(tasks, "command_output", build)
     if failing_template is None:
         tasks.target_build_bicep()
     else:
@@ -297,145 +297,6 @@ def _write_ci_workflow(repository: Path, version: str, checksum: str) -> Path:
         encoding="utf-8",
     )
     return workflow_path
-
-
-def test_evaluate_lefthook_pin_reports_update_available_when_release_is_newer(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.10", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
-    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", lambda: "2.1.12")
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_UPDATE_AVAILABLE
-    assert finding.current == "2.1.10"
-    assert finding.published == "2.1.12"
-    assert "requires maintainer review before updating" in finding.detail
-
-
-def test_evaluate_lefthook_pin_fails_on_checksum_mismatch_before_release_lookup(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.10", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "b" * 64)
-
-    def _fail_release() -> str:
-        raise AssertionError("must not query the latest release on a mismatch")
-
-    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", _fail_release)
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "fail"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_CHECKSUM_MISMATCH
-
-
-def test_evaluate_lefthook_pin_marks_missing_checksum_evidence_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.10", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-
-    def _raise(_version: str) -> str:
-        raise tasks.LefthookChecksumUnavailableError("network down")
-
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", _raise)
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE
-    assert "official Lefthook freshness evidence was unavailable" in finding.detail
-
-
-def test_evaluate_lefthook_pin_marks_missing_release_evidence_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.10", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
-
-    def _raise() -> str:
-        raise tasks.LefthookReleaseUnavailableError("network down")
-
-    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", _raise)
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE
-
-
-def test_evaluate_lefthook_pin_passes_when_current_and_checksum_match(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.12", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
-    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", lambda: "2.1.12")
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "pass"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_CURRENT
-
-
-def test_evaluate_lefthook_pin_never_proposes_a_downgrade(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    _write_ci_workflow(repository, "2.1.12", "a" * 64)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "fetch_lefthook_checksum", lambda _version: "a" * 64)
-    monkeypatch.setattr(tasks, "fetch_lefthook_latest_release", lambda: "2.1.10")
-
-    finding = tasks.evaluate_lefthook_pin()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_PINNED_AHEAD
-    assert "no automated downgrade" in finding.detail
-
-
-def test_fetch_lefthook_latest_release_strips_v_prefix(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        tasks,
-        "open_github_url",
-        lambda _url, _timeout: _FakeChecksumResponse(b'{"tag_name": "v2.1.12"}'),
-    )
-
-    assert tasks.fetch_lefthook_latest_release() == "2.1.12"
-
-
-def test_fetch_lefthook_latest_release_rejects_malformed_tag(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        tasks,
-        "open_github_url",
-        lambda _url, _timeout: _FakeChecksumResponse(
-            b'{"tag_name": "v2.1.12; echo unexpected"}'
-        ),
-    )
-
-    with pytest.raises(tasks.LefthookReleaseUnavailableError):
-        tasks.fetch_lefthook_latest_release()
 
 
 def test_update_lefthook_pin_rewrites_version_and_checksum_together(
@@ -743,13 +604,7 @@ def test_renovate_manager_expectations_match_exactly_one_coordinate_each() -> No
 
 
 def test_renovate_does_not_manage_lefthook_or_gh_aw() -> None:
-    """Both pins are deliberately excluded from Renovate.
-
-    Renovate cannot regenerate LEFTHOOK_SHA256 in the same change (workarounds
-    D-12), and the gh-aw compiler pin is decided together with the workflow
-    locks that ``gh aw compile`` generates. The non-Renovate tool workflow
-    detects both update candidates instead.
-    """
+    """Pins that require coupled generated changes remain manual updates."""
     config = tasks.load_renovate_config()
     serialized = json.dumps(config)
 
@@ -760,14 +615,6 @@ def test_renovate_does_not_manage_lefthook_or_gh_aw() -> None:
     assert "gh_aw_setup" not in serialized
     assert config["packageRules"][0]["enabled"] is False
     assert "github/gh-aw-actions" in config["packageRules"][0]["matchPackageNames"]
-    assert set(tasks.FRESHNESS_CHECK_SUBJECTS) == {
-        tasks.FRESHNESS_SUBJECT_GH_AW,
-        tasks.FRESHNESS_SUBJECT_LEFTHOOK,
-    }
-    assert {tool.tool_id for tool in tasks.NON_RENOVATE_TOOLS} == {
-        "gh-aw",
-        "lefthook",
-    }
 
 
 # An independent renovate --dry-run=extract JSON fixture, hand-written rather
@@ -906,364 +753,6 @@ def test_check_renovate_config_reports_an_extraction_mismatch(
     assert "--dry-run=extract result does not match" in capsys.readouterr().err
 
 
-def test_freshness_checks_output_stays_exit_zero_for_fail_and_unverified(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """The weekly workflow must still receive a JSON document to report on.
-
-    Exiting non-zero here would abort the workflow step before the skill could
-    read the findings, hiding the very failures the run exists to surface.
-    """
-    monkeypatch.setattr(
-        tasks,
-        "collect_freshness_findings",
-        lambda: [
-            tasks.FreshnessFinding(
-                "gh-aw",
-                ".github/workflows/copilot-setup-steps.yml",
-                "unverified",
-                tasks.FRESHNESS_REASON_EVIDENCE_UNAVAILABLE,
-                None,
-                None,
-                (),
-                "release evidence unavailable",
-            ),
-            tasks.FreshnessFinding(
-                "Lefthook",
-                ".github/workflows/ci.yml",
-                "fail",
-                tasks.FRESHNESS_REASON_CHECKSUM_MISMATCH,
-                None,
-                None,
-                (),
-                "checksum mismatch",
-            ),
-        ],
-    )
-    output = tmp_path / "freshness.json"
-
-    tasks.target_freshness_checks(output)
-
-    document = json.loads(output.read_text(encoding="utf-8"))
-    assert document["status"] == "fail"
-    assert {finding["reason_code"] for finding in document["findings"]} == {
-        "evidence-unavailable",
-        "checksum-mismatch",
-    }
-
-
-def test_freshness_document_status_is_fail_first_then_unverified() -> None:
-    def _finding(status: str) -> tasks.FreshnessFinding:
-        return tasks.FreshnessFinding("s", "c", status, "r", None, None, (), "detail")
-
-    fail_doc = tasks.freshness_document(
-        [_finding("pass"), _finding("unverified"), _finding("fail")]
-    )
-    assert fail_doc["status"] == "fail"
-    assert fail_doc["coverage"] == {
-        "total": 3,
-        "pass": 1,
-        "fail": 1,
-        "unverified": 1,
-        "excluded": 0,
-    }
-
-    unverified_doc = tasks.freshness_document(
-        [_finding("pass"), _finding("unverified")]
-    )
-    assert unverified_doc["status"] == "unverified"
-
-    pass_doc = tasks.freshness_document([_finding("pass"), _finding("pass")])
-    assert pass_doc["status"] == "pass"
-
-
-def test_freshness_document_empty_input_is_unverified() -> None:
-    document = tasks.freshness_document([])
-
-    assert document["status"] == "unverified"
-    assert document["coverage"] == {
-        "total": 0,
-        "pass": 0,
-        "fail": 0,
-        "unverified": 0,
-        "excluded": 0,
-    }
-
-
-def test_freshness_finding_rejects_unknown_status() -> None:
-    with pytest.raises(ValueError, match="unsupported freshness status"):
-        tasks.FreshnessFinding(
-            "subject",
-            "coordinate",
-            "unknown",
-            "reason",
-            None,
-            None,
-            (),
-            "detail",
-        )
-
-
-def test_freshness_finding_rejects_empty_reason_code() -> None:
-    with pytest.raises(ValueError, match="reason_code must not be empty"):
-        tasks.FreshnessFinding(
-            "subject",
-            "coordinate",
-            "pass",
-            "",
-            None,
-            None,
-            (),
-            "detail",
-        )
-
-
-def test_freshness_document_serializes_reason_codes_and_evidence() -> None:
-    finding = tasks.FreshnessFinding(
-        "Lefthook",
-        ".github/workflows/ci.yml",
-        "unverified",
-        tasks.FRESHNESS_REASON_UPDATE_AVAILABLE,
-        "2.1.10",
-        "2.1.12",
-        ("https://example.invalid/releases",),
-        "newer release available",
-    )
-    document = tasks.freshness_document([finding])
-    entry = document["findings"][0]
-
-    assert entry["reason_code"] == "update-available"
-    assert entry["tool"] == "lefthook"
-    assert entry["current"] == "2.1.10"
-    assert entry["published"] == "2.1.12"
-    assert entry["evidence"] == ["https://example.invalid/releases"]
-    assert document["schema_version"] == tasks.FRESHNESS_SCHEMA_VERSION
-
-
-def test_freshness_checks_target_writes_json(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(
-        tasks,
-        "collect_freshness_findings",
-        lambda: [
-            tasks.FreshnessFinding(
-                "gh-aw", "c", "unverified", "update-available", "a", "b", (), "d"
-            )
-        ],
-    )
-    output = tmp_path / "freshness.json"
-
-    tasks.target_freshness_checks(output)
-
-    document = json.loads(output.read_text(encoding="utf-8"))
-    assert document["status"] == "unverified"
-    assert document["findings"][0]["reason_code"] == "update-available"
-
-
-def test_freshness_checks_target_is_registered() -> None:
-    assert "freshness-checks" in tasks.TARGETS
-
-
-def test_update_non_renovate_tool_dispatches_registered_updater(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[str] = []
-    monkeypatch.setattr(
-        tasks, "target_update_lefthook_pin", lambda version: calls.append(version)
-    )
-
-    tasks.target_update_non_renovate_tool("lefthook", "2.1.12")
-
-    assert calls == ["2.1.12"]
-
-
-def test_update_non_renovate_tool_rejects_unknown_tool() -> None:
-    with pytest.raises(SystemExit) as error:
-        tasks.target_update_non_renovate_tool("unknown", "1.0.0")
-
-    assert error.value.code == 1
-
-
-def test_classify_gh_aw_compiler_pin_rejects_known_stale_example() -> None:
-    """Pin the known real-world gap (pinned v0.79.6, latest v0.86.2).
-
-    Confirming *a* current release exists upstream is not evidence the pin
-    is current. This must not report "pass" for a real, confirmed version
-    difference -- it reports "unverified" because bumping the gh-aw compiler
-    pin is a deliberate, human-reviewed maintenance decision in this
-    repository, not an automatic latest-wins update.
-    """
-    status, message = tasks.classify_gh_aw_compiler_pin("v0.79.6", "v0.86.2")
-
-    assert status == "unverified"
-    assert "v0.79.6" in message
-    assert "v0.86.2" in message
-    assert "requires maintainer review of workflow compatibility" in message
-
-
-def test_classify_gh_aw_compiler_pin_passes_when_versions_match() -> None:
-    status, message = tasks.classify_gh_aw_compiler_pin("v0.79.6", "v0.79.6")
-
-    assert status == "pass"
-    assert "matches the latest stable release" in message
-
-
-def test_classify_gh_aw_compiler_pin_never_proposes_a_downgrade() -> None:
-    status, message = tasks.classify_gh_aw_compiler_pin("v0.88.7", "v0.88.6")
-
-    assert status == "unverified"
-    assert "no automated downgrade" in message
-
-
-def test_evaluate_gh_aw_pin_marks_pinned_ahead_without_update(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(tasks, "read_gh_aw_setup_version", lambda: "v0.88.7")
-    monkeypatch.setattr(tasks, "fetch_gh_aw_latest_release", lambda: "v0.88.6")
-
-    finding = tasks.evaluate_gh_aw_pin()
-
-    assert finding.status == "unverified"
-    assert finding.reason_code == tasks.FRESHNESS_REASON_PINNED_AHEAD
-    assert "no automated downgrade" in finding.detail
-
-
-def test_classify_gh_aw_compiler_pin_fails_on_malformed_version() -> None:
-    status, message = tasks.classify_gh_aw_compiler_pin("not-a-version", "v0.86.2")
-
-    assert status == "fail"
-    assert "not a valid vX.Y.Z version" in message
-
-
-def test_parse_gh_aw_version_accepts_with_or_without_v_prefix() -> None:
-    assert tasks.parse_gh_aw_version("v0.79.6") == (0, 79, 6)
-    assert tasks.parse_gh_aw_version("0.79.6") == (0, 79, 6)
-    assert tasks.parse_gh_aw_version("v0.79") is None
-    assert tasks.parse_gh_aw_version("") is None
-
-
-def test_read_gh_aw_setup_version_matches_the_real_pin() -> None:
-    pinned = tasks.read_gh_aw_setup_version()
-
-    assert tasks.parse_gh_aw_version(pinned) is not None
-
-
-def test_fetch_gh_aw_latest_release_parses_tag_name(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    payload = json.dumps({"tag_name": "v0.86.2"}).encode("utf-8")
-    monkeypatch.setattr(
-        tasks.urllib.request,
-        "urlopen",
-        lambda _url, timeout=None: _FakeChecksumResponse(payload),
-    )
-
-    assert tasks.fetch_gh_aw_latest_release() == "v0.86.2"
-
-
-def test_fetch_gh_aw_latest_release_raises_on_network_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def raise_network_error(_url: str, timeout: float | None = None) -> None:
-        raise tasks.urllib.error.URLError("simulated DNS failure")
-
-    monkeypatch.setattr(tasks.urllib.request, "urlopen", raise_network_error)
-
-    with pytest.raises(tasks.GhAwReleaseUnavailableError, match="network"):
-        tasks.fetch_gh_aw_latest_release()
-
-
-def test_fetch_gh_aw_latest_release_raises_when_tag_name_missing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    payload = json.dumps({"name": "no tag_name field"}).encode("utf-8")
-    monkeypatch.setattr(
-        tasks.urllib.request,
-        "urlopen",
-        lambda _url, timeout=None: _FakeChecksumResponse(payload),
-    )
-
-    with pytest.raises(tasks.GhAwReleaseUnavailableError):
-        tasks.fetch_gh_aw_latest_release()
-
-
-def test_fetch_gh_aw_actions_sha_peels_annotated_tag(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    responses = iter(
-        (
-            _FakeChecksumResponse(
-                json.dumps({"object": {"type": "tag", "sha": "a" * 40}}).encode()
-            ),
-            _FakeChecksumResponse(
-                json.dumps({"object": {"type": "commit", "sha": "b" * 40}}).encode()
-            ),
-        )
-    )
-    monkeypatch.setattr(
-        tasks.urllib.request,
-        "urlopen",
-        lambda _request, timeout=None: next(responses),
-    )
-
-    assert tasks.fetch_gh_aw_actions_sha("v0.88.7") == "b" * 40
-
-
-def test_update_gh_aw_setup_pin_updates_sha_comment_and_version(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(tasks, "ROOT", tmp_path)
-    path = tmp_path / tasks.GH_AW_SETUP_WORKFLOW
-    path.parent.mkdir(parents=True)
-    path.write_text(
-        "steps:\n"
-        "  - uses: github/gh-aw-actions/setup-cli@" + "a" * 40 + " # v0.1.0\n"
-        "    with:\n"
-        "      version: v0.1.0\n",
-        encoding="utf-8",
-    )
-
-    tasks.update_gh_aw_setup_pin("v0.2.0", "b" * 40)
-
-    updated = path.read_text(encoding="utf-8")
-    assert f"setup-cli@{'b' * 40} # v0.2.0" in updated
-    assert "version: v0.2.0" in updated
-
-
-def test_update_gh_aw_updater_action_pin_updates_sha_and_comment(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setattr(tasks, "ROOT", tmp_path)
-    path = tmp_path / tasks.GH_AW_UPDATER_WORKFLOW
-    path.parent.mkdir(parents=True)
-    path.write_text(
-        "steps:\n"
-        "  - uses: github/gh-aw-actions/setup-cli@" + "a" * 40 + " # v0.1.0\n"
-        "    with:\n"
-        "      version: ${{ matrix.update.version }}\n",
-        encoding="utf-8",
-    )
-
-    tasks.update_gh_aw_updater_action_pin("v0.2.0", "b" * 40)
-
-    updated = path.read_text(encoding="utf-8")
-    assert f"setup-cli@{'b' * 40} # v0.2.0" in updated
-    assert "version: ${{ matrix.update.version }}" in updated
-
-
-def test_update_gh_aw_requires_the_requested_cli_version(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(tasks, "target_check_gh_aw", lambda: None)
-    monkeypatch.setattr(tasks, "installed_gh_aw_version", lambda: "v0.1.0")
-
-    with pytest.raises(SystemExit) as error:
-        tasks.target_update_gh_aw("v0.2.0")
-
-    assert error.value.code == 1
-
-
 def _write_range_fixture(repository: Path, azd_range: str, bundle_version: str) -> None:
     (repository / tasks.AZURE_YAML_PATH).parent.mkdir(parents=True, exist_ok=True)
     (repository / tasks.AZURE_YAML_PATH).write_text(
@@ -1299,7 +788,7 @@ def test_fast_review_timeout_is_unverified_and_next_check_runs(
 
     monkeypatch.setattr(
         tasks,
-        "run_isolated_review_command",
+        "run_review_command",
         review_command_stub(calls, handler=handler),
     )
 
@@ -1337,9 +826,7 @@ def test_review_repo_fast_runs_every_deterministic_target_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
-    monkeypatch.setattr(
-        tasks, "run_isolated_review_command", review_command_stub(calls)
-    )
+    monkeypatch.setattr(tasks, "run_review_command", review_command_stub(calls))
 
     tasks.target_review_repo_fast()
 
@@ -1357,9 +844,7 @@ def test_review_repo_fast_marks_missing_tools_unverified_and_continues(
         "probe_review_tool",
         lambda command: f"{command} was not found" if command == "uv" else None,
     )
-    monkeypatch.setattr(
-        tasks, "run_isolated_review_command", review_command_stub(calls)
-    )
+    monkeypatch.setattr(tasks, "run_review_command", review_command_stub(calls))
 
     tasks.target_review_repo_fast()
 
@@ -1401,7 +886,7 @@ def test_review_repo_fast_marks_real_failure_and_continues(
 
     monkeypatch.setattr(
         tasks,
-        "run_isolated_review_command",
+        "run_review_command",
         review_command_stub(calls, handler=handler),
     )
 
@@ -1429,7 +914,7 @@ def test_review_repo_fast_marks_start_failure_unverified_and_continues(
 
     monkeypatch.setattr(
         tasks,
-        "run_isolated_review_command",
+        "run_review_command",
         review_command_stub(calls, handler=handler),
     )
 
@@ -1447,7 +932,7 @@ def test_review_repo_fast_propagates_keyboard_interrupt(
 ) -> None:
     monkeypatch.setattr(
         tasks,
-        "run_isolated_review_command",
+        "run_review_command",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(KeyboardInterrupt()),
     )
 
@@ -1482,6 +967,45 @@ def test_review_checks_preclassify_each_required_tool() -> None:
     assert tasks.FULL_REVIEW_CHECKS[0].target_arguments == (
         "--skip-publisher-requirements",
     )
+    assert tasks.FULL_REVIEW_CHECKS[-1].target_name == "validate-aw"
+
+
+def test_review_checks_forward_approved_index_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "uv.toml"
+    config_path.write_text(
+        '[[index]]\nname = "approved-index"\n'
+        'url = "https://packages.example.test/simple"\ndefault = true\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_USERNAME", "username")
+    monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_PASSWORD", "password")
+    monkeypatch.setattr(tasks, "selected_approved_index_config", lambda: config_path)
+    monkeypatch.setattr(
+        tasks, "classify_review_tools", lambda checks: (list(checks), [])
+    )
+    observed: dict[str, str] = {}
+
+    def run_check(
+        _args: list[str] | tuple[str, ...],
+        *,
+        env: dict[str, str],
+        **_kwargs: object,
+    ) -> subprocess.CompletedProcess[bytes]:
+        observed.update(env)
+        return subprocess.CompletedProcess([], 0)
+
+    monkeypatch.setattr(tasks, "run_review_command", run_check)
+
+    tasks.run_review_checks((tasks.ReviewCheck("qa-app", "qa-app", ()),))
+
+    assert observed == {
+        "UV_CONFIG_FILE": str(config_path),
+        "UV_INDEX_APPROVED_INDEX_USERNAME": "username",
+        "UV_INDEX_APPROVED_INDEX_PASSWORD": "password",
+    }
 
 
 def test_full_review_never_repeats_a_fast_check() -> None:
@@ -1515,7 +1039,7 @@ def test_review_results_json_hands_structured_status_to_the_next_layer(
 
     monkeypatch.setattr(
         tasks,
-        "run_isolated_review_command",
+        "run_review_command",
         review_command_stub(calls, handler=handler),
     )
     results_path = tmp_path / "results.json"
@@ -1638,39 +1162,6 @@ def test_repository_health_targets_use_current_python(
     assert output.count("Repository inventory completed") == 1
 
 
-def test_review_repo_full_passes_one_inventory_output_to_fast_checks(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    output_path = tmp_path / "inventory.json"
-    calls: list[object] = []
-    monkeypatch.setattr(
-        tasks,
-        "run_fast_review_checks",
-        lambda inventory_json=None: calls.append(inventory_json) or [],
-    )
-    monkeypatch.setattr(
-        tasks,
-        "run_review_targets_isolated",
-        lambda checks: calls.append(tuple(check.name for check in checks)) or [],
-    )
-
-    tasks.target_review_repo_full(output_path)
-
-    assert calls == [
-        output_path,
-        (
-            "qa-app",
-            "test-hooks",
-            "build-bicep",
-            "lint-k8s",
-            "validate-helm-values",
-            "lint-workflows",
-            "compile-aw",
-        ),
-    ]
-
-
 def test_review_repo_cli_accepts_inventory_json_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1745,7 +1236,7 @@ def test_review_repo_fast_skips_only_uv_version_when_uv_probe_fails(
         calls.append(args[2])
         return subprocess.CompletedProcess(args, 0)
 
-    monkeypatch.setattr(tasks, "run_isolated_review_command", version_probe)
+    monkeypatch.setattr(tasks, "run_review_command", version_probe)
     monkeypatch.setattr(tasks, "probe_review_tool", real_probe_review_tool)
     tasks.target_review_repo_fast()
 
@@ -1791,7 +1282,7 @@ def test_review_tool_probe_failure_marks_check_unverified(
     def fail_probe(*_args: object, **_kwargs: object) -> None:
         raise failure
 
-    monkeypatch.setattr(tasks, "run_isolated_review_command", fail_probe)
+    monkeypatch.setattr(tasks, "run_review_command", fail_probe)
 
     runnable, results = tasks.classify_review_tools(
         (tasks.ReviewCheck("check", "check", ("git",)),)
@@ -1820,7 +1311,7 @@ def test_compile_aw_is_unverified_when_extension_is_unavailable(
         calls.append((tuple(args), timeout))
         return subprocess.CompletedProcess(args, 1)
 
-    monkeypatch.setattr(tasks, "run_isolated_review_command", unavailable)
+    monkeypatch.setattr(tasks, "run_review_command", unavailable)
 
     runnable, results = tasks.classify_review_tools(
         (tasks.ReviewCheck("compile-aw", "compile-aw", ("git", "gh")),)
@@ -1882,501 +1373,6 @@ def test_compile_aw_preflight_timeout_is_unverified_and_does_not_block_next_chec
     assert not tmp_path.exists()
 
 
-def test_review_repo_full_runs_available_checks_after_fast_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[object] = []
-    monkeypatch.setattr(
-        tasks,
-        "run_fast_review_checks",
-        lambda: [
-            tasks.ReviewResult(
-                "fast",
-                "fail",
-                "failed",
-                tasks.REVIEW_REASON_REPOSITORY_FAILURE,
-            )
-        ],
-    )
-    monkeypatch.setattr(
-        tasks,
-        "run_review_targets_isolated",
-        lambda checks: calls.append(tuple(check.name for check in checks)) or [],
-    )
-
-    with pytest.raises(SystemExit) as error:
-        tasks.target_review_repo_full()
-
-    assert error.value.code == 1
-    assert calls == [
-        (
-            "qa-app",
-            "test-hooks",
-            "build-bicep",
-            "lint-k8s",
-            "validate-helm-values",
-            "lint-workflows",
-            "compile-aw",
-        )
-    ]
-
-
-def test_isolated_review_copies_current_tracked_and_untracked_files_for_tests(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    repository = tmp_path / "repository"
-    scripts_directory = repository / "scripts"
-    scripts_directory.mkdir(parents=True)
-    (scripts_directory / "tasks.py").write_text("# task runner\n", encoding="utf-8")
-    (repository / "README.md").write_text(
-        "# Modified uncommitted content\n", encoding="utf-8"
-    )
-    new_skill = (
-        repository / ".github" / "skills" / "repository-freshness-checker" / "SKILL.md"
-    )
-    new_test = repository / "scripts" / "tests" / "test_review_repo_contract.py"
-    new_skill.parent.mkdir(parents=True)
-    new_test.parent.mkdir(parents=True)
-    new_skill.write_text("# New skill\n", encoding="utf-8")
-    new_test.write_text("# New test\n", encoding="utf-8")
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks.shutil, "which", lambda command: f"mock-{command}")
-    git_outputs = {
-        ("git", "ls-files", "-z"): ["scripts/tasks.py", "README.md"],
-        (
-            "git",
-            "ls-files",
-            "--others",
-            "--exclude-standard",
-            "-z",
-        ): [
-            ".github/skills/repository-freshness-checker/SKILL.md",
-            "scripts/tests/test_review_repo_contract.py",
-        ],
-    }
-    monkeypatch.setattr(
-        tasks,
-        "command_nul_output",
-        lambda args, **_kwargs: git_outputs[tuple(args)],
-    )
-    monkeypatch.setattr(
-        tasks,
-        "command_output",
-        lambda args, **_kwargs: (
-            "https://github.com/example/repository.git"
-            if tuple(args) == ("git", "remote", "get-url", "origin")
-            else pytest.fail(f"unexpected command: {args}")
-        ),
-    )
-    calls: list[tuple[tuple[str, ...], Path, dict[str, str] | None]] = []
-    isolated_root: Path | None = None
-
-    def record_run(
-        args: list[str] | tuple[str, ...],
-        *,
-        cwd: Path,
-        env: dict[str, str] | None = None,
-        check: bool = True,
-        timeout: float | None = None,
-    ) -> subprocess.CompletedProcess[bytes]:
-        del check, timeout
-        calls.append((tuple(args), cwd, env))
-        return subprocess.CompletedProcess(args, 0)
-
-    def record_isolated(
-        args: list[str] | tuple[str, ...],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-    ) -> subprocess.CompletedProcess[bytes]:
-        nonlocal isolated_root
-        target_name = args[-1]
-        if target_name == "prepare-review-python-env":
-            assert timeout == tasks.REVIEW_PYTHON_ENVIRONMENT_TIMEOUT_SECONDS
-            assert tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE not in env
-        else:
-            assert timeout == tasks.REVIEW_CHECK_TIMEOUT_SECONDS
-            assert env[tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE] == "1"
-        isolated_root = cwd
-        calls.append((tuple(args), cwd, env))
-        assert (
-            cwd / ".github" / "skills" / "repository-freshness-checker" / "SKILL.md"
-        ).is_file()
-        assert (cwd / "scripts" / "tests" / "test_review_repo_contract.py").is_file()
-        assert (cwd / "README.md").read_text(encoding="utf-8") == (
-            "# Modified uncommitted content\n"
-        )
-        assert not cwd.is_relative_to(repository.resolve())
-        return subprocess.CompletedProcess(args, 0)
-
-    monkeypatch.setattr(tasks, "run", record_run)
-    monkeypatch.setattr(tasks, "run_isolated_review_command", record_isolated)
-
-    results = tasks.run_review_targets_isolated(
-        (
-            tasks.ReviewCheck("qa-app", "qa-app", ("git", "uv")),
-            tasks.ReviewCheck("test-hooks", "test-hooks", ("git", "uv", "lefthook")),
-        )
-    )
-
-    assert len(calls) == 7
-    assert calls[0][0][:2] == ("git", "init")
-    assert calls[1][0] == (
-        "git",
-        "remote",
-        "add",
-        "origin",
-        "https://github.com/example/repository.git",
-    )
-    assert calls[2][0] == ("git", "add", "--force", "--all")
-    assert "commit" in calls[3][0]
-    assert calls[4][0][-1] == "prepare-review-python-env"
-    assert calls[5][0][-1] == "qa-app"
-    assert calls[6][0][-1] == "test-hooks"
-    assert all(call[1] != repository for call in calls)
-    assert calls[6][2] is not None
-    assert "UV_PROJECT_ENVIRONMENT" in calls[6][2]
-    assert Path(calls[6][2]["UV_PROJECT_ENVIRONMENT"]).is_relative_to(calls[6][1])
-    assert [(result.name, result.status) for result in results] == [
-        ("qa-app", "pass"),
-        ("test-hooks", "pass"),
-    ]
-    assert isolated_root is not None
-    assert not isolated_root.exists()
-    assert (repository / "README.md").read_text(encoding="utf-8") == (
-        "# Modified uncommitted content\n"
-    )
-    assert not (repository / "tmp").exists()
-
-
-def test_isolated_review_rejects_os_temporary_directory_inside_repository(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    repository = tmp_path / "repository"
-    repository.mkdir()
-    real_mkdtemp = tasks.tempfile.mkdtemp
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks.shutil, "which", lambda command: f"mock-{command}")
-    monkeypatch.setattr(
-        tasks.tempfile,
-        "mkdtemp",
-        lambda *, prefix: real_mkdtemp(prefix=prefix, dir=repository),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "copy_worktree_snapshot",
-        lambda _destination: pytest.fail("snapshot copy must not run"),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "run",
-        lambda *_args, **_kwargs: pytest.fail("git setup must not run"),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "run_isolated_review_command",
-        lambda *_args, **_kwargs: pytest.fail("full checks must not run"),
-    )
-
-    results = tasks.run_review_targets_isolated(
-        (tasks.ReviewCheck("test-hooks", "test-hooks", ("git",)),)
-    )
-
-    assert [(result.name, result.status) for result in results] == [
-        ("snapshot", "unverified"),
-        ("test-hooks", "unverified"),
-    ]
-    assert results[0].detail == (
-        "operating-system temporary directory is inside the repository"
-    )
-    assert not any(repository.iterdir())
-
-
-def test_isolated_review_times_out_one_check_and_continues(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    repository = tmp_path / "repository"
-    scripts_directory = repository / "scripts"
-    scripts_directory.mkdir(parents=True)
-    (scripts_directory / "tasks.py").write_text("# task runner\n", encoding="utf-8")
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks.shutil, "which", lambda command: f"mock-{command}")
-    monkeypatch.setattr(
-        tasks,
-        "command_nul_output",
-        lambda args, **_kwargs: (
-            ["scripts/tasks.py"] if tuple(args) == ("git", "ls-files", "-z") else []
-        ),
-    )
-    child_calls: list[str] = []
-
-    def record_run(
-        args: list[str] | tuple[str, ...],
-        *,
-        cwd: Path,
-        env: dict[str, str] | None = None,
-        check: bool = True,
-        timeout: float | None = None,
-    ) -> subprocess.CompletedProcess[bytes]:
-        del cwd, env, check, timeout
-        return subprocess.CompletedProcess(args, 0)
-
-    def record_isolated(
-        args: list[str] | tuple[str, ...],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-    ) -> subprocess.CompletedProcess[bytes]:
-        del cwd, env
-        child_calls.append(args[-1])
-        assert timeout == tasks.REVIEW_CHECK_TIMEOUT_SECONDS
-        if args[-1] == "slow":
-            raise subprocess.TimeoutExpired(args, tasks.REVIEW_CHECK_TIMEOUT_SECONDS)
-        return subprocess.CompletedProcess(args, 0)
-
-    monkeypatch.setattr(tasks, "run", record_run)
-    monkeypatch.setattr(tasks, "run_isolated_review_command", record_isolated)
-
-    results = tasks.run_review_targets_isolated(
-        (
-            tasks.ReviewCheck("slow", "slow", ("git",)),
-            tasks.ReviewCheck("next", "next", ("git",)),
-        )
-    )
-
-    assert child_calls == ["slow", "next"]
-    assert [(result.name, result.status) for result in results] == [
-        ("slow", "unverified"),
-        ("next", "pass"),
-    ]
-    assert not (repository / "tmp").exists()
-
-
-def test_python_environment_preparation_failure_preserves_separate_results(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    (repository / "scripts").mkdir(parents=True)
-    (repository / "scripts" / "tasks.py").write_text(
-        "# task runner\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(
-        tasks,
-        "classify_review_tools",
-        lambda checks: (list(checks), []),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "copy_worktree_snapshot",
-        lambda destination: (
-            (destination / "scripts").mkdir(parents=True),
-            (destination / "scripts" / "tasks.py").write_text(
-                "# task runner\n",
-                encoding="utf-8",
-            ),
-            [],
-        )[-1],
-    )
-    monkeypatch.setattr(tasks, "command_output", lambda *_args, **_kwargs: "")
-    monkeypatch.setattr(
-        tasks,
-        "run",
-        lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
-    )
-    child_calls: list[str] = []
-
-    def fail_preparation(
-        args: list[str] | tuple[str, ...],
-        **_kwargs: object,
-    ) -> subprocess.CompletedProcess[bytes]:
-        child_calls.append(args[-1])
-        return subprocess.CompletedProcess(
-            args,
-            1,
-            stdout=b"",
-            stderr=b"Failed to fetch package index: connection timed out",
-        )
-
-    monkeypatch.setattr(tasks, "run_isolated_review_command", fail_preparation)
-
-    results = tasks.run_review_targets_isolated(
-        (
-            tasks.ReviewCheck("qa-app", "qa-app", ("git", "uv")),
-            tasks.ReviewCheck("test-hooks", "test-hooks", ("git", "uv", "lefthook")),
-        )
-    )
-
-    assert child_calls == ["prepare-review-python-env"]
-    assert [(result.name, result.status) for result in results] == [
-        ("qa-app", "unverified"),
-        ("test-hooks", "unverified"),
-    ]
-    assert all(
-        result.detail.startswith("Python environment preparation failed:")
-        for result in results
-    )
-
-
-def test_compile_aw_is_unverified_without_origin_and_other_checks_continue(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    (repository / "scripts").mkdir(parents=True)
-    (repository / "scripts" / "tasks.py").write_text(
-        "# task runner\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(
-        tasks,
-        "classify_review_tools",
-        lambda checks: (list(checks), []),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "copy_worktree_snapshot",
-        lambda destination: (
-            (destination / "scripts").mkdir(parents=True),
-            (destination / "scripts" / "tasks.py").write_text(
-                "# task runner\n",
-                encoding="utf-8",
-            ),
-            [],
-        )[-1],
-    )
-    monkeypatch.setattr(tasks, "command_output", lambda *_args, **_kwargs: "")
-    monkeypatch.setattr(
-        tasks,
-        "run",
-        lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
-    )
-    child_calls: list[str] = []
-    monkeypatch.setattr(
-        tasks,
-        "run_isolated_review_command",
-        lambda args, **_kwargs: (
-            child_calls.append(args[-1]) or subprocess.CompletedProcess(args, 0)
-        ),
-    )
-
-    results = tasks.run_review_targets_isolated(
-        (
-            tasks.ReviewCheck("compile-aw", "compile-aw", ("git", "gh")),
-            tasks.ReviewCheck("next", "next", ("git",)),
-        )
-    )
-
-    assert child_calls == ["next"]
-    assert [(result.name, result.status) for result in results] == [
-        ("compile-aw", "unverified"),
-        ("next", "pass"),
-    ]
-
-
-@pytest.mark.parametrize(
-    "invalid",
-    (None, "find-links", "UV_FIND_LINKS", "UV_NO_VERIFY_HASHES"),
-)
-def test_review_preparation_validates_parent_and_limits_final_credentials(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, invalid: str | None
-) -> None:
-    repository = tmp_path / "repository"
-    repository.mkdir()
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    config_path = tmp_path / "uv.toml"
-    config_path.write_text(
-        (
-            'find-links = ["https://packages.example.test/wheels"]\n'
-            if invalid == "find-links"
-            else ""
-        )
-        + '[[index]]\nname = "approved-index"\n'
-        'url = "https://packages.example.test/simple"\ndefault = true\n',
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
-    if invalid is not None and invalid.startswith("UV_"):
-        monkeypatch.setenv(invalid, "1")
-    selected = {
-        "UV_INDEX_APPROVED_INDEX_USERNAME": "fixture-user",
-        "UV_INDEX_APPROVED_INDEX_PASSWORD": "fixture-secret",
-    }
-    for name, value in {
-        **selected,
-        "UV_INDEX_OTHER_USERNAME": "other-user",
-        "UV_INDEX_OTHER_PASSWORD": "other-secret",
-    }.items():
-        monkeypatch.setenv(name, value)
-    monkeypatch.setenv(tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE, "1")
-    monkeypatch.setattr(
-        tasks, "classify_review_tools", lambda checks: (list(checks), [])
-    )
-    monkeypatch.setattr(tasks, "copy_worktree_snapshot", lambda _destination: [])
-    monkeypatch.setattr(tasks, "initialize_isolated_git_repository", lambda _root: None)
-    real_mkdtemp = tasks.tempfile.mkdtemp
-    monkeypatch.setattr(
-        tasks.tempfile,
-        "mkdtemp",
-        lambda *, prefix: real_mkdtemp(prefix=prefix, dir=tmp_path),
-    )
-    calls: list[tuple[str, dict[str, str]]] = []
-
-    def popen(
-        args: list[str], *, env: dict[str, str], **_kwargs: object
-    ) -> SimpleNamespace:
-        calls.append((args[-1], env))
-        return SimpleNamespace(wait=lambda **_kwargs: 0)
-
-    monkeypatch.setattr(tasks.subprocess, "Popen", popen)
-    results = tasks.run_review_targets_isolated(
-        (
-            tasks.ReviewCheck("qa-app", "qa-app", ("uv",)),
-            tasks.ReviewCheck("test-hooks", "test-hooks", ("uv",)),
-            tasks.ReviewCheck("other", "other", ()),
-        )
-    )
-    if invalid is not None:
-        assert [name for name, _env in calls] == ["other"]
-        assert [result.status for result in results] == [
-            "unverified",
-            "unverified",
-            "pass",
-        ]
-        assert all(invalid in result.detail for result in results[:2])
-        return
-
-    assert [name for name, _env in calls] == [
-        "prepare-review-python-env",
-        "qa-app",
-        "test-hooks",
-        "other",
-    ]
-    assert all(result.status == "pass" for result in results)
-    preparation = calls[0][1]
-    assert preparation["UV_CONFIG_FILE"] == str(config_path)
-    assert tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE not in preparation
-    for number, (_name, environment) in enumerate(calls):
-        credentials = {
-            key: value
-            for key, value in environment.items()
-            if key.upper().startswith("UV_INDEX_")
-            and key.upper().endswith(("_USERNAME", "_PASSWORD"))
-        }
-        assert credentials == (selected if number == 0 else {})
-        assert (
-            environment["UV_PROJECT_ENVIRONMENT"]
-            == preparation["UV_PROJECT_ENVIRONMENT"]
-        )
-        if number:
-            assert environment[tasks.REVIEW_PREPARED_ENVIRONMENT_VARIABLE] == "1"
-
-
 def test_timed_out_process_tree_releases_isolation(tmp_path: Path) -> None:
     isolation = tmp_path / "isolation"
     isolation.mkdir()
@@ -2388,7 +1384,7 @@ def test_timed_out_process_tree_releases_isolation(tmp_path: Path) -> None:
     )
 
     with pytest.raises(subprocess.TimeoutExpired):
-        tasks.run_isolated_review_command(
+        tasks.run_review_command(
             [sys.executable, "-c", child_code],
             cwd=isolation,
             env={},
@@ -2409,7 +1405,7 @@ def test_isolated_command_streams_output_and_keeps_only_bounded_tail(
         f"b'prefix-' + b'x' * {tasks.REVIEW_LOG_TAIL_BYTES + 1024})"
     )
 
-    completed = tasks.run_isolated_review_command(
+    completed = tasks.run_review_command(
         [sys.executable, "-c", code],
         cwd=tmp_path,
         env={},
@@ -2481,6 +1477,22 @@ def test_baseline_four_pytest_assertion_failures_remain_fail() -> None:
     assert status == "fail"
     assert reason_code == tasks.REVIEW_REASON_REPOSITORY_FAILURE
     assert "repository-related" in detail
+
+
+def test_validate_aw_uses_non_emitting_compile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, ...]] = []
+    monkeypatch.setattr(tasks, "target_check_gh_aw", lambda: None)
+    monkeypatch.setattr(
+        tasks,
+        "run_gh_aw_compile",
+        lambda *arguments: calls.append(arguments),
+    )
+
+    tasks.target_validate_aw()
+
+    assert calls == [("--no-emit", "--no-check-update")]
 
 
 def test_compile_aw_fails_when_the_compile_run_rewrites_a_managed_file(
@@ -2555,187 +1567,6 @@ def test_compile_aw_checks_all_compiler_managed_paths(
     assert sorted(digests) == sorted(managed_files)
 
 
-def test_review_index_parser_preserves_nul_delimited_paths_and_stages() -> None:
-    oid = b"a" * 40
-    output = (
-        b"100644 " + oid + b" 1\tconflict\nname.txt\0"
-        b"100755 " + oid + b" 2\tconflict\nname.txt\0"
-    )
-
-    assert tasks.parse_review_index_entries(output) == [
-        ("conflict\nname.txt", "100644", 1, "a" * 40),
-        ("conflict\nname.txt", "100755", 2, "a" * 40),
-    ]
-
-
-def test_review_fingerprint_records_deleted_and_untracked_files(
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    repository.mkdir()
-    tracked = repository / "tracked.txt"
-    tracked.write_text("tracked\n", encoding="utf-8")
-    git = tasks.resolve_command(["git"])[0]
-    subprocess.run([git, "init", "--quiet"], cwd=repository, check=True)
-    subprocess.run([git, "add", "tracked.txt"], cwd=repository, check=True)
-    tracked.unlink()
-    untracked = repository / "untracked name.txt"
-    untracked.write_text("untracked\n", encoding="utf-8")
-
-    fingerprint = tasks.capture_review_fingerprint(repository)
-
-    assert "timestamp" not in fingerprint
-    assert fingerprint["tracked_index"][0]["path"] == "tracked.txt"
-    assert fingerprint["tracked_index"][0]["worktree_kind"] == "deleted"
-    assert fingerprint["tracked_index"][0]["content_sha256"] is None
-    assert fingerprint["untracked"][0]["path"] == "untracked name.txt"
-    assert (
-        fingerprint["untracked"][0]["content_sha256"]
-        == hashlib.sha256(untracked.read_bytes()).hexdigest()
-    )
-
-
-def test_review_fingerprint_hashes_symlink_target_without_following(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    metadata = SimpleNamespace(
-        st_mode=stat.S_IFLNK,
-        st_size=10,
-        st_mtime_ns=1,
-        st_ino=2,
-    )
-
-    class FakeSymlink:
-        def lstat(self) -> SimpleNamespace:
-            return metadata
-
-    symlink = FakeSymlink()
-    monkeypatch.setattr(
-        tasks,
-        "fingerprint_worktree_path",
-        lambda _root, _relative: symlink,
-    )
-    monkeypatch.setattr(tasks.os, "readlink", lambda _path: "target.txt")
-
-    kind, digest = tasks.fingerprint_worktree_content(tmp_path, "link.txt")
-
-    assert kind == "symlink"
-    assert digest == hashlib.sha256(os.fsencode("target.txt")).hexdigest()
-
-
-def test_review_fingerprint_rejects_path_traversal(tmp_path: Path) -> None:
-    with pytest.raises(tasks.ReviewSnapshotError):
-        tasks.fingerprint_worktree_path(tmp_path, "../outside.txt")
-
-
-def test_review_fingerprint_compare_reports_only_paths_and_hashes(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    before_path = tmp_path / "before.json"
-    after_path = tmp_path / "after.json"
-    before_entry = {
-        "path": "secret.txt",
-        "worktree_kind": "file",
-        "content_sha256": "a" * 64,
-    }
-    before_entry["entry_sha256"] = tasks.fingerprint_sha256(before_entry)
-    after_entry = {
-        "path": "secret.txt",
-        "worktree_kind": "file",
-        "content_sha256": "b" * 64,
-    }
-    after_entry["entry_sha256"] = tasks.fingerprint_sha256(after_entry)
-    before_content = {"tracked_index": [before_entry], "untracked": []}
-    after_content = {"tracked_index": [after_entry], "untracked": []}
-    before_path.write_text(
-        json.dumps(
-            {
-                "schema_version": tasks.REVIEW_FINGERPRINT_SCHEMA_VERSION,
-                "repository_root": "C:\\repo",
-                **before_content,
-                "fingerprint_sha256": tasks.fingerprint_sha256(before_content),
-            }
-        ),
-        encoding="utf-8",
-    )
-    after_path.write_text(
-        json.dumps(
-            {
-                "schema_version": tasks.REVIEW_FINGERPRINT_SCHEMA_VERSION,
-                "repository_root": "C:\\repo",
-                **after_content,
-                "fingerprint_sha256": tasks.fingerprint_sha256(after_content),
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(SystemExit) as error:
-        tasks.compare_review_fingerprints(before_path, after_path)
-
-    assert error.value.code == 1
-    result = json.loads(capsys.readouterr().err)
-    assert result["status"] == "fail"
-    assert result["changes"][0]["path"] == "secret.txt"
-    assert set(result["changes"][0]) == {
-        "path",
-        "before_sha256",
-        "after_sha256",
-    }
-
-
-def test_review_fingerprint_rejects_tampered_entry(
-    tmp_path: Path,
-) -> None:
-    fingerprint_path = tmp_path / "fingerprint.json"
-    entry = {
-        "path": "file.txt",
-        "worktree_kind": "file",
-        "content_sha256": "a" * 64,
-    }
-    entry["entry_sha256"] = tasks.fingerprint_sha256(entry)
-    content = {"tracked_index": [], "untracked": [entry]}
-    fingerprint = {
-        "schema_version": tasks.REVIEW_FINGERPRINT_SCHEMA_VERSION,
-        "repository_root": "C:\\repo",
-        **content,
-        "fingerprint_sha256": tasks.fingerprint_sha256(content),
-    }
-    entry["content_sha256"] = "b" * 64
-    fingerprint_path.write_text(json.dumps(fingerprint), encoding="utf-8")
-
-    with pytest.raises(tasks.ReviewSnapshotError, match="entry hash does not match"):
-        tasks.load_review_fingerprint(fingerprint_path)
-
-
-def test_review_fingerprint_cli_dispatches_capture(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    output_path = tmp_path / "fingerprint.json"
-    calls: list[Path] = []
-    monkeypatch.setattr(
-        tasks,
-        "target_review_fingerprint_capture",
-        lambda output: calls.append(output),
-    )
-
-    assert (
-        tasks.main(
-            [
-                "review-fingerprint",
-                "capture",
-                "--output",
-                str(output_path),
-            ]
-        )
-        == 0
-    )
-    assert calls == [output_path]
-
-
 @pytest.mark.skipif(os.name != "nt", reason="Windows-specific gh-aw process boundary")
 def test_windows_gh_aw_compile_uses_powershell_process_boundary(
     monkeypatch: pytest.MonkeyPatch,
@@ -2770,7 +1601,7 @@ def test_windows_gh_aw_compile_uses_powershell_process_boundary(
         observed["temporary_parent"] = Path(env["GH_AW_STDIN"]).parent
         return subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
 
-    monkeypatch.setattr(tasks, "run_isolated_review_command", record_command)
+    monkeypatch.setattr(tasks, "run_review_command", record_command)
 
     tasks.run_gh_aw_compile()
 
@@ -2813,908 +1644,6 @@ def test_command_nul_output_preserves_git_path_whitespace(
     ]
 
 
-def test_snapshot_rejects_path_traversal(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    repository = tmp_path / "repository"
-    destination = tmp_path / "snapshot"
-    repository.mkdir()
-    destination.mkdir()
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(
-        tasks,
-        "command_nul_output",
-        lambda args, **_kwargs: (
-            ["../escape.txt"] if tuple(args) == ("git", "ls-files", "-z") else []
-        ),
-    )
-
-    with pytest.raises(tasks.ReviewSnapshotError, match="unsafe repository path"):
-        tasks.copy_worktree_snapshot(destination)
-
-    assert not (tmp_path / "escape.txt").exists()
-
-
-def test_snapshot_skips_oversized_untracked_file_as_unverified(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    repository = tmp_path / "repository"
-    destination = tmp_path / "snapshot"
-    repository.mkdir()
-    destination.mkdir()
-    (repository / "large.bin").write_bytes(b"oversized")
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "REVIEW_MAX_UNTRACKED_FILE_BYTES", 4)
-    monkeypatch.setattr(
-        tasks,
-        "command_nul_output",
-        lambda args, **_kwargs: (
-            ["large.bin"]
-            if tuple(args)
-            == ("git", "ls-files", "--others", "--exclude-standard", "-z")
-            else []
-        ),
-    )
-
-    issues = tasks.copy_worktree_snapshot(destination)
-
-    assert not (destination / "large.bin").exists()
-    assert issues == [
-        "untracked file exceeds the 4-byte snapshot limit and was skipped: large.bin"
-    ]
-
-
-def test_snapshot_skips_symlink_as_unverified(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    repository = tmp_path / "repository"
-    destination = tmp_path / "snapshot"
-    repository.mkdir()
-    destination.mkdir()
-    target = repository / "target.txt"
-    link = repository / "link.txt"
-    target.write_text("target\n", encoding="utf-8")
-    try:
-        os.symlink(target, link)
-    except OSError:
-        pytest.skip("symlink creation is not available")
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(
-        tasks,
-        "command_nul_output",
-        lambda args, **_kwargs: (
-            ["link.txt"]
-            if tuple(args)
-            == ("git", "ls-files", "--others", "--exclude-standard", "-z")
-            else []
-        ),
-    )
-
-    issues = tasks.copy_worktree_snapshot(destination)
-
-    assert not (destination / "link.txt").exists()
-    assert issues == ["symlink cannot be safely isolated and was skipped: link.txt"]
-
-
-@pytest.mark.parametrize(
-    "snapshot_issue",
-    [
-        "symlink cannot be safely isolated and was skipped: link.txt",
-        "untracked file exceeds the snapshot limit and was skipped: large.bin",
-        "non-regular file cannot be safely isolated and was skipped: pipe",
-    ],
-)
-def test_incomplete_snapshot_marks_all_full_checks_unverified(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    snapshot_issue: str,
-) -> None:
-    repository = tmp_path / "repository"
-    repository.mkdir()
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks.shutil, "which", lambda command: f"mock-{command}")
-    monkeypatch.setattr(
-        tasks,
-        "copy_worktree_snapshot",
-        lambda destination: [snapshot_issue],
-    )
-    monkeypatch.setattr(
-        tasks,
-        "run",
-        lambda *_args, **_kwargs: pytest.fail(
-            "git setup must not run for an incomplete snapshot"
-        ),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "run_isolated_review_command",
-        lambda *_args, **_kwargs: pytest.fail(
-            "full checks must not run for an incomplete snapshot"
-        ),
-    )
-
-    results = tasks.run_review_targets_isolated(
-        (
-            tasks.ReviewCheck("first", "first", ("git",)),
-            tasks.ReviewCheck("second", "second", ("git",)),
-        )
-    )
-
-    assert [(result.name, result.status) for result in results] == [
-        ("snapshot", "unverified"),
-        ("first", "unverified"),
-        ("second", "unverified"),
-    ]
-    assert not (repository / "tmp").exists()
-
-
-@pytest.fixture
-def repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A fresh, empty directory monkeypatched in as ``tasks.ROOT``, for
-    review-workspace tests that only need a stand-in repository root rather
-    than a real git checkout."""
-    repository_path = tmp_path / "repository"
-    repository_path.mkdir()
-    monkeypatch.setattr(tasks, "ROOT", repository_path)
-    return repository_path
-
-
-@pytest.fixture
-def confined_mkdtemp(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make ``tempfile.mkdtemp`` create its directory under ``tmp_path``
-    instead of the real OS temp dir, so tests can scope their cleanup
-    assertions (``tmp_path.glob(...)``) to files they actually created."""
-    real_mkdtemp = tasks.tempfile.mkdtemp
-    monkeypatch.setattr(
-        tasks.tempfile,
-        "mkdtemp",
-        lambda prefix: real_mkdtemp(prefix=prefix, dir=tmp_path),
-    )
-
-
-def _write_review_workspace_manifest(
-    workspace_path: Path, *, repository_root: Path, token: object
-) -> None:
-    """Write a manifest for a hand-built workspace fixture, as a sibling of
-    ``workspace_path`` -- matching where ``create_review_workspace`` writes
-    it (never inside the workspace; see ``_review_workspace_manifest_path``)
-    -- so ``cleanup_review_workspace`` finds it at the same path it would
-    for a real workspace."""
-    workspace_path.mkdir(parents=True, exist_ok=True)
-    manifest = {
-        "schema": tasks.REVIEW_WORKSPACE_SCHEMA_VERSION,
-        "token": token,
-        "repository_root": str(repository_root),
-        "workspace_path": str(workspace_path),
-    }
-    (workspace_path.parent / tasks.REVIEW_WORKSPACE_MANIFEST_FILENAME).write_text(
-        json.dumps(manifest), encoding="utf-8"
-    )
-
-
-def test_review_workspace_create_writes_a_correct_manifest_and_leaves_repository_intact(
-    repository: Path, confined_mkdtemp: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """create_review_workspace delegates the actual tracked/untracked copy
-    behavior to copy_worktree_snapshot (already exhaustively covered by
-    test_isolated_review_copies_current_tracked_and_untracked_files_for_tests
-    and proven to be the exact same function via
-    test_review_workspace_create_reuses_shared_snapshot_and_git_bootstrap_helpers),
-    so this only has to prove the parts unique to create_review_workspace: a
-    single copied file lands correctly, git bootstrap runs, the manifest is
-    correct, and the original repository is left untouched."""
-    scripts_directory = repository / "scripts"
-    scripts_directory.mkdir(parents=True)
-    (scripts_directory / "tasks.py").write_text("# task runner\n", encoding="utf-8")
-    monkeypatch.setattr(
-        tasks,
-        "command_nul_output",
-        lambda args, **_kwargs: (
-            ["scripts/tasks.py"] if tuple(args) == ("git", "ls-files", "-z") else []
-        ),
-    )
-    monkeypatch.setattr(tasks, "command_output", lambda *_a, **_k: "")
-    run_calls: list[tuple[str, ...]] = []
-    monkeypatch.setattr(
-        tasks,
-        "run",
-        lambda args, **_kwargs: (
-            run_calls.append(tuple(args)) or subprocess.CompletedProcess(args, 0)
-        ),
-    )
-
-    workspace = tasks.create_review_workspace()
-    workspace_path = Path(workspace["workspace_path"])
-    try:
-        assert workspace_path.is_absolute()
-        assert not workspace_path.is_relative_to(repository.resolve())
-        assert (workspace_path / "scripts" / "tasks.py").read_text(
-            encoding="utf-8"
-        ) == "# task runner\n"
-        assert workspace["snapshot_issues"] == []
-        assert run_calls[0][:2] == ("git", "init")
-        assert "commit" in run_calls[-1]
-
-        manifest_path = Path(workspace["manifest_path"])
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        assert manifest["schema"] == tasks.REVIEW_WORKSPACE_SCHEMA_VERSION
-        assert manifest["token"] == workspace["token"]
-        assert manifest["repository_root"] == str(repository.resolve())
-        assert manifest["workspace_path"] == str(workspace_path)
-    finally:
-        tasks.cleanup_review_workspace(workspace_path, workspace["token"])
-
-    assert not workspace_path.exists()
-    assert (scripts_directory / "tasks.py").read_text(encoding="utf-8") == (
-        "# task runner\n"
-    )
-
-
-def test_review_workspace_create_produces_a_real_isolated_workspace() -> None:
-    """Real, unpatched create_review_workspace against this repository:
-    the manifest must sit beside, not inside, the workspace (else it's an
-    untracked true_gap that fails check-repo-health from inside the
-    workspace), and ROOT must resolve to the copied workspace rather than
-    back to this repository, so nested isolation is safe by construction."""
-    workspace = tasks.create_review_workspace()
-    workspace_path = Path(workspace["workspace_path"])
-    try:
-        assert not (workspace_path / tasks.REVIEW_WORKSPACE_MANIFEST_FILENAME).exists()
-
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(workspace_path / "scripts" / "tasks.py"),
-                "check-repo-health",
-            ],
-            cwd=workspace_path,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        assert completed.returncode == 0, (
-            "check-repo-health failed inside the isolated review workspace:\n"
-            f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
-        )
-        assert "0 true gaps" in completed.stdout, (
-            "expected zero true gaps (the manifest must not be an untracked, "
-            f"unrecognized file inside the workspace); got:\n{completed.stdout}"
-        )
-
-        copied_tasks_path = workspace_path / "scripts" / "tasks.py"
-        spec = importlib.util.spec_from_file_location(
-            "review_repository_tasks_isolated_workspace_copy", copied_tasks_path
-        )
-        assert spec is not None and spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[spec.name] = module
-        try:
-            spec.loader.exec_module(module)
-        finally:
-            del sys.modules[spec.name]
-
-        assert workspace_path == module.ROOT
-        assert REPO_ROOT.resolve() != module.ROOT
-    finally:
-        tasks.cleanup_review_workspace(workspace_path, workspace["token"])
-
-
-def test_review_workspace_create_reuses_shared_snapshot_and_git_bootstrap_helpers(
-    repository: Path, confined_mkdtemp: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """create_review_workspace must call the same copy_worktree_snapshot and
-    initialize_isolated_git_repository helpers review-repo-full already uses
-    internally, rather than duplicating copy/path-traversal/symlink or git
-    bootstrap logic."""
-    monkeypatch.setattr(tasks, "command_nul_output", lambda *_a, **_k: [])
-    snapshot_calls: list[Path] = []
-    real_snapshot = tasks.copy_worktree_snapshot
-
-    def spy_snapshot(destination: Path) -> list[str]:
-        snapshot_calls.append(destination)
-        return real_snapshot(destination)
-
-    monkeypatch.setattr(tasks, "copy_worktree_snapshot", spy_snapshot)
-    git_init_calls: list[Path] = []
-
-    def spy_git_init(isolated_root: Path) -> str:
-        git_init_calls.append(isolated_root)
-        return ""
-
-    monkeypatch.setattr(tasks, "initialize_isolated_git_repository", spy_git_init)
-
-    workspace = tasks.create_review_workspace()
-    workspace_path = Path(workspace["workspace_path"])
-    try:
-        assert snapshot_calls == [workspace_path]
-        assert git_init_calls == [workspace_path]
-    finally:
-        tasks.cleanup_review_workspace(workspace_path, workspace["token"])
-
-
-def test_review_workspace_create_rejects_workspace_inside_repository(
-    repository: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    real_mkdtemp = tasks.tempfile.mkdtemp
-    monkeypatch.setattr(
-        tasks.tempfile,
-        "mkdtemp",
-        lambda prefix: real_mkdtemp(prefix=prefix, dir=repository),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "copy_worktree_snapshot",
-        lambda _destination: pytest.fail("snapshot copy must not run"),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "initialize_isolated_git_repository",
-        lambda _isolated_root: pytest.fail("git setup must not run"),
-    )
-
-    with pytest.raises(
-        tasks.ReviewSnapshotError,
-        match="operating-system temporary directory is inside the repository",
-    ):
-        tasks.create_review_workspace()
-
-    assert not any(repository.iterdir())
-
-
-def _snapshot_raises(destination: Path) -> list[str]:
-    (destination / "partial.txt").write_text("partial\n", encoding="utf-8")
-    raise tasks.ReviewSnapshotError("boom")
-
-
-def _snapshot_reports_issues(destination: Path) -> list[str]:
-    (destination / "partial.txt").write_text("partial\n", encoding="utf-8")
-    return ["skipped a broken symlink: dangling"]
-
-
-@pytest.mark.parametrize(
-    ("snapshot_fn", "expected_match"),
-    [
-        (_snapshot_raises, "boom"),
-        (_snapshot_reports_issues, "skipped a broken symlink: dangling"),
-    ],
-    ids=["snapshot-raises", "snapshot-reports-non-empty-issues"],
-)
-def test_review_workspace_create_fails_and_cleans_up_when_snapshot_is_incomplete(
-    repository: Path,
-    confined_mkdtemp: None,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    snapshot_fn: object,
-    expected_match: str,
-) -> None:
-    """copy_worktree_snapshot can fail either by raising or by returning a
-    non-empty ``issues`` list without raising; create_review_workspace must
-    treat both the same way -- a partially built workspace is not a partial
-    success, so creation fails with ReviewSnapshotError and removes the
-    temporary parent either way, and git bootstrap must not run."""
-    monkeypatch.setattr(tasks, "copy_worktree_snapshot", snapshot_fn)
-    monkeypatch.setattr(
-        tasks,
-        "initialize_isolated_git_repository",
-        lambda _isolated_root: pytest.fail(
-            "git setup must not run after an incomplete snapshot"
-        ),
-    )
-
-    with pytest.raises(tasks.ReviewSnapshotError, match=expected_match):
-        tasks.create_review_workspace()
-
-    assert not any(tmp_path.glob("review-repo-workspace-*"))
-
-
-_BOOTSTRAP_TIMEOUT = subprocess.TimeoutExpired(cmd=["git", "commit"], timeout=30)
-_BOOTSTRAP_UNEXPECTED = ValueError("unexpected git bootstrap failure")
-
-
-def _fails_manifest_path(workspace_root: Path) -> Path:
-    return workspace_root.parent / "missing-subdirectory" / "manifest.json"
-
-
-@pytest.mark.parametrize(
-    ("bootstrap_error", "manifest_path_override", "expected_exception", "match"),
-    [
-        (
-            _BOOTSTRAP_TIMEOUT,
-            None,
-            tasks.ReviewSnapshotError,
-            "timed out after 30 seconds",
-        ),
-        (KeyboardInterrupt(), None, KeyboardInterrupt, None),
-        (
-            _BOOTSTRAP_UNEXPECTED,
-            None,
-            tasks.ReviewSnapshotError,
-            "unexpected git bootstrap failure",
-        ),
-        (
-            None,
-            _fails_manifest_path,
-            tasks.ReviewSnapshotError,
-            "failed to prepare the isolated review workspace",
-        ),
-    ],
-    ids=[
-        "subprocess-timeout",
-        "keyboard-interrupt",
-        "unexpected-exception",
-        "manifest-write-failure",
-    ],
-)
-def test_review_workspace_create_cleans_up_on_any_preparation_failure(
-    repository: Path,
-    confined_mkdtemp: None,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    bootstrap_error: BaseException | None,
-    manifest_path_override: object,
-    expected_exception: type[BaseException],
-    match: str | None,
-) -> None:
-    """Every preparation failure (subprocess timeout, interrupt, unexpected
-    exception, or manifest-write failure) must remove the temporary parent
-    before propagating. KeyboardInterrupt propagates unchanged; every other
-    failure is translated into a ReviewSnapshotError chained via
-    __cause__, so callers only need to handle one failure type."""
-    monkeypatch.setattr(tasks, "copy_worktree_snapshot", lambda _destination: [])
-    if bootstrap_error is not None:
-
-        def _raiser(
-            _isolated_root: Path, _error: BaseException = bootstrap_error
-        ) -> str:
-            raise _error
-
-        monkeypatch.setattr(tasks, "initialize_isolated_git_repository", _raiser)
-    else:
-        monkeypatch.setattr(tasks, "initialize_isolated_git_repository", lambda _r: "")
-        monkeypatch.setattr(
-            tasks, "_review_workspace_manifest_path", manifest_path_override
-        )
-
-    with pytest.raises(expected_exception, match=match) as excinfo:
-        tasks.create_review_workspace()
-
-    if bootstrap_error is not None:
-        if expected_exception is not KeyboardInterrupt:
-            assert excinfo.value.__cause__ is bootstrap_error
-    else:
-        assert isinstance(excinfo.value.__cause__, OSError)
-    assert not any(tmp_path.glob("review-repo-workspace-*"))
-
-
-def test_review_workspace_cleanup_removes_workspace_and_is_not_idempotent(
-    repository: Path, tmp_path: Path
-) -> None:
-    workspace_path = tmp_path / "review-workspace-parent" / "workspace"
-    token = "a" * 32
-    _write_review_workspace_manifest(
-        workspace_path, repository_root=repository.resolve(), token=token
-    )
-    (workspace_path / "extra.txt").write_text("copied file\n", encoding="utf-8")
-
-    removed = tasks.cleanup_review_workspace(workspace_path, token)
-
-    assert removed == str(workspace_path.resolve())
-    assert not workspace_path.exists()
-    assert not workspace_path.parent.exists()
-
-    # Repeating cleanup on an already-removed workspace must fail explicitly
-    # rather than silently succeed a second time.
-    with pytest.raises(tasks.ReviewSnapshotError, match="does not exist"):
-        tasks.cleanup_review_workspace(workspace_path, token)
-
-
-@pytest.mark.parametrize(
-    ("build_candidate", "expected_match"),
-    [
-        (lambda repository: repository, "repository root or one of its ancestors"),
-        (
-            lambda repository: repository.parent,
-            "repository root or one of its ancestors",
-        ),
-        (
-            lambda repository: repository / "subdir",
-            "path inside the repository worktree",
-        ),
-        (
-            lambda repository: repository / "subdir" / ".." / "subdir",
-            "path inside the repository worktree",
-        ),
-    ],
-    ids=[
-        "repository-root",
-        "ancestor-of-repository-root",
-        "inside-repository",
-        "traversal-that-resolves-inside-repository",
-    ],
-)
-def test_review_workspace_cleanup_rejects_paths_not_disjoint_from_repository(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    build_candidate: Callable[[Path], Path],
-    expected_match: str,
-) -> None:
-    """A workspace_path that equals, contains (is an ancestor of), or is
-    contained by (including via a ``..`` traversal that resolve(strict=True)
-    normalizes before any check runs) the repository root must always be
-    rejected before cleanup ever looks for a manifest, and the repository
-    must be left untouched."""
-    nested = tmp_path / "nested"
-    repository = nested / "repository"
-    (repository / "subdir").mkdir(parents=True)
-    monkeypatch.setattr(tasks, "ROOT", repository)
-
-    with pytest.raises(tasks.ReviewSnapshotError, match=expected_match):
-        tasks.cleanup_review_workspace(build_candidate(repository), "irrelevant-token")
-
-    assert (repository / "subdir").exists()
-
-
-def test_review_workspace_cleanup_rejects_arbitrary_path_without_manifest(
-    repository: Path, tmp_path: Path
-) -> None:
-    arbitrary = tmp_path / "not-a-review-workspace"
-    arbitrary.mkdir()
-    (arbitrary / "innocuous.txt").write_text("data\n", encoding="utf-8")
-
-    with pytest.raises(
-        tasks.ReviewSnapshotError, match="manifest is missing or unreadable"
-    ):
-        tasks.cleanup_review_workspace(arbitrary, "irrelevant-token")
-
-    assert arbitrary.exists()
-    assert (arbitrary / "innocuous.txt").exists()
-
-
-@pytest.mark.parametrize(
-    ("manifest_token", "supplied_token", "expected_match"),
-    [
-        ("f" * 32, "e" * 32, "token does not match"),  # correctly shaped, wrong value
-        ("f" * 32, "caf\u00e9" + "a" * 28, "token does not match"),  # non-ASCII
-        (123456, "f" * 32, "token does not match"),  # tampered: not a string
-        (None, "f" * 32, "token does not match"),  # tampered: missing field
-    ],
-    ids=[
-        "value-mismatch",
-        "non-ascii-supplied-token",
-        "non-string-manifest-token",
-        "missing-manifest-token",
-    ],
-)
-def test_review_workspace_cleanup_rejects_token_mismatch_without_raising(
-    repository: Path,
-    tmp_path: Path,
-    manifest_token: object,
-    supplied_token: str,
-    expected_match: str,
-) -> None:
-    """The manifest token is a plaintext equality check, not authentication:
-    it only has to fail closed -- with a clean ReviewSnapshotError, never a
-    raw TypeError/AttributeError -- whether the mismatch is an ordinary
-    wrong value, a non-ASCII supplied token, or a manifest token corrupted
-    into a non-string (or missing) JSON value."""
-    workspace_path = tmp_path / "workspace"
-    _write_review_workspace_manifest(
-        workspace_path, repository_root=repository.resolve(), token=manifest_token
-    )
-
-    with pytest.raises(tasks.ReviewSnapshotError, match=expected_match):
-        tasks.cleanup_review_workspace(workspace_path, supplied_token)
-
-    assert workspace_path.exists()
-
-
-def _valid_manifest(repository_root: Path, workspace_path: Path) -> dict[str, object]:
-    return {
-        "schema": tasks.REVIEW_WORKSPACE_SCHEMA_VERSION,
-        "token": "f" * 32,
-        "repository_root": str(repository_root),
-        "workspace_path": str(workspace_path),
-    }
-
-
-@pytest.mark.parametrize(
-    ("manifest_content", "expected_match"),
-    [
-        ("not json at all", "not valid JSON"),
-        ('"just a string"', "not a JSON object"),
-        ("[1, 2, 3]", "not a JSON object"),
-        ("42", "not a JSON object"),
-        ("true", "not a JSON object"),
-        ("null", "not a JSON object"),
-        (
-            lambda repository_root, workspace_path: {
-                **_valid_manifest(repository_root, workspace_path),
-                "schema": "unrecognized-schema/0",
-            },
-            "schema is not recognized",
-        ),
-        (
-            lambda repository_root, workspace_path: {
-                **_valid_manifest(repository_root, workspace_path),
-                "repository_root": str(repository_root.parent),
-            },
-            "not created for this repository",
-        ),
-        (
-            lambda repository_root, workspace_path: {
-                **_valid_manifest(repository_root, workspace_path),
-                "workspace_path": str(workspace_path.parent),
-            },
-            "does not match the requested path",
-        ),
-    ],
-    ids=[
-        "invalid-json",
-        "json-string",
-        "json-array",
-        "json-number",
-        "json-boolean",
-        "json-null",
-        "unrecognized-schema",
-        "wrong-repository",
-        "wrong-workspace-path",
-    ],
-)
-def test_review_workspace_cleanup_rejects_malformed_manifest_content(
-    repository: Path,
-    tmp_path: Path,
-    manifest_content: str | Callable[[Path, Path], dict[str, object]],
-    expected_match: str,
-) -> None:
-    """A manifest that is not valid JSON, not a JSON object, from an
-    unrecognized schema version, written for a different repository, or
-    bound to a different workspace path must all be rejected with a clean
-    ReviewSnapshotError instead of proceeding to delete anything."""
-    workspace_path = tmp_path / "workspace"
-    workspace_path.mkdir(parents=True)
-    manifest_path = workspace_path.parent / tasks.REVIEW_WORKSPACE_MANIFEST_FILENAME
-    if isinstance(manifest_content, str):
-        manifest_path.write_text(manifest_content, encoding="utf-8")
-    else:
-        manifest_path.write_text(
-            json.dumps(manifest_content(repository.resolve(), workspace_path)),
-            encoding="utf-8",
-        )
-
-    with pytest.raises(tasks.ReviewSnapshotError, match=expected_match):
-        tasks.cleanup_review_workspace(workspace_path, "f" * 32)
-
-    assert workspace_path.exists()
-
-
-def test_review_workspace_cleanup_rejects_workspace_path_replaced_by_a_symlink(
-    repository: Path, tmp_path: Path
-) -> None:
-    """If the workspace_path directory is replaced by a symlink to an
-    unrelated victim directory after creation (a classic TOCTOU
-    substitution attempt), cleanup resolves that symlink and then looks for
-    the manifest beside *its* resolved target, not beside the original
-    workspace_path. Without a manifest proving that resolved location was
-    ours, cleanup must refuse to touch it, and the victim directory must
-    survive untouched."""
-    victim = tmp_path / "victim-parent" / "victim"
-    victim.mkdir(parents=True)
-    (victim / "precious.txt").write_text("do not delete me\n", encoding="utf-8")
-    workspace_path = tmp_path / "workspace"
-    workspace_path.symlink_to(victim, target_is_directory=True)
-
-    with pytest.raises(
-        tasks.ReviewSnapshotError, match="manifest is missing or unreadable"
-    ):
-        tasks.cleanup_review_workspace(workspace_path, "irrelevant-token")
-
-    assert victim.exists()
-    assert (victim / "precious.txt").read_text(encoding="utf-8") == (
-        "do not delete me\n"
-    )
-
-
-def test_review_workspace_cleanup_does_not_follow_a_symlink_planted_inside_workspace(
-    repository: Path, tmp_path: Path
-) -> None:
-    """A symlink planted inside an otherwise legitimately created workspace,
-    pointing at an external victim directory, must not cause that victim's
-    contents to be deleted when the real workspace is cleaned up:
-    shutil.rmtree unlinks symlinks it encounters rather than recursing
-    through them."""
-    victim = tmp_path / "victim-parent" / "victim"
-    victim.mkdir(parents=True)
-    (victim / "precious.txt").write_text("do not delete me\n", encoding="utf-8")
-    workspace_path = tmp_path / "review-workspace-parent" / "workspace"
-    token = "e" * 32
-    _write_review_workspace_manifest(
-        workspace_path, repository_root=repository.resolve(), token=token
-    )
-    (workspace_path / "escape-link").symlink_to(victim, target_is_directory=True)
-
-    removed = tasks.cleanup_review_workspace(workspace_path, token)
-
-    assert removed == str(workspace_path.resolve())
-    assert not workspace_path.exists()
-    assert victim.exists()
-    assert (victim / "precious.txt").read_text(encoding="utf-8") == (
-        "do not delete me\n"
-    )
-
-
-def test_review_workspace_rmtree_onexc_clears_read_only_bit_and_retries(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The onexc handler must clear the read-only attribute Git can leave on
-    packed object files (blocking deletion on Windows) and retry the failed
-    operation, widening the mode (``current_mode | S_IWRITE``) rather than
-    replacing it outright, so unrelated bits (e.g. S_IROTH) survive.
-    ``os.unlink`` is monkeypatched to a stub gated on write access, since
-    POSIX unlink is governed by the containing directory's permissions, not
-    the file's own mode -- a purely filesystem-driven version of this test
-    would not reliably fail before the fix on non-Windows platforms."""
-    target = tmp_path / "read-only-file.txt"
-    target.write_text("payload\n", encoding="utf-8")
-    initial_mode = stat.S_IREAD | stat.S_IROTH
-    target.chmod(initial_mode)
-    calls: list[str] = []
-    modes_seen: list[int] = []
-    real_unlink = os.unlink
-
-    def fake_unlink(path: str) -> None:
-        calls.append(path)
-        modes_seen.append(stat.S_IMODE(os.stat(path).st_mode))
-        if not os.access(path, os.W_OK):
-            raise PermissionError(f"simulated permission error for {path}")
-        real_unlink(path)
-
-    monkeypatch.setattr(os, "unlink", fake_unlink)
-
-    tasks._review_workspace_rmtree_onexc(os.unlink, str(target), PermissionError())
-
-    assert calls == [str(target)]
-    assert not target.exists()
-    # The retry must observe read/write for the owner and the original
-    # other-read bit still set -- proof the fix widens the mode rather than
-    # replacing it with just S_IWRITE (which would strip S_IROTH).
-    assert modes_seen == [stat.S_IMODE(initial_mode | stat.S_IWRITE)]
-
-
-def test_review_workspace_rmtree_onexc_propagates_when_retry_still_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """If clearing the read-only bit does not resolve the failure (for
-    example a permission problem unrelated to the read-only attribute), the
-    handler must let the retry's exception propagate rather than swallow
-    it, so shutil.rmtree fails loudly instead of silently leaving files
-    behind."""
-    target = tmp_path / "still-locked-file.txt"
-    target.write_text("payload\n", encoding="utf-8")
-
-    def always_fails(path: str) -> None:
-        raise PermissionError(f"still cannot remove {path}")
-
-    monkeypatch.setattr(os, "unlink", always_fails)
-
-    with pytest.raises(PermissionError, match="still cannot remove"):
-        tasks._review_workspace_rmtree_onexc(os.unlink, str(target), PermissionError())
-
-
-@pytest.mark.parametrize("non_removal_callback", [os.open, os.close, os.scandir])
-def test_review_workspace_rmtree_onexc_preserves_original_exception_for_non_removal_callback(
-    non_removal_callback: object,
-) -> None:
-    """shutil.rmtree can invoke onexc with function=os.open/os.close/
-    os.scandir while walking with fd-based APIs -- none accept a bare path,
-    so calling ``function(path)`` for them would raise a spurious TypeError
-    that hides the real failure. The handler must recognize this is not a
-    retryable removal call, never invoke the callback, and re-raise the
-    original exception object unchanged."""
-    original_error = PermissionError("original failure reading the directory")
-
-    with pytest.raises(PermissionError) as excinfo:
-        tasks._review_workspace_rmtree_onexc(
-            non_removal_callback, "irrelevant-path", original_error
-        )
-
-    assert excinfo.value is original_error
-
-
-def test_review_workspace_removal_passes_onexc_handler_to_shutil_rmtree(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """_remove_review_workspace_tree (used by create_review_workspace's
-    failure cleanup, cleanup_review_workspace's normal removal, and
-    run_review_targets_isolated's inner isolation teardown) must route
-    through shutil.rmtree's onexc= handler so the read-only-file retry logic
-    actually applies to every workspace removal, not just to a hand-picked
-    call site."""
-    captured: dict[str, object] = {}
-    real_rmtree = tasks.shutil.rmtree
-
-    def spy_rmtree(path: Path, **kwargs: object) -> None:
-        captured.update(kwargs)
-        real_rmtree(path, **kwargs)
-
-    monkeypatch.setattr(tasks.shutil, "rmtree", spy_rmtree)
-    target = tmp_path / "parent-to-remove"
-    target.mkdir()
-    (target / "file.txt").write_text("data\n", encoding="utf-8")
-
-    tasks._remove_review_workspace_tree(target)
-
-    assert captured.get("onexc") is tasks._review_workspace_rmtree_onexc
-    assert not target.exists()
-
-
-def test_review_workspace_cleanup_succeeds_after_a_simulated_failed_full_check(
-    repository: Path, confined_mkdtemp: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The task-runner contract can only prove that cleanup does not depend
-    on check outcome: it must remove a proven workspace regardless of what a
-    (simulated) failed full check left behind inside it."""
-    monkeypatch.setattr(tasks, "command_nul_output", lambda *_a, **_k: [])
-    monkeypatch.setattr(tasks, "command_output", lambda *_a, **_k: "")
-    monkeypatch.setattr(
-        tasks,
-        "run",
-        lambda args, **_kwargs: subprocess.CompletedProcess(args, 0),
-    )
-
-    workspace = tasks.create_review_workspace()
-    workspace_path = Path(workspace["workspace_path"])
-    (workspace_path / "qa-failure-artifact.log").write_text(
-        "simulated failed check output\n", encoding="utf-8"
-    )
-
-    removed = tasks.cleanup_review_workspace(workspace_path, workspace["token"])
-
-    assert removed == str(workspace_path)
-    assert not workspace_path.exists()
-
-
-def test_review_workspace_cli_dispatches_create(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
-
-    def fake_create() -> None:
-        nonlocal calls
-        calls += 1
-
-    monkeypatch.setattr(tasks, "target_review_workspace_create", fake_create)
-
-    assert tasks.main(["review-workspace", "create"]) == 0
-    assert calls == 1
-
-
-def test_review_workspace_cli_dispatches_cleanup(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    workspace_path = tmp_path / "workspace"
-    calls: list[tuple[Path, str]] = []
-
-    def fake_cleanup(path: Path, token: str) -> None:
-        calls.append((path, token))
-
-    monkeypatch.setattr(tasks, "target_review_workspace_cleanup", fake_cleanup)
-
-    assert (
-        tasks.main(
-            [
-                "review-workspace",
-                "cleanup",
-                "--workspace-path",
-                str(workspace_path),
-                "--token",
-                "deadbeef",
-            ]
-        )
-        == 0
-    )
-    assert calls == [(workspace_path, "deadbeef")]
-
-
 def frontmatter_and_body(path: Path) -> tuple[dict[str, str], str]:
     text = path.read_text(encoding="utf-8")
     assert text.startswith("---\n")
@@ -3735,119 +1664,13 @@ def test_review_repo_agent_contract() -> None:
     assert "標準はfast（taskのみ）" in frontmatter["description"]
     assert "review-repo-fast" in body
     assert "review-repo-full" in body
-    assert "scripts/tasks.py" in body
-    assert "task target" in body
-    assert "## 実行インターフェース" in body
-    assert "## 検査の包含関係" in body
-    assert (
-        'review-repo-fast --inventory-json "<temp>/inventory.json" '
-        '--results-json "<temp>/review-fast.json"' in body
-    )
-    assert (
-        'review-repo-full --inventory-json "<temp>/inventory.json" '
-        '--results-json "<temp>/review-full.json"' in body
-    )
-    assert "review-fingerprint capture --output" in body
-    assert "review-fingerprint compare --before" in body
-    assert "inventory-repo --format json" in body
-    assert (
-        '`review-workspace create` | `uv run --no-project "${PWD}/scripts/tasks.py" '
-        "review-workspace create`" in body
-    )
-    assert (
-        '`review-repo-full` | `uv run --no-project "<workspace>/scripts/tasks.py" '
-        'review-repo-full --inventory-json "<temp>/inventory.json" '
-        '--results-json "<temp>/review-full.json"`' in body
-    )
-    assert (
-        '`review-workspace cleanup` | `uv run --no-project "${PWD}/scripts/tasks.py" '
-        'review-workspace cleanup --workspace-path "<workspace>" --token "<token>"`'
-        in body
-    )
-    assert "検査の成否にかかわらず実行する" in body
-    assert "（finally相当）" in body
-    assert "`review-repo-fast`の全検査" in body
-    assert "Bicep parameter JSON" in body
-    # Fast is the offline layer. It must not claim any external lookup.
-    fast_row = body.split("| `review-repo-fast` task target |", 1)[1].split(
-        "| review-repo agentのfastモード |", 1
-    )[0]
-    assert "check-version-pins" in fast_row
-    for external in ("latest release", "RE2", "公開活動"):
-        assert external not in fast_row
-    assert "隔離copyでしか実行できない検査だけを追加する" in body
-    assert "fastが判定済みのversion契約も再実行しない" in body
-    assert "`review-repo-fast`はオフラインで完結し、外部APIもDockerも使わない" in body
-    assert "最新版候補の検出はscheduledな仕組みへ委譲済み" in body
-    assert "全Kubernetes YAML" in body
-    assert "Chaos Mesh chart" in body
-    assert "`kubernetes-schema-exclusion`座標で`excluded`" in body
-    assert "## fullモードの文書とAI運用資産の評価基準" in body
-    assert "文書とAI運用資産の意味評価および専門skillは実行しない" in body
-    assert "文書とAI運用資産の意味評価を実行する" in body
-    for document_type in (
-        "`.github/copilot-instructions.md`",
-        "| agent |",
-        "| skill |",
-        "| ADR |",
-        "| Feature Document |",
-        "| `docs/workarounds.md` |",
-        "| READMEと運用文書 |",
-        "| workflow sourceと生成物 |",
-    ):
-        assert document_type in body
-    assert "inventoryへの出現だけで`pass`にしない" in body
-    assert "`disable-model-invocation: true`のdispatcherはnameを必須とせず" in body
-    execution_steps = body.split("## 実行手順", 1)[1].split(
-        "## 既存経路との責務境界",
-        1,
-    )[0]
-    assert "`inventory-repo`や`check-repo-health`を重複実行しない" in execution_steps
-    assert "repo_health.py" not in execution_steps
-    assert "fullの場合だけ" in execution_steps
-    assert "full専用検査を個別の`unverified`として列挙せず" in execution_steps
-    assert "決定論的検査の結果を`status`と`reason_code`とともに列挙" in execution_steps
-    assert "手順2が出力した検査結果JSON" in execution_steps
-    assert "`repository-freshness-checker`" in execution_steps
-    assert "`bicep-api-version-updater`のcheck-onlyモード" in execution_steps
-    assert "手順2と同じinventory JSON" in execution_steps
-    assert (
-        "`documentation-external-link`、`docker-base-image`、"
-        "`function-extension-bundle`座標を全件処理"
-    ) in execution_steps
-    assert "version更新候補は再検出しない" in execution_steps
-    assert "Bicep resource APIの結果が返らない場合" in execution_steps
-    assert "その領域を`unverified`とする" in execution_steps
-    assert "pass" in body
-    assert "fail" in body
-    assert "unverified" in body
-    assert "excluded" in body
-    assert "coverage" in body
-    for category in (
-        "covered_by_other_check",
-        "intentionally_excluded",
-        "true_gap",
-    ):
-        assert category in body
-    assert "今回の走査範囲では" in body
-    assert "追跡ファイルを編集しない" in body
-    assert "git status --short" not in body
-    assert "tracked/index" in body
-    assert "未追跡ファイル一覧" in body
-    assert "SHA-256" in body
-    assert "内容を表示しない" in body
-    assert "Azure subscription" in body
-    assert "AKS cluster" in body
-    assert "Fleet" in body
-    assert "aks-updates-analyzer" in body
+    assert "専用worktree" in body
+    assert "task内部で別のcopyや一時Git repositoryを作成しない" in body
+    assert "review-workspace" not in body
+    assert "review-fingerprint" not in body
+    assert "repository-freshness-checker" in body
     assert "bicep-api-version-updater" in body
-    # Bicep CLI freshness moved to Renovate, so no dedicated workflow remains.
-    assert "bicep-version-check.yml" not in body
-    assert not (
-        REPO_ROOT / ".github" / "workflows" / "bicep-version-check.yml"
-    ).exists()
-    for product_command in ("az feature show", "az provider show", "gh api", "curl"):
-        assert product_command not in body
+    assert "ファイルの自動更新、commit、push、Pull Request作成を行わない" in body
 
 
 def test_repository_freshness_skill_contract() -> None:
@@ -3865,7 +1688,7 @@ def test_repository_freshness_skill_contract() -> None:
         "--results-json <absolute-path>" in body
     )
     assert "別のinventory生成コマンドを実行せず" in body
-    assert "同じ更新候補を再検出しない" in body
+    assert "version更新候補を検出しない" in body
     for subject in ("Docker base image", "Azure Functions extension bundle"):
         assert subject in body
     for category in (
@@ -3876,11 +1699,10 @@ def test_repository_freshness_skill_contract() -> None:
         assert category in body
     for boundary in (
         "check-version-pins",
-        "repository-freshness-check.yml",
+        "update-lefthook-pin",
         "bicep-api-version-updater",
     ):
         assert boundary in body
-    assert "bicep-version-check.yml" not in body
     for status in ("pass", "fail", "unverified", "excluded"):
         assert status in body
     assert "Microsoft Learn MCP" in body
@@ -3923,7 +1745,6 @@ def test_each_skill_directory_contains_skill_document() -> None:
 
 
 ONLINE_TARGET_NAMES = (
-    "freshness-checks",
     "check-renovate-config",
     "update-lefthook-pin",
 )
@@ -4074,53 +1895,9 @@ def test_version_ranges_are_never_compared_against_a_latest_release() -> None:
     """No evaluator may treat azd or the Functions bundle as an exact pin."""
     assert tasks.azd_minimum_version_range().startswith(">= ")
     assert tasks.functions_bundle_support_range().startswith("[")
-    assert "azd" not in tasks.FRESHNESS_CHECK_SUBJECTS
-    assert "Azure Functions extension bundle" not in tasks.FRESHNESS_CHECK_SUBJECTS
     assert "exact pin" in (tasks.azd_minimum_version_range.__doc__ or "")
     renovate_targets = {
         item.target_path for item in tasks.RENOVATE_MANAGER_EXPECTATIONS
     }
     assert "azure.yaml" in renovate_targets
     assert "src/external-sli-publisher/host.json" not in renovate_targets
-
-
-def test_scheduled_checker_reports_exactly_the_non_renovate_subjects(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    """The scheduled JSON carries only tools Renovate cannot update safely."""
-    monkeypatch.setattr(
-        tasks,
-        "evaluate_gh_aw_pin",
-        lambda: tasks.FreshnessFinding(
-            tasks.FRESHNESS_SUBJECT_GH_AW, "c", "pass", "current", None, None, (), "d"
-        ),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "evaluate_lefthook_pin",
-        lambda: tasks.FreshnessFinding(
-            tasks.FRESHNESS_SUBJECT_LEFTHOOK,
-            "c",
-            "unverified",
-            tasks.FRESHNESS_REASON_UPDATE_AVAILABLE,
-            "2.1.10",
-            "2.1.12",
-            (),
-            "d",
-        ),
-    )
-    output = tmp_path / "freshness.json"
-
-    tasks.target_freshness_checks(output)
-
-    document = json.loads(output.read_text(encoding="utf-8"))
-    assert [finding["subject"] for finding in document["findings"]] == [
-        "gh-aw",
-        "Lefthook",
-    ]
-    assert [finding["tool"] for finding in document["findings"]] == [
-        "gh-aw",
-        "lefthook",
-    ]
-    assert document["status"] == "unverified"

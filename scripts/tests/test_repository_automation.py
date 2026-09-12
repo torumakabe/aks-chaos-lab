@@ -7,10 +7,6 @@ from pathlib import Path
 from typing import Any, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FRESHNESS_SUBJECTS = (
-    "gh-aw",
-    "lefthook",
-)
 
 
 def renovate_config() -> dict[str, Any]:
@@ -76,25 +72,6 @@ def test_renovate_covers_the_scheduled_update_targets() -> None:
     }
 
 
-def test_scheduled_and_review_detection_do_not_overlap() -> None:
-    """Only what Renovate cannot update safely is left to the scheduled workflow.
-
-    The freshness workflow must not re-detect a Renovate-owned coordinate, and
-    the offline review layer must not detect update candidates at all.
-    """
-    config = renovate_config()
-    renovate_owned = {
-        manager["depNameTemplate"] for manager in config["customManagers"]
-    }
-    workflow = (
-        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.yml"
-    ).read_text(encoding="utf-8")
-
-    assert renovate_owned.isdisjoint({"evilmartians/lefthook", "github/gh-aw"})
-    assert "freshness-checks" in workflow
-    assert "update-non-renovate-tool" in workflow
-
-
 def test_ci_runs_repository_health_check() -> None:
     ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
@@ -115,49 +92,6 @@ def test_ci_reuses_kubernetes_and_helm_validation_targets() -> None:
     assert 'scripts/tasks.py" validate-helm-values' in ci
     assert "azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310" in ci
     assert "k8s/apps/chaos-app/*.yaml" not in ci
-
-
-def test_freshness_workflow_contract() -> None:
-    source = (
-        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.yml"
-    ).read_text(encoding="utf-8")
-
-    assert 'cron: "0 0 * * 3"' in source
-    assert "workflow_dispatch:" in source
-    assert "concurrency:" in source
-    assert "contents: write" in source
-    assert "pull-requests: write" in source
-    assert "actions: write" in source
-    assert "freshness-checks --output" in source
-    assert "update-non-renovate-tool" in source
-    assert "reason_code" in source
-    assert "update-available" in source
-    assert "pinned-ahead" not in source
-    assert "gh workflow run ci.yml --ref" in source
-    assert "automation/update-${TOOL}-${VERSION}" in source
-    assert "gh pr list --state all --head" in source
-    assert "gh pr create" in source
-    assert "Install target Lefthook" in source
-    assert "GH_TOKEN: ${{ github.token }}" in source
-    assert "git status --porcelain" in source
-    assert "ref: ${{ github.event.repository.default_branch }}" in source
-    assert "GITHUB_STEP_SUMMARY" in source
-
-    for forbidden in (
-        "azure/login",
-        "az login",
-        "copilot-requests:",
-        "create-issue",
-        "issues: write",
-        "repository-freshness-checker",
-    ):
-        assert forbidden not in source
-    assert not (
-        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.md"
-    ).exists()
-    assert not (
-        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.lock.yml"
-    ).exists()
 
 
 def test_weekly_workflows_disable_operational_failure_issues() -> None:
@@ -234,25 +168,10 @@ def test_aks_updates_workflow_reports_unverified_sources() -> None:
     assert 'print("[]")' not in source
 
 
-def test_implicit_gh_aw_maintenance_workflow_is_not_committed() -> None:
-    maintenance = REPO_ROOT / ".github" / "workflows" / "agentics-maintenance.yml"
-    actions_lock = json.loads(
-        (REPO_ROOT / ".github" / "aw" / "actions-lock.json").read_text(encoding="utf-8")
-    )
-
-    assert not maintenance.exists()
-    assert not any(
-        entry.startswith("github/gh-aw-actions/setup-cli@")
-        for entry in actions_lock["entries"]
-    )
-
-
 def test_gh_aw_dispatcher_uses_current_generated_layout() -> None:
     agent = REPO_ROOT / ".github" / "agents" / "agentic-workflows.md"
     skill = REPO_ROOT / ".github" / "skills" / "agentic-workflows" / "SKILL.md"
-    legacy = REPO_ROOT / ".github" / "agents" / "agentic-workflows.agent.md"
 
-    assert not legacy.exists()
     agent_source = agent.read_text(encoding="utf-8")
     skill_source = skill.read_text(encoding="utf-8")
     assert "name: Agentic Workflows" in agent_source
@@ -281,7 +200,7 @@ def test_weekly_workflows_preserve_direct_github_api_access() -> None:
         assert r"\"api.github.com\"" in lock
 
 
-def test_freshness_targets_exist_in_repository_inventory() -> None:
+def test_public_review_inputs_exist_in_repository_inventory() -> None:
     completed = subprocess.run(
         [
             sys.executable,
@@ -296,18 +215,8 @@ def test_freshness_targets_exist_in_repository_inventory() -> None:
         text=True,
     )
     inventory = json.loads(completed.stdout)["inventory"]
-    tool_versions = {
-        item["location"].rpartition(":")[2]
-        for item in inventory
-        if item["category"] == "tool-version"
-    }
-    helm_charts = {
-        item["value"] for item in inventory if item["category"] == "helm-chart"
-    }
-    gh_aw_versions = {
-        item["value"]
-        for item in inventory
-        if item["location"].endswith(("gh-aw-setup", "compiler-version"))
+    bicep_resources = {
+        item["value"] for item in inventory if item["category"] == "bicep-resource-api"
     }
     docker_images = {
         item["value"] for item in inventory if item["category"] == "docker-base-image"
@@ -323,9 +232,10 @@ def test_freshness_targets_exist_in_repository_inventory() -> None:
         if item["category"] == "documentation-external-link"
     }
 
-    assert {"lefthook", "actionlint", "kubeconform", "azd"} <= tool_versions
-    assert "chaos-mesh/chaos-mesh" in helm_charts
-    assert gh_aw_versions
+    assert any(
+        value.startswith("Microsoft.ContainerService/managedClusters@")
+        for value in bicep_resources
+    )
     assert any(image.startswith("python:3.14-slim@sha256:") for image in docker_images)
     assert any(
         image.startswith("ghcr.io/astral-sh/uv:") and "@sha256:" in image
@@ -333,29 +243,6 @@ def test_freshness_targets_exist_in_repository_inventory() -> None:
     )
     assert "[4.*, 5.0.0)" in extension_bundles
     assert "https://martinfowler.com/articles/reduce-friction-ai/" in external_links
-
-
-def test_freshness_scope_is_identical_across_declarations() -> None:
-    paths = (
-        REPO_ROOT / ".github/workflows/repository-freshness-check.yml",
-        REPO_ROOT / "docs/dependency-management.md",
-    )
-
-    for path in paths:
-        content = path.read_text(encoding="utf-8")
-        for subject in FRESHNESS_SUBJECTS:
-            assert subject in content, f"{subject!r} is missing from {path}"
-
-
-def test_freshness_workflow_is_not_agentic() -> None:
-    workflow = (
-        REPO_ROOT / ".github" / "workflows" / "repository-freshness-check.yml"
-    ).read_text(encoding="utf-8")
-
-    assert "Update non-Renovate tools" in workflow
-    assert "automatically generated by gh-aw" not in workflow
-    assert "copilot-requests" not in workflow
-    assert "issues: write" not in workflow
 
 
 def test_bicep_api_version_workflow_contract() -> None:
@@ -413,13 +300,11 @@ def test_documentation_exposes_maintenance_entry_points() -> None:
     assert "review-repo-fast" in readme
     assert "review-repo-full" in readme
     assert "fastモードは" in readme
-    assert "意味評価や専門skillは実行しません" in readme
     assert "fullモードは" in readme
-    assert "文書とAI運用資産の意味評価を実行します" in readme
+    assert "文書、AI運用資産を追加で確認します" in readme
     assert "docs/dependency-management.md" in readme
-    assert "唯一の上位実行入口" in readme
-    assert "構造化inventory" in readme
-    assert "オフラインで完結する検査だけを実行します" in readme
+    assert "専用worktree" in readme
+    assert "task内部で別のsnapshotや一時Git repositoryは作成しません" in readme
     # README stays a short entry point: the responsibility split lives in the
     # dependency-management document.
     assert (
@@ -428,7 +313,7 @@ def test_documentation_exposes_maintenance_entry_points() -> None:
     )
 
     assert ".github/renovate.json" in dependencies
-    assert "repository-freshness-check.yml" in dependencies
+    assert "update-lefthook-pin" in dependencies
     assert "refresh-uv-lock.yml" in dependencies
     assert "`.github/dependabot.yml`は存在せず" in dependencies
     assert "## fastとfullの境界" in dependencies

@@ -360,7 +360,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" qa
 
 ### full レビューの Python 環境
 
-`review-repo-full` は元 worktree を保護するため、隔離コピーの `.venv` を `UV_PROJECT_ENVIRONMENT` に指定し、別 process の `prepare-review-python-env` で準備します。approved-index を使う場合も上記の同期処理を通り、venv の消去、public lock と一時 requirements の検査、`--require-hashes`、専用 cache、同期前後の lock hash 照合を行います。過去に public PyPI から取得した artifact の再利用や public source への fallback は認めません。workspace source の `.pth` は隔離側の API と publisher を参照します。隔離コピーは OS sandbox ではなく、準備段階ではネットワークから package を取得する場合があります。
+`review-repo-full`はCopilotの専用worktreeまたは、利用者が明示的に用意した作業用worktreeで実行します。Python taskは上記の同期処理を使用します。approved-indexを使う場合は、venvの消去、public lockと一時requirementsの検査、`--require-hashes`、専用cache、同期前後のlock hash照合を行います。過去にpublic PyPIから取得したartifactの再利用やpublic sourceへのfallbackは認めません。
 
 レビュー処理は、子processの環境から変数を除去する前に、親processの環境でapproved-index設定と禁止変数を検査します。選択したindexのusernameとpasswordだけを準備processへ渡し、後続QAに共有する環境には保存しません。後続QAの子processからは、すべてのindexのusernameとpassword環境変数を除去します。
 
@@ -408,21 +408,6 @@ uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 ```
 
 Chaos実験の観察時は、別ターミナルで`uv run --no-project "${PWD}/scripts/tasks.py" load-baseline`を継続しながら[docs/chaos-experiments.md](chaos-experiments.md)の実験を開始すると挙動を追いやすくなります。
-
-## 既存環境の SLI 信号移行 cleanup
-
-古い構成から移行する環境では、AKS 内 synthetic traffic、legacy Prometheus alert group、旧 SLI resources がテンプレート削除だけでは残る場合があります。移行対象は dry-run で確認できます。
-
-```bash
-uv run scripts/cleanup-legacy-sli-sources.py
-```
-
-削除する場合は `--execute` を付けます。Request-based SLI として再作成が必要な既存 SLI resources も削除する場合だけ `--delete-sli-resources` を追加してください。
-
-```bash
-uv run scripts/cleanup-legacy-sli-sources.py --execute
-uv run scripts/cleanup-legacy-sli-sources.py --execute --delete-sli-resources
-```
 
 ## 環境削除
 

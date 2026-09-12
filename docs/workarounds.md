@@ -213,13 +213,13 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 
 ### D-12. Renovateはversionとchecksumを一体更新できないため、LefthookのpinをRenovate管理から外し専用taskで更新する
 
-- **概要**: `.github/workflows/ci.yml`の`LEFTHOOK_VERSION`と`LEFTHOOK_SHA256`は対で固定する。`LEFTHOOK_SHA256`はRenovateが計算できないため、Renovateに`LEFTHOOK_VERSION`だけを更新させると、そのPRはCIの`sha256sum -c -`でchecksum不一致となり必ず失敗する。Lefthookは`.github/renovate.json`の対象に含めず、通常のGitHub Actions workflowが`freshness-checks`で更新候補を検出する。更新候補がある場合は`update-lefthook-pin --version <version>`で公式checksumと`LEFTHOOK_VERSION`を一体更新し、検証済みのPull Requestを作成する。automergeは無効のままとする。
+- **概要**: `.github/workflows/ci.yml`の`LEFTHOOK_VERSION`と`LEFTHOOK_SHA256`は対で固定する。`LEFTHOOK_SHA256`はRenovateが計算できないため、Renovateに`LEFTHOOK_VERSION`だけを更新させると、そのPull RequestはCIの`sha256sum -c -`でchecksum不一致となり必ず失敗する。Lefthookは`.github/renovate.json`の対象に含めない。更新時は`update-lefthook-pin --version <version>`で公式checksumと`LEFTHOOK_VERSION`を一体更新し、`check-version-pins`と`test-hooks`で検証する。
 - **理由**: Renovateのregex custom managerは単一の`matchStrings`が捕捉した値の更新候補を提示するだけで、別ファイルや別行のchecksumを計算して同時に書き換える機能を持たない。versionとchecksumを同じcustom managerで安全に一括更新する一般的な方法は現時点でない。
-- **場所**: `.github/workflows/ci.yml`の`LEFTHOOK_VERSION`/`LEFTHOOK_SHA256`、`.github/workflows/repository-freshness-check.yml`、`scripts/tasks.py`の`check-version-pins`/`update-lefthook-pin`/`freshness-checks` task target（`.github/renovate.json`にLefthookのcustomManagerは置かない）
-- **解消条件**: RenovateがGitHub Releaseのchecksum資産から関連値を解決し、同じcustomManagerでversionとchecksumを一体更新できるようになる。その時点でLefthookをRenovate管理へ戻し、専用checkerと更新taskの必要性を再評価する。
-- **確認方法（現行動作）**: `freshness-checks`の結果で、pin versionが公式latest releaseと異なるとき`Lefthook` findingが`unverified`（`reason_code: update-available`）になること、pin済みchecksumが公式`lefthook_checksums.txt`と一致することを確認する。更新workflowがversionとchecksumを同じPull Requestで更新し、`check-version-pins`と`test-hooks`を通すことを確認する。不正値の検出は一時コピーで`LEFTHOOK_SHA256`を1文字削り、`check-version-pins`が`fail`になることを確認する。
+- **場所**: `.github/workflows/ci.yml`の`LEFTHOOK_VERSION`と`LEFTHOOK_SHA256`、`scripts/tasks.py`の`check-version-pins`と`update-lefthook-pin`（`.github/renovate.json`にLefthookのcustom managerは置かない）
+- **解消条件**: RenovateがGitHub Releaseのchecksum資産から関連値を解決し、同じcustom managerでversionとchecksumを一体更新できるようになる。その時点でLefthookをRenovate管理へ戻し、専用更新taskの必要性を再評価する。
+- **確認方法（現行動作）**: `update-lefthook-pin --version <version>`が公式`lefthook_checksums.txt`から対象versionのchecksumを取得し、versionとchecksumを同じ変更で更新することを確認する。更新後に`check-version-pins`と`test-hooks`を実行する。不正値の検出は一時コピーで`LEFTHOOK_SHA256`を1文字削り、`check-version-pins`が`fail`になることを確認する。
 - **確認方法（撤去判断）**: Renovateの公開仕様で、同じcustomManagerによるversionとchecksumの一体更新が提供されたことを確認する。その後、承認済みの検証用リポジトリで旧版からの更新を試し、同じPRで`LEFTHOOK_VERSION`と`LEFTHOOK_SHA256`が更新され、checksumが更新先の対象platform用公式資産と一致することを確認する。手動補正なしで既存CIが成功することを撤去判断の条件とし、versionだけの更新成功では専用処理を廃止しない。
-- **最終確認**: 2026-08-31、pin版2.1.10に対し公式GitHub latest releaseは2.1.12であり、`freshness-checks`が`unverified`（`reason_code: update-available`）を返すこと、`lefthook_2.1.10_Linux_x86_64.gz`の公式checksumがci.ymlのpin値と一致することを確認した。
+- **最終確認**: 2026-08-31、`lefthook_2.1.10_Linux_x86_64.gz`の公式checksumが`ci.yml`のpin値と一致することを確認した。
 
 ### D-13. Fleet 登録後に AKS 拡張を導入する
 
