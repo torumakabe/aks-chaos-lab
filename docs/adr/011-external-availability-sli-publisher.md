@@ -4,6 +4,8 @@
 
 Superseded by [ADR-012](012-functions-direct-external-sli-probe.md) — Partially superseded ADR-009
 
+既存環境の legacy resources を専用スクリプトで削除する判断は、移行完了に伴い [ADR-022](022-retire-legacy-sli-cleanup-script.md) で廃止した。
+
 ## Context
 
 ADR-009 では Gateway Envoy metrics と AKS 内 synthetic traffic を Azure Monitor SLI の入力にした。この構成はアプリ Pod 停止や Gateway 経路の障害には反応するが、AKS クラスタ自体が停止すると synthetic traffic generator と Envoy metrics も止まる。サービスは提供できないにもかかわらず、SLI が悪化しない silent failure になる。
@@ -46,6 +48,7 @@ Application Insights Standard availability test は AKS 外の managed synthetic
 - **制約**: Latency SLI は Microsoft test location から Gateway / app / Redis までの外形時間を含む。Gateway 内部の upstream latency とは意味が異なる。
 - **制約**: Publisher が止まると SLI signal が stale になるため、heartbeat alert と state blob の監視が必要である。
 - **制約**: Azure Monitor SLI は Prometheus metrics を入力にするため、Application Insights availability test を直接指定できない。変換レイヤーは当面維持する。
+- **移行結果**: 旧 Prometheus rule group、旧 availability test、旧 smart detector、AKS 内 synthetic traffic 関連リソースの削除が完了した。専用 cleanup スクリプトを継続して保持する必要はない。
 
 ## 代替案
 

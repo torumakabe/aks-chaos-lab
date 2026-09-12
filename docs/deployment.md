@@ -409,21 +409,6 @@ uv run --no-project "${PWD}/scripts/tasks.py" load-baseline
 
 Chaos実験の観察時は、別ターミナルで`uv run --no-project "${PWD}/scripts/tasks.py" load-baseline`を継続しながら[docs/chaos-experiments.md](chaos-experiments.md)の実験を開始すると挙動を追いやすくなります。
 
-## 既存環境の SLI 信号移行 cleanup
-
-古い構成から移行する環境では、AKS 内 synthetic traffic、legacy Prometheus alert group、旧 SLI resources がテンプレート削除だけでは残る場合があります。移行対象は dry-run で確認できます。
-
-```bash
-uv run scripts/cleanup-legacy-sli-sources.py
-```
-
-削除する場合は `--execute` を付けます。Request-based SLI として再作成が必要な既存 SLI resources も削除する場合だけ `--delete-sli-resources` を追加してください。
-
-```bash
-uv run scripts/cleanup-legacy-sli-sources.py --execute
-uv run scripts/cleanup-legacy-sli-sources.py --execute --delete-sli-resources
-```
-
 ## 環境削除
 
 Azure Monitor SLI を有効化した環境では、Service Group scope の `Microsoft.Monitor/slis` と環境別 Service Group が resource group の外に存在します。削除時は cleanup hook を有効にして project-level `azd down` を実行してください。
