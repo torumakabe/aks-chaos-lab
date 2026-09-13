@@ -242,7 +242,7 @@ def test_public_review_inputs_exist_in_repository_inventory() -> None:
         for image in docker_images
     )
     assert "[4.*, 5.0.0)" in extension_bundles
-    assert "https://martinfowler.com/articles/reduce-friction-ai/" in external_links
+    assert "https://github.com/astral-sh/uv" in external_links
 
 
 def test_bicep_api_version_workflow_contract() -> None:
