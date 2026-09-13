@@ -119,9 +119,7 @@ azd down --force --purge
 | 継続中のワークアラウンドと解消条件 | [docs/workarounds.md](docs/workarounds.md) |
 | AI / コーディングエージェント向けのプロジェクト文脈 | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
-AI エージェントへの依頼では、対象と求める操作（調査、計画、編集など）を指定します。関連する Feature Document があれば [resume](.github/agents/resume.agent.md) で再開し、終了時は [wrap-up](.github/agents/wrap-up.agent.md) で記録の要否を判断します。振り返りだけの依頼では文書を保存せず、作成と保存先を指定済みなら再確認せず保存します。指示文など個別ファイルの改善は、その対象を直接依頼できます。
-
-AI 運用の参考資料は [Reducing Friction for AI-Assisted Development](https://martinfowler.com/articles/reduce-friction-ai/) と [OpenAI のプロンプトガイダンス](https://developers.openai.com/api/docs/guides/latest-model#prompting-best-practices)です。
+AI エージェントへの依頼では、対象と求める操作（調査、計画、編集など）を指定します。設計判断を記録する場合は [manage-adr](.github/agents/manage-adr.agent.md) を使います。指示文など個別ファイルの改善は、その対象を直接依頼できます。
 
 ## リポジトリ保守
 
@@ -144,7 +142,6 @@ infra/sli/           Azure Monitor SLI layer
 k8s/apps/chaos-app/  chaos-app Kubernetes manifests
 k8s/observability/   Prometheus / Container Insights related manifests
 docs/adr/            Architecture Decision Records
-docs/features/       セッションをまたぐ Feature Document
 .github/agents/      コーディングエージェント定義
 .github/hooks/       Copilot CLI postToolUse 用 lint/format フィードバック
 ```

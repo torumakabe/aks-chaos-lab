@@ -57,7 +57,6 @@ fullはfastに加えて次を実行する。
 | agent | trigger、入力、出力、副作用、参照するtaskとskillが実態と一致する | agent自身の契約テスト |
 | skill | trigger、責務、入力、出力、完了条件、外部情報源が実態と一致する | 対象skillの契約 |
 | ADR | INDEXとの対応、必須見出し、Status、Acceptedな判断と実装の一致 | `manage-adr` |
-| Feature Document | 決定事項、未完了作業、現在状態と実装の一致 | `resume` |
 | `docs/workarounds.md` | 概要、理由、場所、解消条件、確認方法と実装の一致 | 該当する専門skill |
 | READMEと運用文書 | path、task、command、説明と現在の実装の一致 | 該当する専門skill |
 | workflow sourceと生成物 | source、生成lock、actions lock、参照task、参照skillの一致 | `lint-workflows`、`compile-aw` |
