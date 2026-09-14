@@ -28,7 +28,6 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 | 必要な情報 | 参照先 |
 |---|---|
 | 設計判断と却下理由 | `docs/adr/INDEX.md` から関連 ADR を選ぶ |
-| 作業途中の判断と未完了項目 | `docs/features/` の関連 Feature Document |
 | 構築、削除、権限、ローカル開発、負荷テスト | `docs/deployment.md` |
 | シグナル、SLI、アラート、OTLP logs | `docs/observability.md` |
 | Chaos 実験の操作 | `docs/chaos-experiments.md` |
@@ -41,8 +40,6 @@ build や deploy の失敗を理由に新しい経路を実装する前に、`do
 
 | 依頼 | 入口 |
 |---|---|
-| 関連 Feature Document がある作業の再開 | [resume](agents/resume.agent.md) |
-| セッション終了時の記録の要否判断 | [wrap-up](agents/wrap-up.agent.md) |
 | ADR の作成、廃止、置換、レビュー | [manage-adr](agents/manage-adr.agent.md) |
 | 現在の構成から設計書を生成 | [design-snapshot](agents/design-snapshot.agent.md) |
 | リポジトリ全体の衛生点検 | [review-repo](agents/review-repo.agent.md) |
@@ -67,7 +64,7 @@ build や deploy の失敗を理由に新しい経路を実装する前に、`do
 
 ## 文書と完了報告
 
-ユーザーから見える振る舞いや操作手順が変わる場合は、README または該当する `docs/*.md` も同じ変更に含める。設計判断は ADR、作業途中の状態は Feature Document、操作方法は運用文書に置き、同じ説明を複製しない。ドキュメントは `docs/`、スキル専用の詳細資料はその `references/` に置く。一時ファイルは `tmp/` に置き、作成したものだけを完了後に削除する。
+ユーザーから見える振る舞いや操作手順が変わる場合は、README または該当する `docs/*.md` も同じ変更に含める。設計判断は ADR、操作方法は運用文書に置き、同じ説明を複製しない。ドキュメントは `docs/`、スキル専用の詳細資料はその `references/` に置く。一時ファイルは `tmp/` に置き、作成したものだけを完了後に削除する。
 
 主要な結果と意味のある変更を先に報告し、未完了や根拠不足があれば明示する。段落を基本に、比較や並列項目に限って表やリストを使う。完了後の追加提案や確認質問を定型で付けない。
 
