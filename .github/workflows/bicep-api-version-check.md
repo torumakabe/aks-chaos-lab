@@ -17,12 +17,17 @@ network:
     - "api.github.com"
     - "learn.microsoft.com"
 tools:
-  bash: ["uv", "python3", "git"]
+  bash: ["python3", "git"]
 pre-agent-steps:
   - name: Setup uv
     uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
     with:
       resolution-strategy: "lowest"
+      python-version: "3.14"
+  - name: Generate Bicep API inventory
+    run: |
+      mkdir -p "${RUNNER_TEMP}/gh-aw"
+      uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py" inventory-repo --format json > "${RUNNER_TEMP}/gh-aw/bicep-api-inventory.json"
 safe-outputs:
   report-failure-as-issue: false
   report-failed-jobs: false
@@ -39,7 +44,7 @@ safe-outputs:
     labels: [repository-health, automation, bicep]
     close-older-issues: true
     max: 1
-timeout-minutes: 15
+timeout-minutes: 25
 ---
 
 # Bicep resource API versionの週次確認
@@ -50,7 +55,7 @@ timeout-minutes: 15
 
 ## 実行範囲
 
-1. `uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py" inventory-repo --format json`を一度だけ実行し、標準出力を`"${RUNNER_TEMP}/bicep-api-inventory.json"`へ保存してください。
+1. pre-agent stepが生成した`"${RUNNER_TEMP}/gh-aw/bicep-api-inventory.json"`を入力として一度だけ読み込んでください。inventoryコマンドを再実行してはなりません。ファイルが存在しない、空、JSONとして解釈できない、または必要なschemaを含まない場合は、inventory全体を`unverified`として理由をIssueに記録してください。
 2. inventoryの`bicep-resource-api`座標だけを処理してください。同じresource typeと現在versionの組は一度だけ公開情報を取得し、結果を対応する全座標へ適用してください。
 3. 最初に`https://learn.microsoft.com/en-us/azure/templates/{provider}/{resourceType}`形式のMicrosoft Learn API referenceと、Microsoft Learn内のbreaking changes情報を確認してください。現在versionがMicrosoft Learnにまだ掲載されていない場合は、Azure公式`Azure/azure-rest-api-specs` repositoryの対応するstableまたはpreview仕様を確認してください。AKSとFleetでは`specification/containerservice/resource-manager/Microsoft.ContainerService/{aks|fleet}/{stable|preview}`を使用します。取得にはPython標準ライブラリを使い、各HTTP requestを30秒以内に制限してください。
 4. Azure認証を行わず、`az`、subscription、resource provider、AKS cluster、Fleetを照会しないでください。
