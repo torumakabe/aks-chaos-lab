@@ -1671,6 +1671,16 @@ def test_review_repo_agent_contract() -> None:
     assert "repository-freshness-checker" in body
     assert "bicep-api-version-updater" in body
     assert "ファイルの自動更新、commit、push、Pull Request作成を行わない" in body
+    assert (
+        "`pass`と、理由が記録された`excluded`または`skip`を、"
+        "agentの判断だけで問題へ再分類しない" in body
+    )
+    assert "理由付きの除外が設定および契約と一致する場合" in body
+    assert "指摘事項、懸念、要確認事項へ含めない" in body
+    assert "各結果には、現在行うべき対処を併記する" in body
+    assert "対処が不要な結果には、その旨を記載する" in body
+    assert "今回判断できる内容を将来へ先送りしない" in body
+    assert "根拠が将来の変更可能性だけの場合は指摘から削除する" in body
 
 
 def test_repository_freshness_skill_contract() -> None:
