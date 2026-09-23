@@ -29,6 +29,7 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 |---|---|
 | 設計判断と却下理由 | `docs/adr/INDEX.md` から関連 ADR を選ぶ |
 | 構築、削除、権限、ローカル開発、負荷テスト | `docs/deployment.md` |
+| 依存の追加と更新、public `uv.lock` の取り込み | `docs/deployment.md` の「public lockfile の更新」 |
 | シグナル、SLI、アラート、OTLP logs | `docs/observability.md` |
 | Chaos 実験の操作 | `docs/chaos-experiments.md` |
 | 回避策の対象と撤去条件 | `docs/workarounds.md` |

@@ -26,3 +26,4 @@ Status 列は基本 Status の要約であり、既存の個別注記は補助�
 | 020 | [Node Auto Provisioning を既定で有効にする](020-enable-node-auto-provisioning-by-default.md) | Accepted | 2026-09-09 |
 | 021 | [full レビューを専用 worktree の既存 task で直接実行する](021-run-full-review-directly-in-dedicated-worktree.md) | Accepted | 2026-09-12 |
 | 022 | [旧 SLI リソース移行完了後に専用 cleanup スクリプトを廃止する](022-retire-legacy-sli-cleanup-script.md) | Accepted | 2026-09-12 |
+| 023 | [Python 依存の採用を公開から 7 日経過した版に限る](023-python-release-cooldown.md) | Accepted | 2026-09-22 |

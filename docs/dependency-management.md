@@ -14,7 +14,7 @@
 
 | 対象 | 更新候補の検出 | 機械検査 |
 |---|---|---|
-| workspaceのPython依存 | Renovate（pep621。Dependency Dashboardの承認制） | `check-public-lock`、`check-publisher-requirements` |
+| workspaceのPython依存 | Renovate（pep621。Dependency Dashboardの承認制、公開後の保留期間つき） | `check-uv-lock`、`check-public-lock`、`check-publisher-requirements` |
 | GitHub Actions | Renovate（github-actions） | `lint-workflows`、`compile-aw` |
 | Docker base imageのtagとdigest | Renovate（dockerfile） | `check-uv-version`、`docker-base-digest`ルール |
 | uv本体のpin | Renovate（custom manager + dockerfileを1 PRへ集約） | `check-uv-version` |
@@ -37,9 +37,17 @@ Renovateはこのリポジトリで唯一のscheduled version update機構であ
 
 automergeは有効にしない。`prHourlyLimit`は5に固定し、Renovateの既定値に依存せず、1時間に作成するPull Request数の上限を明示する。`.github/workflows/*.lock.yml`と`.github/aw/**`はgh-aw compilerの生成物なので`ignorePaths`で除外し、`github/gh-aw-actions`はpackage ruleで無効化する。
 
+### 更新候補を保留する期間
+
+Python依存の更新候補は、公開から一定期間を経てから提示する。判断は[ADR-023](adr/023-python-release-cooldown.md)を参照。期間内の版は`minimumReleaseAge`によって候補にならず、branchもPull Requestも作られない。保留中の候補はDependency Dashboardに残るため、見落としにはならない。security updateの経路（`vulnerabilityAlerts`）はこの判定を既定で無視するため、同じ期間を明示的に指定して上書きする。
+
+Renovateのこの判定は、自身が提示する直接依存にしか適用されない。`uv lock`が連れてくる推移的依存には、lock生成時のcutoffが対応する（[deployment.md](deployment.md)の「public lockfile の更新」）。期間の値は`scripts/tasks.py`の`PYTHON_RELEASE_COOLDOWN_DAYS`が定義元で、Renovate設定の値もそこから導出した契約として`check-version-pins`が検査する。
+
+package単位で保留期間を短縮する仕組みは用意しない。急ぎ適用したい修正がある場合も、`uv.lock`の`[options]`やcutoffの手編集で検査を迂回せず、期間と設定値の見直しとして保守者が判断する。
+
 ### uv workspaceの制約
 
-`uv.lock`はpublic PyPIだけを参照し、workspace member構成と`resolution-strategy = "lowest"`を保つ必要がある。Renovateがこの3条件を1回のlock更新で維持できることを保証できないため、workspaceの依存はDependency Dashboardでの承認制（`dependencyDashboardApproval`）とし、Renovateは候補検出だけを行う。lockの再生成は[refresh-uv-lock.yml](../.github/workflows/refresh-uv-lock.yml)が担当する（[deployment.md](deployment.md)の「public lockfile の更新」）。
+`uv.lock`はpublic PyPIだけを参照し、workspace member構成と`resolution-strategy = "lowest"`を保つ必要がある。Renovateがこの3条件を1回のlock更新で維持できることを保証できないため、workspaceの依存はDependency Dashboardでの承認制（`dependencyDashboardApproval`）とし、Renovateは候補検出だけを行う。lockの再生成は[refresh-uv-lock.yml](../.github/workflows/refresh-uv-lock.yml)が担当し、生成されたartifactは`adopt-public-lock`で取り込む（[deployment.md](deployment.md)の「public lockfile の更新」）。
 
 uvのpinはroot `pyproject.toml`の`required-version`下限、`src/api/Dockerfile`のuv image、setup-uvが読む同じ下限の3か所で一致していなければならない。Renovateはcustom managerとdockerfile managerの結果を`uv`グループへ集約し、1つのPull Requestで両座標を更新する。上限（`<X.Y+1.0`）はRenovateが書き換えられないため、CIの`check-uv-version`が不整合なPull Requestを失敗させる。1 PRへの集約とfail-closedの両方でこの不変条件を守る。
 
