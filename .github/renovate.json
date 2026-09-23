@@ -6,6 +6,9 @@
   "dependencyDashboardAutoclose": true,
   "dependencyDashboardApproval": false,
   "automerge": false,
+  "vulnerabilityAlerts": {
+    "minimumReleaseAge": "7 days"
+  },
   "ignorePaths": [".github/workflows/*.lock.yml", ".github/aw/**"],
   "packageRules": [
     {
@@ -17,12 +20,19 @@
       "description": "python-workspace-candidate-detection-only",
       "matchManagers": ["pep621"],
       "dependencyDashboardApproval": true,
+      "minimumReleaseAge": "7 days",
       "skipArtifactsUpdate": true
     },
     {
       "description": "uv-single-pull-request",
-      "matchPackageNames": ["uv", "ghcr.io/astral-sh/uv"],
-      "groupName": "uv"
+      "matchPackageNames": ["uv", "astral/uv"],
+      "groupName": "uv",
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "azd-release-cooldown",
+      "matchPackageNames": ["Azure/azure-dev"],
+      "minimumReleaseAge": "7 days"
     }
   ],
   "customManagers": [
@@ -100,7 +110,7 @@
       "description": "uv-required-version",
       "managerFilePatterns": ["/^pyproject\\.toml$/"],
       "matchStrings": [
-        "required-version = \">=(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+),<[0-9]+\\.[0-9]+\\.[0-9]+\""
+        "required-version = \">=(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
       ],
       "depNameTemplate": "uv",
       "datasourceTemplate": "pypi",

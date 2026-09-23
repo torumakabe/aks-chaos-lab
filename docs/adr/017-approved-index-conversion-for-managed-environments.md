@@ -7,6 +7,7 @@ Accepted
 - Date: 2026-08-08
 - Amended: 2026-09-08（明示 task の限定 lock 修復と API 成果物の受け渡し）
 - Amended by [ADR-021](021-run-full-review-directly-in-dedicated-worktree.md): Decision 4 の `review-repo-full` 専用隔離コピーと準備済み環境の process 間引渡しを廃止する。各 task process が approved-index 同期を実行する判断と、それ以外の approved-index 保証は引き続き有効とする。
+- Amended by [ADR-023](023-python-release-cooldown.md): Decision 8 の uv の単一 minor series の互換範囲を、上限を置かない下限だけの範囲に変更する。GitHub Actions と lock 更新 workflow が setup-uv の `lowest` resolution strategy で下限を選ぶ判断、Docker の uv version に下限を明記し task で `pyproject.toml` との一致を検査する判断、およびほかの Decision は引き続き有効とする。
 
 ## Context
 Public GitHub repository では public PyPI source の root `uv.lock` を唯一の正本とする。一方、public PyPI へ直接アクセスできず、organization-approved package index の使用を必須とする管理対象環境では、ADR-013 の依存関係同期方式を適用できない。

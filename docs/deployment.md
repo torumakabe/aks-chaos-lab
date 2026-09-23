@@ -194,7 +194,7 @@ NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` �
 
 ## ローカル開発
 
-リポジトリはuv workspace構成です。hostはルート`pyproject.toml`の互換範囲に従います。GitHub Actionsとlock更新workflowはsetup-uvで互換範囲の下限を選択します。Dockerのuv versionは`azd package api`との互換性のためDockerfileに明記し、`check-uv-version`がルートの下限との一致を検査します。ルートで一度同期すれば、`src/api`と`src/external-sli-publisher`の両方の依存と開発ツール（ruff、ty、pytest、locust）が揃います。
+リポジトリはuv workspace構成です。hostのuvはルート`pyproject.toml`の`required-version`の下限以上であれば使えます。GitHub Actionsとlock更新workflowはsetup-uvでその下限を選択します。Dockerのuv versionは`azd package api`との互換性のためDockerfileに明記し、`check-uv-version`がルートの下限との一致を検査します。ルートで一度同期すれば、`src/api`と`src/external-sli-publisher`の両方の依存と開発ツール（ruff、ty、pytest、locust）が揃います。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" check-uv-version
@@ -304,14 +304,41 @@ readiness と OTel helper の `--timeout-seconds` は、環境解決から接続
 
 ### public lockfile の更新
 
-dependencyを変更する場合、public PyPIへ接続できるGitHub Actionsでlockfileを生成します。workflowはrepositoryへのwrite permissionを持たず、`uv.lock` をartifactとして返します。
+dependencyを変更する場合、public PyPIへ接続できるGitHub Actionsでlockfileを生成します。workflowはrepositoryへのwrite permissionを持たず、`uv.lock` をartifactとして返します。手順は次の3段階です。
+
+1. `pyproject.toml`（ルートまたは `src/` 配下）の変更をcommitしてpushし、pull requestを開きます。`refresh-uv-lock.yml`はこれらのファイルと`uv.lock`、workflow定義自身を変更したpull requestで自動実行されます。pull requestを開かない場合は`gh workflow run refresh-uv-lock.yml --ref <branch>`で起動します。
+2. workflowの成功を確認してから、現在のcommitに対応するlockを取り込みます。
+
+    ```bash
+    uv run --no-project "${PWD}/scripts/tasks.py" adopt-public-lock
+    ```
+
+3. 表示された差分を確認してcommitします。
+
+`adopt-public-lock`は現在の`HEAD`と同じcommitで成功した`refresh-uv-lock.yml`のrunだけを選び、`uv-lock-public`のartifactを取得して`uv.lock`を置き換えます。commitとpushは行いません。次の場合は`uv.lock`を変更せずに停止します。
+
+- 対応するrunが無い、またはartifactを取得できない（retentionは7日です。`gh workflow run refresh-uv-lock.yml --ref <branch>`で再生成してください）
+- `uv.lock`かworkspaceの`pyproject.toml`に未commitの変更、staged変更、競合がある
+- 取得したlockがpublic PyPI以外のsourceを含む
+- 取得中に`HEAD`か`uv.lock`が変わった
+
+runを明示的に選ぶ場合や、このtaskを使えない場合は、現在の`HEAD`と同じcommitで成功したrunを選び、artifactを`uv.lock`へ上書きしてから、taskと同じ検査を自分で実行します。
 
 ```bash
-gh run list --workflow refresh-uv-lock.yml --branch <branch>
+gh run list --workflow refresh-uv-lock.yml --branch <branch> --commit "$(git rev-parse HEAD)" --status success
 gh run download <run-id> --name uv-lock-public --dir tmp/refresh-uv-lock
+cp tmp/refresh-uv-lock/uv.lock uv.lock
+uv run --no-project "${PWD}/scripts/tasks.py" check-public-lock
+uv run --no-project "${PWD}/scripts/tasks.py" check-uv-lock
 ```
 
-workflowはルートまたは `src/` 配下の `pyproject.toml`、`uv.lock`、workflow定義自身を変更したpull requestで実行されます。既定branchへmergeした後は`workflow_dispatch`でも実行できます。取得した`uv.lock`の差分を確認して変更branchへ追加すると、組織承認済みpackage indexを使う環境では次の通常のworkspace task実行時に再同期します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
+いずれかの検査が失敗した場合は`git checkout -- uv.lock`で戻し、workflowを再実行してください。`uv.lock`の手編集で検査を通さないでください。
+
+Renovateのpull requestのように`pyproject.toml`だけが更新された場合も同じ手順です。CIの`uv Lock Check`（`check-uv-lock`）が失敗するのは、lockがまだ取り込まれていないことを示します。取り込んだ`uv.lock`は、組織承認済みpackage indexを使う環境では次の通常のworkspace task実行時に再同期します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
+
+`refresh-uv-lock.yml`は、公開から一定期間を経ていないreleaseを選ばないcutoffを指定して解決します。cutoffは`lock-cutoff` taskが算出し、生成された`uv.lock`の`[options]`に記録されます。`check-uv-lock`はその記録値を読み、期間を満たしていることを確認したうえで、同じ値でネットワークを使わずに`uv lock --check`を実行します。cutoffが記録されていない`uv.lock`は検査を通りません。この場合はworkflowで再生成して取り込んでください。cutoffは直接依存だけでなく推移的依存にも適用されます。
+
+ローカルで`uv lock`を実行して生成したlockはcutoffを記録しないため、どの環境でもCIの`check-uv-lock`を通りません。組織承認済みpackage indexを使う環境ではsourceも書き換わり、pre-commitの`check-public-lock.py`も失敗します。誤って実行した場合は`git checkout -- uv.lock`（組織承認済みpackage indexを使う環境では[限定修復](#組織承認済み-package-index-を使う環境)）で`HEAD`へ戻し、依存を変更したのであれば上記の手順でlockを取り込んでください。
 
 Renovateはworkspaceの依存について更新候補の検出だけを行い、lockは更新しません。workspace member、`resolution-strategy = "lowest"`、public PyPIを参照する`uv.lock`、external SLI publisherのrequirements同期を一度の更新で維持できることを保証できないためです。lockの更新経路は`refresh-uv-lock.yml`のままとし、取得した`uv.lock`は`check-uv-version`、`check-public-lock`、`check-publisher-requirements`、既存QAで検証します。責務の全体像は[依存パッケージとツールの更新管理](dependency-management.md)を参照してください。
 

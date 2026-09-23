@@ -20,9 +20,10 @@ Status 列は基本 Status の要約であり、既存の個別注記は補助�
 | 014 | [Latency SLI を `le` bucket と `eq` filter で定義する](014-histogram-bucket-latency-sli.md) | Accepted | 2026-05-21 |
 | 015 | [Azure リソース名への resourceToken サフィックス付与ルール](015-resource-token-suffix-naming.md) | Accepted | 2026-06-28 |
 | 016 | [Azure Chaos Studio Workspace の採用](016-azure-chaos-studio-workspace-adoption.md) | Rejected | 2026-07-16 |
-| 017 | [管理対象環境向け approved-index 変換フロー (ADR-013 の一部を amend)](017-approved-index-conversion-for-managed-environments.md) | Accepted (`review-repo-full` の隔離コピーと環境引渡しは ADR-021 で amend) | 2026-08-08 |
+| 017 | [管理対象環境向け approved-index 変換フロー (ADR-013 の一部を amend)](017-approved-index-conversion-for-managed-environments.md) | Accepted (`review-repo-full` の隔離コピーと環境引渡しは ADR-021、uv の互換範囲は ADR-023 で amend) | 2026-08-08 |
 | 018 | [NAPをArm64 workloadの追加capacityに採用する](018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md) | Accepted (既定値と未設定時の扱いは ADR-020 で amend) | 2026-08-21 |
 | 019 | [AKS Local DNS を既定で採用する](019-adopt-aks-local-dns.md) | Accepted | 2026-09-07 |
 | 020 | [Node Auto Provisioning を既定で有効にする](020-enable-node-auto-provisioning-by-default.md) | Accepted | 2026-09-09 |
 | 021 | [full レビューを専用 worktree の既存 task で直接実行する](021-run-full-review-directly-in-dedicated-worktree.md) | Accepted | 2026-09-12 |
 | 022 | [旧 SLI リソース移行完了後に専用 cleanup スクリプトを廃止する](022-retire-legacy-sli-cleanup-script.md) | Accepted | 2026-09-12 |
+| 023 | [開発端末に新しい版を要求する更新を公開から 7 日経過した版に限る](023-python-release-cooldown.md) | Accepted | 2026-09-22 |

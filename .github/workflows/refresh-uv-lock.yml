@@ -19,15 +19,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # adopt-public-lock matches runs by head SHA, so resolve that commit
+          # rather than the pull request merge commit.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Setup uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           resolution-strategy: "lowest"
           python-version: "3.14"
       - name: Refresh lock
-        run: uv lock
+        run: |
+          cutoff="$(uv run --no-project "${{ github.workspace }}/scripts/tasks.py" lock-cutoff)"
+          echo "UV_EXCLUDE_NEWER=${cutoff}" >> "${GITHUB_ENV}"
+          uv lock --exclude-newer "${cutoff}"
       - name: Check lock consistency
-        run: uv lock --check
+        run: uv lock --check --exclude-newer "${UV_EXCLUDE_NEWER}"
       - name: Check lock package sources
         run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" check-public-lock
       - name: Upload public lock
