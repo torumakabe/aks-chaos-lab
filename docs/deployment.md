@@ -336,7 +336,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" check-uv-lock
 
 Renovateのpull requestのように`pyproject.toml`だけが更新された場合も同じ手順です。CIの`uv Lock Check`（`check-uv-lock`）が失敗するのは、lockがまだ取り込まれていないことを示します。取り込んだ`uv.lock`は、組織承認済みpackage indexを使う環境では次の通常のworkspace task実行時に再同期します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
 
-`refresh-uv-lock.yml`は、公開から一定期間を経ていないreleaseを選ばないcutoffを指定して解決します。cutoffは`lock-cutoff` taskが算出し、生成された`uv.lock`の`[options]`に記録されます。`check-uv-lock`はその記録値を読み、期間を満たしていることを確認したうえで同じ値で`uv lock --check`を実行します。cutoffが記録されていない`uv.lock`は検査を通りません。この場合はworkflowで再生成して取り込んでください。cutoffは直接依存だけでなく推移的依存にも適用されます。
+`refresh-uv-lock.yml`は、公開から一定期間を経ていないreleaseを選ばないcutoffを指定して解決します。cutoffは`lock-cutoff` taskが算出し、生成された`uv.lock`の`[options]`に記録されます。`check-uv-lock`はその記録値を読み、期間を満たしていることを確認したうえで、同じ値でネットワークを使わずに`uv lock --check`を実行します。cutoffが記録されていない`uv.lock`は検査を通りません。この場合はworkflowで再生成して取り込んでください。cutoffは直接依存だけでなく推移的依存にも適用されます。
 
 ローカルで`uv lock`を実行して生成したlockはcutoffを記録しないため、どの環境でもCIの`check-uv-lock`を通りません。組織承認済みpackage indexを使う環境ではsourceも書き換わり、pre-commitの`check-public-lock.py`も失敗します。誤って実行した場合は`git checkout -- uv.lock`（組織承認済みpackage indexを使う環境では[限定修復](#組織承認済み-package-index-を使う環境)）で`HEAD`へ戻し、依存を変更したのであれば上記の手順でlockを取り込んでください。
 

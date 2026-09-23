@@ -51,6 +51,7 @@ from approved_index_config import (  # noqa: E402
     validate_approved_index_config,
 )
 from public_lock import (  # noqa: E402
+    PUBLIC_PYPI_INDEX,
     PublicLockError,
     public_lock_repair_content,
     validate_exported_requirements,
@@ -3075,8 +3076,22 @@ def target_check_uv_lock() -> None:
     except (LockCutoffError, OSError, tomllib.TOMLDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(1) from error
+    # Offline against the public index the lock records, so the check never
+    # re-resolves through a machine-local index that cannot report upload dates
+    # and never reaches the network from a development machine.
     completed = run(
-        ["uv", "lock", "--check", "--exclude-newer", cutoff], cwd=ROOT, check=False
+        [
+            "uv",
+            "lock",
+            "--check",
+            "--offline",
+            "--default-index",
+            PUBLIC_PYPI_INDEX,
+            "--exclude-newer",
+            cutoff,
+        ],
+        cwd=ROOT,
+        check=False,
     )
     if completed.returncode:
         print(

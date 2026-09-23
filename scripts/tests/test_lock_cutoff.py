@@ -81,7 +81,18 @@ def test_check_passes_the_recorded_cutoff_to_uv(
 
     tasks.target_check_uv_lock()
 
-    assert calls == [["uv", "lock", "--check", "--exclude-newer", CUTOFF]]
+    assert calls == [
+        [
+            "uv",
+            "lock",
+            "--check",
+            "--offline",
+            "--default-index",
+            tasks.PUBLIC_PYPI_INDEX,
+            "--exclude-newer",
+            CUTOFF,
+        ]
+    ]
 
 
 def test_check_reports_how_to_recover_from_a_mismatch(
