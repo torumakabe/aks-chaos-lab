@@ -17,13 +17,13 @@
 | workspaceのPython依存 | Renovate（pep621。Dependency Dashboardの承認制、公開後の保留期間つき） | `check-uv-lock`、`check-public-lock`、`check-publisher-requirements` |
 | GitHub Actions | Renovate（github-actions） | `lint-workflows`、`compile-aw` |
 | Docker base imageのtagとdigest | Renovate（dockerfile） | `check-uv-version`、`docker-base-digest`ルール |
-| uv本体のpin | Renovate（custom manager + dockerfileを1 PRへ集約） | `check-uv-version` |
+| uv本体のpin | Renovate（custom manager + dockerfileを1 PRへ集約、公開後の保留期間つき） | `check-uv-version` |
 | actionlint、kubeconform、Renovate validator image | Renovate（custom manager） | `check-version-pins`、`check-renovate-config` |
 | Chaos Mesh Helm chart | Renovate（custom manager） | `check-version-pins`、`validate-helm-values` |
 | Bicep CLI | Renovate（custom manager） | `build-bicep` |
 | gh-aw | 保守者が`gh aw upgrade --no-actions`を実行 | `gh-aw-compiler-version`ルール、`compile-aw` |
 | Lefthook | 保守者が`update-lefthook-pin`を実行 | `check-version-pins`、`test-hooks` |
-| azd minimum version range | Renovate（custom manager） | `check-version-pins`（構文と座標数） |
+| azd minimum version range | Renovate（custom manager、公開後の保留期間つき） | `check-version-pins`（構文と座標数） |
 | Docker base imageのEOL | `review-repo full`の意味評価 | `repository-freshness-checker` |
 | Azure Functions extension bundleのsupport範囲 | `review-repo full`の意味評価 | `check-version-pins`（構文と座標数）、`repository-freshness-checker` |
 
@@ -39,9 +39,9 @@ automergeは有効にしない。`prHourlyLimit`は5に固定し、Renovateの�
 
 ### 更新候補を保留する期間
 
-Python依存の更新候補は、公開から一定期間を経てから提示する。判断は[ADR-023](adr/023-python-release-cooldown.md)を参照。期間内の版は`minimumReleaseAge`によって候補にならず、branchもPull Requestも作られない。保留中の候補はDependency Dashboardに残るため、見落としにはならない。security updateの経路（`vulnerabilityAlerts`）はこの判定を既定で無視するため、同じ期間を明示的に指定して上書きする。
+Python依存の更新候補は、公開から一定期間を経てから提示する。開発端末があらかじめ満たしていなければならない版の下限（uvの`required-version`とazdの`requiredVersions`）も、同じ期間を経てから引き上げる。判断は[ADR-023](adr/023-python-release-cooldown.md)を参照。期間内の版は`minimumReleaseAge`によって候補にならず、branchもPull Requestも作られない。保留中の候補はDependency Dashboardに残るため、見落としにはならない。security updateの経路（`vulnerabilityAlerts`）はこの判定を既定で無視するため、同じ期間を明示的に指定して上書きする。
 
-Renovateのこの判定は、自身が提示する直接依存にしか適用されない。`uv lock`が連れてくる推移的依存には、lock生成時のcutoffが対応する（[deployment.md](deployment.md)の「public lockfile の更新」）。期間の値は`scripts/tasks.py`の`PYTHON_RELEASE_COOLDOWN_DAYS`が定義元で、Renovate設定の値もそこから導出した契約として`check-version-pins`が検査する。
+Renovateのこの判定は、自身が提示する直接依存にしか適用されない。`uv lock`が連れてくる推移的依存には、lock生成時のcutoffが対応する（[deployment.md](deployment.md)の「public lockfile の更新」）。期間の値は`scripts/tasks.py`の`RELEASE_COOLDOWN_DAYS`が定義元で、Renovate設定の値もそこから導出した契約として`check-version-pins`が検査する。
 
 package単位で保留期間を短縮する仕組みは用意しない。急ぎ適用したい修正がある場合も、`uv.lock`の`[options]`やcutoffの手編集で検査を迂回せず、期間と設定値の見直しとして保守者が判断する。
 
@@ -49,7 +49,7 @@ package単位で保留期間を短縮する仕組みは用意しない。急ぎ�
 
 `uv.lock`はpublic PyPIだけを参照し、workspace member構成と`resolution-strategy = "lowest"`を保つ必要がある。Renovateがこの3条件を1回のlock更新で維持できることを保証できないため、workspaceの依存はDependency Dashboardでの承認制（`dependencyDashboardApproval`）とし、Renovateは候補検出だけを行う。lockの再生成は[refresh-uv-lock.yml](../.github/workflows/refresh-uv-lock.yml)が担当し、生成されたartifactは`adopt-public-lock`で取り込む（[deployment.md](deployment.md)の「public lockfile の更新」）。
 
-uvのpinはroot `pyproject.toml`の`required-version`下限、`src/api/Dockerfile`のuv image、setup-uvが読む同じ下限の3か所で一致していなければならない。Renovateはcustom managerとdockerfile managerの結果を`uv`グループへ集約し、1つのPull Requestで両座標を更新する。上限（`<X.Y+1.0`）はRenovateが書き換えられないため、CIの`check-uv-version`が不整合なPull Requestを失敗させる。1 PRへの集約とfail-closedの両方でこの不変条件を守る。
+uvのpinはroot `pyproject.toml`の`required-version`下限、`src/api/Dockerfile`のuv image、setup-uvが読む同じ下限の3か所で一致していなければならない。Renovateはcustom managerとdockerfile managerの結果を`uv`グループへ集約し、1つのPull Requestで両座標を更新する。このグループにもPython依存と同じ保留期間を指定し、開発端末のtool managerが最新版として提供する前のuvを下限に要求しないようにする。`required-version`は下限だけを宣言し、上限を置かない。開発端末はuvをtool managerの最新版に保つため、上限があると新しいminorの公開と同時に端末のuvが範囲外になる（[ADR-023](adr/023-python-release-cooldown.md)）。uv imageはGHCRではなく、同じdigestを配布するDocker Hubの`astral/uv`から取得する。Renovateがrelease timestampを取得できるのはDocker Hubだけで、timestampが無いと保留期間を満たせず、グループ内の2つのpinが揃って更新されないためである。下限とDocker imageの一方だけを更新したPull Requestは、CIの`check-uv-version`が失敗させる。1 PRへの集約とfail-closedの両方でこの不変条件を守る。
 
 ### 設定の検査
 

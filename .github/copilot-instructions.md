@@ -7,7 +7,7 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 - アプリは Python 3.14、FastAPI、uvicorn。`src/api/` と `src/external-sli-publisher/` が uv workspace の member。
 - IaC は subscription scope の Bicep。`azure.yaml` の `infra.layers` が `infra/` の base と `infra/sli/` の sli を定義する。
 - Kubernetes は `k8s/` の Kustomize と Helm。依存先は Azure Managed Redis（Entra ID 認証）、Application Insights、Managed Prometheus。
-- uv の host 互換範囲はルート `pyproject.toml`、CI と Docker の固定版はその下限に従う。public PyPI source の `uv.lock` を共用し、`python` / `pip` を直接実行しない。
+- host の uv はルート `pyproject.toml` の `required-version` の下限以上とし、CI と Docker はその下限に固定する。public PyPI source の `uv.lock` を共用し、`python` / `pip` を直接実行しない。
 - 調査用でも裸の `uv run python` は workspace を自動同期し、lock を変更し得る。独立した調査コマンドは `uv run --no-project --no-config python ...` を使い、workspace 内のツール実行は [同期手順](../docs/deployment.md#組織承認済み-package-index-を使う環境)に従う。
 
 実装例は `src/api/app/main.py`、`infra/modules/`、`k8s/apps/chaos-app/deployment.yaml` を参照する。

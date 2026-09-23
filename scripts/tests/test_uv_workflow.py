@@ -878,18 +878,18 @@ def test_exported_requirements_require_sha256_hash(tmp_path: Path) -> None:
     public_lock.validate_exported_requirements(requirements_path)
 
 
-def test_check_uv_version_allows_compatible_host_patch(
+def test_check_uv_version_allows_any_host_at_or_above_the_lower_bound(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.uv]\nrequired-version = ">=0.12.2,<0.13.0"\n',
+        '[tool.uv]\nrequired-version = ">=0.12.2"\n',
         encoding="utf-8",
     )
     api_dir = tmp_path / "src" / "api"
     api_dir.mkdir(parents=True)
     (api_dir / "Dockerfile").write_text(
-        "FROM ghcr.io/astral-sh/uv:0.12.2 AS uv\n",
+        "FROM astral/uv:0.12.2 AS uv\n",
         encoding="utf-8",
     )
     workflow_path = tmp_path / ".github" / "workflows" / "ci.yml"
@@ -911,8 +911,7 @@ def test_check_uv_version_allows_compatible_host_patch(
     tasks.target_check_uv_version()
 
     monkeypatch.setattr(tasks, "command_output", lambda *args, **kwargs: "uv 0.13.0")
-    with pytest.raises(SystemExit):
-        tasks.target_check_uv_version()
+    tasks.target_check_uv_version()
 
     monkeypatch.setattr(tasks, "command_output", lambda *args, **kwargs: "uv 0.12.1")
     with pytest.raises(SystemExit):
@@ -924,14 +923,13 @@ def test_check_uv_version_requires_pinned_docker_version(
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.uv]\nrequired-version = ">=0.12.2,<0.13.0"\n',
+        '[tool.uv]\nrequired-version = ">=0.12.2"\n',
         encoding="utf-8",
     )
     api_dir = tmp_path / "src" / "api"
     api_dir.mkdir(parents=True)
     (api_dir / "Dockerfile").write_text(
-        "# old image: ghcr.io/astral-sh/uv:0.12.2\n"
-        "FROM ghcr.io/astral-sh/uv:0.12.3 AS uv\n",
+        "# old image: astral/uv:0.12.2\nFROM astral/uv:0.12.3 AS uv\n",
         encoding="utf-8",
     )
     workflow_path = tmp_path / ".github" / "workflows" / "ci.yml"
@@ -969,13 +967,13 @@ def test_check_uv_version_requires_workflow_to_resolve_pyproject_lower_bound(
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.uv]\nrequired-version = ">=0.12.2,<0.13.0"\n',
+        '[tool.uv]\nrequired-version = ">=0.12.2"\n',
         encoding="utf-8",
     )
     api_dir = tmp_path / "src" / "api"
     api_dir.mkdir(parents=True)
     (api_dir / "Dockerfile").write_text(
-        "FROM ghcr.io/astral-sh/uv:0.12.2 AS uv\n",
+        "FROM astral/uv:0.12.2 AS uv\n",
         encoding="utf-8",
     )
     workflow_path = tmp_path / ".github" / "workflows" / "ci.yml"
@@ -992,12 +990,12 @@ def test_check_uv_version_requires_workflow_to_resolve_pyproject_lower_bound(
         tasks.target_check_uv_version()
 
 
-def test_check_uv_version_requires_one_minor_compatibility_range(
+def test_check_uv_version_rejects_an_upper_bound(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.uv]\nrequired-version = "==0.12.2"\n',
+        '[tool.uv]\nrequired-version = ">=0.12.2,<0.13.0"\n',
         encoding="utf-8",
     )
 
@@ -1010,11 +1008,11 @@ def test_check_uv_version_rejects_root_uv_toml_version_override(
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     (tmp_path / "pyproject.toml").write_text(
-        '[tool.uv]\nrequired-version = ">=0.12.2,<0.13.0"\n',
+        '[tool.uv]\nrequired-version = ">=0.12.2"\n',
         encoding="utf-8",
     )
     (tmp_path / "uv.toml").write_text(
-        'required-version = ">=0.12.3,<0.13.0"\n',
+        'required-version = ">=0.12.3"\n',
         encoding="utf-8",
     )
 

@@ -575,7 +575,7 @@ def test_uv_pin_coordinates_move_in_one_pull_request() -> None:
     )
 
     assert group["groupName"] == "uv"
-    assert set(group["matchPackageNames"]) == {"uv", "ghcr.io/astral-sh/uv"}
+    assert set(group["matchPackageNames"]) == {"uv", "astral/uv"}
     ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert 'scripts/tasks.py" check-uv-version' in ci
     assert 'scripts/tasks.py" check-version-pins' in ci

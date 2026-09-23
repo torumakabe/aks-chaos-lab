@@ -194,7 +194,7 @@ NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` �
 
 ## ローカル開発
 
-リポジトリはuv workspace構成です。hostはルート`pyproject.toml`の互換範囲に従います。GitHub Actionsとlock更新workflowはsetup-uvで互換範囲の下限を選択します。Dockerのuv versionは`azd package api`との互換性のためDockerfileに明記し、`check-uv-version`がルートの下限との一致を検査します。ルートで一度同期すれば、`src/api`と`src/external-sli-publisher`の両方の依存と開発ツール（ruff、ty、pytest、locust）が揃います。
+リポジトリはuv workspace構成です。hostのuvはルート`pyproject.toml`の`required-version`の下限以上であれば使えます。GitHub Actionsとlock更新workflowはsetup-uvでその下限を選択します。Dockerのuv versionは`azd package api`との互換性のためDockerfileに明記し、`check-uv-version`がルートの下限との一致を検査します。ルートで一度同期すれば、`src/api`と`src/external-sli-publisher`の両方の依存と開発ツール（ruff、ty、pytest、locust）が揃います。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" check-uv-version
