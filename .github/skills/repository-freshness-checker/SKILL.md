@@ -46,7 +46,7 @@ inventoryのschema versionと対象commitを記録し、次の座標だけを処
 
 Azure Functions extension bundleは、次の固定情報源でsupport範囲を確認する。
 
-https://learn.microsoft.com/azure/azure-functions/functions-bindings-register#extension-bundles
+https://learn.microsoft.com/azure/azure-functions/extension-bundles#bundle-versions
 
 公開Markdownリンクは重複URLごとに一度取得する。`404`と`410`は`fail`、timeout、TLS障害、rate limit、server errorは`unverified`とする。
 

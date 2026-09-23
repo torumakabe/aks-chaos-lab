@@ -429,8 +429,9 @@ def test_service_group_http_redirects_are_not_followed(
         method=method,
     )
     opener = urllib.request.build_opener(cleanup.NoRedirectHandler())
-    with pytest.raises(urllib.error.HTTPError):
+    with pytest.raises(urllib.error.HTTPError) as caught:
         opener.error("http", request, io.BytesIO(), status, "redirect", headers)
+    caught.value.close()
 
 
 @pytest.mark.parametrize("value", ["", "invalid access value"])

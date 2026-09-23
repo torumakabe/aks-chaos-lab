@@ -1717,6 +1717,11 @@ def test_repository_freshness_skill_contract() -> None:
         assert status in body
     assert "Microsoft Learn MCP" in body
     assert "mslearn" in body
+    assert (
+        "https://learn.microsoft.com/azure/azure-functions/"
+        "extension-bundles#bundle-versions" in body
+    )
+    assert "functions-bindings-register#extension-bundles" not in body
     assert "`documentation-external-link`" in body
     assert "`404`と`410`は`fail`" in body
     assert "ファイルの編集、自動更新" in body

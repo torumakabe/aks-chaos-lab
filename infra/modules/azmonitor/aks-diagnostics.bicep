@@ -8,7 +8,7 @@ param logAnalyticsWorkspaceId string
 param logAnalyticsWorkspaceName string
 
 // ADR-005: AKS diagnostic logs collected into resource-specific tables with Basic plan
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-09-01' existing = {
+resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-06-01' existing = {
   name: aksClusterName
 }
 

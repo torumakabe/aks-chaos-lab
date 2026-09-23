@@ -19,6 +19,9 @@ dev = [
   "locust>=2.43.3",
 ]
 
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+
 [tool.uv]
 required-version = ">=0.12.17"
 package = false

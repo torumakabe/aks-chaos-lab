@@ -12,7 +12,7 @@ Microsoft は Ubuntu 22.04 の AKS サポート終了を公式にアナウンス
 
 - 2027-06-30: Ubuntu 22.04 のサポート・セキュリティアップデート終了。これ以降、新規ノードプール作成・ノードイメージ生成・セキュリティパッチ配布が停止。
 - 2028-04-30: Ubuntu 22.04 ノードイメージが削除され、スケール・修復操作が失敗するようになる。
-- 参考: [Upgrade operating system (OS) versions in AKS](https://learn.microsoft.com/azure/aks/upgrade-os-version) / [Azure updates #557928](https://azure.microsoft.com/updates/?id=557928)
+- 参考: [Upgrade operating system (OS) versions in AKS](https://learn.microsoft.com/azure/aks/upgrade-os-version)
 
 ラボ環境とはいえ、サポート終了 OS に依存し続けるのは IaC のあるべき姿に反する。また K8s 1.33 のまま osSKU を既定 (`Ubuntu`) に設定しても 22.04 のままであり、24.04 へ移行するには次のいずれかが必要:
 
@@ -67,5 +67,4 @@ Green サージ開始から旧インスタンス削除完了までは約95分、
 
 - [Upgrade OS versions in AKS](https://learn.microsoft.com/azure/aks/upgrade-os-version)
 - [Node images in Azure Kubernetes Service (AKS)](https://learn.microsoft.com/azure/aks/node-images)
-- [Azure updates: Ubuntu 22.04 retirement (#557928)](https://azure.microsoft.com/updates/?id=557928)
 - [AKS Retirement GitHub issue (Ubuntu 22.04)](https://aka.ms/aks/ubuntu2204-retirement-github)

@@ -134,6 +134,38 @@ def test_approved_index_lock_is_keyed_by_absolute_environment(
     assert tasks.approved_index_lock_path() == first_lock
 
 
+def test_main_releases_approved_index_lock_after_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    releases: list[None] = []
+    monkeypatch.setitem(tasks.TARGETS, "test-lock-release", lambda: None)
+    monkeypatch.setattr(
+        tasks, "release_approved_index_lock", lambda: releases.append(None)
+    )
+
+    assert tasks.main(["test-lock-release"]) == 0
+    assert releases == [None]
+
+
+def test_main_releases_approved_index_lock_after_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    releases: list[None] = []
+
+    def fail() -> None:
+        raise RuntimeError("target failed")
+
+    monkeypatch.setitem(tasks.TARGETS, "test-lock-release", fail)
+    monkeypatch.setattr(
+        tasks, "release_approved_index_lock", lambda: releases.append(None)
+    )
+
+    with pytest.raises(RuntimeError, match="target failed"):
+        tasks.main(["test-lock-release"])
+
+    assert releases == [None]
+
+
 @pytest.mark.parametrize(
     "target_name",
     ("target_sync", "target_sync_dev"),
