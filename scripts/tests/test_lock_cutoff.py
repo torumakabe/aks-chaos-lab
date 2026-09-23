@@ -32,7 +32,7 @@ def test_cutoff_is_stable_across_a_day() -> None:
 
 def test_cutoff_is_never_newer_than_the_required_age() -> None:
     cutoff = datetime.fromisoformat(tasks.lock_cutoff_timestamp(NOW))
-    assert cutoff <= NOW - timedelta(days=tasks.PYTHON_RELEASE_COOLDOWN_DAYS)
+    assert cutoff <= NOW - timedelta(days=tasks.RELEASE_COOLDOWN_DAYS)
 
 
 def test_cutoff_from_a_slightly_ahead_clock_is_accepted(tmp_path: Path) -> None:

@@ -2223,8 +2223,7 @@ RENOVATE_MANAGER_EXPECTATIONS = (
     RenovateManagerExpectation(
         "uv-required-version",
         "pyproject.toml",
-        r'required-version = ">=(?P<currentValue>[0-9]+\.[0-9]+\.[0-9]+),'
-        r'<[0-9]+\.[0-9]+\.[0-9]+"',
+        r'required-version = ">=(?P<currentValue>[0-9]+\.[0-9]+\.[0-9]+)"',
         1,
         dep_name_template="uv",
         datasource_template="pypi",
@@ -2260,11 +2259,15 @@ RENOVATE_BUILTIN_MANAGER_FILE_PATTERNS = (
 # Both the update candidates Renovate proposes and the versions `uv lock`
 # resolves are held until a release is this old, so every locked version is
 # already served by the package index development machines are allowed to use.
-PYTHON_RELEASE_COOLDOWN_DAYS = 7
+# Every version floor a development machine must already satisfy (the uv
+# required-version and the azd requiredVersions lower bounds) shares the
+# cooldown, so a floor never overtakes the newest release the machine's tool
+# manager already offers.
+RELEASE_COOLDOWN_DAYS = 7
 # Renovate expresses the same cooldown as a duration string. The security
 # update path overrides Renovate's default, which would otherwise propose a
 # release immediately.
-RENOVATE_MINIMUM_RELEASE_AGE = f"{PYTHON_RELEASE_COOLDOWN_DAYS} days"
+RENOVATE_MINIMUM_RELEASE_AGE = f"{RELEASE_COOLDOWN_DAYS} days"
 RENOVATE_PACKAGE_RULES: dict[str, dict[str, Any]] = {
     "gh-aw-compiler-owned": {
         "description": "gh-aw-compiler-owned",
@@ -2284,8 +2287,14 @@ RENOVATE_PACKAGE_RULES: dict[str, dict[str, Any]] = {
     },
     "uv-single-pull-request": {
         "description": "uv-single-pull-request",
-        "matchPackageNames": ["uv", "ghcr.io/astral-sh/uv"],
+        "matchPackageNames": ["uv", "astral/uv"],
         "groupName": "uv",
+        "minimumReleaseAge": RENOVATE_MINIMUM_RELEASE_AGE,
+    },
+    "azd-release-cooldown": {
+        "description": "azd-release-cooldown",
+        "matchPackageNames": ["Azure/azure-dev"],
+        "minimumReleaseAge": RENOVATE_MINIMUM_RELEASE_AGE,
     },
 }
 
@@ -2842,27 +2851,18 @@ def target_check_uv_version() -> None:
         (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     )
     required_version = root_pyproject["tool"]["uv"].get("required-version", "")
-    required_match = re.fullmatch(
-        r">=([0-9]+\.[0-9]+\.[0-9]+),<([0-9]+\.[0-9]+\.[0-9]+)",
-        required_version,
-    )
+    # Development machines keep uv at their tool manager's latest release, so
+    # the workspace declares only a lower bound; an upper bound would reject
+    # the host as soon as a new minor ships.
+    required_match = re.fullmatch(r">=([0-9]+\.[0-9]+\.[0-9]+)", required_version)
     if required_match is None:
         print(
-            "error: [tool.uv].required-version must use "
-            "a >=X.Y.Z,<X.Y.Z compatibility range",
+            "error: [tool.uv].required-version must be a >=X.Y.Z lower bound",
             file=sys.stderr,
         )
         raise SystemExit(1)
-    minimum_text, upper_bound_text = required_match.groups()
+    minimum_text = required_match.group(1)
     minimum = tuple(int(part) for part in minimum_text.split("."))
-    upper_bound = tuple(int(part) for part in upper_bound_text.split("."))
-    expected_upper_bound = (minimum[0], minimum[1] + 1, 0)
-    if upper_bound != expected_upper_bound:
-        print(
-            "error: [tool.uv].required-version must allow one uv minor series",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
 
     root_uv_config = ROOT / "uv.toml"
     if root_uv_config.exists():
@@ -2883,7 +2883,7 @@ def target_check_uv_version() -> None:
 
     dockerfile = (API_DIR / "Dockerfile").read_text(encoding="utf-8")
     docker_match = re.search(
-        r"^FROM\s+ghcr\.io/astral-sh/uv:"
+        r"^FROM\s+astral/uv:"
         r"([0-9]+\.[0-9]+\.[0-9]+)(?:@sha256:[0-9a-f]+)?\s+AS\s+uv\s*$",
         dockerfile,
         flags=re.IGNORECASE | re.MULTILINE,
@@ -3002,7 +3002,7 @@ def target_check_uv_version() -> None:
         )
         raise SystemExit(1)
     local = tuple(int(part) for part in local_version.split("."))
-    if not minimum <= local < upper_bound:
+    if local < minimum:
         print(
             f"error: Local uv ({local_version}) does not satisfy {required_version}",
             file=sys.stderr,
@@ -3030,7 +3030,7 @@ class LockCutoffError(RuntimeError):
 def lock_cutoff_timestamp(now: datetime | None = None) -> str:
     """Return the resolution cutoff, floored to a UTC day to limit lock churn."""
     moment = (now or datetime.now(UTC)).astimezone(UTC) - timedelta(
-        days=PYTHON_RELEASE_COOLDOWN_DAYS
+        days=RELEASE_COOLDOWN_DAYS
     )
     midnight = moment.replace(hour=0, minute=0, second=0, microsecond=0)
     return midnight.strftime("%Y-%m-%dT%H:%M:%SZ")
