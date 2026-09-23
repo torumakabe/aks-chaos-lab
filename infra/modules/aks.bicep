@@ -247,12 +247,12 @@ var subnetName = last(subnetIdParts)
 var virtualNetworkName = subnetIdParts[8]
 
 @description('Existing VNet (parent of the AKS subnet)')
-resource existingVirtualNetwork 'Microsoft.Network/virtualNetworks@2025-09-01' existing = {
+resource existingVirtualNetwork 'Microsoft.Network/virtualNetworks@2026-03-01' existing = {
   name: virtualNetworkName
 }
 
 @description('Existing AKS subnet (role assignment scope)')
-resource existingAksSubnet 'Microsoft.Network/virtualNetworks/subnets@2025-07-01' existing = {
+resource existingAksSubnet 'Microsoft.Network/virtualNetworks/subnets@2026-03-01' existing = {
   name: subnetName
   parent: existingVirtualNetwork
 }

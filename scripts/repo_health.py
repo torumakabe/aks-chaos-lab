@@ -34,6 +34,7 @@ _BICEP_PARAMETER = re.compile(
 )
 _DOCKER_FROM = re.compile(r"(?mi)^\s*FROM\s+(?P<image>\S+)")
 _EXTERNAL_LINK = re.compile(r"https?://[^\s<>()\"']+")
+_MARKDOWN_INLINE_CODE = re.compile(r"`+[^`\n]*`+")
 _K8S_KIND = re.compile(r"(?m)^kind:\s*(?P<kind>[A-Za-z][A-Za-z0-9]*)\s*$")
 _K8S_DOCUMENT = re.compile(r"(?m)^---\s*$")
 _GH_AW_SETUP = re.compile(r"(?m)^\s*version:\s*(?P<version>v\d+\.\d+\.\d+)\s*$")
@@ -167,7 +168,13 @@ def _coordinates_for_file(root: Path, relative: Path) -> list[Coordinate]:
             )
     if relative.suffix.lower() == ".md":
         seen: set[str] = set()
+        inline_code_ranges = [
+            (match.start(), match.end())
+            for match in _MARKDOWN_INLINE_CODE.finditer(text)
+        ]
         for match in _EXTERNAL_LINK.finditer(text):
+            if any(start <= match.start() < end for start, end in inline_code_ranges):
+                continue
             value = match.group(0).rstrip(".,;:")
             if value in seen:
                 continue

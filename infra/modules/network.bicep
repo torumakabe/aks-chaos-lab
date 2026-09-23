@@ -17,7 +17,7 @@ param functionSubnetPrefix string
 @description('Resource token for unique naming')
 param resourceToken string
 
-resource virtualNetwork 'Microsoft.Network/virtualNetworks@2025-09-01' = {
+resource virtualNetwork 'Microsoft.Network/virtualNetworks@2026-03-01' = {
   name: vnetName
   location: location
   tags: tags
@@ -81,7 +81,7 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2025-09-01' = {
 }
 
 @description('Network Security Group for AKS subnet')
-resource aksSubnetNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2025-09-01' = {
+resource aksSubnetNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2026-03-01' = {
   name: 'nsg-${vnetName}-snet-aks'
   location: location
   tags: tags
@@ -107,7 +107,7 @@ resource aksSubnetNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@
   }
 }
 
-resource ingressPublicIP 'Microsoft.Network/publicIPAddresses@2025-09-01' = {
+resource ingressPublicIP 'Microsoft.Network/publicIPAddresses@2026-03-01' = {
   name: 'pip-ingress-${resourceToken}'
   location: location
   tags: tags

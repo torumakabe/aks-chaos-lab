@@ -216,7 +216,8 @@ def query_azure_metric_datapoints(
         with urllib.request.urlopen(request, timeout=60) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
-        details = error.read().decode("utf-8", errors="replace")
+        with error:
+            details = error.read().decode("utf-8", errors="replace")
         log(
             f"Azure Metrics query failed for {metric_namespace}/{metric_name}: {details}"
         )

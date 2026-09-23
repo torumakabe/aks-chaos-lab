@@ -64,7 +64,7 @@ az provider register --namespace Microsoft.KubernetesConfiguration
 az provider register --namespace Microsoft.Insights
 ```
 
-`az feature show --namespace <ns> --name <name>` で `state: Registered` になってから `azd up` を実行してください。これらの feature flag は [review-repo エージェント](../.github/agents/review-repo.agent.md) の棚卸し対象です。
+`az feature show --namespace <ns> --name <name>` で `state: Registered` になってから `azd up` を実行してください。feature flag 名と登録手順が現在の構成および関連 ADR と一致しているかは、[review-repo エージェント](../.github/agents/review-repo.agent.md) がリポジトリ内の記述を確認します。対象 subscription の登録状態は確認しないため、デプロイ実行者が `az feature show` で確認してください。
 
 ## 環境構築
 

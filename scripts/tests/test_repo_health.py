@@ -170,6 +170,22 @@ def test_inventory_includes_untracked_files(repository: Path) -> None:
     assert any(item["path"] == "docs/new.md" for item in result["inventory"])
 
 
+def test_inventory_ignores_urls_in_markdown_inline_code(repository: Path) -> None:
+    write(
+        repository / "README.md",
+        "Endpoint: `https://api.example.test`\n"
+        "Docs: [reference](https://example.com/docs)\n",
+    )
+
+    result = repo_health.build_result(repository, include_checks=False)
+
+    assert [
+        item["value"]
+        for item in result["inventory"]
+        if item["category"] == "documentation-external-link"
+    ] == ["https://example.com/docs"]
+
+
 def test_json_output_is_deterministic(repository: Path) -> None:
     first = repo_health.json_output(
         repo_health.build_result(repository, include_checks=True)

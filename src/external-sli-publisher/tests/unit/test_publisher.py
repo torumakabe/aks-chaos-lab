@@ -215,11 +215,12 @@ def test_probe_http_error_marks_all_latency_buckets_as_bad() -> None:
         fp=None,
     )
 
-    result = probe_endpoint(
-        settings(),
-        urlopen=lambda *_args, **_kwargs: (_ for _ in ()).throw(error),
-        clock=FakeClock(100.0, 100.1),
-    )
+    with error:
+        result = probe_endpoint(
+            settings(),
+            urlopen=lambda *_args, **_kwargs: (_ for _ in ()).throw(error),
+            clock=FakeClock(100.0, 100.1),
+        )
 
     assert result.success is False
     assert result.status_code == 503

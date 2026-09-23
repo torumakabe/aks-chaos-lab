@@ -388,7 +388,8 @@ def delete_service_group_and_wait(
             with opener.open(req, timeout=min(60, remaining)) as response:
                 return response.status, response.headers
         except urllib.error.HTTPError as error:
-            log(f"Service Group deletion {method} failed: HTTP {error.code}")
+            with error:
+                log(f"Service Group deletion {method} failed: HTTP {error.code}")
             raise SystemExit(1) from None
         except (OSError, HTTPException) as error:
             log(f"Service Group deletion {method} failed: {error}")

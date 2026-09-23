@@ -3681,7 +3681,7 @@ TARGETS: dict[str, Callable[[], None]] = {
 }
 
 
-def main(argv: Sequence[str]) -> int:
+def _main(argv: Sequence[str]) -> int:
     if len(argv) == 0:
         target_help()
         return 0
@@ -3760,6 +3760,13 @@ def main(argv: Sequence[str]) -> int:
 
     handler()
     return 0
+
+
+def main(argv: Sequence[str]) -> int:
+    try:
+        return _main(argv)
+    finally:
+        release_approved_index_lock()
 
 
 if __name__ == "__main__":

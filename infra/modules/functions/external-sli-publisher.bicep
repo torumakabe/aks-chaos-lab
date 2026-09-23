@@ -152,7 +152,7 @@ resource storageBlobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-
   }
 }
 
-resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-07-01' = {
+resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = {
   parent: storageBlobPrivateEndpoint
   name: 'default'
   properties: {
@@ -201,7 +201,7 @@ resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09
   }
 }
 
-resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-07-01' = {
+resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = {
   parent: storageQueuePrivateEndpoint
   name: 'default'
   properties: {
@@ -250,7 +250,7 @@ resource storageTablePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09
   }
 }
 
-resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2025-07-01' = {
+resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = {
   parent: storageTablePrivateEndpoint
   name: 'default'
   properties: {
@@ -284,7 +284,7 @@ resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/con
   }
 }
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2026-07-15' = {
   name: appServicePlanName
   location: location
   tags: tags
@@ -298,7 +298,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   }
 }
 
-resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
+resource functionApp 'Microsoft.Web/sites@2026-07-15' = {
   name: functionAppName
   location: location
   tags: union(tags, {
