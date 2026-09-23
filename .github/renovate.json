@@ -25,8 +25,14 @@
     },
     {
       "description": "uv-single-pull-request",
-      "matchPackageNames": ["uv", "ghcr.io/astral-sh/uv"],
-      "groupName": "uv"
+      "matchPackageNames": ["uv", "astral/uv"],
+      "groupName": "uv",
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "azd-release-cooldown",
+      "matchPackageNames": ["Azure/azure-dev"],
+      "minimumReleaseAge": "7 days"
     }
   ],
   "customManagers": [
@@ -104,7 +110,7 @@
       "description": "uv-required-version",
       "managerFilePatterns": ["/^pyproject\\.toml$/"],
       "matchStrings": [
-        "required-version = \">=(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+),<[0-9]+\\.[0-9]+\\.[0-9]+\""
+        "required-version = \">=(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
       ],
       "depNameTemplate": "uv",
       "datasourceTemplate": "pypi",

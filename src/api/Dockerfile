@@ -1,11 +1,13 @@
 # uv is pinned for reproducible builds and must equal the minimum version allowed
 # by the root pyproject.toml [tool.uv] required-version range.
 # Run 'uv run --no-project scripts/tasks.py check-uv-version' to verify the policy.
+# The Docker Hub mirror is used instead of GHCR because Renovate can read release
+# timestamps only from Docker Hub, which the uv update cooldown requires.
 #
 # Build context MUST be the repository root because the workspace lockfile lives at the
 # repository root. Build with:
 #   docker build -f src/api/Dockerfile -t aks-chaos-lab:local .
-FROM ghcr.io/astral-sh/uv:0.12.17@sha256:10787c682e4184e4f290de1171fd4703dc63de99221f10fe1c99002ce7fa9acc AS uv
+FROM astral/uv:0.12.17@sha256:10787c682e4184e4f290de1171fd4703dc63de99221f10fe1c99002ce7fa9acc AS uv
 
 FROM python:3.14-slim@sha256:caaf356f40667c496d405780745b9ac25771c189a51dfcc42430d531ea09f8a2
 
