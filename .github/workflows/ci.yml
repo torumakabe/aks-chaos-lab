@@ -24,7 +24,7 @@ jobs:
       - name: Check repository health
         run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" check-repo-health
       - name: Check lock consistency
-        run: uv lock --check
+        run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" check-uv-lock
       - name: Check lock package sources
         run: uv run --no-project "${{ github.workspace }}/scripts/tasks.py" check-public-lock
       # Fails a Renovate pull request that moved only part of a multi-coordinate

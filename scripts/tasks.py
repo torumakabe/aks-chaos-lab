@@ -25,6 +25,7 @@ import urllib.request
 from collections.abc import Callable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO, TextIO, cast
 
@@ -291,18 +292,29 @@ def public_lock_git(*args: str) -> bytes:
     return result.stdout
 
 
-def public_lock_repair_snapshot() -> tuple[str, bytes]:
-    head = public_lock_git("rev-parse", "--verify", "HEAD").decode().strip()
-    baseline = public_lock_git("show", f"{head}:uv.lock")
-    project_bytes = public_lock_git("show", f"{head}:pyproject.toml")
+def workspace_manifest_names(project_bytes: bytes) -> list[str]:
+    """Return the repository-relative manifests of the uv workspace."""
     project = tomllib.loads(project_bytes.decode("utf-8"))
     members = project["tool"]["uv"]["workspace"]["members"]
     manifests = ["pyproject.toml"]
     for member in members:
         path = PurePosixPath(member)
         if path.is_absolute() or ".." in path.parts or any(c in member for c in "*?["):
-            raise PublicLockError("Cannot repair uv.lock: unsupported workspace path.")
+            raise ValueError(f"Unsupported workspace path: {member}")
         manifests.append(str(path / "pyproject.toml"))
+    return manifests
+
+
+def public_lock_repair_snapshot() -> tuple[str, bytes]:
+    head = public_lock_git("rev-parse", "--verify", "HEAD").decode().strip()
+    baseline = public_lock_git("show", f"{head}:uv.lock")
+    project_bytes = public_lock_git("show", f"{head}:pyproject.toml")
+    try:
+        manifests = workspace_manifest_names(project_bytes)
+    except ValueError as error:
+        raise PublicLockError(
+            "Cannot repair uv.lock: unsupported workspace path."
+        ) from error
     paths = ["uv.lock", *manifests]
     if public_lock_git("ls-files", "--unmerged", "--", *paths):
         raise PublicLockError("Cannot repair uv.lock: lock or manifest has conflicts.")
@@ -2244,6 +2256,14 @@ RENOVATE_BUILTIN_MANAGER_FILE_PATTERNS = (
     r"Dockerfile",
     r"src/[^/]+/pyproject\.toml",
 )
+# Both the update candidates Renovate proposes and the versions `uv lock`
+# resolves are held until a release is this old, so every locked version is
+# already served by the package index development machines are allowed to use.
+PYTHON_RELEASE_COOLDOWN_DAYS = 7
+# Renovate expresses the same cooldown as a duration string. The security
+# update path overrides Renovate's default, which would otherwise propose a
+# release immediately.
+RENOVATE_MINIMUM_RELEASE_AGE = f"{PYTHON_RELEASE_COOLDOWN_DAYS} days"
 RENOVATE_PACKAGE_RULES: dict[str, dict[str, Any]] = {
     "gh-aw-compiler-owned": {
         "description": "gh-aw-compiler-owned",
@@ -2258,6 +2278,7 @@ RENOVATE_PACKAGE_RULES: dict[str, dict[str, Any]] = {
         "description": "python-workspace-candidate-detection-only",
         "matchManagers": ["pep621"],
         "dependencyDashboardApproval": True,
+        "minimumReleaseAge": RENOVATE_MINIMUM_RELEASE_AGE,
         "skipArtifactsUpdate": True,
     },
     "uv-single-pull-request": {
@@ -2372,6 +2393,16 @@ def renovate_contract_violations(config: dict[str, Any]) -> list[str]:
             "renovate.json ignorePaths must be exactly "
             f"{list(RENOVATE_IGNORE_PATHS)} so the gh-aw compiler keeps sole "
             "ownership of its generated lock workflows and actions lock"
+        )
+    alerts = config.get("vulnerabilityAlerts")
+    if (
+        not isinstance(alerts, dict)
+        or alerts.get("minimumReleaseAge") != RENOVATE_MINIMUM_RELEASE_AGE
+    ):
+        violations.append(
+            "renovate.json must set vulnerabilityAlerts.minimumReleaseAge to "
+            f"{RENOVATE_MINIMUM_RELEASE_AGE!r}, because the security-update "
+            "path otherwise ignores the release age every other update honours"
         )
     violations.extend(_renovate_package_rule_violations(config))
     violations.extend(_renovate_custom_manager_violations(config))
@@ -2991,6 +3022,237 @@ def target_check_public_lock() -> None:
     print_success("uv.lock contains only public PyPI package sources")
 
 
+class LockCutoffError(RuntimeError):
+    """The lock was not built with an acceptable release-age cutoff."""
+
+
+def lock_cutoff_timestamp(now: datetime | None = None) -> str:
+    """Return the resolution cutoff, floored to a UTC day to limit lock churn."""
+    moment = (now or datetime.now(UTC)).astimezone(UTC) - timedelta(
+        days=PYTHON_RELEASE_COOLDOWN_DAYS
+    )
+    midnight = moment.replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def recorded_lock_cutoff(lock_path: Path, now: datetime | None = None) -> str:
+    """Return the cutoff recorded by `uv lock`, refusing a too-recent one."""
+    data = tomllib.loads(lock_path.read_text(encoding="utf-8"))
+    recorded = data.get("options", {}).get("exclude-newer")
+    if not isinstance(recorded, str):
+        raise LockCutoffError(
+            "uv.lock records no resolution cutoff. Regenerate it with the "
+            f"{ADOPT_LOCK_WORKFLOW} workflow and adopt the artifact."
+        )
+    try:
+        moment = datetime.fromisoformat(recorded)
+    except ValueError as error:
+        raise LockCutoffError(
+            f"uv.lock records an unreadable resolution cutoff: {recorded}"
+        ) from error
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    # The generating run floors its own cutoff to a UTC day, so a lock created
+    # just after midnight there is legitimately newer than the cutoff this
+    # machine computes. Accept exactly one flooring period of clock skew.
+    limit = datetime.fromisoformat(lock_cutoff_timestamp(now)) + timedelta(days=1)
+    if moment > limit:
+        raise LockCutoffError(
+            f"uv.lock records a resolution cutoff that is too recent: {recorded}. "
+            f"Regenerate it with the {ADOPT_LOCK_WORKFLOW} workflow."
+        )
+    return recorded
+
+
+def target_lock_cutoff() -> None:
+    print(lock_cutoff_timestamp())
+
+
+def target_check_uv_lock() -> None:
+    print_step("Checking uv.lock consistency")
+    try:
+        cutoff = recorded_lock_cutoff(ROOT / "uv.lock")
+    except (LockCutoffError, OSError, tomllib.TOMLDecodeError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    completed = run(
+        ["uv", "lock", "--check", "--exclude-newer", cutoff], cwd=ROOT, check=False
+    )
+    if completed.returncode:
+        print(
+            "error: uv.lock does not match the workspace manifests.\n"
+            f"Run the {ADOPT_LOCK_WORKFLOW} workflow for this commit and adopt "
+            "its artifact with the adopt-public-lock task. Do not run `uv lock` "
+            "locally: a lock resolved without the recorded cutoff fails this "
+            "check and may reference versions the approved package index does "
+            "not serve yet.",
+            file=sys.stderr,
+        )
+        raise SystemExit(completed.returncode)
+    print_success(f"uv.lock is consistent with the manifests (cutoff {cutoff})")
+
+
+ADOPT_LOCK_WORKFLOW = "refresh-uv-lock.yml"
+ADOPT_LOCK_ARTIFACT = "uv-lock-public"
+ADOPT_LOCK_GIT_TIMEOUT_SECONDS = 30
+ADOPT_LOCK_GH_TIMEOUT_SECONDS = 300
+
+
+class AdoptPublicLockError(RuntimeError):
+    """Stop the adoption before uv.lock is replaced."""
+
+
+def adopt_lock_git(*args: str) -> bytes:
+    result = subprocess.run(
+        resolve_command(["git", "--no-pager", *args]),
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        timeout=ADOPT_LOCK_GIT_TIMEOUT_SECONDS,
+    )
+    if result.returncode:
+        raise AdoptPublicLockError(
+            f"Git command failed: git {' '.join(args)}\n"
+            f"{result.stderr.decode('utf-8', 'replace').strip()}"
+        )
+    return result.stdout
+
+
+def adopt_lock_gh(*args: str) -> bytes:
+    result = subprocess.run(
+        resolve_command(["gh", *args]),
+        cwd=ROOT,
+        capture_output=True,
+        check=False,
+        timeout=ADOPT_LOCK_GH_TIMEOUT_SECONDS,
+    )
+    if result.returncode:
+        raise AdoptPublicLockError(
+            f"GitHub CLI command failed: gh {' '.join(args)}\n"
+            f"{result.stderr.decode('utf-8', 'replace').strip()}"
+        )
+    return result.stdout
+
+
+def adopt_lock_snapshot() -> str:
+    """Return HEAD after refusing to adopt onto an unclean lock or manifest."""
+    head = adopt_lock_git("rev-parse", "--verify", "HEAD").decode().strip()
+    project_bytes = adopt_lock_git("show", f"{head}:pyproject.toml")
+    try:
+        manifests = workspace_manifest_names(project_bytes)
+    except ValueError as error:
+        raise AdoptPublicLockError(
+            "Unsupported workspace member path in pyproject.toml."
+        ) from error
+    paths = ["uv.lock", *manifests]
+    if adopt_lock_git("ls-files", "--unmerged", "--", *paths):
+        raise AdoptPublicLockError(
+            "uv.lock or a workspace manifest has unresolved conflicts."
+        )
+    if adopt_lock_git("diff", "--cached", "--name-only", head, "--", *paths):
+        raise AdoptPublicLockError(
+            "uv.lock or a workspace manifest has staged changes. "
+            "Commit or reset them first."
+        )
+    if adopt_lock_git("diff", "--name-only", head, "--", *paths):
+        raise AdoptPublicLockError(
+            "uv.lock or a workspace manifest has uncommitted changes. "
+            "Commit or reset them first."
+        )
+    return head
+
+
+def adopt_lock_run_id(head: str) -> str:
+    payload = adopt_lock_gh(
+        "run",
+        "list",
+        "--workflow",
+        ADOPT_LOCK_WORKFLOW,
+        "--commit",
+        head,
+        "--status",
+        "success",
+        "--limit",
+        "1",
+        "--json",
+        "databaseId",
+    )
+    try:
+        runs = json.loads(payload or b"[]")
+    except json.JSONDecodeError as error:
+        raise AdoptPublicLockError(
+            f"Could not read the {ADOPT_LOCK_WORKFLOW} run list."
+        ) from error
+    if not runs:
+        raise AdoptPublicLockError(
+            f"No successful {ADOPT_LOCK_WORKFLOW} run for commit {head}. "
+            "Push the commit and wait for the workflow to finish."
+        )
+    return str(runs[0]["databaseId"])
+
+
+def adopt_lock_download(run_id: str, directory: Path) -> Path:
+    adopt_lock_gh(
+        "run",
+        "download",
+        run_id,
+        "--name",
+        ADOPT_LOCK_ARTIFACT,
+        "--dir",
+        str(directory),
+    )
+    candidate = directory / "uv.lock"
+    if not candidate.is_file():
+        raise AdoptPublicLockError(
+            f"Run {run_id} did not provide the {ADOPT_LOCK_ARTIFACT} artifact."
+        )
+    return candidate
+
+
+def target_adopt_public_lock() -> None:
+    print_step("Adopting the public uv.lock built for this commit")
+    require_command("git")
+    require_command("gh")
+    lock_path = ROOT / "uv.lock"
+    temporary_root = ROOT / "tmp"
+    directory: Path | None = None
+    try:
+        if lock_path.is_symlink():
+            raise AdoptPublicLockError("Cannot replace a symlinked uv.lock.")
+        head = adopt_lock_snapshot()
+        current = lock_path.read_bytes()
+        run_id = adopt_lock_run_id(head)
+        temporary_root.mkdir(exist_ok=True)
+        directory = Path(tempfile.mkdtemp(prefix="adopt-lock-", dir=temporary_root))
+        candidate = adopt_lock_download(run_id, directory)
+        validate_public_lock(ROOT / "pyproject.toml", candidate)
+        recorded_lock_cutoff(candidate)
+        if adopt_lock_snapshot() != head or lock_path.read_bytes() != current:
+            raise AdoptPublicLockError(
+                "The lock or a workspace manifest changed during the download."
+            )
+        candidate.chmod(stat.S_IMODE(lock_path.stat().st_mode))
+        os.replace(candidate, lock_path)
+    except (
+        AdoptPublicLockError,
+        LockCutoffError,
+        OSError,
+        PublicLockError,
+        subprocess.TimeoutExpired,
+        tomllib.TOMLDecodeError,
+        UnicodeError,
+    ) as error:
+        print(f"error: {error}", file=sys.stderr)
+        print("uv.lock was left unchanged.", file=sys.stderr)
+        raise SystemExit(1) from error
+    finally:
+        if directory is not None:
+            shutil.rmtree(directory, ignore_errors=True)
+    summary = adopt_lock_git("diff", "--stat", "--", "uv.lock").decode().strip()
+    print(summary or "uv.lock already matched the artifact.")
+    print_success(f"Adopted uv.lock from run {run_id}. Review and commit it.")
+
+
 def normalized_dependency(value: str) -> str:
     return value.strip().lower()
 
@@ -3347,6 +3609,7 @@ def target_load_spike() -> None:
 
 
 TARGETS: dict[str, Callable[[], None]] = {
+    "adopt-public-lock": target_adopt_public_lock,
     "build": target_build,
     "build-bicep": target_build_bicep,
     "check-az": target_check_az,
@@ -3357,6 +3620,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "check-public-lock": target_check_public_lock,
     "check-renovate-config": target_check_renovate_config,
     "check-repo-health": target_check_repo_health,
+    "check-uv-lock": target_check_uv_lock,
     "check-uv-version": target_check_uv_version,
     "check-version-pins": target_check_version_pins,
     "clean": target_clean,
@@ -3371,6 +3635,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "lint-check": target_lint_check,
     "lint-k8s": target_lint_k8s,
     "lint-workflows": target_lint_workflows,
+    "lock-cutoff": target_lock_cutoff,
     "load-baseline": target_load_baseline,
     "load-smoke": target_load_smoke,
     "load-spike": target_load_spike,

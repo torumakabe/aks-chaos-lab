@@ -6,6 +6,9 @@
   "dependencyDashboardAutoclose": true,
   "dependencyDashboardApproval": false,
   "automerge": false,
+  "vulnerabilityAlerts": {
+    "minimumReleaseAge": "7 days"
+  },
   "ignorePaths": [".github/workflows/*.lock.yml", ".github/aw/**"],
   "packageRules": [
     {
@@ -17,6 +20,7 @@
       "description": "python-workspace-candidate-detection-only",
       "matchManagers": ["pep621"],
       "dependencyDashboardApproval": true,
+      "minimumReleaseAge": "7 days",
       "skipArtifactsUpdate": true
     },
     {
