@@ -424,6 +424,19 @@ def test_renovate_config_matches_its_own_declared_contract() -> None:
     assert tasks.renovate_contract_violations(tasks.load_renovate_config()) == []
 
 
+def test_renovate_validator_image_updates_are_weekly() -> None:
+    config = tasks.load_renovate_config()
+    rule = next(
+        rule
+        for rule in config["packageRules"]
+        if rule["description"] == "renovate-validator-weekly"
+    )
+    assert config["timezone"] == "Asia/Tokyo"
+    assert rule["matchPackageNames"] == ["renovate/renovate"]
+    assert rule["matchManagers"] == ["custom.regex"]
+    assert rule["schedule"] == ["* * * * 1"]
+
+
 def _mutated_renovate_config(**overrides: object) -> dict[str, Any]:
     mutated = cast(dict[str, Any], json.loads(json.dumps(tasks.load_renovate_config())))
     mutated.update(overrides)
