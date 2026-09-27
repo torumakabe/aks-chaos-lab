@@ -2296,6 +2296,12 @@ RENOVATE_PACKAGE_RULES: dict[str, dict[str, Any]] = {
         "matchPackageNames": ["Azure/azure-dev"],
         "minimumReleaseAge": RENOVATE_MINIMUM_RELEASE_AGE,
     },
+    "renovate-validator-weekly": {
+        "description": "renovate-validator-weekly",
+        "matchPackageNames": ["renovate/renovate"],
+        "matchManagers": ["custom.regex"],
+        "schedule": ["* * * * 1"],
+    },
 }
 
 
@@ -2384,6 +2390,8 @@ def renovate_contract_violations(config: dict[str, Any]) -> list[str]:
             f"{RENOVATE_PR_HOURLY_LIMIT} so hourly pull request creation is "
             "explicitly bounded without relying on Renovate's default"
         )
+    if config.get("timezone") != "Asia/Tokyo":
+        violations.append("renovate.json must set timezone to 'Asia/Tokyo'")
     if config.get("dependencyDashboard") is not True:
         violations.append(
             "renovate.json must set dependencyDashboard to true so update "

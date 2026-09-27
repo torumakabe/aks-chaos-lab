@@ -18,7 +18,7 @@
 | GitHub Actions | Renovate（github-actions） | `lint-workflows`、`compile-aw` |
 | Docker base imageのtagとdigest | Renovate（dockerfile） | `check-uv-version`、`docker-base-digest`ルール |
 | uv本体のpin | Renovate（custom manager + dockerfileを1 PRへ集約、公開後の保留期間つき） | `check-uv-version` |
-| actionlint、kubeconform、Renovate validator image | Renovate（custom manager） | `check-version-pins`、`check-renovate-config` |
+| actionlint、kubeconform、Renovate validator image | Renovate（custom manager。Renovate validator imageの更新は週1回） | `check-version-pins`、`check-renovate-config` |
 | Chaos Mesh Helm chart | Renovate（custom manager） | `check-version-pins`、`validate-helm-values` |
 | Bicep CLI | Renovate（custom manager） | `build-bicep` |
 | gh-aw | 保守者が`gh aw upgrade --no-actions`を実行 | `gh-aw-compiler-version`ルール、`compile-aw` |
@@ -36,6 +36,8 @@ Renovateはこのリポジトリで唯一のscheduled version update機構であ
 有効にするmanagerは`pep621`、`github-actions`、`dockerfile`、`custom.regex`の4つである。built-in managerが読めない座標だけをcustom managerで補い、同じ座標を2つのmanagerが抽出しないようにする。custom managerの対象、datasource、期待match数は`scripts/tasks.py`の`RENOVATE_MANAGER_EXPECTATIONS`が正本であり、`check-version-pins`が設定と実ファイルの両方に対して検査する。
 
 automergeは有効にしない。`prHourlyLimit`は5に固定し、Renovateの既定値に依存せず、1時間に作成するPull Request数の上限を明示する。`.github/workflows/*.lock.yml`と`.github/aw/**`はgh-aw compilerの生成物なので`ignorePaths`で除外し、`github/gh-aw-actions`はpackage ruleで無効化する。
+
+CIの設定検証で使う`renovate/renovate` imageの通常の更新は、Renovateが更新を適用できる日を毎週月曜日（日本時間）に限定する。ほかのDocker imageの更新間隔は変更しない。CIの`check-renovate-config`は、Pull Requestごとに固定済みのimageを使って引き続き実行する。
 
 ### 更新候補を保留する期間
 
