@@ -8,7 +8,10 @@
   "dependencyDashboardApproval": false,
   "automerge": false,
   "vulnerabilityAlerts": {
-    "minimumReleaseAge": "7 days"
+    "enabled": true,
+    "minimumReleaseAge": "7 days",
+    "prConcurrentLimit": 5,
+    "vulnerabilityFixStrategy": "lowest"
   },
   "ignorePaths": [".github/workflows/*.lock.yml", ".github/aw/**"],
   "packageRules": [

@@ -2246,6 +2246,11 @@ RENOVATE_IGNORE_PATHS = (".github/workflows/*.lock.yml", ".github/aw/**")
 # Bound each hourly Renovate burst while allowing the usual weekly batch to
 # surface without relying on Renovate's generic default.
 RENOVATE_PR_HOURLY_LIMIT = 5
+# Vulnerability fixes bypass Renovate's repository-wide PR limits, so give
+# them their own bounded budget. Prefer the lowest fixed release to avoid
+# unrelated version movement in a security pull request.
+RENOVATE_VULNERABILITY_PR_CONCURRENT_LIMIT = 5
+RENOVATE_VULNERABILITY_FIX_STRATEGY = "lowest"
 # Repository config must override any inherited top-level approval default.
 # The pep621 package rule below is the only exception.
 RENOVATE_DEPENDENCY_DASHBOARD_APPROVAL = False
@@ -2268,6 +2273,12 @@ RELEASE_COOLDOWN_DAYS = 7
 # update path overrides Renovate's default, which would otherwise propose a
 # release immediately.
 RENOVATE_MINIMUM_RELEASE_AGE = f"{RELEASE_COOLDOWN_DAYS} days"
+RENOVATE_VULNERABILITY_ALERTS: dict[str, Any] = {
+    "enabled": True,
+    "minimumReleaseAge": RENOVATE_MINIMUM_RELEASE_AGE,
+    "prConcurrentLimit": RENOVATE_VULNERABILITY_PR_CONCURRENT_LIMIT,
+    "vulnerabilityFixStrategy": RENOVATE_VULNERABILITY_FIX_STRATEGY,
+}
 RENOVATE_PACKAGE_RULES: dict[str, dict[str, Any]] = {
     "gh-aw-compiler-owned": {
         "description": "gh-aw-compiler-owned",
@@ -2412,15 +2423,12 @@ def renovate_contract_violations(config: dict[str, Any]) -> list[str]:
             f"{list(RENOVATE_IGNORE_PATHS)} so the gh-aw compiler keeps sole "
             "ownership of its generated lock workflows and actions lock"
         )
-    alerts = config.get("vulnerabilityAlerts")
-    if (
-        not isinstance(alerts, dict)
-        or alerts.get("minimumReleaseAge") != RENOVATE_MINIMUM_RELEASE_AGE
-    ):
+    if config.get("vulnerabilityAlerts") != RENOVATE_VULNERABILITY_ALERTS:
         violations.append(
-            "renovate.json must set vulnerabilityAlerts.minimumReleaseAge to "
-            f"{RENOVATE_MINIMUM_RELEASE_AGE!r}, because the security-update "
-            "path otherwise ignores the release age every other update honours"
+            "renovate.json vulnerabilityAlerts must be exactly "
+            f"{RENOVATE_VULNERABILITY_ALERTS!r} so Renovate owns bounded, "
+            "minimum-fixed security pull requests without bypassing the "
+            "repository release cooldown"
         )
     violations.extend(_renovate_package_rule_violations(config))
     violations.extend(_renovate_custom_manager_violations(config))

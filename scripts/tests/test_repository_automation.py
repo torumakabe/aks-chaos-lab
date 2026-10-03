@@ -19,8 +19,9 @@ def renovate_config() -> dict[str, Any]:
 def test_dependabot_version_updates_are_disabled() -> None:
     """Renovate owns scheduled version updates, so no Dependabot config exists.
 
-    GitHub's Dependabot alerts and security updates are repository settings and
-    are unaffected by removing this file.
+    Dependabot alerts remain enabled as Renovate's vulnerability input, while
+    the repository setting for Dependabot security update pull requests is
+    disabled separately.
     """
     assert not (REPO_ROOT / ".github" / "dependabot.yml").exists()
 
@@ -52,6 +53,12 @@ def test_renovate_covers_the_scheduled_update_targets() -> None:
     assert config["prHourlyLimit"] == 5
     assert config["dependencyDashboard"] is True
     assert config["dependencyDashboardApproval"] is False
+    assert config["vulnerabilityAlerts"] == {
+        "enabled": True,
+        "minimumReleaseAge": "7 days",
+        "prConcurrentLimit": 5,
+        "vulnerabilityFixStrategy": "lowest",
+    }
     assert config["ignorePaths"] == [".github/workflows/*.lock.yml", ".github/aw/**"]
     pep621_rule = next(
         rule

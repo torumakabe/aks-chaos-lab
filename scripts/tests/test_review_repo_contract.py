@@ -529,6 +529,29 @@ def test_renovate_config_contract_requires_explicit_dashboard_approval_default()
     assert any("dependencyDashboardApproval" in violation for violation in violations)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("enabled", False),
+        ("minimumReleaseAge", "0 days"),
+        ("prConcurrentLimit", 0),
+        ("vulnerabilityFixStrategy", "highest"),
+    ],
+)
+def test_renovate_config_contract_rejects_vulnerability_policy_drift(
+    field: str, value: object
+) -> None:
+    config = tasks.load_renovate_config()
+    alerts = dict(config["vulnerabilityAlerts"])
+    alerts[field] = value
+
+    violations = tasks.renovate_contract_violations(
+        _mutated_renovate_config(vulnerabilityAlerts=alerts)
+    )
+
+    assert any("vulnerabilityAlerts" in violation for violation in violations)
+
+
 def test_renovate_config_contract_requires_gh_aw_generated_paths_to_be_ignored() -> (
     None
 ):
