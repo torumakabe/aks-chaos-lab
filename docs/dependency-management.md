@@ -31,7 +31,9 @@
 
 ## Renovate
 
-Renovateはこのリポジトリで唯一のscheduled version update機構である。azdは`Azure/azure-dev`の安定版releaseを参照し、`azure.yaml`のminimum versionだけを更新する。Pull Requestは自動マージせず、最低要求版を引き上げる根拠と互換性をレビューする。Dependabotのversion updateは使わない。`.github/dependabot.yml`は存在せず、`check-version-pins`がその不在を検査する。GitHubのDependabot alertsとsecurity updatesはリポジトリ設定の機能であり、この判断とは別物として有効なまま残る。
+Renovateはこのリポジトリで、通常更新と脆弱性修正のPull Requestを作成する唯一の依存更新機構である。Pull Requestは自動マージせず、更新の根拠と互換性をレビューする。
+
+Dependabot alertsとdependency graphは、Renovateが`vulnerabilityAlerts`を読み取るため有効に保つ。一方、Dependabot version updatesとDependabot security updatesによるPull Request作成は無効にする。`.github/dependabot.yml`は存在せず、`check-version-pins`がその不在を検査する。Dependabot security updatesはGitHubのrepository settingで無効にするため、リポジトリ内のオフライン検査では状態を確認しない。
 
 有効にするmanagerは`pep621`、`github-actions`、`dockerfile`、`custom.regex`の4つである。built-in managerが読めない座標だけをcustom managerで補い、同じ座標を2つのmanagerが抽出しないようにする。custom managerの対象、datasource、期待match数は`scripts/tasks.py`の`RENOVATE_MANAGER_EXPECTATIONS`が正本であり、`check-version-pins`が設定と実ファイルの両方に対して検査する。
 
@@ -41,7 +43,9 @@ CIの設定検証で使う`renovate/renovate` imageの通常の更新は、Renov
 
 ### 更新候補を保留する期間
 
-Python依存の更新候補は、公開から一定期間を経てから提示する。開発端末があらかじめ満たしていなければならない版の下限（uvの`required-version`とazdの`requiredVersions`）も、同じ期間を経てから引き上げる。判断は[ADR-023](adr/023-python-release-cooldown.md)を参照。期間内の版は`minimumReleaseAge`によって候補にならず、branchもPull Requestも作られない。保留中の候補はDependency Dashboardに残るため、見落としにはならない。security updateの経路（`vulnerabilityAlerts`）はこの判定を既定で無視するため、同じ期間を明示的に指定して上書きする。
+Python依存の更新候補は、公開から一定期間を経てから提示する。開発端末があらかじめ満たしていなければならない版の下限（uvの`required-version`とazdの`requiredVersions`）も、同じ期間を経てから引き上げる。判断は[ADR-023](adr/023-python-release-cooldown.md)を参照。期間内の版は`minimumReleaseAge`によって候補にならず、branchもPull Requestも作られない。保留中の候補はDependency Dashboardに残るため、見落としにはならない。脆弱性修正の`vulnerabilityAlerts`はこの判定を既定で無視するため、同じ期間を明示的に指定して上書きする。
+
+`vulnerabilityAlerts`はDependabot alertsを入力として有効にし、修正版のうち最低のversionを選ぶ。脆弱性修正はRenovateのrepository全体のPull Request上限を無視するため、専用の同時実行上限を5件に設定する。通常更新と同じく自動マージは行わない。
 
 Renovateのこの判定は、自身が提示する直接依存にしか適用されない。`uv lock`が連れてくる推移的依存には、lock生成時のcutoffが対応する（[deployment.md](deployment.md)の「public lockfile の更新」）。期間の値は`scripts/tasks.py`の`RELEASE_COOLDOWN_DAYS`が定義元で、Renovate設定の値もそこから導出した契約として`check-version-pins`が検査する。
 
@@ -49,7 +53,7 @@ package単位で保留期間を短縮する仕組みは用意しない。急ぎ�
 
 ### uv workspaceの制約
 
-`uv.lock`はpublic PyPIだけを参照し、workspace member構成と`resolution-strategy = "lowest"`を保つ必要がある。Renovateがこの3条件を1回のlock更新で維持できることを保証できないため、workspaceの依存はDependency Dashboardでの承認制（`dependencyDashboardApproval`）とし、Renovateは候補検出だけを行う。lockの再生成は[refresh-uv-lock.yml](../.github/workflows/refresh-uv-lock.yml)が担当し、生成されたartifactは`adopt-public-lock`で取り込む（[deployment.md](deployment.md)の「public lockfile の更新」）。
+`uv.lock`はpublic PyPIだけを参照し、workspace member構成と`resolution-strategy = "lowest"`を保つ必要がある。Renovateがこの3条件を1回のlock更新で維持できることを保証できないため、workspaceの通常更新はDependency Dashboardでの承認制（`dependencyDashboardApproval`）とし、Renovateは候補検出だけを行う。脆弱性修正を含め、lockの確定は[refresh-uv-lock.yml](../.github/workflows/refresh-uv-lock.yml)が担当し、生成されたartifactは`adopt-public-lock`で取り込む（[deployment.md](deployment.md)の「public lockfile の更新」）。botが生成したcutoffのない`uv.lock`をそのまま取り込まない。
 
 uvのpinはroot `pyproject.toml`の`required-version`下限、`src/api/Dockerfile`のuv image、setup-uvが読む同じ下限の3か所で一致していなければならない。Renovateはcustom managerとdockerfile managerの結果を`uv`グループへ集約し、1つのPull Requestで両座標を更新する。このグループにもPython依存と同じ保留期間を指定し、開発端末のtool managerが最新版として提供する前のuvを下限に要求しないようにする。`required-version`は下限だけを宣言し、上限を置かない。開発端末はuvをtool managerの最新版に保つため、上限があると新しいminorの公開と同時に端末のuvが範囲外になる（[ADR-023](adr/023-python-release-cooldown.md)）。uv imageはGHCRではなく、同じdigestを配布するDocker Hubの`astral/uv`から取得する。Renovateがrelease timestampを取得できるのはDocker Hubだけで、timestampが無いと保留期間を満たせず、グループ内の2つのpinが揃って更新されないためである。下限とDocker imageの一方だけを更新したPull Requestは、CIの`check-uv-version`が失敗させる。1 PRへの集約とfail-closedの両方でこの不変条件を守る。
 
