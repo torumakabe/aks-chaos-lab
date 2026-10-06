@@ -117,7 +117,7 @@ jobs:
       - name: Install Bicep CLI
         run: |
           set -euxo pipefail
-          BICEP_VERSION=v0.47.16
+          BICEP_VERSION=v0.48.1
           mkdir -p "$HOME/.local/bin"
           curl -L -o "$HOME/.local/bin/bicep" "https://github.com/Azure/bicep/releases/download/${BICEP_VERSION}/bicep-linux-x64"
           chmod +x "$HOME/.local/bin/bicep"
