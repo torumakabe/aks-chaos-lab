@@ -9,7 +9,6 @@ permissions:
   copilot-requests: write
 engine:
   id: copilot
-  model: claude-opus-4.8
 network:
   allowed:
     - defaults

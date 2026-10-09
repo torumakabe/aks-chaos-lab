@@ -294,6 +294,28 @@ def test_bicep_api_version_workflow_is_compiled() -> None:
     assert "id-token: write" not in lock
 
 
+def test_bicep_api_version_workflow_uses_configurable_copilot_model() -> None:
+    source = (
+        REPO_ROOT / ".github" / "workflows" / "bicep-api-version-check.md"
+    ).read_text(encoding="utf-8")
+    lock = (
+        REPO_ROOT / ".github" / "workflows" / "bicep-api-version-check.lock.yml"
+    ).read_text(encoding="utf-8")
+
+    frontmatter = source.split("---", 2)[1]
+    assert "  id: copilot" in frontmatter
+    assert "model:" not in frontmatter
+    assert "claude-opus-4.8" not in lock
+    model_settings = [
+        line.strip() for line in lock.splitlines() if "COPILOT_MODEL:" in line
+    ]
+    assert len(model_settings) == 2
+    assert "vars.GH_AW_MODEL_AGENT_COPILOT" in model_settings[0]
+    assert "vars.GH_AW_DEFAULT_MODEL_COPILOT" in model_settings[0]
+    assert "'auto'" in model_settings[0]
+    assert model_settings[1] == "COPILOT_MODEL: detection"
+
+
 def test_documentation_exposes_maintenance_entry_points() -> None:
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     instructions = (REPO_ROOT / ".github" / "copilot-instructions.md").read_text(
