@@ -71,6 +71,8 @@ uv run --no-project "${PWD}/scripts/tasks.py" check-renovate-config
 
 ## gh-awとLefthookをRenovateに含めない理由
 
+Bicep API versionの週次確認は特定のCopilot modelを固定せず、`GH_AW_MODEL_AGENT_COPILOT`、`GH_AW_DEFAULT_MODEL_COPILOT`の順でActions variableを参照し、未設定なら`auto`を使う。利用できないmodelが指定されるとagent開始時に失敗するため、variableを設定する場合は実行accountで利用可能なmodelを選ぶ。threat detectionはcompiler既定の`detection`を使う。
+
 gh-awのcompiler pinは、生成物であるlock workflowのcompiler versionと一体で決まる。version単独の更新はcompile結果と矛盾するため、適用は`gh aw compile`が所有する。compiler versionの定義元は[Copilot setup](../.github/workflows/copilot-setup-steps.yml)であり、生成lockと同じ版を使う。
 
 v0.88.7の編集支援ファイルは、上流の`gh aw upgrade`が生成する[agent](../.github/agents/agentic-workflows.md)と[dispatcher skill](../.github/skills/agentic-workflows/SKILL.md)である。生成template内の参照URLは上流の`main`を指すため、compilerの対応範囲を確認するときは固定したrelease tagの資料と照合する。生成lockも含めて更新した後、`compile-aw`で再生成差分がないことを確認する。通常のActions更新を含めない場合は`gh aw upgrade --no-actions`を使う。
