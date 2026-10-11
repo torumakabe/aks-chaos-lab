@@ -1844,12 +1844,47 @@ def _version_pin_repository(tmp_path: Path) -> Path:
         "src/external-sli-publisher/host.json",
         "scripts/tasks.py",
         "pyproject.toml",
+        "src/api/pyproject.toml",
+        "src/external-sli-publisher/pyproject.toml",
+        "src/api/Dockerfile",
+        "infra/modules/functions/external-sli-publisher.bicep",
     ):
         source = REPO_ROOT / relative
         destination = repository / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(source.read_bytes())
+    for source in (REPO_ROOT / ".github/workflows").iterdir():
+        if source.suffix in {".yml", ".yaml", ".md"}:
+            (repository / ".github/workflows" / source.name).write_bytes(
+                source.read_bytes()
+            )
     return repository
+
+
+def test_check_version_pins_rejects_a_partial_python_runtime_update(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repository = _version_pin_repository(tmp_path)
+    minimum = tomllib.loads(
+        (repository / "pyproject.toml").read_text(encoding="utf-8")
+    )["project"]["requires-python"]
+    expected_version = minimum.removeprefix(">=")
+    inconsistent_version = f"{expected_version}-mismatch"
+    workflow = repository / ".github/workflows/integration-test.yml"
+    text = workflow.read_text(encoding="utf-8")
+    expected_declaration = f"python-version: '{expected_version}'"
+    assert expected_declaration in text
+    workflow.write_text(
+        text.replace(
+            expected_declaration, f"python-version: '{inconsistent_version}'", 1
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(tasks, "ROOT", repository)
+    assert any(
+        ".github/workflows/integration-test.yml" in violation
+        for violation in tasks.python_version_violations()
+    )
 
 
 def _run_version_pins(

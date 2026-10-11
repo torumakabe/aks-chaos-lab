@@ -15,6 +15,7 @@
 | 対象 | 更新候補の検出 | 機械検査 |
 |---|---|---|
 | workspaceのPython依存 | Renovate（pep621。Dependency Dashboardの承認制、公開後の保留期間つき） | `check-uv-lock`、`check-public-lock`、`check-publisher-requirements` |
+| Python本体のmajor/minor | 保守者が互換性を確認して一括更新 | `check-version-pins`（明示したPython版の一致） |
 | GitHub Actions | Renovate（github-actions） | `lint-workflows`、`compile-aw` |
 | Docker base imageのtagとdigest | Renovate（dockerfile） | `check-uv-version`、`docker-base-digest`ルール |
 | uv本体のpin | Renovate（custom manager + dockerfileを1 PRへ集約、公開後の保留期間つき） | `check-uv-version` |
@@ -52,6 +53,12 @@ Renovateのこの判定は、自身が提示する直接依存にしか適用さ
 package単位で保留期間を短縮する仕組みは用意しない。急ぎ適用したい修正がある場合も、`uv.lock`の`[options]`やcutoffの手編集で検査を迂回せず、期間と設定値の見直しとして保守者が判断する。
 
 ### uv workspaceの制約
+
+Python本体のmajor/minor更新は、GitHub ActionsとDockerのRenovate package ruleで無効にする。Python依存パッケージの更新は対象外で、同じminor内のPython patch更新とDocker digest更新も継続する。major/minorの移行は、保守者が依存パッケージとAzure Functionsの対応状況を確認し、関連設定を同じ変更で更新する。
+
+Pythonの版指定は各ツールの設定に明記したままにする。`check-version-pins`は、ルート`pyproject.toml`の`requires-python`にある`>=X.Y`の下限を比較基準に、workspace memberの下限、Ruff・tyの対象、workflow（gh-awの定義と生成lockを含む）、APIのDocker image、Functions runtime、task runnerのvenv作成時の指定が一致することを検査する。一部だけを更新した場合や必要なファイルを読み取れない場合は失敗する。Docker imageのpatchとdigest、および独立したスクリプトの対応下限は比較対象に含めない。
+
+移行時はこれらの設定を一括更新し、gh-awの生成lockとpublic lockfileを既存の手順で再生成する。新しいPython版でアプリとスクリプトのQAを実行して互換性を確認する。版指定の一致だけでは、新しい版への対応を保証しない。
 
 `uv.lock`はpublic PyPIだけを参照し、workspace member構成と`resolution-strategy = "lowest"`を保つ必要がある。Renovateがこの3条件を1回のlock更新で維持できることを保証できないため、workspaceの通常更新はDependency Dashboardでの承認制（`dependencyDashboardApproval`）とし、Renovateは候補検出だけを行う。脆弱性修正を含め、lockの確定は[refresh-uv-lock.yml](../.github/workflows/refresh-uv-lock.yml)が担当し、生成されたartifactは`adopt-public-lock`で取り込む（[deployment.md](deployment.md)の「public lockfile の更新」）。botが生成したcutoffのない`uv.lock`をそのまま取り込まない。
 
