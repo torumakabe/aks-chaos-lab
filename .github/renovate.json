@@ -21,6 +21,13 @@
       "enabled": false
     },
     {
+      "description": "python-runtime-major-minor-manual",
+      "matchManagers": ["github-actions", "dockerfile"],
+      "matchPackageNames": ["python"],
+      "matchUpdateTypes": ["major", "minor"],
+      "enabled": false
+    },
+    {
       "description": "python-workspace-candidate-detection-only",
       "matchManagers": ["pep621"],
       "dependencyDashboardApproval": true,

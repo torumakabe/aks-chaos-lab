@@ -2108,7 +2108,7 @@ def target_check_version_pins() -> None:
     so its verdict never depends on the environment it runs in.
     """
     print_step("Checking repository version-update invariants")
-    violations: list[str] = []
+    violations = python_version_violations()
     try:
         dependabot_version_updates_stopped()
         print("  Dependabot version updates: disabled")
@@ -2280,6 +2280,13 @@ RENOVATE_VULNERABILITY_ALERTS: dict[str, Any] = {
     "vulnerabilityFixStrategy": RENOVATE_VULNERABILITY_FIX_STRATEGY,
 }
 RENOVATE_PACKAGE_RULES: dict[str, dict[str, Any]] = {
+    "python-runtime-major-minor-manual": {
+        "description": "python-runtime-major-minor-manual",
+        "matchManagers": ["github-actions", "dockerfile"],
+        "matchPackageNames": ["python"],
+        "matchUpdateTypes": ["major", "minor"],
+        "enabled": False,
+    },
     "gh-aw-compiler-owned": {
         "description": "gh-aw-compiler-owned",
         "matchPackageNames": ["github/gh-aw-actions", "github/gh-aw-actions/**"],
@@ -2361,6 +2368,84 @@ def _expected_manager_config(expectation: RenovateManagerExpectation) -> dict[st
 
 class VersionPinError(RuntimeError):
     """A repository-local version-update invariant is broken."""
+
+
+def python_version_violations() -> list[str]:
+    """Check explicit Python declarations against the root minimum, offline."""
+    violations: list[str] = []
+
+    def read_text(relative: str) -> str:
+        return (ROOT / relative).read_text(encoding="utf-8")
+
+    def check(relative: str, pattern: str, expected: str) -> None:
+        values = re.findall(pattern, read_text(relative), re.MULTILINE)
+        if not values or any(value != expected for value in values):
+            violations.append(
+                f"{relative}: Python version must be {expected!r}, found {values!r}"
+            )
+
+    try:
+        root = tomllib.loads(read_text("pyproject.toml"))
+        minimum = root.get("project", {}).get("requires-python")
+        match = (
+            re.fullmatch(r">=([0-9]+\.[0-9]+)", minimum)
+            if isinstance(minimum, str)
+            else None
+        )
+        if match is None:
+            return ["pyproject.toml: requires-python must be a '>=X.Y' minimum"]
+        version = match.group(1)
+        tool = root.get("tool", {})
+        if (
+            tool.get("ruff", {}).get("target-version")
+            != f"py{version.replace('.', '')}"
+        ):
+            violations.append(
+                f"pyproject.toml: Ruff target-version must match Python {version}"
+            )
+        if tool.get("ty", {}).get("environment", {}).get("python-version") != version:
+            violations.append(
+                f"pyproject.toml: ty python-version must match Python {version}"
+            )
+        for member in tool.get("uv", {}).get("workspace", {}).get("members", []):
+            relative = f"{member}/pyproject.toml"
+            document = tomllib.loads(read_text(relative))
+            if document.get("project", {}).get("requires-python") != minimum:
+                violations.append(f"{relative}: requires-python must match {minimum!r}")
+        workflows = ROOT / ".github/workflows"
+        for path in sorted(workflows.iterdir()):
+            if path.suffix not in {".yml", ".yaml", ".md"}:
+                continue
+            text = path.read_text(encoding="utf-8")
+            pattern = r"^[ \t]+python-version:[ \t]*['\"]?([^'\"\s#]+)"
+            if re.search(r"^[ \t]+python-version-file:", text, re.MULTILINE):
+                violations.append(
+                    f"{path.relative_to(ROOT).as_posix()}: "
+                    f"Python version must be explicitly set to {version!r}"
+                )
+            if (
+                re.search(pattern, text, re.MULTILINE)
+                or "actions/setup-python@" in text
+            ):
+                check(path.relative_to(ROOT).as_posix(), pattern, version)
+        check(
+            "src/api/Dockerfile",
+            r"^FROM[ \t]+python:([0-9]+\.[0-9]+)(?:\.[0-9]+)?-",
+            version,
+        )
+        check(
+            "infra/modules/functions/external-sli-publisher.bicep",
+            r"runtime:\s*\{\s*name:\s*'python'\s*version:\s*'([^']+)'",
+            version,
+        )
+        check(
+            "scripts/tasks.py",
+            r'"--python",\s*"([^"]+)"',
+            version,
+        )
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        violations.append(f"could not check Python versions: {error}")
+    return violations
 
 
 def load_renovate_config() -> dict[str, Any]:
