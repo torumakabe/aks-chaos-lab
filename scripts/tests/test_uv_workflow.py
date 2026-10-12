@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
+import subprocess
 import sys
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -52,16 +56,15 @@ def isolate_uv_configuration(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
 def configure_root(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, lock_content: str = "version = 1\n"
 ) -> None:
-    tasks.release_approved_index_lock()
     (tmp_path / "uv.lock").write_text(lock_content, encoding="utf-8")
     monkeypatch.setattr(tasks, "ROOT", tmp_path)
     monkeypatch.setattr(post_edit, "REPO_ROOT", tmp_path)
-    monkeypatch.setattr(tasks, "_approved_index_environment_prepared", False)
     monkeypatch.setattr(
         tasks,
         "user_uv_config_path",
         lambda: tmp_path / "missing-uv.toml",
     )
+    monkeypatch.delenv("UV_CONFIG_FILE", raising=False)
     monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
 
 
@@ -74,44 +77,6 @@ def write_approved_config(
     )
 
 
-def test_approved_index_run_flags_sync_once_per_process(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    configure_root(monkeypatch, tmp_path)
-    config_path = tmp_path / "uv.toml"
-    write_approved_config(config_path)
-    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
-    sync_calls = 0
-
-    def sync_approved_index() -> None:
-        nonlocal sync_calls
-        sync_calls += 1
-        monkeypatch.setattr(tasks, "_approved_index_environment_prepared", True)
-
-    monkeypatch.setattr(
-        tasks,
-        "target_sync_dev_approved_index",
-        sync_approved_index,
-    )
-
-    assert tasks.approved_index_run_flags() == ["--no-sync"]
-    assert tasks.approved_index_run_flags() == ["--no-sync"]
-    assert sync_calls == 1
-
-
-def test_approved_index_run_flags_defer_missing_config_path(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    configure_root(monkeypatch, tmp_path)
-
-    def missing_config_path() -> Path:
-        raise approved_config.ApprovedIndexConfigError("missing config root")
-
-    monkeypatch.setattr(tasks, "user_uv_config_path", missing_config_path)
-
-    assert tasks.approved_index_run_flags() == []
-
-
 def test_project_environment_honors_relative_override(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -121,168 +86,341 @@ def test_project_environment_honors_relative_override(
     assert tasks.project_environment_path() == tmp_path / "build" / "venv"
 
 
-def test_approved_index_lock_is_keyed_by_absolute_environment(
+@pytest.mark.parametrize(
+    ("target", "include_dev", "group_flag"),
+    (
+        ("target_sync", False, "--no-dev"),
+        ("target_sync_dev", True, "--all-groups"),
+    ),
+)
+def test_public_sync_is_locked_configured_and_scoped(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    target: str,
+    include_dev: bool,
+    group_flag: str,
+) -> None:
+    configure_root(monkeypatch, tmp_path)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(tasks, "ensure_public_lock", lambda: None)
+    monkeypatch.setattr(tasks, "run", lambda args, **_kwargs: calls.append(args))
+
+    getattr(tasks, target)()
+
+    assert calls == [
+        [
+            "uv",
+            "sync",
+            "--project",
+            str(tmp_path),
+            "--all-packages",
+            "--locked",
+            "--no-config",
+            group_flag,
+        ]
+    ]
+    assert include_dev is (group_flag == "--all-groups")
+
+
+def test_explicit_public_index_uses_public_sync(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
-    shared_environment = tmp_path / "shared" / ".venv"
-    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", str(shared_environment))
-
-    first_lock = tasks.approved_index_lock_path()
-    monkeypatch.setattr(tasks, "ROOT", tmp_path / "other-worktree")
-
-    assert tasks.approved_index_lock_path() == first_lock
-
-
-def test_main_releases_approved_index_lock_after_success(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    releases: list[None] = []
-    monkeypatch.setitem(tasks.TARGETS, "test-lock-release", lambda: None)
-    monkeypatch.setattr(
-        tasks, "release_approved_index_lock", lambda: releases.append(None)
+    config_path = tmp_path / "uv.toml"
+    config_path.write_text(
+        '[[index]]\nname = "pypi"\nurl = "https://pypi.org/simple"\ndefault = true\n',
+        encoding="utf-8",
     )
+    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    monkeypatch.setattr(tasks, "ensure_public_lock", lambda: None)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(tasks, "run", lambda args, **_kwargs: calls.append(args))
 
-    assert tasks.main(["test-lock-release"]) == 0
-    assert releases == [None]
+    tasks.target_sync()
 
-
-def test_main_releases_approved_index_lock_after_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    releases: list[None] = []
-
-    def fail() -> None:
-        raise RuntimeError("target failed")
-
-    monkeypatch.setitem(tasks.TARGETS, "test-lock-release", fail)
-    monkeypatch.setattr(
-        tasks, "release_approved_index_lock", lambda: releases.append(None)
-    )
-
-    with pytest.raises(RuntimeError, match="target failed"):
-        tasks.main(["test-lock-release"])
-
-    assert releases == [None]
+    assert calls[0][0] == "uv"
+    assert "--no-config" in calls[0]
+    assert "--locked" in calls[0]
+    assert "--no-dev" in calls[0]
 
 
-@pytest.mark.parametrize(
-    "target_name",
-    ("target_sync", "target_sync_dev"),
-)
-def test_standard_sync_targets_reject_approved_index(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    target_name: str,
+def test_private_index_is_selected_only_by_one_default_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     config_path = tmp_path / "uv.toml"
     write_approved_config(config_path)
     monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
+    selected: list[tuple[Path, bool]] = []
     monkeypatch.setattr(
         tasks,
-        "run",
-        lambda *_args, **_kwargs: pytest.fail("uv must not run"),
+        "sync_private_index",
+        lambda path, *, include_dev: selected.append((path, include_dev)),
     )
 
-    with pytest.raises(SystemExit):
-        getattr(tasks, target_name)()
+    tasks.target_sync_dev()
+
+    assert selected == [(config_path, True)]
 
 
 @pytest.mark.parametrize(
     "content",
     (
-        None,
-        '[[index]]\nname = "pypi"\nurl = "https://pypi.org/simple"\ndefault = true\n',
         "[[index]\n",
+        '[[index]]\nname = "approved"\nurl = "https://packages.example.test/simple"\n',
+        '[[index]]\nname = "one"\nurl = "https://packages.example.test/simple"\ndefault = true\n'
+        '[[index]]\nname = "two"\nurl = "https://mirror.example.test/simple"\ndefault = true\n',
+        'index-url = "https://packages.example.test/simple"\n',
+        "[pip]\n",
+        '[[index]]\nname = "approved"\nurl = "http://packages.example.test/simple"\ndefault = true\n',
+        '[[index]]\nname = "approved"\nurl = "https://[ "\ndefault = true\n',
     ),
 )
-def test_non_approved_config_is_deferred_to_uv(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    content: str | None,
+def test_invalid_registry_configuration_stops_before_sync(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, content: str
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     config_path = tmp_path / "uv.toml"
-    if content is not None:
-        config_path.write_text(content, encoding="utf-8")
+    config_path.write_text(content, encoding="utf-8")
     monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
-
-    tasks.ensure_approved_index_not_selected()
-    assert tasks.approved_index_run_flags() == []
-
-
-@pytest.mark.parametrize(
-    "entrypoint",
-    (
-        "run_uv",
-        "run_uv_in",
-        "target_sync",
-        "target_sync_dev",
-    ),
-)
-@pytest.mark.parametrize(
-    ("setting", "override", "diagnostic"),
-    (
-        ('find-links = ["https://packages.example.test/wheels"]\n', None, "find-links"),
-        ("no-verify-hashes = true\n", None, "no-verify-hashes"),
-        ("[pip]\n", None, r"\[pip\]"),
-        ("", "UV_FIND_LINKS", "UV_FIND_LINKS"),
-        ("", "UV_NO_VERIFY_HASHES", "UV_NO_VERIFY_HASHES"),
-    ),
-)
-def test_invalid_selected_index_stops_entrypoints_before_uv(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    entrypoint: str,
-    setting: str,
-    override: str | None,
-    diagnostic: str,
-) -> None:
-    configure_root(monkeypatch, tmp_path)
-    config_path = tmp_path / "uv.toml"
-    write_approved_config(config_path)
-    config_path.write_text(
-        setting + config_path.read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
-    if override is not None:
-        monkeypatch.setenv(override, "1")
     monkeypatch.setattr(
-        tasks.subprocess,
-        "run",
-        lambda *_args, **_kwargs: pytest.fail("uv must not start"),
+        tasks, "run", lambda *_args, **_kwargs: pytest.fail("uv must not run")
     )
     monkeypatch.setattr(
         tasks,
-        "target_sync_dev_approved_index",
-        lambda: pytest.fail("invalid selection must fail before synchronization"),
+        "sync_private_index",
+        lambda *_args, **_kwargs: pytest.fail("private sync must not run"),
     )
-    with pytest.raises(SystemExit, match=diagnostic):
-        if entrypoint == "run_uv":
-            tasks.run_uv(["pytest"])
-        elif entrypoint == "run_uv_in":
-            tasks.run_uv_in(tmp_path / "src", ["pytest"])
-        else:
-            getattr(tasks, entrypoint)()
+
+    with pytest.raises(SystemExit):
+        tasks.target_sync_dev()
 
 
-@pytest.mark.parametrize(
-    "url", (None, "http://packages.example.test/simple", "https://[")
-)
-def test_invalid_default_index_url_is_not_a_normal_environment(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, url: str | None
+def test_explicit_missing_config_stops_before_sync(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
-    config_path = tmp_path / "uv.toml"
-    config_path.write_text(
-        '[[index]]\nname = "approved"\ndefault = true\n'
-        + (f'url = "{url}"\n' if url else ""),
-        encoding="utf-8",
+    missing = tmp_path / "missing.toml"
+    monkeypatch.setenv("UV_CONFIG_FILE", str(missing))
+    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: missing)
+    monkeypatch.setattr(
+        tasks, "run", lambda *_args, **_kwargs: pytest.fail("uv must not run")
     )
-    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
-    with pytest.raises(SystemExit, match="URL"):
-        tasks.approved_index_run_flags()
+
+    with pytest.raises(SystemExit, match="not found"):
+        tasks.target_sync_dev()
+
+
+def test_public_sync_failure_does_not_fall_back_and_prints_fixed_guidance(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    configure_root(monkeypatch, tmp_path)
+    monkeypatch.setattr(tasks, "ensure_public_lock", lambda: None)
+    monkeypatch.setattr(
+        tasks,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(SystemExit(2)),
+    )
+    monkeypatch.setattr(
+        tasks,
+        "sync_private_index",
+        lambda *_args, **_kwargs: pytest.fail("must not fall back"),
+    )
+
+    with pytest.raises(SystemExit) as raised:
+        tasks.target_sync_dev()
+
+    assert raised.value.code == 2
+    error = capsys.readouterr().err
+    assert "public PyPI was selected" in error
+    assert "No automatic switch to a private index" in error
+    assert "default = true" in error
+    assert "password" not in error.lower()
+    assert "packages.example.test" not in error
+
+
+def test_private_index_sync_hides_installer_output_and_limits_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_path = tmp_path / "uv.toml"
+    write_approved_config(config_path)
+    monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_USERNAME", "secret-user")
+    monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_PASSWORD", "fixture-value")
+    monkeypatch.setenv("UV_INDEX_OTHER_PASSWORD", "other-secret")
+    calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def subprocess_run(
+        args: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(args, 0, b"", b"")
+
+    monkeypatch.setattr(tasks.subprocess, "run", subprocess_run)
+
+    tasks.run_private_index_sync(["uv", "pip", "sync"], config_path=config_path)
+
+    assert calls[0][0] == tasks.resolve_command(["uv", "pip", "sync"])
+    assert calls[0][1]["capture_output"] is True
+    assert calls[0][1]["env"] == tasks.child_env(
+        {
+            "UV_CACHE_DIR": str(tasks.approved_index_cache_path()),
+            "UV_CONFIG_FILE": str(config_path),
+            "UV_INDEX_APPROVED_INDEX_USERNAME": os.environ[
+                "UV_INDEX_APPROVED_INDEX_USERNAME"
+            ],
+            "UV_INDEX_APPROVED_INDEX_PASSWORD": os.environ[
+                "UV_INDEX_APPROVED_INDEX_PASSWORD"
+            ],
+        }
+    )
+    assert capsys.readouterr().err == ""
+
+
+def test_private_index_failure_is_sanitized(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config_path = tmp_path / "uv.toml"
+    write_approved_config(config_path)
+
+    def failed_run(
+        args: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(
+            args, 1, b"https://packages.example.test/secret", b"fixture-value"
+        )
+
+    monkeypatch.setattr(tasks.subprocess, "run", failed_run)
+
+    with pytest.raises(SystemExit) as raised:
+        tasks.run_private_index_sync(["uv", "pip", "sync"], config_path=config_path)
+
+    error = capsys.readouterr().err
+    assert raised.value.code == 1
+    assert "Approved-index synchronization failed" in error
+    assert "fixture-value" not in error
+    assert "packages.example.test" not in error
+
+
+def test_private_sync_failure_does_not_fall_back(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config_path = tmp_path / "uv.toml"
+    write_approved_config(config_path)
+    monkeypatch.setattr(tasks, "selected_approved_index_config", lambda: config_path)
+    monkeypatch.setattr(tasks, "ensure_public_lock", lambda: None)
+    monkeypatch.setattr(
+        tasks,
+        "sync_private_index",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(SystemExit(1)),
+    )
+    monkeypatch.setattr(
+        tasks, "run", lambda *_args, **_kwargs: pytest.fail("public sync must not run")
+    )
+
+    with pytest.raises(SystemExit) as raised:
+        tasks.sync_dependencies(include_dev=True)
+
+    assert raised.value.code == 1
+
+
+@pytest.mark.parametrize("failure", ("auth", "missing-artifact", "hash-mismatch"))
+def test_private_sync_fails_against_local_index(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+) -> None:
+    artifact = b"not-a-valid-wheel"
+    artifact_hash = hashlib.sha256(artifact).hexdigest()
+    authorization_headers: list[str | None] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            if failure == "auth":
+                authorization_headers.append(self.headers.get("Authorization"))
+                self.send_response(401)
+                self.send_header("WWW-Authenticate", 'Basic realm="test"')
+                self.end_headers()
+                return
+            if self.path.startswith("/simple/fixture-package"):
+                body = (
+                    '<a href="/packages/fixture_package-1.0.0-py3-none-any.whl'
+                    f'#sha256={artifact_hash}">wheel</a>'
+                ).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            if self.path.startswith("/packages/"):
+                if failure == "missing-artifact":
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(artifact)))
+                self.end_headers()
+                self.wfile.write(artifact)
+                return
+            self.send_response(404)
+            self.end_headers()
+
+        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    try:
+        config_path = tmp_path / "uv.toml"
+        index_url = f"http://127.0.0.1:{server.server_port}/simple"
+        authentication = 'authenticate = "always"\n' if failure == "auth" else ""
+        config_path.write_text(
+            '[[index]]\nname = "approved-index"\n'
+            f'url = "{index_url}"\ndefault = true\n{authentication}',
+            encoding="utf-8",
+        )
+        expected_hash = "0" * 64 if failure == "hash-mismatch" else artifact_hash
+        requirements = tmp_path / "requirements.txt"
+        requirements.write_text(
+            f"fixture-package==1.0.0 --hash=sha256:{expected_hash}\n",
+            encoding="utf-8",
+        )
+        if failure == "auth":
+            monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_USERNAME", "fixture-user")
+            monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_PASSWORD", "fixture-password")
+
+        with pytest.raises(SystemExit) as raised:
+            tasks.run_private_index_sync(
+                [
+                    "uv",
+                    "pip",
+                    "sync",
+                    "--require-hashes",
+                    str(requirements),
+                    "--python",
+                    sys.executable,
+                ],
+                config_path=config_path,
+            )
+
+        assert raised.value.code != 0
+        error = capsys.readouterr().err
+        assert "Approved-index synchronization failed" in error
+        assert "fixture-password" not in error
+        if failure == "auth":
+            assert any(authorization_headers)
+    finally:
+        server.shutdown()
+        server.server_close()
+        server_thread.join()
 
 
 def test_approved_index_config_requires_one_non_public_default(
@@ -360,11 +498,11 @@ def test_package_api_approved_index_delegates_validated_build(
     import api_artifact
 
     calls: list[tuple[Path, Path, str]] = []
-    repairs: list[bool] = []
+    lock_checks: list[None] = []
     monkeypatch.setattr(
         tasks,
         "ensure_public_lock",
-        lambda *, allow_repair: repairs.append(allow_repair),
+        lambda: lock_checks.append(None),
     )
     reference = "aks-chaos-lab-approved:sha256-" + "a" * 64
 
@@ -377,7 +515,7 @@ def test_package_api_approved_index_delegates_validated_build(
     assert calls == [
         (tasks.ROOT, config_path, approved_config.config_sha256(config_path))
     ]
-    assert repairs == [True]
+    assert lock_checks == [None]
 
 
 def test_deploy_api_approved_index_cli_requires_explicit_image() -> None:
@@ -721,6 +859,7 @@ def test_run_uv_binds_root_project_and_environment(
                 "run",
                 "--project",
                 str(tmp_path),
+                "--no-sync",
                 "ruff",
                 "check",
             ],
@@ -801,67 +940,82 @@ def test_approved_index_config_rejects_pip_table(tmp_path: Path) -> None:
         approved_config.validate_approved_index_config(config_path, {})
 
 
-def test_lock_change_during_sync_fails_before_environment_is_reused(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+@pytest.mark.parametrize(
+    ("include_dev", "group_flag"),
+    ((False, "--no-dev"), (True, "--all-groups")),
+)
+def test_private_sync_uses_frozen_hash_requirements_and_preserves_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    include_dev: bool,
+    group_flag: str,
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     config_path = tmp_path / "uv.toml"
     write_approved_config(config_path)
-    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
-    monkeypatch.setattr(tasks, "acquire_approved_index_lock", lambda: None)
-    monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_USERNAME", "username")
-    monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_PASSWORD", "password")
-    monkeypatch.setenv("UV_INDEX_OTHER_PASSWORD", "other-password")
-    monkeypatch.setattr(tasks, "validate_public_lock", lambda *_args: None)
+    commands: list[list[str]] = []
+    private_syncs: list[tuple[list[str], Path]] = []
+    monkeypatch.setattr(tasks, "ensure_public_lock", lambda: None)
+    monkeypatch.setattr(tasks, "lock_sha256", lambda: "same-lock")
+    monkeypatch.setattr(tasks, "run", lambda args, **_kwargs: commands.append(args))
+    monkeypatch.setattr(tasks, "validate_exported_requirements", lambda _path: None)
     monkeypatch.setattr(
         tasks,
-        "validate_exported_requirements",
-        lambda *_args: None,
+        "run_private_index_sync",
+        lambda args, *, config_path: private_syncs.append((args, config_path)),
     )
-    pip_environment: dict[str, str] = {}
 
-    def change_lock_after_install(args: list[str], **kwargs: object) -> None:
-        if args[:3] == ["uv", "pip", "sync"]:
-            env = kwargs.get("env")
-            assert isinstance(env, dict)
-            pip_environment.update(
-                {str(name): str(value) for name, value in env.items()}
-            )
-            (tmp_path / "uv.lock").write_text("version = 2\n", encoding="utf-8")
+    tasks.sync_private_index(config_path, include_dev=include_dev)
 
-    monkeypatch.setattr(tasks, "run", change_lock_after_install)
+    assert commands[0] == [
+        "uv",
+        "venv",
+        "--clear",
+        "--no-config",
+        "--python",
+        "3.14",
+        str(tmp_path / ".venv"),
+    ]
+    assert commands[1][:8] == [
+        "uv",
+        "export",
+        "--project",
+        str(tmp_path),
+        "--quiet",
+        "--frozen",
+        "--no-config",
+        "--all-packages",
+    ]
+    assert group_flag in commands[1]
+    assert "--no-emit-workspace" in commands[1]
+    assert "--no-emit-index-url" in commands[1]
+    assert commands[1][-2] == "--output-file"
+    assert private_syncs[0][0][:3] == ["uv", "pip", "sync"]
+    assert "--require-hashes" in private_syncs[0][0]
+    assert private_syncs[0][0][-2:] == [
+        "--python",
+        str(tmp_path / ".venv/bin/python"),
+    ]
+    assert private_syncs[0][1] == config_path
+    assert (
+        tmp_path / ".venv/lib/python3.14/site-packages/aks-chaos-lab-workspace.pth"
+    ).is_file()
 
-    with pytest.raises(SystemExit):
-        tasks.target_sync_dev_approved_index()
 
-    assert tasks.__dict__["_approved_index_environment_prepared"] is False
-    assert pip_environment == {
-        "UV_CACHE_DIR": str(tasks.approved_index_cache_path()),
-        "UV_CONFIG_FILE": str(config_path),
-        "UV_INDEX_APPROVED_INDEX_USERNAME": "username",
-        "UV_INDEX_APPROVED_INDEX_PASSWORD": "password",
-    }
-
-
-def test_environment_creation_failure_does_not_mark_process_prepared(
+def test_private_sync_fails_if_lock_changes_during_install(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure_root(monkeypatch, tmp_path)
     config_path = tmp_path / "uv.toml"
     write_approved_config(config_path)
-    monkeypatch.setattr(tasks, "user_uv_config_path", lambda: config_path)
-    monkeypatch.setattr(tasks, "acquire_approved_index_lock", lambda: None)
-    monkeypatch.setattr(tasks, "validate_public_lock", lambda *_args: None)
+    lock_digests = iter(("before", "after"))
+    monkeypatch.setattr(tasks, "ensure_public_lock", lambda: None)
+    monkeypatch.setattr(tasks, "lock_sha256", lambda: next(lock_digests))
+    monkeypatch.setattr(tasks, "run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(tasks, "run_private_index_sync", lambda *_args, **_kwargs: None)
 
-    def fail_environment_creation(_args: list[str], **_kwargs: object) -> None:
-        raise RuntimeError("simulated interruption")
-
-    monkeypatch.setattr(tasks, "run", fail_environment_creation)
-
-    with pytest.raises(RuntimeError, match="simulated interruption"):
-        tasks.target_sync_dev_approved_index()
-
-    assert tasks.__dict__["_approved_index_environment_prepared"] is False
+    with pytest.raises(SystemExit):
+        tasks.sync_private_index(config_path, include_dev=True)
 
 
 def test_public_lock_rejects_direct_url_source(
@@ -885,28 +1039,35 @@ def test_public_lock_rejects_direct_url_source(
         tasks.target_check_public_lock()
 
 
-def test_exported_requirements_reject_direct_source(tmp_path: Path) -> None:
-    requirements_path = tmp_path / "requirements.txt"
-    requirements_path.write_text(
+@pytest.mark.parametrize(
+    "content",
+    (
         "unsafe @ https://example.test/unsafe.whl\n",
-        encoding="utf-8",
-    )
-
-    with pytest.raises(public_lock.PublicLockError):
-        public_lock.validate_exported_requirements(requirements_path)
-
-
-def test_exported_requirements_require_sha256_hash(tmp_path: Path) -> None:
+        "safe==1.0.0\n",
+        f"--hash=sha256:{'0' * 64}\n",
+        "safe==1.0.0 --hash=sha256:invalid\n",
+    ),
+)
+def test_private_exported_requirements_reject_sources_or_missing_hashes(
+    tmp_path: Path,
+    content: str,
+) -> None:
     requirements_path = tmp_path / "requirements.txt"
-    requirements_path.write_text("safe==1.0.0\n", encoding="utf-8")
+    requirements_path.write_text(content, encoding="utf-8")
 
     with pytest.raises(public_lock.PublicLockError):
         public_lock.validate_exported_requirements(requirements_path)
 
+
+def test_private_exported_requirements_accept_hash_pinned_registry_package(
+    tmp_path: Path,
+) -> None:
+    requirements_path = tmp_path / "requirements.txt"
     requirements_path.write_text(
         f"safe==1.0.0 \\\n    --hash=sha256:{'0' * 64}\n",
         encoding="utf-8",
     )
+
     public_lock.validate_exported_requirements(requirements_path)
 
 

@@ -6,7 +6,7 @@ Accepted
 
 - Date: 2026-05-21
 
-Decision 3 に関係する root lock の取得元と管理対象環境での同期方式、Decision 4 の Docker の依存構築方式、Decision 9 の post-edit hook の自動同期許可は、[ADR-017](017-approved-index-conversion-for-managed-environments.md) で具体化または一部変更した。root `uv.lock` の一本化は維持し、public PyPI source の lock をリポジトリで管理する。Docker は export と pip sync に変更し、post-edit hook は project venv の ruff を直接実行する。uv workspace によるツーリング統一とデプロイ単位の分離は引き続き有効とする。
+Decision 3 に関係する root lock の取得元と管理対象環境での同期方式、Decision 4 の Docker の依存構築方式、Decision 9 の post-edit hook の自動同期許可は、[ADR-017](017-approved-index-conversion-for-managed-environments.md) で具体化または一部変更した。workspace 同期の registry 選択と実行方法は [ADR-024](024-explicit-python-registry-sync.md) で更新した。root `uv.lock` の一本化は維持し、public PyPI source の lock をリポジトリで管理する。Docker は export と pip sync に変更し、post-edit hook は project venv の ruff を直接実行する。uv workspace によるツーリング統一とデプロイ単位の分離は引き続き有効とする。
 
 ## Context
 

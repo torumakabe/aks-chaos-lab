@@ -59,7 +59,7 @@ build や deploy の失敗を理由に新しい経路を実装する前に、`do
 | Python スクリプト、hook、契約テスト | 対象への既存 ruff、ty、pytest。共通処理の変更では呼び出し元の関連テストも含める |
 | Bicep | `uv run --no-project "${PWD}/scripts/tasks.py" build-bicep`（エラー 0） |
 
-依存不足の場合は `docs/deployment.md` の同期手順を使う。通常環境は `sync-dev`、組織承認済み package index の環境は task runner の同期経路に従う。検査の成功後は、新しい変更、失敗、未解決の懸念がなければ同じ検査を繰り返したり全体検査へ広げたりしない。
+依存不足の場合は `docs/deployment.md` の同期手順を使う。public / private を問わず workspace task の前に明示 `sync-dev` を実行し、task runner は準備済み `.venv` を `--no-sync` で使う。検査の成功後は、新しい変更、失敗、未解決の懸念がなければ同じ検査を繰り返したり全体検査へ広げたりしない。
 
 `.github/hooks/hooks.json` の postToolUse hook は、`.py` の編集で project `.venv` の ruff、`.bicep` の編集で `az bicep format` を実行する。変更や失敗は `additionalContext` に返る。hook の実行を依存の整合性や品質ゲート全体の成功と扱わない。Lefthook の pre-commit は毎回 Git index 内の public lock を検査し、ステージされた Bicep 変更がある場合は Bicep 検証も実行する。public lock 検査は修復や再ステージを行わない。
 

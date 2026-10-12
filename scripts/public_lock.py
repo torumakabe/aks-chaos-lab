@@ -140,74 +140,7 @@ def is_toml_table(value: object) -> TypeGuard[dict[str, Any]]:
     return isinstance(value, dict) and all(isinstance(key, str) for key in value)
 
 
-def same_toml_value(left: object, right: object) -> bool:
-    if type(left) is not type(right):
-        return False
-    if is_toml_table(left) and is_toml_table(right):
-        return left.keys() == right.keys() and all(
-            same_toml_value(value, right[key]) for key, value in left.items()
-        )
-    if isinstance(left, list) and isinstance(right, list):
-        return len(left) == len(right) and all(
-            same_toml_value(a, b) for a, b in zip(left, right, strict=True)
-        )
-    return left == right
-
-
-def public_lock_repair_content(
-    pyproject_path: Path, baseline: bytes, current: bytes
-) -> bytes:
-    """Accept only the approved-index URL rewrite and metadata omission."""
-    original = tomllib.loads(baseline.decode("utf-8"))
-    candidate = tomllib.loads(current.decode("utf-8"))
-    project = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
-    validate_public_lock_data(project, original)
-    original_packages = original.get("package", [])
-    candidate_packages = candidate.get("package", [])
-    if not isinstance(candidate_packages, list) or len(original_packages) != len(
-        candidate_packages
-    ):
-        raise PublicLockError("Cannot repair uv.lock: package count changed.")
-
-    def restore_artifact(source: object, changed: object) -> None:
-        if not is_toml_table(source) or not is_toml_table(changed):
-            return
-        if isinstance(source.get("url"), str) and isinstance(changed.get("url"), str):
-            changed["url"] = source["url"]
-        for name in ("size", "upload-time"):
-            if name in source and name not in changed:
-                changed[name] = source[name]
-
-    for source, changed in zip(original_packages, candidate_packages, strict=True):
-        if not is_toml_table(changed):
-            raise PublicLockError("Cannot repair uv.lock: invalid package.")
-        old_source = source.get("source", {})
-        new_source = changed.get("source", {})
-        if (
-            is_toml_table(new_source)
-            and "registry" in old_source
-            and isinstance(new_source.get("registry"), str)
-        ):
-            new_source["registry"] = old_source["registry"]
-        restore_artifact(source.get("sdist"), changed.get("sdist"))
-        old_wheels = source.get("wheels", [])
-        new_wheels = changed.get("wheels", [])
-        if not isinstance(new_wheels, list) or len(old_wheels) != len(new_wheels):
-            raise PublicLockError("Cannot repair uv.lock: artifact count changed.")
-        for old_wheel, new_wheel in zip(old_wheels, new_wheels, strict=True):
-            restore_artifact(old_wheel, new_wheel)
-
-    if not same_toml_value(original, candidate):
-        raise PublicLockError(
-            "Cannot repair uv.lock: changes exceed registry/artifact URLs "
-            "and omitted artifact size/upload-time. The file was preserved."
-        )
-    return baseline
-
-
-def validate_exported_requirements(
-    requirements_path: Path,
-) -> None:
+def validate_exported_requirements(requirements_path: Path) -> None:
     pending_requirement_line: int | None = None
     pending_requirement_has_hash = False
 
@@ -263,8 +196,8 @@ def main(argv: Sequence[str]) -> int:
             validate_exported_requirements(Path(argv[1]))
         else:
             print(
-                "Usage: public_lock.py "
-                "(staged | lock <pyproject> <uv.lock> | requirements <requirements>)",
+                "Usage: public_lock.py (staged | lock <pyproject> <uv.lock> | "
+                "requirements <path>)",
                 file=sys.stderr,
             )
             return 2

@@ -95,7 +95,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
 uv run --no-project "${PWD}/scripts/tasks.py" qa
 ```
 
-public package registryへ直接接続できず、組織承認済みのPython package indexを使う環境では、task runnerが検証前に依存関係を同期します。
+public PyPI を使う場合も、組織承認済み index を使う場合も、workspace task の前に同じ `sync-dev` を実行します。user-level uv 設定がなければ public PyPI を使い、設定があれば明示された index を使います。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" qa
@@ -146,7 +146,7 @@ docs/adr/            Architecture Decision Records
 .github/hooks/       Copilot CLI postToolUse 用 lint/format フィードバック
 ```
 
-> Python は uv workspace 構成です。ルートで同期すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest) が揃います。通常の同期は [ADR-013](docs/adr/013-uv-workspace-unified-tooling.md)、組織承認済み package index を使う環境は [ADR-017](docs/adr/017-approved-index-conversion-for-managed-environments.md) を参照してください。
+> Python は uv workspace 構成です。ルートで同期すれば、`src/api` と `src/external-sli-publisher` の両方の依存と開発ツール (ruff / ty / pytest) が揃います。依存同期の選択規則と明示操作は [ADR-024](docs/adr/024-explicit-python-registry-sync.md) を参照してください。
 
 ## ライセンス
 

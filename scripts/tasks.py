@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import codecs
 import hashlib
-import importlib
 import json
 import os
 import re
@@ -45,15 +44,14 @@ from aks_connection import (  # noqa: E402
 from approved_index_config import (  # noqa: E402
     UNSAFE_UV_ENVIRONMENT_VARIABLES,
     ApprovedIndexConfigError,
-    approved_index_is_selected,
     config_sha256,
+    select_approved_index_config,
     user_uv_config_path,
     validate_approved_index_config,
 )
 from public_lock import (  # noqa: E402
     PUBLIC_PYPI_INDEX,
     PublicLockError,
-    public_lock_repair_content,
     validate_exported_requirements,
     validate_public_lock,
 )
@@ -145,8 +143,6 @@ REVIEW_TOOL_VERSION_COMMANDS: dict[str, tuple[str, ...]] = {
     "helm": ("helm", "version", "--short"),
     "lefthook": ("lefthook", "version"),
 }
-_approved_index_environment_prepared = False
-_approved_index_lock_file: BinaryIO | None = None
 
 
 def print_step(message: str) -> None:
@@ -212,58 +208,6 @@ def approved_index_credentials(config_path: Path) -> dict[str, str]:
     }
 
 
-def approved_index_lock_path() -> Path:
-    environment = os.path.normcase(str(project_environment_path().resolve()))
-    environment_key = hashlib.sha256(environment.encode()).hexdigest()
-    return (
-        Path(tempfile.gettempdir())
-        / "aks-chaos-lab-uv-locks"
-        / f"{environment_key}.lock"
-    )
-
-
-def acquire_approved_index_lock() -> None:
-    global _approved_index_lock_file
-
-    if _approved_index_lock_file is not None:
-        return
-
-    _approved_index_lock_file = acquire_file_lock(approved_index_lock_path())
-
-
-def acquire_file_lock(lock_path: Path) -> BinaryIO:
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    lock_file = lock_path.open("a+b")
-    lock_file.seek(0, os.SEEK_END)
-    if lock_file.tell() == 0:
-        lock_file.write(b"\0")
-        lock_file.flush()
-    lock_file.seek(0)
-
-    if os.name == "nt":
-        msvcrt = importlib.import_module("msvcrt").__dict__
-        while True:
-            try:
-                msvcrt["locking"](lock_file.fileno(), msvcrt["LK_NBLCK"], 1)
-                break
-            except OSError:
-                time.sleep(0.1)
-    else:
-        fcntl = importlib.import_module("fcntl").__dict__
-        fcntl["flock"](lock_file.fileno(), fcntl["LOCK_EX"])
-
-    return lock_file
-
-
-def release_approved_index_lock() -> None:
-    global _approved_index_lock_file
-
-    if _approved_index_lock_file is None:
-        return
-    _approved_index_lock_file.close()
-    _approved_index_lock_file = None
-
-
 def lock_sha256() -> str:
     digest = hashlib.sha256()
     with (ROOT / "uv.lock").open("rb") as lock_file:
@@ -272,29 +216,8 @@ def lock_sha256() -> str:
     return digest.hexdigest()
 
 
-def public_lock_repair_lock_path() -> Path:
-    path = os.path.normcase(str((ROOT / "uv.lock").resolve()))
-    key = hashlib.sha256(path.encode()).hexdigest()
-    return Path(tempfile.gettempdir()) / "aks-chaos-lab-uv-locks" / f"public-{key}.lock"
-
-
-def public_lock_git(*args: str) -> bytes:
-    result = subprocess.run(
-        resolve_command(["git", *args]),
-        cwd=ROOT,
-        capture_output=True,
-        check=False,
-        timeout=30,
-    )
-    if result.returncode:
-        raise PublicLockError(
-            "Cannot repair uv.lock: Git comparison is unavailable. File preserved."
-        )
-    return result.stdout
-
-
 def workspace_manifest_names(project_bytes: bytes) -> list[str]:
-    """Return the repository-relative manifests of the uv workspace."""
+    """Return repository-relative manifests for the uv workspace."""
     project = tomllib.loads(project_bytes.decode("utf-8"))
     members = project["tool"]["uv"]["workspace"]["members"]
     manifests = ["pyproject.toml"]
@@ -306,95 +229,10 @@ def workspace_manifest_names(project_bytes: bytes) -> list[str]:
     return manifests
 
 
-def public_lock_repair_snapshot() -> tuple[str, bytes]:
-    head = public_lock_git("rev-parse", "--verify", "HEAD").decode().strip()
-    baseline = public_lock_git("show", f"{head}:uv.lock")
-    project_bytes = public_lock_git("show", f"{head}:pyproject.toml")
+def ensure_public_lock() -> None:
     try:
-        manifests = workspace_manifest_names(project_bytes)
-    except ValueError as error:
-        raise PublicLockError(
-            "Cannot repair uv.lock: unsupported workspace path."
-        ) from error
-    paths = ["uv.lock", *manifests]
-    if public_lock_git("ls-files", "--unmerged", "--", *paths):
-        raise PublicLockError("Cannot repair uv.lock: lock or manifest has conflicts.")
-    if public_lock_git("diff", "--cached", "--name-only", head, "--", *paths):
-        raise PublicLockError("Cannot repair uv.lock: staged lock or manifest changes.")
-    if public_lock_git("diff", "--name-only", head, "--", *manifests):
-        raise PublicLockError("Cannot repair uv.lock: workspace manifests changed.")
-    for name in manifests:
-        if (ROOT / name).read_bytes() == public_lock_git("show", f"{head}:{name}"):
-            continue
-        if (
-            public_lock_git("hash-object", f"--path={name}", name).strip()
-            != public_lock_git("rev-parse", f"{head}:{name}").strip()
-        ):
-            raise PublicLockError("Cannot repair uv.lock: workspace manifests changed.")
-    return head, baseline
-
-
-def ensure_public_lock(*, allow_repair: bool = False) -> None:
-    lock_path = ROOT / "uv.lock"
-    project_path = ROOT / "pyproject.toml"
-    try:
-        try:
-            validate_public_lock(project_path, lock_path)
-            return
-        except PublicLockError, tomllib.TOMLDecodeError, UnicodeError:
-            if not allow_repair:
-                raise PublicLockError(
-                    "Invalid public uv.lock; file preserved. Run the explicit "
-                    "sync-dev-approved-index task for bounded recovery."
-                ) from None
-
-        # Always acquire after the venv lock, when that lock is needed.
-        with acquire_file_lock(public_lock_repair_lock_path()):
-            try:
-                validate_public_lock(project_path, lock_path)
-                return
-            except PublicLockError, tomllib.TOMLDecodeError, UnicodeError:
-                pass
-            if lock_path.is_symlink():
-                raise PublicLockError("Cannot repair a symlinked uv.lock.")
-            snapshot = public_lock_repair_snapshot()
-            current = lock_path.read_bytes()
-            recovered = public_lock_repair_content(project_path, snapshot[1], current)
-            if (
-                public_lock_repair_snapshot() != snapshot
-                or lock_path.read_bytes() != current
-            ):
-                raise PublicLockError("Cannot repair uv.lock: inputs changed.")
-            temporary_root = ROOT / "tmp"
-            temporary_root.mkdir(exist_ok=True)
-            fd, name = tempfile.mkstemp(prefix="public-lock-", dir=temporary_root)
-            temporary_path = Path(name)
-            try:
-                with os.fdopen(fd, "wb") as stream:
-                    stream.write(recovered)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                temporary_path.chmod(stat.S_IMODE(lock_path.stat().st_mode))
-                if (
-                    public_lock_repair_snapshot() != snapshot
-                    or lock_path.read_bytes() != current
-                ):
-                    raise PublicLockError("Cannot repair uv.lock: inputs changed.")
-                os.replace(temporary_path, lock_path)
-            finally:
-                temporary_path.unlink(missing_ok=True)
-            validate_public_lock(project_path, lock_path)
-            print_success(
-                "Restored public uv.lock from Git HEAD "
-                "(only index/artifact URLs and omitted artifact metadata differed)"
-            )
-    except (
-        OSError,
-        PublicLockError,
-        tomllib.TOMLDecodeError,
-        UnicodeError,
-        subprocess.TimeoutExpired,
-    ) as error:
+        validate_public_lock(ROOT / "pyproject.toml", ROOT / "uv.lock")
+    except (OSError, PublicLockError, tomllib.TOMLDecodeError, UnicodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(1) from error
 
@@ -402,61 +240,12 @@ def ensure_public_lock(*, allow_repair: bool = False) -> None:
 def selected_approved_index_config() -> Path | None:
     try:
         config_path = user_uv_config_path()
-    except ApprovedIndexConfigError:
-        return None
-    if not approved_index_is_selected(config_path):
-        return None
-    try:
-        validate_approved_index_config(config_path)
+        return select_approved_index_config(
+            config_path,
+            explicit=bool(os.environ.get("UV_CONFIG_FILE")),
+        )
     except ApprovedIndexConfigError as error:
         raise SystemExit(f"error: {error}") from error
-    return config_path
-
-
-def approved_index_run_flags() -> list[str]:
-    global _approved_index_environment_prepared
-
-    if _approved_index_environment_prepared:
-        return ["--no-sync"]
-    if selected_approved_index_config() is None:
-        return []
-
-    target_sync_dev_approved_index()
-    return ["--no-sync"]
-
-
-def ensure_approved_index_not_selected() -> None:
-    if selected_approved_index_config() is None:
-        return
-    print(
-        "error: Standard sync cannot use the approved package index. "
-        'Run the "sync-dev-approved-index" target instead.',
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
-
-
-def ensure_standard_sync_allowed() -> None:
-    ensure_approved_index_not_selected()
-
-
-def environment_python_path() -> Path:
-    environment = project_environment_path()
-    if os.name == "nt":
-        return environment / "Scripts" / "python.exe"
-    return environment / "bin" / "python"
-
-
-def environment_site_packages_path() -> Path:
-    environment = project_environment_path()
-    if os.name == "nt":
-        return environment / "Lib" / "site-packages"
-    return (
-        environment
-        / "lib"
-        / f"python{sys.version_info.major}.{sys.version_info.minor}"
-        / "site-packages"
-    )
 
 
 def run(
@@ -541,7 +330,7 @@ def run_uv(args: Sequence[str], *, env: dict[str, str] | None = None) -> None:
             "run",
             "--project",
             str(ROOT),
-            *approved_index_run_flags(),
+            "--no-sync",
             *args,
         ],
         cwd=ROOT,
@@ -570,7 +359,7 @@ def run_uv_in(
             "run",
             "--project",
             str(ROOT),
-            *approved_index_run_flags(),
+            "--no-sync",
             *args,
         ],
         cwd=cwd,
@@ -593,114 +382,168 @@ def target_help() -> None:
     print('Usage: uv run --no-project "${PWD}/scripts/tasks.py" <target>')
     print()
     print("Targets:")
-    for name in sorted(
-        {
-            *TARGETS,
-            "deploy-api-approved-index",
-        }
-    ):
+    for name in sorted({*TARGETS, "deploy-api-approved-index"}):
         print(f"  {name}")
 
 
+def run_private_index_sync(
+    args: Sequence[str],
+    *,
+    config_path: Path,
+) -> None:
+    """Run private-index installation without exposing credential-bearing output."""
+    environment = child_env(
+        {
+            "UV_CACHE_DIR": str(approved_index_cache_path()),
+            "UV_CONFIG_FILE": str(config_path),
+            **approved_index_credentials(config_path),
+        }
+    )
+    try:
+        completed = subprocess.run(
+            resolve_command(args),
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        print(
+            "error: Approved-index synchronization could not start. "
+            "Check the configured index and credentials.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None
+    if completed.returncode:
+        print(
+            "error: Approved-index synchronization failed. "
+            "Check the configured index, package availability, and credentials.",
+            file=sys.stderr,
+        )
+        raise SystemExit(completed.returncode)
+
+
+def sync_private_index(
+    config_path: Path,
+    *,
+    include_dev: bool,
+) -> None:
+    ensure_public_lock()
+    lock_digest = lock_sha256()
+    environment = project_environment_path()
+    with tempfile.TemporaryDirectory(prefix="aks-chaos-lab-uv-") as temporary_dir:
+        requirements = Path(temporary_dir) / "requirements.txt"
+        run(
+            [
+                "uv",
+                "venv",
+                "--clear",
+                "--no-config",
+                "--python",
+                "3.14",
+                str(environment),
+            ]
+        )
+        export_args = [
+            "uv",
+            "export",
+            "--project",
+            str(ROOT),
+            "--quiet",
+            "--frozen",
+            "--no-config",
+            "--all-packages",
+            *(["--all-groups"] if include_dev else ["--no-dev"]),
+            "--no-emit-workspace",
+            "--no-emit-index-url",
+            "--output-file",
+            str(requirements),
+        ]
+        run(export_args)
+        try:
+            validate_exported_requirements(requirements)
+        except (OSError, PublicLockError) as error:
+            print(f"error: {error}", file=sys.stderr)
+            raise SystemExit(1) from error
+        run_private_index_sync(
+            [
+                "uv",
+                "pip",
+                "sync",
+                "--require-hashes",
+                str(requirements),
+                "--python",
+                str(
+                    environment
+                    / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+                ),
+            ],
+            config_path=config_path,
+        )
+        site_packages = (
+            environment / "Lib/site-packages"
+            if os.name == "nt"
+            else environment
+            / "lib"
+            / f"python{sys.version_info.major}.{sys.version_info.minor}"
+            / "site-packages"
+        )
+        site_packages.mkdir(parents=True, exist_ok=True)
+        (site_packages / "aks-chaos-lab-workspace.pth").write_text(
+            f"{API_DIR.resolve()}\n{PUBLISHER_DIR.resolve()}\n",
+            encoding="utf-8",
+        )
+    if lock_sha256() != lock_digest:
+        print(
+            "error: uv.lock changed while the approved-index environment was syncing. "
+            "Run the sync target again.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+
+def sync_dependencies(*, include_dev: bool) -> None:
+    config_path = selected_approved_index_config()
+    scope = "development" if include_dev else "runtime"
+    if config_path is not None:
+        print_step(f"Syncing {scope} dependencies from the approved package index")
+        sync_private_index(config_path, include_dev=include_dev)
+        print_success(f"Approved-index {scope} dependencies synced")
+        return
+
+    print_step(f"Syncing workspace {scope} dependencies from public PyPI")
+    ensure_public_lock()
+    args = [
+        "uv",
+        "sync",
+        "--project",
+        str(ROOT),
+        "--all-packages",
+        "--locked",
+        "--no-config",
+    ]
+    args.extend(["--all-groups"] if include_dev else ["--no-dev"])
+    try:
+        run(args)
+    except SystemExit as error:
+        print(
+            "error: Public PyPI synchronization failed; public PyPI was selected. "
+            "No automatic switch to a private index was attempted. To use an "
+            "organization-approved index, configure one user-level [[index]] "
+            "with default = true as described in docs/deployment.md under "
+            '"組織承認済み package index を使う環境", then rerun sync or sync-dev.',
+            file=sys.stderr,
+        )
+        raise SystemExit(error.code) from None
+    print_success(f"Public PyPI {scope} dependencies synced")
+
+
 def target_sync() -> None:
-    ensure_standard_sync_allowed()
-    print_step("Syncing workspace dependencies (runtime only)")
-    run(["uv", "sync", "--project", str(ROOT), "--all-packages"])
-    print_success("Dependencies synced")
+    sync_dependencies(include_dev=False)
 
 
 def target_sync_dev() -> None:
-    ensure_standard_sync_allowed()
-    print_step("Syncing workspace development dependencies")
-    run(["uv", "sync", "--project", str(ROOT), "--all-packages", "--all-groups"])
-    print_success("Development dependencies synced")
-
-
-def target_sync_dev_approved_index(*, allow_lock_repair: bool = False) -> None:
-    global _approved_index_environment_prepared
-
-    _approved_index_environment_prepared = False
-    acquire_approved_index_lock()
-    sync_succeeded = False
-    print_step("Syncing workspace dependencies from the approved package index")
-    try:
-        environment = project_environment_path()
-        try:
-            config_path = user_uv_config_path()
-            validate_approved_index_config(config_path)
-        except ApprovedIndexConfigError as error:
-            print(f"error: {error}", file=sys.stderr)
-            raise SystemExit(1) from error
-        ensure_public_lock(allow_repair=allow_lock_repair)
-        lock_digest = lock_sha256()
-        with tempfile.TemporaryDirectory(prefix="aks-chaos-lab-uv-") as temporary_dir:
-            requirements = Path(temporary_dir) / "requirements.txt"
-            run(
-                [
-                    "uv",
-                    "venv",
-                    "--clear",
-                    "--python",
-                    "3.14",
-                    str(environment),
-                ]
-            )
-            run(
-                [
-                    "uv",
-                    "export",
-                    "--project",
-                    str(ROOT),
-                    "--quiet",
-                    "--frozen",
-                    "--all-packages",
-                    "--all-groups",
-                    "--no-emit-workspace",
-                    "--no-emit-index-url",
-                    "--output-file",
-                    str(requirements),
-                ]
-            )
-            try:
-                validate_exported_requirements(requirements)
-            except (OSError, PublicLockError) as error:
-                print(f"error: {error}", file=sys.stderr)
-                raise SystemExit(1) from error
-            run(
-                [
-                    "uv",
-                    "pip",
-                    "sync",
-                    "--require-hashes",
-                    str(requirements),
-                    "--python",
-                    str(environment_python_path()),
-                ],
-                env={
-                    "UV_CACHE_DIR": str(approved_index_cache_path()),
-                    "UV_CONFIG_FILE": str(config_path),
-                    **approved_index_credentials(config_path),
-                },
-            )
-            site_packages = environment_site_packages_path()
-            site_packages.mkdir(parents=True, exist_ok=True)
-            (site_packages / "aks-chaos-lab-workspace.pth").write_text(
-                f"{API_DIR.resolve()}\n{PUBLISHER_DIR.resolve()}\n",
-                encoding="utf-8",
-            )
-        if lock_sha256() != lock_digest:
-            print(
-                "error: uv.lock changed while the approved-index environment was syncing. "
-                "Run the sync target again.",
-                file=sys.stderr,
-            )
-            raise SystemExit(1)
-        _approved_index_environment_prepared = True
-        sync_succeeded = True
-        print_success("Approved-index development dependencies synced")
-    finally:
-        if not sync_succeeded:
-            release_approved_index_lock()
+    sync_dependencies(include_dev=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1487,15 +1330,6 @@ def target_review_repo_fast(
 def run_review_checks(checks: Sequence[ReviewCheck]) -> list[ReviewResult]:
     """Run review targets in the current dedicated worktree."""
     runnable, results = classify_review_tools(checks)
-    config_path = selected_approved_index_config()
-    task_environment = (
-        {}
-        if config_path is None
-        else {
-            "UV_CONFIG_FILE": str(config_path),
-            **approved_index_credentials(config_path),
-        }
-    )
     for check in runnable:
         try:
             completed = run_review_command(
@@ -1506,7 +1340,7 @@ def run_review_checks(checks: Sequence[ReviewCheck]) -> list[ReviewResult]:
                     *check.target_arguments,
                 ],
                 cwd=ROOT,
-                env=task_environment,
+                env={},
                 timeout=check.timeout_seconds,
             )
         except subprocess.TimeoutExpired:
@@ -3443,7 +3277,7 @@ def target_build() -> None:
     print_success("Docker image built")
 
 
-def target_package_api_approved_index(*, allow_lock_repair: bool = False) -> None:
+def target_package_api_approved_index() -> None:
     from api_artifact import ApiArtifactError, build_api_image
 
     print_step("Building the API image with the approved package index")
@@ -3454,7 +3288,7 @@ def target_package_api_approved_index(*, allow_lock_repair: bool = False) -> Non
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(1) from error
 
-    ensure_public_lock(allow_repair=allow_lock_repair)
+    ensure_public_lock()
     try:
         image = build_api_image(ROOT, config_path, config_sha256(config_path))
     except ApiArtifactError as error:
@@ -3767,7 +3601,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "run": target_run,
     "sync": target_sync,
     "sync-dev": target_sync_dev,
-    "sync-dev-approved-index": target_sync_dev_approved_index,
     "test": target_test,
     "test-all": target_test_all,
     "test-api": target_test_api,
@@ -3788,13 +3621,10 @@ def _main(argv: Sequence[str]) -> int:
         return 0
 
     target = argv[0]
-    if target in {"sync-dev-approved-index", "package-api-approved-index"}:
+    if target == "package-api-approved-index":
         parser = argparse.ArgumentParser(prog=f"tasks.py {target}")
         parser.parse_args(argv[1:])
-        if target == "sync-dev-approved-index":
-            target_sync_dev_approved_index(allow_lock_repair=True)
-        else:
-            target_package_api_approved_index(allow_lock_repair=True)
+        target_package_api_approved_index()
         return 0
     if target == "deploy-api-approved-index":
         parser = argparse.ArgumentParser(prog=f"tasks.py {target}")
@@ -3864,10 +3694,7 @@ def _main(argv: Sequence[str]) -> int:
 
 
 def main(argv: Sequence[str]) -> int:
-    try:
-        return _main(argv)
-    finally:
-        release_approved_index_lock()
+    return _main(argv)
 
 
 if __name__ == "__main__":

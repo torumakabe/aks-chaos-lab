@@ -209,35 +209,35 @@ uv run --no-project "${PWD}/scripts/tasks.py" run
 
 ### 組織承認済み package index を使う環境
 
-public package registry へ直接接続できない環境では、user-level の uv 設定に組織承認済みの Python package index を一つ構成します。`[[index]]`には`default = true`を指定し、public PyPIへのfallbackを無効にします。index URLや認証情報はリポジトリへ保存しません。
+依存同期は `sync` / `sync-dev` を明示して実行します。user-level uv 設定がなければ public PyPI を選び、設定に HTTPS の index が一つだけあり `default = true` の場合は、その index を選びます。public PyPI への接続可否は選択条件にせず、失敗時に別 index へ自動で切り替えません。設定の解析失敗、明示した `UV_CONFIG_FILE` の欠落、複数 index、不正 URL、取得元を変える環境変数は同期前にエラーになります。
+
+組織承認済み index を使う場合は、user-level の `uv.toml` に一つだけ index を設定します。URL と認証情報をリポジトリへ保存しないでください。
+
+```toml
+[[index]]
+name = "approved-index"
+url = "https://<organization-index>/simple"
+default = true
+```
 
 ```bash
+uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
 uv run --no-project "${PWD}/scripts/tasks.py" qa-app
 ```
 
-task runnerは有効なapproved-index設定を検出すると、通常のtaskでは、各processの最初のworkspaceコマンドを実行する前に`.venv`を再構築します。同期開始からtask processの終了までは、対象venvの正規化pathから導出したprocess間lockをOSの一時領域で保持するため、同じvenvを使う通常のworkspace taskは直列に実行されます。レビュー専用環境のprocess間引渡しは[full レビューの Python 環境](#full-レビューの-python-環境)を参照してください。明示的に環境だけを準備する場合は`sync-dev-approved-index`を実行します。
+`sync` は全 workspace package の runtime 依存だけを、`sync-dev` は全 dependency group を同期します。public 同期は `uv sync --locked --no-config` を使います。private 同期は public lock を検査し、frozen export から一時 requirements を生成して `uv pip sync --require-hashes` を使います。private index は public lock の hash と一致する artifact を提供する必要があります。private 同期にだけ必要な cache、仮想環境の再作成、一時 requirements、workspace `.pth` は同期処理に閉じています。
 
-単一の非public `[[index]]` に `default = true` がある場合、task runnerは選択済み設定として検査します。禁止された設定や環境変数があれば、通常のworkspace実行、標準同期、レビュー準備はいずれもuv起動前に停止し、通常環境の処理へ切り替えません。設定不在やpublic indexの設定は従来どおり通常環境として扱います。TOMLを解析できない場合は選択を判定せず、uv自身の設定エラー処理に委ねます。
+private 同期の認証情報は、選択された index 名に対応する `UV_INDEX_<NAME>_USERNAME` / `UV_INDEX_<NAME>_PASSWORD` 環境変数から同期 process にだけ渡します。`<NAME>` は英数字以外を `_` に置き換えて大文字にします。同期失敗時は URL や認証情報を含まない固定案内を出します。public 同期の失敗時も private へ切り替えず、組織承認済み index の設定を案内して失敗します。
 
-同期処理はuser-level設定とpublic lockのsourceを検査してから、public `uv.lock`を一時requirementsへ変換し、構成済みのpackage indexから`.venv`を作成します。変換後のrequirementsも検査し、direct URL、find-links、hash検証やTLS検証を無効にする設定、projectやdependency groupを変更する環境変数を拒否します。exportと後続の`uv run`はroot projectと対象venvの絶対pathへ固定します。registry packageには`--require-hashes`を適用し、workspace sourceはindexを介さず`.pth`で参照します。通常環境と分離した`.uv-state/cache/`を使い、一時requirementsは処理後に削除します。index固有のusernameとpassword環境変数は同期processだけへ渡し、ruff、ty、pytest、アプリなどの後続processから除去します。通常のtaskでは、同じprocess内の後続コマンドに、直前に構築した環境を使う`--no-sync`を適用します。
+依存定義（root/member の `pyproject.toml` または `uv.lock`）を変更した場合、新しい worktree を使う場合、runtime-only 環境から開発 task に切り替える場合、または registry 設定を変更した場合は、該当する `sync` / `sync-dev` を先に実行してください。同期と task を同じ worktree で並行実行しないでください。同期後の task は `uv run --no-sync` を使うため、暗黙の依存取得や lock 更新は行いません。post-edit hook も同期せず、準備済み `.venv` の Ruff のみを実行します。
 
-post-edit hookは依存関係の整合性を判定しません。Python編集時はprojectの`.venv`にある`ruff`を直接実行し、ruffがない場合は同期を要求します。lockと仮想環境の整合性は同期taskとCIで検証します。
+不正または private index の URL を含む `uv.lock` は変更せずに同期を停止します。限定的な自動修復はありません。lock を更新する場合は、[public lockfile の更新](#public-lockfile-の更新)手順で public PyPI から作成した lock を取り込みます。
 
-`uv.lock`が同期中に変わった場合や同期が中断した場合、taskは対象コマンドを実行しません。同じコマンドを再実行してください。通常の同期へ戻す場合はuser-levelのapproved-index設定を無効にしてから`sync-dev`を実行します。
-
-明示的な `sync-dev-approved-index` と `package-api-approved-index` には、取得元だけが変わった lock の限定修復があります。Git HEAD の public lock と比較し、registry と artifact の URL 変更、および artifact の `size` / `upload-time` の消失だけなら、通知して HEAD の内容へ戻します。パッケージ、版、依存関係、marker、workspace source、artifact 数や hash、その他の値が異なる場合は保存したまま停止します。
-
-修復が必要な場合は、比較元の不在、lock の staged 変更、root/member の `pyproject.toml` の変更、競合、処理中の入力変更も停止理由です。対象 lock の絶対パス単位で修復を排他します。有効な public lock にはこの Git 条件を課しません。QA、lint、レビューに伴う暗黙同期と validator は修復しないため、取得元変更で停止した場合は明示的な同期 task を使ってください。依存や hash の変更を修復条件へ追加して回避しないでください。
-
-pre-commit で拒否された場合は、まずステージされた2ファイルの差分を確認してください。取得元だけの変更を限定修復する場合は、対象のステージを解除してから上記の明示 task を実行し、修復後の差分を確認して再ステージします。初回コミットや依存変更を含む場合は限定修復の対象外です。[public lockfile の更新](#public-lockfile-の更新)手順で用意した内容をステージしてください。通常のコミットで追加操作は不要です。
-
-task runnerを介さない `uv run` では、projectの自動同期を明示的に止めます。
+task runner を介さず workspace 内で `uv run` を直接使う場合も、暗黙同期を止めるため `--no-sync` を指定します。
 
 ```bash
-UV_NO_SYNC=1 uv run <command>
+uv run --no-sync <command>
 ```
-
-PowerShellでは `$env:UV_NO_SYNC = "1"` を設定します。
 
 ### Docker build のpackage index
 
@@ -334,11 +334,11 @@ uv run --no-project "${PWD}/scripts/tasks.py" check-uv-lock
 
 いずれかの検査が失敗した場合は`git checkout -- uv.lock`で戻し、workflowを再実行してください。`uv.lock`の手編集で検査を通さないでください。
 
-Renovateのpull requestのように`pyproject.toml`だけが更新された場合も同じ手順です。CIの`uv Lock Check`（`check-uv-lock`）が失敗するのは、lockがまだ取り込まれていないことを示します。取り込んだ`uv.lock`は、組織承認済みpackage indexを使う環境では次の通常のworkspace task実行時に再同期します。package indexがpublic lockと同一hashのartifactを提供できない場合、同期は失敗します。
+Renovateのpull requestのように`pyproject.toml`だけが更新された場合も同じ手順です。CIの`uv Lock Check`（`check-uv-lock`）が失敗するのは、lockがまだ取り込まれていないことを示します。`uv.lock`を取り込んだ後は、開発 task の前に `sync-dev` を実行してください。組織承認済み package index は public lock と同一 hash の artifact を提供する必要があります。
 
 `refresh-uv-lock.yml`は、公開から一定期間を経ていないreleaseを選ばないcutoffを指定して解決します。cutoffは`lock-cutoff` taskが算出し、生成された`uv.lock`の`[options]`に記録されます。`check-uv-lock`はその記録値を読み、期間を満たしていることを確認したうえで、同じ値でネットワークを使わずに`uv lock --check`を実行します。cutoffが記録されていない`uv.lock`は検査を通りません。この場合はworkflowで再生成して取り込んでください。cutoffは直接依存だけでなく推移的依存にも適用されます。
 
-ローカルで`uv lock`を実行して生成したlockはcutoffを記録しないため、どの環境でもCIの`check-uv-lock`を通りません。組織承認済みpackage indexを使う環境ではsourceも書き換わり、pre-commitの`check-public-lock.py`も失敗します。誤って実行した場合は`git checkout -- uv.lock`（組織承認済みpackage indexを使う環境では[限定修復](#組織承認済み-package-index-を使う環境)）で`HEAD`へ戻し、依存を変更したのであれば上記の手順でlockを取り込んでください。
+ローカルで`uv lock`を実行して生成したlockはcutoffを記録しないため、どの環境でもCIの`check-uv-lock`を通りません。private index を使って lock を生成すると取得元も変わり、pre-commit の `check-public-lock.py` が失敗します。誤って変更した場合は差分を確認し、必要なら public lockfile 更新手順で生成した `uv.lock` を取り込みます。validator と同期処理は lock を修復しません。
 
 Renovateはworkspaceの依存について更新候補の検出だけを行い、lockは更新しません。workspace member、`resolution-strategy = "lowest"`、public PyPIを参照する`uv.lock`、external SLI publisherのrequirements同期を一度の更新で維持できることを保証できないためです。lockの更新経路は`refresh-uv-lock.yml`のままとし、取得した`uv.lock`は`check-uv-version`、`check-public-lock`、`check-publisher-requirements`、既存QAで検証します。責務の全体像は[依存パッケージとツールの更新管理](dependency-management.md)を参照してください。
 
@@ -346,7 +346,7 @@ Renovateはworkspaceの依存について更新候補の検出だけを行い、
 
 アプリケーション:
 
-クリーン環境や新しいworktreeでは、通常環境で`uv run --no-project "${PWD}/scripts/tasks.py" sync-dev`を実行してください。組織承認済みpackage indexを使う環境では、workspaceコマンドを含む通常のtaskが実行前に環境を同期します。レビュー専用環境の扱いは[full レビューの Python 環境](#full-レビューの-python-環境)を参照してください。絶対pathと`--no-project`は、task runnerの起動前にuvが別のprojectを探索または同期することを防ぎます。
+クリーン環境や新しいworktreeでは、workspace task の前に `uv run --no-project "${PWD}/scripts/tasks.py" sync-dev` を実行してください。public と private のどちらも同じ明示同期 task を使います。絶対 path と `--no-project` は、task runner の起動前に uv が別の project を探索または同期することを防ぎます。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" test
@@ -387,15 +387,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" qa
 
 ### full レビューの Python 環境
 
-`review-repo-full`はCopilotの専用worktreeまたは、利用者が明示的に用意した作業用worktreeで実行します。Python taskは上記の同期処理を使用します。approved-indexを使う場合は、venvの消去、public lockと一時requirementsの検査、`--require-hashes`、専用cache、同期前後のlock hash照合を行います。過去にpublic PyPIから取得したartifactの再利用やpublic sourceへのfallbackは認めません。
-
-レビュー処理は、子processの環境から変数を除去する前に、親processの環境でapproved-index設定と禁止変数を検査します。選択したindexのusernameとpasswordだけを準備processへ渡し、後続QAに共有する環境には保存しません。後続QAの子processからは、すべてのindexのusernameとpassword環境変数を除去します。
-
-準備に成功した場合だけ、レビュー処理は同じ隔離先 venv と内部マーカー `AKS_CHAOS_LAB_REVIEW_ENV_PREPARED=1` を後続 QA の子 process へ明示的に渡し、QA を逐次実行します。task runner はこのマーカーの通常の環境継承を除去し、準備 process にも渡しません。準備に失敗した場合は後続 QA を起動せず、`unverified` として報告します。
-
-引渡しを受けた task は Python の存在を確認し、後続実行に `--no-sync` を付けます。この分岐では取得元や lock hash を再検証しないため、取得元条件の根拠は直前の準備成功とレビュー処理による限定された引渡しにあります。マーカーや `--no-sync` 自体が取得元を保証するわけではなく、元 worktree や任意の既存 venv を再利用するための設定ではありません。
-
-venv 単位の process 間 lock は準備 process が取得し、その終了時に解放します。後続 QA はこの lock を再取得せず、レビュー専用 venv と逐次実行を使います。レビュー全体で lock を保持する方式ではなく、`--no-sync` も環境を読み取り専用にはしません。
+`review-repo-full` は専用または利用者が明示的に用意した worktree で実行します。レビュー task に独自の環境準備、同期状態の引き渡し、process 間 lock はありません。レビューを始める前に `sync-dev` を実行し、各 task は準備済み `.venv` を `--no-sync` で使います。
 
 ### GitHub Actions の統合テスト
 
