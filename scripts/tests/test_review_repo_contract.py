@@ -1006,7 +1006,7 @@ def test_review_checks_preclassify_each_required_tool() -> None:
     assert tasks.FULL_REVIEW_CHECKS[-1].target_name == "validate-aw"
 
 
-def test_review_checks_forward_approved_index_configuration(
+def test_review_checks_do_not_select_or_forward_approved_index_configuration(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1018,7 +1018,11 @@ def test_review_checks_forward_approved_index_configuration(
     )
     monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_USERNAME", "username")
     monkeypatch.setenv("UV_INDEX_APPROVED_INDEX_PASSWORD", "password")
-    monkeypatch.setattr(tasks, "selected_approved_index_config", lambda: config_path)
+    monkeypatch.setattr(
+        tasks,
+        "selected_approved_index_config",
+        lambda: pytest.fail("review must not select or sync a package index"),
+    )
     monkeypatch.setattr(
         tasks, "classify_review_tools", lambda checks: (list(checks), [])
     )
@@ -1037,11 +1041,7 @@ def test_review_checks_forward_approved_index_configuration(
 
     tasks.run_review_checks((tasks.ReviewCheck("qa-app", "qa-app", ()),))
 
-    assert observed == {
-        "UV_CONFIG_FILE": str(config_path),
-        "UV_INDEX_APPROVED_INDEX_USERNAME": "username",
-        "UV_INDEX_APPROVED_INDEX_PASSWORD": "password",
-    }
+    assert observed == {}
 
 
 def test_full_review_never_repeats_a_fast_check() -> None:

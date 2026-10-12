@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 PUBLIC_PACKAGE_HOSTS = frozenset(("files.pythonhosted.org", "pypi.org"))
+PUBLIC_PYPI_URL = "https://pypi.org/simple"
 UNSAFE_UV_ENVIRONMENT_VARIABLES = frozenset(
     (
         "UV_ALL_EXTRAS",
@@ -161,29 +162,86 @@ def validate_approved_index_config(
         )
 
 
-def approved_index_is_selected(config_path: Path) -> bool:
-    """Detect selection independently of the approved-index safety checks."""
+def select_approved_index_config(
+    config_path: Path,
+    *,
+    explicit: bool,
+    environ: Mapping[str, str] = os.environ,
+) -> Path | None:
+    """Select the explicitly configured private index, or public PyPI by default."""
+    overrides = sorted(
+        name for name in UNSAFE_UV_ENVIRONMENT_VARIABLES if environ.get(name)
+    )
+    if overrides:
+        raise ApprovedIndexConfigError(
+            "Unsafe uv environment overrides are not allowed: " + ", ".join(overrides)
+        )
+
     try:
         config = tomllib.loads(config_path.read_text(encoding="utf-8"))
-    except OSError, ValueError:
-        # Preserve normal uv handling for absent or unparseable configuration.
-        return False
+    except FileNotFoundError as error:
+        if explicit:
+            raise ApprovedIndexConfigError(
+                "The explicitly selected user-level uv configuration was not found."
+            ) from error
+        return None
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise ApprovedIndexConfigError(
+            "The user-level uv configuration cannot be read or is invalid."
+        ) from error
+
+    conflicting_keys = sorted(LEGACY_INDEX_KEYS.intersection(config))
+    if conflicting_keys:
+        raise ApprovedIndexConfigError(
+            "Unsupported uv source or verification settings are present: "
+            + ", ".join(conflicting_keys)
+        )
+    if "pip" in config:
+        raise ApprovedIndexConfigError(
+            "A [pip] table is not allowed in the user-level uv configuration."
+        )
+
     indexes = config.get("index")
+    if indexes is None:
+        return None
     if not isinstance(indexes, list) or len(indexes) != 1:
-        return False
+        raise ApprovedIndexConfigError(
+            "The user-level uv configuration must contain at most one [[index]] entry."
+        )
     index = indexes[0]
-    if not isinstance(index, dict) or index.get("default") is not True:
-        return False
+    if not isinstance(index, dict):
+        raise ApprovedIndexConfigError("The [[index]] entry must be a TOML table.")
     url = index.get("url")
-    if isinstance(url, str):
-        try:
-            hostname = urlparse(url).hostname
-        except ValueError:
-            hostname = None
-        if hostname and hostname.rstrip(".").lower() in PUBLIC_PACKAGE_HOSTS:
-            return False
-    # A selected default with an invalid URL must fail validation, not fall back.
-    return True
+    if not isinstance(url, str):
+        raise ApprovedIndexConfigError("The configured [[index]] must have a URL.")
+    try:
+        parsed = urlparse(url)
+        public_index = (
+            parsed.scheme == "https"
+            and parsed.hostname == "pypi.org"
+            and parsed.port is None
+            and parsed.username is None
+            and parsed.password is None
+            and parsed.path.rstrip("/") == "/simple"
+            and not parsed.query
+            and not parsed.fragment
+        )
+    except ValueError:
+        public_index = False
+
+    if public_index:
+        if index.get("default") is not True:
+            raise ApprovedIndexConfigError(
+                "An explicit public [[index]] must set default = true."
+            )
+        return None
+
+    if index.get("default") is not True:
+        raise ApprovedIndexConfigError(
+            "A private [[index]] must set default = true to disable public fallback."
+        )
+    validate_approved_index_config(config_path, environ)
+    return config_path
 
 
 def config_sha256(config_path: Path) -> str:
