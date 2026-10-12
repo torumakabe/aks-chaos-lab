@@ -513,6 +513,11 @@ def sync_dependencies(*, include_dev: bool) -> None:
 
     print_step(f"Syncing workspace {scope} dependencies from public PyPI")
     ensure_public_lock()
+    try:
+        cutoff = recorded_lock_cutoff(ROOT / "uv.lock")
+    except (LockCutoffError, OSError, tomllib.TOMLDecodeError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
     args = [
         "uv",
         "sync",
@@ -521,6 +526,8 @@ def sync_dependencies(*, include_dev: bool) -> None:
         "--all-packages",
         "--locked",
         "--no-config",
+        "--exclude-newer",
+        cutoff,
     ]
     args.extend(["--all-groups"] if include_dev else ["--no-dev"])
     try:

@@ -225,7 +225,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
 uv run --no-project "${PWD}/scripts/tasks.py" qa-app
 ```
 
-`sync` は全 workspace package の runtime 依存だけを、`sync-dev` は全 dependency group を同期します。public 同期は `uv sync --locked --no-config` を使います。private 同期は public lock を検査し、frozen export から一時 requirements を生成して `uv pip sync --require-hashes` を使います。private index は public lock の hash と一致する artifact を提供する必要があります。private 同期にだけ必要な cache、仮想環境の再作成、一時 requirements、workspace `.pth` は同期処理に閉じています。
+`sync` は全 workspace package の runtime 依存だけを、`sync-dev` は全 dependency group を同期します。public 同期は `uv.lock` に記録した release cutoff を `--exclude-newer` で渡す `uv sync --locked --no-config` を使います。private 同期は public lock を検査し、frozen export から一時 requirements を生成して `uv pip sync --require-hashes` を使います。private index は public lock の hash と一致する artifact を提供する必要があります。private 同期にだけ必要な cache、仮想環境の再作成、一時 requirements、workspace `.pth` は同期処理に閉じています。
 
 private 同期の認証情報は、選択された index 名に対応する `UV_INDEX_<NAME>_USERNAME` / `UV_INDEX_<NAME>_PASSWORD` 環境変数から同期 process にだけ渡します。`<NAME>` は英数字以外を `_` に置き換えて大文字にします。同期失敗時は URL や認証情報を含まない固定案内を出します。public 同期の失敗時も private へ切り替えず、組織承認済み index の設定を案内して失敗します。
 

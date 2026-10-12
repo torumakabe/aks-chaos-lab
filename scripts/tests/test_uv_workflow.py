@@ -100,7 +100,12 @@ def test_public_sync_is_locked_configured_and_scoped(
     include_dev: bool,
     group_flag: str,
 ) -> None:
-    configure_root(monkeypatch, tmp_path)
+    cutoff = "2026-09-16T00:00:00Z"
+    configure_root(
+        monkeypatch,
+        tmp_path,
+        f'version = 1\n\n[options]\nexclude-newer = "{cutoff}"\n',
+    )
     calls: list[list[str]] = []
     monkeypatch.setattr(tasks, "ensure_public_lock", lambda: None)
     monkeypatch.setattr(tasks, "run", lambda args, **_kwargs: calls.append(args))
@@ -116,6 +121,8 @@ def test_public_sync_is_locked_configured_and_scoped(
             "--all-packages",
             "--locked",
             "--no-config",
+            "--exclude-newer",
+            cutoff,
             group_flag,
         ]
     ]
@@ -125,7 +132,12 @@ def test_public_sync_is_locked_configured_and_scoped(
 def test_explicit_public_index_uses_public_sync(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    configure_root(monkeypatch, tmp_path)
+    cutoff = "2026-09-16T00:00:00Z"
+    configure_root(
+        monkeypatch,
+        tmp_path,
+        f'version = 1\n\n[options]\nexclude-newer = "{cutoff}"\n',
+    )
     config_path = tmp_path / "uv.toml"
     config_path.write_text(
         '[[index]]\nname = "pypi"\nurl = "https://pypi.org/simple"\ndefault = true\n',
@@ -141,6 +153,7 @@ def test_explicit_public_index_uses_public_sync(
     assert calls[0][0] == "uv"
     assert "--no-config" in calls[0]
     assert "--locked" in calls[0]
+    assert calls[0][calls[0].index("--exclude-newer") + 1] == cutoff
     assert "--no-dev" in calls[0]
 
 
@@ -216,7 +229,11 @@ def test_public_sync_failure_does_not_fall_back_and_prints_fixed_guidance(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    configure_root(monkeypatch, tmp_path)
+    configure_root(
+        monkeypatch,
+        tmp_path,
+        'version = 1\n\n[options]\nexclude-newer = "2026-09-16T00:00:00Z"\n',
+    )
     monkeypatch.setattr(tasks, "ensure_public_lock", lambda: None)
     monkeypatch.setattr(
         tasks,
