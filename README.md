@@ -88,14 +88,7 @@ azd up
 
 public PyPI を使えない環境では、[承認済み index での初回構築と API 更新](docs/deployment.md#docker-build-のpackage-index)を使います。通常の `azd up` は、専用 task で事前ビルドした API イメージを引き継ぎません。
 
-ローカル開発と検証:
-
-```bash
-uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
-uv run --no-project "${PWD}/scripts/tasks.py" qa
-```
-
-public PyPI を使う場合も、組織承認済み index を使う場合も、workspace task の前に同じ `sync-dev` を実行します。user-level uv 設定がなければ public PyPI を使い、設定があれば明示された index を使います。
+ローカル開発では、[Python 開発環境の手動セットアップ](docs/deployment.md#python-開発環境の手動セットアップ)を実行してから検証します。Copilot は不要です。Copilot App を使う場合は、受け入れたリポジトリ設定によりセッション作成時に同じ `sync-dev` が実行されます。前提ツール、package index、成功確認、再実行方法は同手順を参照してください。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" qa

@@ -1,0 +1,5 @@
+scripts:
+  - name: Sync development dependencies
+    command: 'uv run --no-project "${PWD}/scripts/tasks.py" sync-dev'
+    triggers:
+      - session.create

@@ -14,6 +14,7 @@ description: リポジトリ全体の衛生状態を非編集で点検する。�
 - `full`、全検査、鮮度確認のいずれかを明示された場合だけfullを実行する。
 - fullは`review-repo-full`を実行し、その結果を使って文書とAI運用資産を評価する。公開Markdownリンク、Docker base imageのEOL、Functions extension bundleのsupport範囲は`repository-freshness-checker`、Bicep resource API versionは`bicep-api-version-updater`のcheck-onlyモードで確認する。
 - fullはCopilotの専用worktreeまたは、利用者が明示的に用意した作業用worktreeで実行する。task内部で別のcopyや一時Git repositoryを作成しない。
+- fullの前提となるPython環境は、[開発環境の準備手順](../../docs/deployment.md#python-開発環境の手動セットアップ)を参照する。Appの自動セットアップによる準備済み環境を使う場合は、その実行結果を確認してから検査する。レビューのたびに同期し直さず、必要な再同期は同手順に従う。
 
 ## task
 
