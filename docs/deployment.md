@@ -196,16 +196,78 @@ NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` �
 
 リポジトリはuv workspace構成です。hostのuvはルート`pyproject.toml`の`required-version`の下限以上であれば使えます。GitHub Actionsとlock更新workflowはsetup-uvでその下限を選択します。Dockerのuv versionは`azd package api`との互換性のためDockerfileに明記し、`check-uv-version`がルートの下限との一致を検査します。ルートで一度同期すれば、`src/api`と`src/external-sli-publisher`の両方の依存と開発ツール（ruff、ty、pytest、locust）が揃います。
 
+### Python 開発環境の手動セットアップ
+
+この手順は Windows、macOS、Linux のターミナルで実行でき、Copilot App と Copilot CLI は不要です。Python の依存同期だけなら azd、Azure CLI、kubectl、Docker、Lefthook も不要です。Git hooks とリポジトリ全体の検査には、後述の追加ツールが必要です。
+
+1. Git、ルート `pyproject.toml` の `required-version` の下限以上の uv、Python 3.14 系を用意する。組織承認済み index の同期は Python 3.14 を指定するため、Python 3.15 以降だけで準備済みとはしない。
+2. Git で clone したリポジトリ、または作成した worktree のルートに移動する。
+3. package index の利用方針を確認する。user-level uv 設定がない場合は public PyPI が選択される。組織承認済み index が必要な場合は、[index 設定と認証情報](#組織承認済み-package-index-を使う環境)を準備してから同期する。
+4. 次のコマンドで uv の version 整合を確認し、成功したら開発依存を同期する。
+
+macOS / Linux（bash または zsh）:
+
 ```bash
-uv run --no-project "${PWD}/scripts/tasks.py" check-uv-version
+uv run --no-project "${PWD}/scripts/tasks.py" check-uv-version &&
 uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
+```
+
+Windows PowerShell（ブロック全体を一度に実行）:
+
+```powershell
+& {
+    uv run --no-project "${PWD}/scripts/tasks.py" check-uv-version
+    if ($LASTEXITCODE -ne 0) { throw "uv version check failed" }
+    uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
+    if ($LASTEXITCODE -ne 0) { throw "Development dependency synchronization failed" }
+}
+```
+
+同期の終了コードが 0 で、選択された index に応じて `ok: Public PyPI development dependencies synced` または `ok: Approved-index development dependencies synced` が表示されれば成功です。`.venv` の存在だけでは成功と判断しません。同期後は、次のコマンドで開発ツールを確認できます（PowerShell でも同じコマンドを使えます）。
+
+```bash
+uv run --no-sync ruff --version
+uv run --no-sync ty --version
+uv run --no-sync pytest --version
+```
+
+仮想環境の activation は不要です。既定では各 worktree の `.venv` を使います。`UV_PROJECT_ENVIRONMENT` を設定する場合は、別 worktree の環境と共有しないよう対象を確認してください。
+
+失敗した場合は、表示されたエラーに従って uv と Python、index 設定、認証、接続、package の取得可否と hash を確認し、失敗した処理の終了後に同じルートで次を再実行してください。
+
+```bash
+uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
+```
+
+組織承認済み index の同期は仮想環境を再作成するため、同期中は同じ環境のアプリや task を実行しないでください。失敗時に別 index へ自動で切り替えません。lock が不正な場合は、[public lockfile の更新](#public-lockfile-の更新)手順を使います。
+
+### Copilot App のセッション作成時のセットアップ
+
+[`.github/github-app.yml`](../.github/github-app.yml) は、セッション作成時に手動手順と同じ `sync-dev` を登録しています。App が認識する PATH に uv と Python を用意し、手動手順と同じ index 設定と必要な認証情報を App の実行環境でも利用できるようにしてください。設定をレビューして受け入れると、新しいローカルセッションの checkout を cwd として非同期に実行します。Git hooks の登録、QA、Azure 認証は実行しません。
+
+設定の受け入れ前や既存セッションの再開時には、この登録による同期は行われません。依存定義や index 設定を変更した場合も、手動の `sync-dev` を使います。セットアップが失敗した場合は `Setup Failed` の通知を確認し、上の手動手順で原因を修正して再実行してください。branch セッションでは既存 checkout を同期するため、その環境のアプリや task と並行実行しないでください。
+
+この設定はローカルセッション向けです。Windows App の shell とコマンド展開、Linux App、remote 実行は未検証です。Cloud の環境準備はこの設定の対象外です。
+
+### コントリビュータ向け Git hooks
+
+Lefthook を用意した開発者は、次のコマンドで Git hooks を登録します。Python の依存同期とは別の操作です。
+
+```bash
 lefthook install
-uv run --no-project "${PWD}/scripts/tasks.py" run
 ```
 
 `lefthook install` は、コントリビュータ向けにこのリポジトリの Git hooks を登録します。pre-commit は毎コミット、Git index 内の `uv.lock` とルート `pyproject.toml` を既存の public lock validator で検査します。作業ツリーとは独立してコミット対象を読み、非public source、必須ファイルの欠落、未解決の競合、解析不能の場合はコミットを中止します。public lock の検査では、依存の同期、ネットワーク接続、ファイルの修復や再ステージは行いません。実行には uv とインストール済みの Python 3.14 以降が必要です。
 
 ステージされた `infra/` 配下の Bicep ファイルがある場合は、`infra/main.bicep` と `infra/sli/main.bicep` をビルドします。hook の未導入や `--no-verify` による省略に備え、CI の public lock 検査も維持します。Lefthook のインストール方法は [公式手順](https://lefthook.dev/install/) を参照してください。
+
+### ローカルアプリの起動
+
+開発環境の準備後、次のコマンドでアプリを起動します。
+
+```bash
+uv run --no-project "${PWD}/scripts/tasks.py" run
+```
 
 ### 組織承認済み package index を使う環境
 
