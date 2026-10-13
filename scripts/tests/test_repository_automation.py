@@ -316,6 +316,22 @@ def test_bicep_api_version_workflow_uses_configurable_copilot_model() -> None:
     assert model_settings[1] == "COPILOT_MODEL: detection"
 
 
+def test_aks_updates_workflow_uses_auto_copilot_model() -> None:
+    source = (
+        REPO_ROOT / ".github" / "workflows" / "aks-updates-analyzer.md"
+    ).read_text(encoding="utf-8")
+    lock = (
+        REPO_ROOT / ".github" / "workflows" / "aks-updates-analyzer.lock.yml"
+    ).read_text(encoding="utf-8")
+
+    frontmatter = source.split("---", 2)[1]
+    assert "  id: copilot" in frontmatter
+    assert "  model: auto" in frontmatter
+    assert "claude-opus-4.8" not in lock
+    assert 'GH_AW_ENGINE_MODEL: "auto"' in lock
+    assert "COPILOT_MODEL: auto" in lock
+
+
 def test_documentation_exposes_maintenance_entry_points() -> None:
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     instructions = (REPO_ROOT / ".github" / "copilot-instructions.md").read_text(
