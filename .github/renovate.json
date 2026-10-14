@@ -17,7 +17,11 @@
   "packageRules": [
     {
       "description": "gh-aw-compiler-owned",
-      "matchPackageNames": ["github/gh-aw-actions", "github/gh-aw-actions/**"],
+      "matchPackageNames": [
+        "github/gh-aw",
+        "github/gh-aw-actions",
+        "github/gh-aw-actions/**"
+      ],
       "enabled": false
     },
     {
