@@ -1,6 +1,6 @@
 ---
 name: repository-freshness-checker
-description: review-repo fullが生成したinventoryを使い、公開Markdownリンク、Docker base imageのEOL、Azure Functions extension bundleのsupport範囲をcheck-onlyで確認する。明示された全検査や鮮度確認で使用する。
+description: review-repo fullが生成したinventoryを使い、公開Markdownリンク、Azure Functions extension bundleのsupport範囲をcheck-onlyで確認する。明示された全検査や鮮度確認で使用する。
 ---
 
 # Repository Freshness Checker
@@ -20,7 +20,6 @@ inventoryのschema versionと対象commitを記録し、次の座標だけを処
 | inventory category | 確認内容 |
 |---|---|
 | `documentation-external-link` | 公開Markdownリンクの到達性とredirect先 |
-| `docker-base-image` | 使用中のbase image系列がEOL済みか |
 | `function-extension-bundle` | 宣言したmajor version rangeがMicrosoftのsupport対象か |
 
 別のinventory生成コマンドを実行せず、入力されたJSONだけを使用する。入力JSONが欠落している場合、schemaを解釈できない場合、対象座標が不完全な場合は、影響する範囲を`unverified`とする。欠落した値を推測しない。
@@ -36,7 +35,7 @@ inventoryのschema versionと対象commitを記録し、次の座標だけを処
 
 - Python依存、GitHub Actions、Docker image tag、actionlint、kubeconform、Chaos Mesh Helm chart、Renovate validator image、Bicep CLI、uv、azdの更新候補はRenovateが検出する。
 - gh-awは明示的な`gh aw upgrade`で更新する。Lefthookは`update-lefthook-pin`でversionとchecksumを一体更新する。
-- リポジトリ内のversion契約は`check-version-pins`、Docker base imageのdigest固定は`check-repo-health`が検証する。
+- リポジトリ内のversion契約は`check-version-pins`、Docker base imageのdigest固定は`check-repo-health`が検証する。Docker base imageのEOLは確認しない。
 - Bicep resource API versionは`bicep-api-version-updater`のcheck-onlyモードが担当する。
 - 公開Markdownリンクの内容が現在の実装と一致するかは、review-repo agentが文書種別の評価基準に従って判断する。
 
@@ -49,8 +48,6 @@ Azure Functions extension bundleは、次の固定情報源でsupport範囲を�
 https://learn.microsoft.com/azure/azure-functions/extension-bundles#bundle-versions
 
 公開Markdownリンクは重複URLごとに一度取得する。`404`と`410`は`fail`、timeout、TLS障害、rate limit、server errorは`unverified`とする。
-
-Docker base imageは、inventoryに記録されたrepositoryとtagから公式のsupportまたはEOL情報を確認する。digest固定の有無は再検査しない。EOL済みは`fail`候補、将来のEOL日は`pass`として日付を記録し、公式情報がない場合は`unverified`とする。
 
 Functions extension bundleは、range構文の妥当性を`check-version-pins`の結果から引き継ぐ。宣言したmajor versionがsupport対象外なら`fail`、support対象なら`pass`、公開情報を取得できなければ`unverified`とする。latestとの比較は行わない。
 

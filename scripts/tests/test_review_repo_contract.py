@@ -1735,11 +1735,10 @@ def test_repository_freshness_skill_contract() -> None:
     )
     assert "別のinventory生成コマンドを実行せず" in body
     assert "version更新候補を検出しない" in body
-    for subject in ("Docker base image", "Azure Functions extension bundle"):
-        assert subject in body
+    assert "Azure Functions extension bundle" in body
+    assert "Docker base imageのEOLは確認しない" in body
     for category in (
         "`documentation-external-link`",
-        "`docker-base-image`",
         "`function-extension-bundle`",
     ):
         assert category in body
