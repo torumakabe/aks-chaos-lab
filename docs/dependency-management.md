@@ -25,7 +25,6 @@
 | gh-aw | 保守者が`gh aw upgrade --no-actions`を実行 | `gh-aw-compiler-version`ルール、`compile-aw` |
 | Lefthook | 保守者が`update-lefthook-pin`を実行 | `check-version-pins`、`test-hooks` |
 | azd minimum version range | Renovate（custom manager、公開後の保留期間つき） | `check-version-pins`（構文と座標数） |
-| Docker base imageのEOL | `review-repo full`の意味評価 | `repository-freshness-checker` |
 | Azure Functions extension bundleのsupport範囲 | `review-repo full`の意味評価 | `check-version-pins`（構文と座標数）、`repository-freshness-checker` |
 
 定期更新の管理元は[Renovate設定](../.github/renovate.json)である。gh-awとLefthookの更新手順は、この文書の「gh-awとLefthookをRenovateに含めない理由」で定める。
@@ -106,7 +105,7 @@ fastが実行するversion関連の検査は`check-version-pins`である。検�
 
 uv pinの内部整合は`check-uv-version`が、gh-aw pinとlock fileの`compiler_version`の整合は`check-repo-health`の`gh-aw-compiler-version`ルールが検査する。どちらもfastが実行する。
 
-`review-repo-full`は専用worktreeでfastを一度だけ実行し、application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-awの非書き込み検証を追加する。生成lockの更新と差分検査には、手動またはCIで`compile-aw`を実行する。version更新候補はRenovateまたは明示的な保守作業が担当するため再検出しない。Docker base imageのEOLとAzure Functions extension bundleのsupport範囲はfullで意味評価する。
+`review-repo-full`は専用worktreeでfastを一度だけ実行し、application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-awの非書き込み検証を追加する。生成lockの更新と差分検査には、手動またはCIで`compile-aw`を実行する。version更新候補はRenovateまたは明示的な保守作業が担当するため再検出しない。Azure Functions extension bundleのsupport範囲はfullで意味評価する。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast --results-json <path>

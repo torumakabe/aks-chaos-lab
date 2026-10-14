@@ -363,14 +363,14 @@ def test_documentation_exposes_maintenance_entry_points() -> None:
     assert "`.github/dependabot.yml`は存在せず" in dependencies
     assert "## fastとfullの境界" in dependencies
     assert "`review-repo-fast`はオフラインで完結する" in dependencies
-    assert "Docker base imageのEOL" in dependencies
+    assert "Docker base imageのEOL" not in dependencies
     assert "review-repo full" in dependencies
     assert "--results-json" in dependencies
 
     assert "標準のfastはtaskによる非編集検査だけを実行する" in instructions
     assert "公開Markdownリンク" in instructions
     assert "Bicep APIのcheck-only確認" in instructions
-    assert "Docker base imageのEOL" in instructions
+    assert "Docker base imageのEOL" not in instructions
     assert "文書とAI運用資産の意味評価を実行する" in instructions
 
     assert "Renovateはworkspaceの依存について更新候補の検出だけ" in deployment
