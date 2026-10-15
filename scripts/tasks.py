@@ -2060,7 +2060,11 @@ RENOVATE_PACKAGE_RULES: dict[str, dict[str, Any]] = {
     },
     "gh-aw-compiler-owned": {
         "description": "gh-aw-compiler-owned",
-        "matchPackageNames": ["github/gh-aw-actions", "github/gh-aw-actions/**"],
+        "matchPackageNames": [
+            "github/gh-aw",
+            "github/gh-aw-actions",
+            "github/gh-aw-actions/**",
+        ],
         "enabled": False,
     },
     # Renovate cannot regenerate uv.lock the way this repository needs it
