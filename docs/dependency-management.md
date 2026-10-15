@@ -113,17 +113,41 @@ uv pinの内部整合は`check-uv-version`が、gh-aw pinとlock fileの`compile
 uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast --results-json <path>
 ```
 
-両targetは`--results-json`で検査結果を機械可読JSONとして書き出す。後続の意味評価は、標準出力の自然言語ではなくこのJSONの`status`と`reason_code`を読む。
+両targetは`--results-json`でschema version 2の実行記録を書き出す。各処理の`execution`（`exited`、`not-started`、`timed-out`）、`returncode`、`reason_code`、診断の末尾`stdout_tail`と`stderr_tail`を保持する。後続のレビューはこの記録を読み、終了コードだけから対象の不具合を推定しない。診断は処理中に全体を表示し、JSONには長さを制限した末尾を保存するため、必要な根拠が末尾に残っていなければ確認済みとしない。
 
-## 結果の状態
+JSONの`command_exit_code`は既存のtask終了規則による値で、レビューの評価を表さない。明確なテスト不合格などや、原因を分類できない非ゼロ終了では1とする。起動不能、timeout、既知の環境障害だけの場合は従来どおり0とするが、その実行記録は必ず残す。終了コード0を全対象の確認完了と扱わない。各テスト、lint、buildなどの終了コードの意味も変更しない。
 
-| 状態 | 意味 |
+### 専門スキルの利用
+
+専門スキルは対象ファイルを直接読み、確認、完了判定、結果の返却までを行う。事前のfull実行や汎用inventoryを必要としない。
+
+| スキル | 入力と確認範囲 |
 |---|---|
-| `pass` | 必要な根拠を取得し、対象の契約を満たした |
-| `fail` | checksum不一致、座標数の異常、schema違反など、リポジトリの契約に違反した |
-| `unverified` | 更新候補の互換性判断が必要、または検証根拠を取得できなかった |
-| `excluded` | 理由を記録したうえで検査対象から除外した |
+| `repository-freshness-checker` | リポジトリまたは指定ファイルの公開MarkdownリンクとFunctionsの`host.json`。到達性とextension bundleのsupport範囲を確認する |
+| `bicep-api-version-updater`のcheck-only | リポジトリまたは指定したBicep。resource宣言を読み、公開API仕様、最新GA版、使用属性の互換性を確認する |
 
-`unverified`は`reason_code`で理由を区別する。`evidence-unavailable`はネットワーク障害やAPI制限などで根拠を取得できない状態を表す。現在versionのreleaseが存在することや、取得できた公開値が現在値と同じであることだけでは、検査範囲全体を`pass`にしない。
+`review-repo`はfullでスキルを選び、対象リポジトリを渡し、返された確認範囲、根拠、完了状況をレビューへ組み込む。スキルの専門確認を組み立て直さない。文書本文と実装の一致など、スキルの確認範囲外の意味評価はレビュー側で行う。
 
-全体の状態は`fail`を優先し、`fail`がなく`unverified`がある場合は`unverified`とする。
+Bicepの週次workflowも同じcheck-onlyを利用する。対象inventoryをpre-agent stepで生成せず、checkoutのBicepを直接確認する。許可ツール、通信先、時間制限とIssue出力はworkflowが定める。
+
+`inventory-repo`と`--inventory-json`は提供しない。`check-repo-health`はローカルの整合性検査だけを行い、Docker digest検査はDockerfileを読む。Kubernetesのschema検証から除外した文書は、既存のkind除外設定に基づいて報告する。Kubernetes文書の読取失敗はファイルごとの`fail`として記録し、他の検査結果と読めた文書の除外情報を保持する。専門スキル用の入力は生成しない。
+
+未処理、対象の読取や解釈の失敗、公開根拠の取得不能、仕様判断の未完了は区別する。未読ファイルや未検証対象が残る場合は確認未完了として報告し、結果の形式検査やworkflowのcompile成功を公開仕様照合の成功とは扱わない。
+
+## 実行結果、確認状況と指摘
+
+taskの実行結果と、スキルやレビューが確認できた内容は分けて記録する。テスト不合格やbuildエラーは元の結果と診断を保持し、実行エラーだけから対象に不具合があると断定しない。`check-repo-health`など個別の検証が返す`pass`や`fail`も、その検証の結果として保持し、レビュー全体の合否へ変換しない。
+
+| 確認状況 | 表示 | 意味 |
+|---|---|---|
+| `verified` | 確認済み | 必要な確認と根拠が揃った。問題の有無は別に記録する |
+| `unverified` | 未確認 | 未処理、対象の読取や解釈の失敗、根拠の取得不能、または判断未完了により必要な確認が終わっていない |
+| `excluded` | 理由付き対象外 | 理由を記録したうえで確認対象から除外した |
+
+指摘（`issue`）と更新候補（`update`）は確認状況から独立して列挙する。同じ対象に両方があってよく、未確認の事項が残っていても確認できた内容は保持する。新しいGA版があることだけを問題としない。確認状況別の対象件数と指摘や更新候補の件数を足し合わせない。
+
+`unverified`は理由を区別する。`not-processed`は未処理、`target-unresolved`は読取や解釈の失敗、`evidence-unavailable`はネットワーク障害やAPI制限などによる根拠取得不能、`assessment-incomplete`は判断未完了を表す。現在versionのreleaseが存在することや、取得できた公開値が現在値と同じであることだけでは、対象を確認済みにしない。
+
+スキルとレビューには全体statusや合否を付けない。未読ファイル、未確認対象、未確定の対象範囲があれば確認未完了とし、それ以外は確認完了とする。指摘や更新候補の存在は確認完了と両立する。
+
+レビューでは確認範囲、指摘、更新候補、未確認対象と理由を報告する。「問題なし」は必要な確認を終え、指摘がない範囲についてだけ述べる。実行エラーがある場合は、その理由と評価できなかった範囲を別に示す。

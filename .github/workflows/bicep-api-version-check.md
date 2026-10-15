@@ -17,16 +17,6 @@ network:
     - "learn.microsoft.com"
 tools:
   bash: ["python3", "git"]
-pre-agent-steps:
-  - name: Setup uv
-    uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-    with:
-      resolution-strategy: "lowest"
-      python-version: "3.14"
-  - name: Generate Bicep API inventory
-    run: |
-      mkdir -p "${RUNNER_TEMP}/gh-aw"
-      uv run --no-project "${GITHUB_WORKSPACE}/scripts/tasks.py" inventory-repo --format json > "${RUNNER_TEMP}/gh-aw/bicep-api-inventory.json"
 safe-outputs:
   report-failure-as-issue: false
   report-failed-jobs: false
@@ -48,25 +38,25 @@ timeout-minutes: 25
 
 # Bicep resource API versionの週次確認
 
-次のスキルのcheck-only契約、判断規則、出力schemaに従ってください。updateモードへ進んではなりません。
+次のスキルのcheck-only手順、判断規則、完了条件に従ってください。updateモードへ進んではなりません。
 
 {{#runtime-import .github/skills/bicep-api-version-updater/SKILL.md}}
 
 ## 実行範囲
 
-1. pre-agent stepが生成した`"${RUNNER_TEMP}/gh-aw/bicep-api-inventory.json"`を入力として一度だけ読み込んでください。inventoryコマンドを再実行してはなりません。ファイルが存在しない、空、JSONとして解釈できない、または必要なschemaを含まない場合は、inventory全体を`unverified`として理由をIssueに記録してください。
-2. inventoryの`bicep-resource-api`座標だけを処理してください。同じresource typeと現在versionの組は一度だけ公開情報を取得し、結果を対応する全座標へ適用してください。
-3. 最初に`https://learn.microsoft.com/en-us/azure/templates/{provider}/{resourceType}`形式のMicrosoft Learn API referenceと、Microsoft Learn内のbreaking changes情報を確認してください。現在versionがMicrosoft Learnにまだ掲載されていない場合は、Azure公式`Azure/azure-rest-api-specs` repositoryの対応するstableまたはpreview仕様を確認してください。AKSとFleetでは`specification/containerservice/resource-manager/Microsoft.ContainerService/{aks|fleet}/{stable|preview}`を使用します。取得にはPython標準ライブラリを使い、各HTTP requestを30秒以内に制限してください。
+1. checkoutされたリポジトリ全体を対象としてスキルのcheck-onlyを実行してください。Gitで対象のBicepファイルを列挙し、ファイルを直接読んでください。事前生成された対象JSONはありません。
+2. 公開情報の取得には、許可されたPython標準ライブラリと`learn.microsoft.com`、GitHub APIを使い、各HTTP requestを30秒以内に制限してください。Microsoft Learn API referenceのURLは`https://learn.microsoft.com/en-us/azure/templates/{provider}/{resourceType}`形式です。`Azure/azure-rest-api-specs`のAKSとFleetのREST仕様は`specification/containerservice/resource-manager/Microsoft.ContainerService/{aks|fleet}/{stable|preview}`を使用します。
+3. 終了前に、対象ファイルと宣言ごとの処理状況を確認してください。時間制限で未処理の対象は`not-processed`、読取や宣言解釈の失敗は`target-unresolved`、公開情報の取得不能は`evidence-unavailable`、仕様判断の未完了は`assessment-incomplete`として区別してください。未読ファイルは宣言数不明として別に記録し、未完了のまま確認完了と報告してはなりません。
 4. Azure認証を行わず、`az`、subscription、resource provider、AKS cluster、Fleetを照会しないでください。
 5. ファイルの編集、commit、push、pull requestの作成を行わないでください。
-6. workflow全体の残り時間で確認できない座標、Microsoft Learnと`Azure/azure-rest-api-specs`のどちらからも公開情報を取得できない座標、安定版を一意に判定できない座標は`unverified`としてください。
 
 ## Issue
 
 日本語でIssueを1件だけ作成してください。更新候補がない場合も実行結果を記録します。
 
-- 確認日時、対象commit、inventory schema version
-- inventory座標数、重複排除後のresource typeとversionの組数、確認済み座標数、未検証座標数、除外座標数
+- 確認日時、対象commitと作業変更、対象範囲、確認完了または未完了
+- 対象ファイル数、resource宣言数、重複排除後のresource typeとversionの組数、状態別の宣言数、未読ファイルと未確定の対象範囲
+- 各宣言のファイル、宣言名、行番号と判定。未検証の対象は上記の理由を区別する
 - resource typeごとの現在version、公開されている最新GA版、プレビューからGAへ移行できるか、状態、根拠URL
 - breaking changesと、更新前に確認する属性または互換性
 - 実行環境の制約

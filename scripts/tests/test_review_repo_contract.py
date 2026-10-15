@@ -809,7 +809,7 @@ def _write_range_fixture(repository: Path, azd_range: str, bundle_version: str) 
     )
 
 
-def test_fast_review_timeout_is_unverified_and_next_check_runs(
+def test_fast_review_timeout_retains_diagnostics_and_next_check_runs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[str] = []
@@ -819,7 +819,12 @@ def test_fast_review_timeout_is_unverified_and_next_check_runs(
         target: str,
     ) -> subprocess.CompletedProcess[bytes] | None:
         if target == "check-repo-health":
-            raise subprocess.TimeoutExpired(args, tasks.REVIEW_CHECK_TIMEOUT_SECONDS)
+            raise subprocess.TimeoutExpired(
+                args,
+                tasks.REVIEW_CHECK_TIMEOUT_SECONDS,
+                output=b"partial test results",
+                stderr=b"last diagnostic",
+            )
         return None
 
     monkeypatch.setattr(
@@ -831,13 +836,17 @@ def test_fast_review_timeout_is_unverified_and_next_check_runs(
     results = tasks.run_fast_review_checks()
 
     assert calls == list(FAST_TARGET_CALLS)
-    assert [(result.name, result.status) for result in results] == [
-        ("repo-health", "unverified"),
-        ("uv-version", "pass"),
-        ("public-lock", "pass"),
-        ("publisher-requirements", "pass"),
-        ("version-pins", "pass"),
+    assert [(result.name, result.execution) for result in results] == [
+        ("repo-health", "timed-out"),
+        ("uv-version", "exited"),
+        ("public-lock", "exited"),
+        ("publisher-requirements", "exited"),
+        ("version-pins", "exited"),
     ]
+    assert results[0].returncode is None
+    assert results[0].stdout_tail == "partial test results"
+    assert results[0].stderr_tail == "last diagnostic"
+    assert tasks.review_command_exit_code(results) == 0
 
 
 def test_qa_app_cli_can_skip_publisher_check(
@@ -870,7 +879,7 @@ def test_review_repo_fast_runs_every_deterministic_target_once(
     assert len(calls) == len(set(calls))
 
 
-def test_review_repo_fast_marks_missing_tools_unverified_and_continues(
+def test_review_repo_fast_records_not_started_targets_and_continues(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -891,13 +900,19 @@ def test_review_repo_fast_marks_missing_tools_unverified_and_continues(
         "check-version-pins",
     ]
     output = capsys.readouterr()
-    assert "[pass] (check-passed) repo-health: check passed" in output.out
     assert (
-        "[unverified] (tool-preflight-failed) uv-version: "
+        "[exited] (process-exited) repo-health: process exited with code 0"
+        in output.out
+    )
+    assert (
+        "[not-started] (tool-preflight-failed) uv-version: "
         "required tool preflight failed: uv was not found" in output.err
     )
-    assert "[pass] (check-passed) public-lock: check passed" in output.out
-    assert "Repository review completed with unverified checks" in output.out
+    assert (
+        "[exited] (process-exited) public-lock: process exited with code 0"
+        in output.out
+    )
+    assert "see execution records for limitations" in output.out
     assert "Fast repository review passed" not in output.out
 
 
@@ -931,10 +946,13 @@ def test_review_repo_fast_marks_real_failure_and_continues(
 
     assert error.value.code == 1
     assert calls == list(FAST_TARGET_CALLS)
-    assert "[fail] (repository-failure) repo-health:" in capsys.readouterr().err
+    assert (
+        "[exited] (process-exited) repo-health: process exited with code 7"
+        in capsys.readouterr().err
+    )
 
 
-def test_review_repo_fast_marks_start_failure_unverified_and_continues(
+def test_review_repo_fast_records_start_failure_and_continues(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -958,7 +976,7 @@ def test_review_repo_fast_marks_start_failure_unverified_and_continues(
 
     assert calls == list(FAST_TARGET_CALLS)
     assert (
-        "[unverified] (check-start-failed) repo-health: "
+        "[not-started] (check-start-failed) repo-health: "
         "check could not be started: cannot execute" in capsys.readouterr().err
     )
 
@@ -1054,7 +1072,7 @@ def test_full_review_never_repeats_a_fast_check() -> None:
     assert fast_targets.isdisjoint(full_targets)
 
 
-def test_review_results_json_hands_structured_status_to_the_next_layer(
+def test_review_results_json_retains_execution_without_assessment(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1081,42 +1099,69 @@ def test_review_results_json_hands_structured_status_to_the_next_layer(
     results_path = tmp_path / "results.json"
 
     with pytest.raises(SystemExit):
-        tasks.target_review_repo_fast(None, results_path)
+        tasks.target_review_repo_fast(results_path)
 
     document = json.loads(results_path.read_text(encoding="utf-8"))
     assert document["schema_version"] == tasks.REVIEW_RESULTS_SCHEMA_VERSION
     assert document["mode"] == "fast"
-    assert document["status"] == "fail"
-    assert document["coverage"]["fail"] == 1
+    assert document["schema_version"] == 2
+    assert "status" not in document
+    assert "completion" not in document
+    assert document["command_exit_code"] == 1
+    assert document["execution_summary"] == {
+        "total": 5,
+        "exited_zero": 4,
+        "exited_nonzero": 1,
+        "not_started": 0,
+        "timed_out": 0,
+    }
     assert [check["name"] for check in document["checks"]] == list(FAST_CHECK_NAMES)
     version_pins = next(
         check for check in document["checks"] if check["name"] == "version-pins"
     )
-    assert version_pins["status"] == "fail"
-    assert version_pins["reason_code"] == tasks.REVIEW_REASON_CHECK_FAILED
+    assert version_pins["execution"] == "exited"
+    assert version_pins["returncode"] == 1
+    assert version_pins["reason_code"] == tasks.REVIEW_REASON_PROCESS_EXITED
+    assert (
+        version_pins["stderr_tail"] == "error: renovate.json must not enable automerge"
+    )
+    assert "status" not in version_pins
 
 
-def test_review_results_document_empty_input_is_unverified() -> None:
+def test_review_results_document_empty_input_makes_no_assessment() -> None:
     document = tasks.review_results_document("fast", [])
 
-    assert document["status"] == "unverified"
-    assert document["coverage"] == {
+    assert "status" not in document
+    assert document["execution_summary"] == {
         "total": 0,
-        "pass": 0,
-        "fail": 0,
-        "unverified": 0,
-        "excluded": 0,
+        "exited_zero": 0,
+        "exited_nonzero": 0,
+        "not_started": 0,
+        "timed_out": 0,
     }
 
 
-def test_review_result_rejects_unknown_status() -> None:
-    with pytest.raises(ValueError, match="unknown review status"):
+def test_review_result_rejects_unknown_execution() -> None:
+    with pytest.raises(ValueError, match="unknown review execution"):
         tasks.ReviewResult("check", "unknown", "detail", "reason")
 
 
 def test_review_result_rejects_empty_reason_code() -> None:
     with pytest.raises(ValueError, match="reason_code must not be empty"):
-        tasks.ReviewResult("check", "pass", "detail", "")
+        tasks.ReviewResult("check", "exited", "detail", "", returncode=0)
+
+
+@pytest.mark.parametrize(
+    ("execution", "returncode"),
+    [("exited", None), ("not-started", 0), ("timed-out", 1)],
+)
+def test_review_result_requires_returncode_only_for_exited_process(
+    execution: str, returncode: int | None
+) -> None:
+    with pytest.raises(ValueError, match="returncode"):
+        tasks.ReviewResult(
+            "check", execution, "detail", "reason", returncode=returncode
+        )
 
 
 def test_review_repo_cli_accepts_results_json_output(
@@ -1124,17 +1169,15 @@ def test_review_repo_cli_accepts_results_json_output(
     tmp_path: Path,
 ) -> None:
     results_path = tmp_path / "results.json"
-    calls: list[tuple[Path | None, Path | None]] = []
+    calls: list[Path | None] = []
     monkeypatch.setattr(
         tasks,
         "target_review_repo_fast",
-        lambda inventory_json=None, results_json=None: calls.append(
-            (inventory_json, results_json)
-        ),
+        lambda results_json=None: calls.append(results_json),
     )
 
     assert tasks.main(["review-repo-fast", "--results-json", str(results_path)]) == 0
-    assert calls == [(None, results_path)]
+    assert calls == [results_path]
 
 
 def test_kubernetes_schema_exclusions_have_one_configuration_source() -> None:
@@ -1174,65 +1217,26 @@ def test_review_qa_app_skips_publisher_check_already_run_by_fast(
     ]
 
 
-def test_repository_health_targets_use_current_python(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    calls: list[tuple[str, ...]] = []
-    monkeypatch.setattr(
-        tasks,
-        "run",
-        lambda args, **_kwargs: calls.append(tuple(args)),
-    )
-
-    tasks.target_inventory_repo()
-    tasks.target_inventory_repo("json")
-
-    script = str(tasks.ROOT / "scripts" / "repo_health.py")
-    assert calls == [
-        (sys.executable, script, "inventory", "--format", "text"),
-        (sys.executable, script, "inventory", "--format", "json"),
-    ]
-    output = capsys.readouterr().out
-    assert output.count("Inventorying tracked repository health coordinates") == 1
-    assert output.count("Repository inventory completed") == 1
-
-
-def test_review_repo_cli_accepts_inventory_json_output(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "target", ["check-repo-health", "review-repo-fast", "review-repo-full"]
+)
+def test_review_cli_rejects_removed_inventory_option(
+    target: str,
     tmp_path: Path,
 ) -> None:
-    output_path = tmp_path / "inventory.json"
-    calls: list[Path | None] = []
-    monkeypatch.setattr(
-        tasks,
-        "target_review_repo_full",
-        lambda inventory_json=None, results_json=None: calls.append(inventory_json),
-    )
-
-    assert (
-        tasks.main(
-            [
-                "review-repo-full",
-                "--inventory-json",
-                str(output_path),
-            ]
-        )
-        == 0
-    )
-    assert calls == [output_path]
+    with pytest.raises(SystemExit) as error:
+        tasks.main([target, "--inventory-json", str(tmp_path / "inventory.json")])
+    assert error.value.code == 2
 
 
 def test_check_repo_health_generates_and_renders_one_json_report(
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
-    output_path = tmp_path / "inventory.json"
     calls: list[tuple[str, Path]] = []
 
     def generate(destination: Path) -> int:
         calls.append(("generate", destination))
-        destination.write_text('{"schema_version": "2.1"}\n', encoding="utf-8")
+        destination.write_text('{"schema_version": "3.0"}\n', encoding="utf-8")
         return 0
 
     monkeypatch.setattr(tasks, "generate_repo_health_check_json", generate)
@@ -1242,12 +1246,36 @@ def test_check_repo_health_generates_and_renders_one_json_report(
         lambda report: calls.append(("render", report)),
     )
 
-    tasks.target_check_repo_health(output_path)
+    tasks.target_check_repo_health()
 
-    assert calls == [
-        ("generate", output_path),
-        ("render", output_path),
-    ]
+    assert [name for name, _path in calls] == ["generate", "render"]
+    assert calls[0][1] == calls[1][1]
+    assert not calls[0][1].exists()
+
+
+def test_fast_review_preserves_repository_health_exclusion_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    health = tasks.FAST_REVIEW_CHECKS[0]
+    assert health.name == "repo-health"
+    monkeypatch.setattr(tasks, "classify_review_tools", lambda _checks: ([health], []))
+    detail = (
+        "Excluded Kubernetes documents: 1\n"
+        "[excluded] k8s/app.yaml:document:1 Kustomization: schema exclusion\n"
+    )
+    monkeypatch.setattr(
+        tasks,
+        "run_review_command",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            [], 0, stdout=detail.encode(), stderr=b""
+        ),
+    )
+
+    results = tasks.run_fast_review_checks()
+
+    assert results[0].execution == "exited"
+    assert results[0].returncode == 0
+    assert results[0].stdout_tail == detail
 
 
 def test_review_repo_fast_skips_only_uv_version_when_uv_probe_fails(
@@ -1283,15 +1311,17 @@ def test_review_repo_fast_skips_only_uv_version_when_uv_probe_fails(
         "check-version-pins",
     ]
     output = capsys.readouterr()
-    assert "[pass] (check-passed) repo-health: check passed" in output.out
-    assert "[pass] (check-passed) public-lock: check passed" in output.out
-    assert "[pass] (check-passed) publisher-requirements: check passed" in output.out
+    for name in ("repo-health", "public-lock", "publisher-requirements"):
+        assert (
+            f"[exited] (process-exited) {name}: process exited with code 0"
+            in output.out
+        )
     assert (
-        "[unverified] (tool-preflight-failed) uv-version: "
+        "[not-started] (tool-preflight-failed) uv-version: "
         "required tool preflight failed: "
         "uv --version exited with code 1 during preflight"
     ) in output.err
-    assert "Repository review completed with unverified checks" in output.out
+    assert "see execution records for limitations" in output.out
 
 
 @pytest.mark.parametrize(
@@ -1307,7 +1337,7 @@ def test_review_repo_fast_skips_only_uv_version_when_uv_probe_fails(
         ),
     ],
 )
-def test_review_tool_probe_failure_marks_check_unverified(
+def test_review_tool_probe_failure_records_target_not_started(
     monkeypatch: pytest.MonkeyPatch,
     failure: Exception,
     expected_detail: str,
@@ -1325,12 +1355,12 @@ def test_review_tool_probe_failure_marks_check_unverified(
     )
 
     assert runnable == []
-    assert [(result.status, result.detail) for result in results] == [
-        ("unverified", f"required tool preflight failed: {expected_detail}")
+    assert [(result.execution, result.detail) for result in results] == [
+        ("not-started", f"required tool preflight failed: {expected_detail}")
     ]
 
 
-def test_compile_aw_is_unverified_when_extension_is_unavailable(
+def test_compile_aw_is_not_started_when_extension_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[tuple[str, ...], float]] = []
@@ -1354,8 +1384,8 @@ def test_compile_aw_is_unverified_when_extension_is_unavailable(
     )
 
     assert runnable == []
-    assert [(result.name, result.status) for result in results] == [
-        ("compile-aw", "unverified")
+    assert [(result.name, result.execution) for result in results] == [
+        ("compile-aw", "not-started")
     ]
     assert calls == [
         (
@@ -1365,7 +1395,7 @@ def test_compile_aw_is_unverified_when_extension_is_unavailable(
     ]
 
 
-def test_compile_aw_preflight_timeout_is_unverified_and_does_not_block_next_check(
+def test_compile_aw_preflight_timeout_does_not_start_target_or_block_next_check(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1402,8 +1432,8 @@ def test_compile_aw_preflight_timeout_is_unverified_and_does_not_block_next_chec
     )
 
     assert [check.name for check in runnable] == ["next"]
-    assert [(result.name, result.status) for result in results] == [
-        ("compile-aw", "unverified")
+    assert [(result.name, result.execution) for result in results] == [
+        ("compile-aw", "not-started")
     ]
     tmp_path.rmdir()
     assert not tmp_path.exists()
@@ -1469,7 +1499,7 @@ def test_isolated_command_streams_output_and_keeps_only_bounded_tail(
         ("Unable to download Bicep CLI", "Azure CLI"),
     ],
 )
-def test_explicit_environment_failures_are_unverified(
+def test_environment_nonzero_exit_retains_evidence_and_existing_gate_policy(
     log: str,
     reason: str,
 ) -> None:
@@ -1480,17 +1510,18 @@ def test_explicit_environment_failures_are_unverified(
         stderr=log.encode(),
     )
 
-    status, reason_code, detail = tasks.classify_review_failure(
+    result = tasks.review_process_result(
         tasks.ReviewCheck("check", "check", ()),
         completed,
     )
 
-    assert status == "unverified"
-    assert reason_code == tasks.REVIEW_REASON_ENVIRONMENT_FAILURE
-    assert reason in detail
+    assert result.execution == "exited"
+    assert result.returncode == 1
+    assert result.stderr_tail == log
+    assert tasks.review_command_exit_code([result]) == 0
 
 
-def test_baseline_four_pytest_assertion_failures_remain_fail() -> None:
+def test_pytest_assertion_diagnostics_retain_existing_gate_policy() -> None:
     completed = subprocess.CompletedProcess(
         ["check"],
         1,
@@ -1505,14 +1536,104 @@ def test_baseline_four_pytest_assertion_failures_remain_fail() -> None:
         ),
     )
 
-    status, reason_code, detail = tasks.classify_review_failure(
+    result = tasks.review_process_result(
         tasks.ReviewCheck("test-hooks", "test-hooks", ()),
         completed,
     )
 
-    assert status == "fail"
-    assert reason_code == tasks.REVIEW_REASON_REPOSITORY_FAILURE
-    assert "repository-related" in detail
+    assert result.execution == "exited"
+    assert result.returncode == 1
+    assert result.stderr_tail == completed.stderr.decode()
+    assert tasks.review_command_exit_code([result]) == 1
+
+
+@pytest.mark.parametrize("returncode", [0, 7, -9])
+def test_process_exit_does_not_infer_findings_or_confirmation(
+    returncode: int,
+) -> None:
+    result = tasks.review_process_result(
+        tasks.ReviewCheck("check", "check", ()),
+        subprocess.CompletedProcess(
+            ["check"],
+            returncode,
+            stdout=b"partial result",
+            stderr=b"unknown diagnostic",
+        ),
+    )
+    document = tasks.review_results_document("fast", [result])
+    record = document["checks"][0]
+
+    assert record["execution"] == "exited"
+    assert record["returncode"] == returncode
+    assert record["stdout_tail"] == "partial result"
+    assert record["stderr_tail"] == "unknown diagnostic"
+    for key in ("status", "verification", "findings", "completion"):
+        assert key not in record
+        assert key not in document
+    assert document["command_exit_code"] == (0 if returncode == 0 else 1)
+
+
+def test_full_target_timeout_keeps_partial_results() -> None:
+    check = tasks.ReviewCheck("check", "check", ())
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(tasks, "classify_review_tools", lambda _: ([check], []))
+
+        def timeout(*_args: object, **_kwargs: object) -> None:
+            raise subprocess.TimeoutExpired(
+                ["check"], 1, output=b"finished subtest", stderr=b"partial diagnostic"
+            )
+
+        monkeypatch.setattr(tasks, "run_review_command", timeout)
+        results = tasks.run_review_checks([check])
+
+    assert results[0].execution == "timed-out"
+    assert results[0].returncode is None
+    assert results[0].stdout_tail == "finished subtest"
+    assert results[0].stderr_tail == "partial diagnostic"
+
+
+def test_execution_summary_counts_partial_run_without_global_status() -> None:
+    results = [
+        tasks.ReviewResult(
+            "test", "exited", "test output", "process-exited", returncode=1
+        ),
+        tasks.ReviewResult(
+            "build", "exited", "build output", "process-exited", returncode=0
+        ),
+        tasks.ReviewResult(
+            "lint", "not-started", "tool missing", "tool-preflight-failed"
+        ),
+        tasks.ReviewResult("next", "timed-out", "partial output", "check-timeout"),
+    ]
+
+    document = tasks.review_results_document("full", results)
+
+    assert document["execution_summary"] == {
+        "total": 4,
+        "exited_zero": 1,
+        "exited_nonzero": 1,
+        "not_started": 1,
+        "timed_out": 1,
+    }
+    assert document["command_exit_code"] == 1
+    assert "status" not in document
+    assert len(document["checks"]) == 4
+
+
+def test_repository_diagnostic_still_blocks_gate_with_environment_diagnostic() -> None:
+    result = tasks.review_process_result(
+        tasks.ReviewCheck("test", "test", ()),
+        subprocess.CompletedProcess(
+            ["test"],
+            1,
+            stdout=b"AssertionError: expected 2",
+            stderr=b"Cannot connect to the Docker daemon",
+        ),
+    )
+
+    assert tasks.review_command_exit_code([result]) == 1
+    assert result.stdout_tail == "AssertionError: expected 2"
+    assert result.stderr_tail == "Cannot connect to the Docker daemon"
 
 
 def test_validate_aw_uses_non_emitting_compile(
@@ -1707,10 +1828,9 @@ def test_review_repo_agent_contract() -> None:
     assert "repository-freshness-checker" in body
     assert "bicep-api-version-updater" in body
     assert "ファイルの自動更新、commit、push、Pull Request作成を行わない" in body
-    assert (
-        "`pass`と、理由が記録された`excluded`または`skip`を、"
-        "agentの判断だけで問題へ再分類しない" in body
-    )
+    assert "理由が記録された対象外を問題へ再分類しない" in body
+    assert "`execution`、`returncode`、`reason_code`" in body
+    assert "非ゼロ終了だけで対象に不具合があると断定しない" in body
     assert "理由付きの除外が設定および契約と一致する場合" in body
     assert "指摘事項、懸念、要確認事項へ含めない" in body
     assert "各結果には、現在行うべき対処を併記する" in body
@@ -1726,39 +1846,23 @@ def test_repository_freshness_skill_contract() -> None:
     frontmatter, body = frontmatter_and_body(skill_path)
 
     assert frontmatter["name"] == "repository-freshness-checker"
-    assert "review-repo full" in frontmatter["description"]
+    assert "公開Markdownリンク" in frontmatter["description"]
     assert "check-only" in body
-    assert "inventory JSON" in body
-    assert (
-        "review-repo-full --inventory-json <absolute-path> "
-        "--results-json <absolute-path>" in body
-    )
-    assert "別のinventory生成コマンドを実行せず" in body
-    assert "version更新候補を検出しない" in body
+    assert "事前の機械検査や対象抽出JSONは不要" in body
+    assert "review-repo" not in body
+    assert "通常のversion更新候補は確認範囲に含めない" in body
     assert "Azure Functions extension bundle" in body
     assert "Docker base imageのEOLは確認しない" in body
-    for category in (
-        "`documentation-external-link`",
-        "`function-extension-bundle`",
-    ):
-        assert category in body
-    for boundary in (
-        "check-version-pins",
-        "update-lefthook-pin",
-        "bicep-api-version-updater",
-    ):
-        assert boundary in body
-    for status in ("pass", "fail", "unverified", "excluded"):
-        assert status in body
-    assert "Microsoft Learn MCP" in body
-    assert "mslearn" in body
+    for confirmation in ("verified", "unverified", "excluded"):
+        assert confirmation in body
+    assert "利用可能な公開文書の検索、取得手段" in body
     assert (
         "https://learn.microsoft.com/azure/azure-functions/"
         "extension-bundles#bundle-versions" in body
     )
     assert "functions-bindings-register#extension-bundles" not in body
-    assert "`documentation-external-link`" in body
-    assert "`404`と`410`は`fail`" in body
+    assert "`404`と`410`は到達性の確認状況を`verified`" in body
+    assert "指摘があって未確認の事項も残る場合は両方を保持する" in body
     assert "ファイルの編集、自動更新" in body
     assert "Azure subscription" in body
 
@@ -1770,7 +1874,9 @@ def test_bicep_api_version_skill_exposes_non_editing_check_only_mode() -> None:
     check_only = body.split("## check-onlyモード", 1)[1].split("## updateモード", 1)[0]
 
     assert "Azure認証を行わない" in check_only
-    assert "`bicep-api-version-check` workflow" in check_only
+    assert "review-repo" not in body
+    assert "bicep-api-version-check" not in body
+    assert "事前の検査結果や対象抽出JSONは不要" in body
     assert "subscriptionを照会しない" in check_only
     assert "Microsoft Learnの公開APIリファレンス" in check_only
     assert "Azure/azure-rest-api-specs" in check_only
@@ -1781,6 +1887,54 @@ def test_bicep_api_version_skill_exposes_non_editing_check_only_mode() -> None:
     assert "## updateモード" in body
     assert "ユーザーの明示承認" in body
     assert "az provider show" in body.split("## updateモード", 1)[1]
+
+
+def test_review_separates_confirmation_findings_and_execution() -> None:
+    _, skill = frontmatter_and_body(
+        REPO_ROOT / ".github/skills/bicep-api-version-updater/SKILL.md"
+    )
+    _, agent = frontmatter_and_body(REPO_ROOT / ".github/agents/review-repo.agent.md")
+    documentation = (REPO_ROOT / "docs/dependency-management.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert "同じ宣言に指摘と更新候補の両方があってよい" in skill
+    assert "未確認の事項が残っていても、確認できた指摘や更新候補は保持" in skill
+    assert "更新候補を問題へ再分類しない" in agent
+    assert "アプリとテストのどちらが誤っているかまでは断定しない" in agent
+    for body in (agent, documentation):
+        assert "全体statusや合否を付けない" in body
+    assert "未確認の事項が残っていても確認できた内容は保持" in documentation
+    assert "終了コード0を全対象の確認完了と扱わない" in documentation
+
+
+@pytest.mark.parametrize(
+    "skill_name", ["bicep-api-version-updater", "repository-freshness-checker"]
+)
+def test_specialist_skills_define_scope_and_incomplete_results(
+    skill_name: str,
+) -> None:
+    _, body = frontmatter_and_body(
+        REPO_ROOT / ".github/skills" / skill_name / "SKILL.md"
+    )
+    for reason in (
+        "not-processed",
+        "target-unresolved",
+        "evidence-unavailable",
+        "assessment-incomplete",
+    ):
+        assert f"`unverified`（`{reason}`）" in body
+    assert "`unverified`、未読ファイル、未確定の対象範囲があれば「確認未完了」" in body
+    assert "全体statusや合否は付けず" in body
+    for obsolete in ("`fail`", "`pass`", "`update-available`", "needs-fix"):
+        assert obsolete not in body
+    for caller_dependency in (
+        "review-repo",
+        "RUNNER_TEMP",
+        "pre-agent",
+        "--inventory-json",
+    ):
+        assert caller_dependency not in body
 
 
 def test_each_skill_directory_contains_skill_document() -> None:
