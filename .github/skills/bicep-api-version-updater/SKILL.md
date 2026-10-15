@@ -1,24 +1,45 @@
 ---
 name: bicep-api-version-updater
-description: BicepファイルのAzureリソースAPIバージョンを確認または更新する。確認依頼とreview-repoでは公開情報だけを使うcheck-only、明示された更新依頼ではupdateを使う。「APIバージョンを更新」「Bicepを最新化」「古いAPIバージョンをチェック」を求める場合に使用。
+description: BicepファイルのAzureリソースAPIバージョンを確認または更新する。確認依頼では公開情報だけを使うcheck-only、明示された更新依頼ではupdateを使う。「APIバージョンを更新」「Bicepを最新化」「古いAPIバージョンをチェック」を求める場合に使用。
 ---
 
 # Bicep API Version Updater
 
 BicepファイルのAzureリソースAPIバージョンを確認し、更新依頼では互換性とローカル検証を満たす安定版へ更新する。確認だけの依頼を更新へ広げない。
 
+## 入力と対象の確認
+
+入力は対象リポジトリ、ディレクトリ、またはBicepファイルと、確認または更新の依頼である。確認のみが既定。事前の検査結果や対象抽出JSONは不要。
+
+ファイル指定では指定された全ファイルを対象にする。ディレクトリ指定では配下の`.bicep`を列挙する。Gitリポジトリ全体では、追跡ファイルとignoreされていない未追跡ファイルを対象にする。列挙に失敗した場合や、指定ファイルが存在しない場合は、対象0件と扱わず対象範囲を未確認とする。対象commitと既存の作業変更を確認し、commitだけで未コミット内容まで識別できたと扱わない。
+
+対象ファイルを直接読み、resource宣言ごとにファイルパス、宣言名、行番号、リソースタイプ、API versionを記録する。コメントや文字列内の宣言例を対象にしない。`existing`、条件付き、ループ、入れ子のresource宣言も確認し、子リソースのtypeやversionが省略されている場合は親宣言から解決する。解決できない宣言や読めないファイルは、その場所と理由を残す。検索の一致一覧だけを全宣言の確認結果と扱わない。
+
+`resourceInput<'Type@version'>` / `resourceOutput<'Type@version'>`は型定義でありresource宣言ではないため対象外。除外した場合は理由を記録する。
+
 ## check-onlyモード
 
-手動の確認依頼、および`review-repo`または`bicep-api-version-check` workflowからの呼び出しでは、この節だけを実行する。worktreeは読み取り専用として扱い、Azure認証を行わない。subscriptionを照会しない。
+確認依頼では、この節だけを実行する。対象は読み取り専用として扱い、Azure認証を行わない。subscriptionを照会しない。
 
-1. repo health inventory JSONが渡された場合は、schema version、対象commit、Bicep resource API座標を記録する。解釈できないschemaまたは座標は`unverified`とする。inventoryのない手動確認では、依頼対象のBicepを読み、ファイル、リソースタイプ、現在のAPI versionを抽出する。存在しないinventoryのschemaやcommitを推測しない。
-2. Microsoft Learnの公開APIリファレンスとbreaking changesを文書検索、取得ツールで確認する。公開候補の確認にはAzure公式`Azure/azure-rest-api-specs` repositoryの対応するstableまたはpreview仕様も参照する。定期workflowでは、許可された`learn.microsoft.com`とGitHub APIをPython標準ライブラリで取得する。
-3. 現在のversion、公開されている安定版、プレビュー版からGAへ移行できるかを比較する。
-4. 結果を`pass`、`fail`、`unverified`、`excluded`へ分類する。Microsoft Learnと`Azure/azure-rest-api-specs`のどちらからも公開情報を取得できない対象は`unverified`とする。両者のversion一覧が異なる場合は各確認結果を示し、反映時刻の差は確認できた場合だけ説明する。
-5. 対象座標数、確認済み座標数、未検証座標数、除外座標数からcoverageを計算し、入力の出所、根拠URL、確認時刻とともに返す。
-6. 結果を返して終了する。後続のupdateモードへ進まない。
+1. 「入力と対象の確認」に従って対象を読む。未着手のファイルと宣言は確認状況を`unverified`（`not-processed`）、読取失敗や解釈できない宣言は`unverified`（`target-unresolved`）として残す。
+2. Microsoft Learnの公開APIリファレンスとbreaking changesを、利用可能な公開文書の検索、取得手段で確認する。公開候補の確認にはAzure公式`Azure/azure-rest-api-specs` repositoryの対応するstableまたはpreview仕様も参照する。同じresource typeとversionの公開情報は一度取得し、対応する宣言で利用できる。使用属性の互換性は宣言ごとに確認する。
+3. 現在のversionと公開されている最新GA版を比較する。previewでは、使用属性を読んでGA移行可否を確認する。公開一覧の順序や型定義の対応状況だけで最新GA版を判断しない。情報源の一覧が異なる場合は各結果を示し、反映時刻の差は確認できた場合だけ説明する。
+4. 各宣言の確認状況と、確認できた指摘や更新候補を別に記録する。必要な仕様確認が済んだ宣言は`verified`（確認済み）とする。現在の宣言に公開仕様との不一致が確認された場合は指摘（`issue`）、新しいGA版を確認した場合は更新候補（`update`）を根拠とともに残す。同じ宣言に指摘と更新候補の両方があってよい。新しいGA版の公開だけを問題としない。previewを意図的に維持する場合は、GA移行の分析を済ませて理由付きの`excluded`（対象外）とする。Microsoft Learnと`Azure/azure-rest-api-specs`のどちらからも公開情報を取得できない対象は`unverified`（`evidence-unavailable`）。最新GA版や使用属性の互換性を判断できない場合は`unverified`（`assessment-incomplete`）とする。未確認の事項が残っていても、確認できた指摘や更新候補は保持し、未確認の事項を具体的に示す。
+5. 下記の完了条件を確認し、結果を返して終了する。後続のupdateモードへ進まない。
 
 check-onlyモードでは、ローカルまたはAzure上の構成を変更する操作を行わない。現在値が公開情報と異なる場合も、影響と確認事項だけを報告する。
+
+### 結果と完了条件
+
+対象範囲、対象commitと作業変更、確認日時、対象ファイル数、resource宣言数、確認状況別の宣言数を返す。各宣言についてファイル、宣言名、行番号、現在version、最新GA版、GA移行可否、確認状況、理由、根拠URL、使用属性とbreaking changesの確認結果を示す。
+
+指摘（`issue`）と更新候補（`update`）は確認状況と別に列挙し、件数も別に数える。これらは排他的ではなく、宣言数と足し合わせない。`verified`は問題がないという意味ではなく、必要な確認を終えたことを表す。「問題なし」は必要な確認を終え、指摘がない範囲についてだけ述べる。
+
+未読ファイルは宣言数が不明なため、未確認ファイルとして別に報告する。対象一覧を確定できない場合も、その制限を記載する。未処理と取得不能を同じ理由で報告しない。
+
+対象範囲内の全ファイルを読み、全resource宣言の必要な確認と根拠が揃った場合だけ「確認完了」とする。指摘や更新候補の存在は確認完了と両立する。`unverified`、未読ファイル、未確定の対象範囲があれば「確認未完了」。理由付きの除外は未処理の代わりに使わない。対象0件の場合は対象範囲の確認成否を示し、API仕様を照合済みとは報告しない。
+
+全体statusや合否は付けず、確認の完了状況、指摘、更新候補、未確認対象を報告する。処理を実行した場合の終了コード、診断、例外、timeoutは実行結果として別に記録し、対象の問題へ読み替えない。実行エラーがある場合も、それまでに確認できた内容を保持し、未確認となった範囲を示す。対象を読み終えたことや出力の形式だけを公開仕様照合の成功と扱わない。
 
 ## updateモード
 
@@ -55,7 +76,7 @@ Azure MCP Serverの`bicepschema`と`az provider show`では、APIバージョン
 
 ファイル検索、閲覧ツールで依頼対象のresource宣言を読む。更新前のAPI versionとユーザーの既存変更を記録する。
 
-> **対象外:** `resourceInput<'Type@version'>` / `resourceOutput<'Type@version'>` 構文（Bicep 0.34.1以降）は本スキルの対象外。これらは型定義用でありリソースをデプロイしないため、APIバージョン更新の優先度が異なる。
+対象の確認は「入力と対象の確認」に従う。
 
 #### Step 2: プレビュー版のスキップ判定
 
@@ -64,7 +85,7 @@ APIバージョンに `-preview` が含まれる場合は**更新をスキップ
 **ただし、以下の分析は必ず実施すること:**
 
 1. 現在のBicepファイルで使用している属性を特定
-2. Step 3の経路で最新GA版を確認
+2. Step 3の手順で最新GA版を確認
 3. コードの属性がGA版でサポートされているか確認（ドキュメント検索）
 4. GA移行可否と、判断に関わる属性を報告する
 
@@ -103,7 +124,7 @@ APIリファレンスページの上部に利用可能なAPIバージョン一�
 
 #### Step 4: Breaking Changes確認
 
-`microsoft_docs_search` で破壊的変更を検索:
+利用可能な公開文書の検索、取得手段で破壊的変更を確認する。
 
 ```
 検索クエリ例:

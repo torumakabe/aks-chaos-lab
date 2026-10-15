@@ -20,15 +20,13 @@ description: リポジトリ全体の衛生状態を非編集で点検する。�
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast \
-  --inventory-json "<temp>/inventory.json" \
   --results-json "<temp>/review-fast.json"
 
 uv run --no-project "${PWD}/scripts/tasks.py" review-repo-full \
-  --inventory-json "<temp>/inventory.json" \
   --results-json "<temp>/review-full.json"
 ```
 
-`<temp>`はリポジトリ外のOS一時ディレクトリとする。`review-repo-fast`と`review-repo-full`は、利用できないツールを`unverified`として記録し、実行可能な検査を継続する。
+`<temp>`はリポジトリ外のOS一時ディレクトリとする。`review-repo-fast`と`review-repo-full`は、利用できないツールの理由と対象処理の未起動を記録し、実行可能な処理を継続する。
 
 fastは次を実行する。
 
@@ -48,8 +46,10 @@ fullはfastに加えて次を実行する。
 - `lint-workflows`
 - `validate-aw`
 
-同じ検査をagent側で組み立て直さない。taskが出力した`status`と`reason_code`をそのまま使用する。
-`pass`と、理由が記録された`excluded`または`skip`を、agentの判断だけで問題へ再分類しない。設定、実装、契約テストの間に具体的な不一致がある場合だけ、該当するファイルと行番号を根拠として指摘する。
+同じ処理をagent側で組み立て直さない。taskの結果JSONはschema version 2の実行記録である。`execution`、`returncode`、`reason_code`、`stdout_tail`、`stderr_tail`を読み、テスト、lint、build、整合性チェックそれぞれの結果と診断を保持する。`command_exit_code`はtaskの終了規則を適用した値で、レビューの評価や確認完了を表さない。非ゼロ終了だけで対象に不具合があると断定しない。
+各対象の確認状況は`verified`（確認済み）、`unverified`（未確認）、`excluded`（理由付き対象外）とする。理由が記録された対象外を問題へ再分類しない。設定、実装、契約テストの間に具体的な不一致がある場合だけ、該当するファイルと行番号を根拠として指摘する。
+
+fullでは、`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyに現在のリポジトリを対象として渡す。各スキルが対象の読み取り、専門確認、完了判定までを行う。agentはその手順を組み立て直さず、返された確認範囲、根拠、指摘、更新候補、未完了の対象と理由をレビューへ組み込む。結果の欠落を確認済みや対象0件で補わない。
 
 ## fullの意味評価
 
@@ -63,7 +63,7 @@ fullはfastに加えて次を実行する。
 | READMEと運用文書 | path、task、command、説明と現在の実装の一致 | 該当する専門skill |
 | workflow sourceと生成物 | source、生成lock、actions lock、参照task、参照skillの一致 | `lint-workflows`、`compile-aw` |
 
-inventoryへの出現だけで`pass`にしない。評価できない対象は理由を付けて`unverified`とする。明示した形式、参照先、現在の実装との不一致は`fail`とする。理由付きの除外が設定および契約と一致する場合は、指摘事項、懸念、要確認事項へ含めない。
+ファイルの存在やテストなどの終了コード0だけで意味評価を確認済みにしない。必要な確認を終えた対象を`verified`とし、明示した形式、参照先、現在の実装との不一致は別に指摘（`issue`）として残す。評価できない対象は理由を付けて`unverified`とし、既に確認できた指摘は保持する。理由付きの除外が設定および契約と一致する場合は、指摘事項、懸念、要確認事項へ含めない。
 
 ## 責務の境界
 
@@ -75,6 +75,10 @@ inventoryへの出現だけで`pass`にしない。評価できない対象は�
 
 ## 出力
 
-実行モード、対象commit、状態別の検査結果、inventory categoryごとの対象数、`unverified`と`excluded`の理由、修正が必要なファイルと計画を報告する。各結果には、現在行うべき対処を併記する。対処が不要な結果には、その旨を記載する。「次回確認する」のように、今回判断できる内容を将来へ先送りしない。
+実行モード、対象commit、各処理の実行結果、各スキルの確認範囲と完了状況、Kubernetesのschema検証から除外した文書数、`unverified`と`excluded`の理由、修正が必要なファイルと計画を報告する。各結果には、現在行うべき対処を併記する。対処が不要な結果には、その旨を記載する。「次回確認する」のように、今回判断できる内容を将来へ先送りしない。
+
+全体statusや合否を付けない。確認状況の件数、指摘（`issue`）と更新候補（`update`）の件数を別に数え、確認の完了状況とともに報告する。指摘と更新候補は同じ対象に併存してよく、未確認の事項があっても確認できた内容は残す。更新候補を問題へ再分類しない。「問題なし」は必要な確認を終え、指摘がない範囲についてだけ述べる。
+
+テストのassert不成立はテスト不合格として診断とともに記録し、アプリとテストのどちらが誤っているかまでは断定しない。buildエラーなども元の診断を保持する。起動不能、timeout、原因不明の異常終了では、評価できなかった対象を未確認とする。実行エラーと確認できた指摘は別に示し、部分的な結果も失わない。未読ファイル、未確認対象、未確定の対象範囲があれば確認未完了とする。
 
 報告前に、各指摘が失敗した検査またはファイル間の具体的な不一致を根拠としているか確認する。根拠が将来の変更可能性だけの場合は指摘から削除する。結論は「今回の走査範囲では」と表現し、「すべて確認済み」と断定しない。

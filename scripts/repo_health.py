@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small, deterministic repository checks and public-review inventory."""
+"""Small, deterministic repository consistency checks."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
-SCHEMA_VERSION = "2.1"
+SCHEMA_VERSION = "3.0"
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = Path(".github/repo-health.toml")
 GIT_TIMEOUT_SECONDS = 30
@@ -25,16 +25,11 @@ BICEP_PARAMETER_ENTRYPOINTS = (
 )
 Status = Literal["pass", "fail"]
 
-_BICEP_RESOURCE = re.compile(
-    r"\bresource\s+\w+\s+'(?P<type>[^'@]+)@(?P<version>[^']+)'"
-)
 _BICEP_PARAMETER = re.compile(
     r"(?m)^\s*param\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s+\S+"
     r"(?P<default>\s*=\s*)?"
 )
 _DOCKER_FROM = re.compile(r"(?mi)^\s*FROM\s+(?P<image>\S+)")
-_EXTERNAL_LINK = re.compile(r"https?://[^\s<>()\"']+")
-_MARKDOWN_INLINE_CODE = re.compile(r"`+[^`\n]*`+")
 _K8S_KIND = re.compile(r"(?m)^kind:\s*(?P<kind>[A-Za-z][A-Za-z0-9]*)\s*$")
 _K8S_DOCUMENT = re.compile(r"(?m)^---\s*$")
 _GH_AW_SETUP = re.compile(r"(?m)^\s*version:\s*(?P<version>v\d+\.\d+\.\d+)\s*$")
@@ -52,15 +47,6 @@ _K8S_BICEP_VERSION = re.compile(
 
 class RepoHealthError(RuntimeError):
     pass
-
-
-@dataclass(frozen=True)
-class Coordinate:
-    category: str
-    path: str
-    location: str
-    value: str
-    status: Status = "pass"
 
 
 @dataclass(frozen=True)
@@ -141,88 +127,45 @@ def load_kubernetes_schema_excluded_kinds(path: Path) -> tuple[str, ...]:
     return tuple(values)
 
 
-def _coordinates_for_file(root: Path, relative: Path) -> list[Coordinate]:
-    path = root / relative
-    if not path.is_file():
-        return []
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        return []
-    name = relative.as_posix()
-    coordinates: list[Coordinate] = []
-    if relative.suffix == ".bicep":
-        for index, match in enumerate(_BICEP_RESOURCE.finditer(text), 1):
-            coordinates.append(
-                Coordinate(
-                    "bicep-resource-api",
-                    name,
-                    f"resource:{index}",
-                    f"{match.group('type')}@{match.group('version')}",
-                )
-            )
-    if relative.name == "Dockerfile":
-        for index, match in enumerate(_DOCKER_FROM.finditer(text), 1):
-            coordinates.append(
-                Coordinate("docker-base-image", name, f"from:{index}", match["image"])
-            )
-    if relative.suffix.lower() == ".md":
-        seen: set[str] = set()
-        inline_code_ranges = [
-            (match.start(), match.end())
-            for match in _MARKDOWN_INLINE_CODE.finditer(text)
-        ]
-        for match in _EXTERNAL_LINK.finditer(text):
-            if any(start <= match.start() < end for start, end in inline_code_ranges):
-                continue
-            value = match.group(0).rstrip(".,;:")
-            if value in seen:
-                continue
-            seen.add(value)
-            coordinates.append(
-                Coordinate(
-                    "documentation-external-link",
-                    name,
-                    f"line:{text.count(chr(10), 0, match.start()) + 1}",
-                    value,
-                )
-            )
-    if relative == Path("src/external-sli-publisher/host.json"):
+def excluded_kubernetes_documents(
+    root: Path, files: Sequence[Path], excluded_kinds: Sequence[str]
+) -> tuple[list[dict[str, str]], list[Finding]]:
+    documents: list[dict[str, str]] = []
+    findings: list[Finding] = []
+    for relative in files:
+        if (
+            not relative.as_posix().startswith("k8s/")
+            or relative.suffix not in {".yaml", ".yml"}
+            or not (root / relative).is_file()
+        ):
+            continue
         try:
-            document = json.loads(text)
-            bundle = document["extensionBundle"]["version"]
-        except (json.JSONDecodeError, KeyError, TypeError) as error:
-            raise RepoHealthError(f"{name} has no extensionBundle.version") from error
-        if not isinstance(bundle, str):
-            raise RepoHealthError(f"{name} extensionBundle.version must be a string")
-        coordinates.append(
-            Coordinate(
-                "function-extension-bundle", name, "extensionBundle.version", bundle
+            text = (root / relative).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as error:
+            findings.append(
+                Finding(
+                    "kubernetes-document-read",
+                    "fail",
+                    relative.as_posix(),
+                    "file",
+                    f"could not read Kubernetes document: {error}",
+                )
             )
-        )
-    if name.startswith("k8s/") and relative.suffix in {".yaml", ".yml"}:
+            continue
         for index, document in enumerate(_K8S_DOCUMENT.split(text), 1):
             match = _K8S_KIND.search(document)
-            if match:
-                coordinates.append(
-                    Coordinate(
-                        "kubernetes-manifest",
-                        name,
-                        f"document:{index}",
-                        match["kind"],
-                    )
+            if match and match["kind"] in excluded_kinds:
+                documents.append(
+                    {
+                        "path": relative.as_posix(),
+                        "location": f"document:{index}",
+                        "kind": match["kind"],
+                        "reason": "kind excluded from Kubernetes schema validation",
+                    }
                 )
-    return coordinates
-
-
-def scan_inventory(root: Path) -> list[Coordinate]:
-    coordinates: list[Coordinate] = []
-    for relative in list_repository_files(root):
-        coordinates.extend(_coordinates_for_file(root, relative))
     return sorted(
-        coordinates,
-        key=lambda item: (item.category, item.path, item.location, item.value),
-    )
+        documents, key=lambda item: (item["path"], item["location"])
+    ), findings
 
 
 def validate_bicep_parameter_files(root: Path) -> list[Finding]:
@@ -300,7 +243,7 @@ def _major_minor(version: str) -> tuple[int, int]:
     return int(major), int(minor)
 
 
-def _check_versions(root: Path) -> list[Check]:
+def _check_versions(root: Path, files: Sequence[Path]) -> list[Check]:
     checks: list[Check] = []
     try:
         task_version = _single_match(
@@ -346,28 +289,37 @@ def _check_versions(root: Path) -> list[Check]:
     except RepoHealthError as error:
         checks.append(Check("gh-aw-compiler-version", "fail", str(error)))
 
-    images = [
-        item for item in scan_inventory(root) if item.category == "docker-base-image"
-    ]
-    unpinned = [item.value for item in images if "@sha256:" not in item.value]
-    checks.append(
-        Check(
-            "docker-base-digest",
-            "fail" if unpinned or not images else "pass",
-            (
-                f"unpinned images: {', '.join(unpinned)}"
-                if unpinned
-                else f"{len(images)} base images are digest-pinned"
-            ),
+    try:
+        images = [
+            match["image"]
+            for relative in files
+            if relative.name == "Dockerfile" and (root / relative).is_file()
+            for match in _DOCKER_FROM.finditer(
+                (root / relative).read_text(encoding="utf-8")
+            )
+        ]
+        unpinned = [image for image in images if "@sha256:" not in image]
+        message = f"{len(images)} base images are digest-pinned"
+        if unpinned:
+            message = f"unpinned images: {', '.join(unpinned)}"
+        elif not images:
+            message = "no Docker base images found"
+        checks.append(
+            Check(
+                "docker-base-digest",
+                "fail" if unpinned or not images else "pass",
+                message,
+            )
         )
-    )
+    except (OSError, UnicodeDecodeError) as error:
+        checks.append(Check("docker-base-digest", "fail", str(error)))
     return checks
 
 
-def build_result(root: Path, include_checks: bool) -> dict[str, Any]:
-    inventory = scan_inventory(root)
+def build_result(root: Path) -> dict[str, Any]:
+    files = list_repository_files(root)
     parameter_findings = validate_bicep_parameter_files(root)
-    checks = _check_versions(root) if include_checks else []
+    checks = _check_versions(root, files)
     findings = [
         Finding(check.id, check.status, "", check.id, check.message)
         for check in checks
@@ -375,21 +327,17 @@ def build_result(root: Path, include_checks: bool) -> dict[str, Any]:
     ]
     findings.extend(parameter_findings)
     excluded_kinds = load_kubernetes_schema_excluded_kinds(root / CONFIG_PATH)
-    excluded = [
-        asdict(item)
-        for item in inventory
-        if item.category == "kubernetes-manifest" and item.value in excluded_kinds
-    ]
-    files = list_repository_files(root)
+    excluded, document_findings = excluded_kubernetes_documents(
+        root, files, excluded_kinds
+    )
+    findings.extend(document_findings)
     return {
         "schema_version": SCHEMA_VERSION,
         "repository_root": str(root.resolve()),
         "commit": repository_commit(root),
-        "inventory": [asdict(item) for item in inventory],
         "checks": [asdict(item) for item in checks],
         "coverage": {
             "repository_files": len(files),
-            "inventory_coordinates": len(inventory),
             "excluded_kubernetes_documents": excluded,
         },
         "findings": [asdict(item) for item in findings],
@@ -417,7 +365,6 @@ def _validate_report(report: object) -> dict[str, Any]:
     required = {
         "schema_version",
         "repository_root",
-        "inventory",
         "checks",
         "coverage",
         "findings",
@@ -428,7 +375,7 @@ def _validate_report(report: object) -> dict[str, Any]:
         raise RepoHealthError(f"report input is missing keys: {', '.join(missing)}")
     if typed_report["schema_version"] != SCHEMA_VERSION:
         raise RepoHealthError(f"report input schema_version must be {SCHEMA_VERSION}")
-    for key in ("inventory", "checks", "findings", "environment_limitations"):
+    for key in ("checks", "findings", "environment_limitations"):
         if not isinstance(typed_report[key], list):
             raise RepoHealthError(f"report input {key} must be an array")
     if not isinstance(typed_report["coverage"], dict):
@@ -441,7 +388,8 @@ def text_output(result: dict[str, Any]) -> str:
     findings = result["findings"]
     lines = [
         f"Repository files: {result['coverage']['repository_files']}",
-        f"Inventory coordinates: {result['coverage']['inventory_coordinates']}",
+        "Excluded Kubernetes documents: "
+        f"{len(result['coverage']['excluded_kubernetes_documents'])}",
     ]
     lines.extend(
         f"[{check['status']}] {check['id']}: {check['message']}" for check in checks
@@ -451,8 +399,13 @@ def text_output(result: dict[str, Any]) -> str:
         f"{finding['path']}:{finding['location']} {finding['message']}"
         for finding in findings
     )
+    lines.extend(
+        f"[excluded] {document['path']}:{document['location']} "
+        f"{document['kind']}: {document['reason']}"
+        for document in result["coverage"]["excluded_kubernetes_documents"]
+    )
     if not findings:
-        lines.append(f"ok: inventory {len(result['inventory'])} coordinates")
+        lines.append("ok: repository consistency checks passed")
     return "\n".join(lines) + "\n"
 
 
@@ -460,11 +413,8 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=ROOT)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for command in ("inventory", "check"):
-        command_parser = subparsers.add_parser(command)
-        command_parser.add_argument(
-            "--format", choices=("json", "text"), default="text"
-        )
+    check = subparsers.add_parser("check")
+    check.add_argument("--format", choices=("json", "text"), default="text")
     report = subparsers.add_parser("report")
     report.add_argument("path", type=Path)
     subparsers.add_parser("validate-bicep-parameters")
@@ -490,7 +440,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("ok: Bicep parameter files are valid")
             return 0
         else:
-            result = build_result(args.root, include_checks=args.command == "check")
+            result = build_result(args.root)
         output = (
             json_output(result)
             if getattr(args, "format", "text") == "json"
@@ -498,7 +448,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         print(output, end="")
         return 1 if result["findings"] else 0
-    except (OSError, json.JSONDecodeError, RepoHealthError) as error:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        RepoHealthError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 

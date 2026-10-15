@@ -124,7 +124,7 @@ REVIEW_CHECK_TIMEOUT_SECONDS = 300
 REVIEW_TOOL_PREFLIGHT_TIMEOUT_SECONDS = 10
 REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS = 10
 REVIEW_GH_AW_COMPILE_TIMEOUT_SECONDS = 60
-REVIEW_RESULTS_SCHEMA_VERSION = 1
+REVIEW_RESULTS_SCHEMA_VERSION = 2
 REVIEW_LOG_TAIL_BYTES = 64 * 1024
 REVIEW_LOG_STREAM_CHUNK_BYTES = 64 * 1024
 REVIEW_GH_AW_LIST_COMMAND = ("gh", "extension", "list")
@@ -675,42 +675,6 @@ def target_qa_scripts() -> None:
     print_success("Scripts QA passed")
 
 
-def target_inventory_repo(output_format: str = "text") -> None:
-    if output_format == "text":
-        print_step("Inventorying tracked repository health coordinates")
-    run(
-        [
-            sys.executable,
-            str(ROOT / "scripts" / "repo_health.py"),
-            "inventory",
-            "--format",
-            output_format,
-        ]
-    )
-    if output_format == "text":
-        print_success("Repository inventory completed")
-
-
-def validate_review_output(path: Path, option_name: str) -> Path:
-    if not path.is_absolute():
-        print(f"error: {option_name} must be an absolute path", file=sys.stderr)
-        raise SystemExit(1)
-    resolved = path.resolve()
-    if resolved.is_relative_to(ROOT.resolve()):
-        print(
-            f"error: {option_name} must be outside the repository",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    if not resolved.parent.is_dir():
-        print(
-            f"error: inventory output directory does not exist: {resolved.parent}",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-    return resolved
-
-
 def generate_repo_health_check_json(destination: Path) -> int:
     completed = subprocess.run(
         resolve_command(
@@ -758,19 +722,14 @@ def render_repo_health_check(report_path: Path) -> None:
     )
 
 
-def target_check_repo_health(inventory_json: Path | None = None) -> None:
+def target_check_repo_health() -> None:
     print_step("Checking repository health consistency")
-    if inventory_json is not None:
-        report_path = validate_review_output(inventory_json, "--inventory-json")
+    with tempfile.TemporaryDirectory(
+        prefix="aks-chaos-lab-repo-health-"
+    ) as temporary_directory:
+        report_path = Path(temporary_directory) / "checks.json"
         return_code = generate_repo_health_check_json(report_path)
         render_repo_health_check(report_path)
-    else:
-        with tempfile.TemporaryDirectory(
-            prefix="aks-chaos-lab-repo-health-"
-        ) as temporary_directory:
-            report_path = Path(temporary_directory) / "inventory.json"
-            return_code = generate_repo_health_check_json(report_path)
-            render_repo_health_check(report_path)
     if return_code != 0:
         raise SystemExit(return_code)
     print_success("Repository health checks passed")
@@ -788,25 +747,27 @@ class ReviewCheck:
 @dataclass(frozen=True)
 class ReviewResult:
     name: str
-    status: str
+    execution: str
     detail: str
     reason_code: str
+    returncode: int | None = None
+    stdout_tail: str = ""
+    stderr_tail: str = ""
 
     def __post_init__(self) -> None:
-        if self.status not in REVIEW_RESULT_STATUSES:
-            raise ValueError(f"unknown review status: {self.status}")
+        if self.execution not in REVIEW_EXECUTIONS:
+            raise ValueError(f"unknown review execution: {self.execution}")
+        if (self.execution == "exited") != (self.returncode is not None):
+            raise ValueError("only exited executions must have a returncode")
         if not self.reason_code:
             raise ValueError("review result reason_code must not be empty")
 
 
-REVIEW_RESULT_STATUSES = frozenset({"pass", "fail", "unverified", "excluded"})
-REVIEW_REASON_CHECK_PASSED = "check-passed"
+REVIEW_EXECUTIONS = frozenset({"exited", "not-started", "timed-out"})
+REVIEW_REASON_PROCESS_EXITED = "process-exited"
 REVIEW_REASON_TOOL_PREFLIGHT_FAILED = "tool-preflight-failed"
 REVIEW_REASON_CHECK_TIMEOUT = "check-timeout"
 REVIEW_REASON_CHECK_START_FAILED = "check-start-failed"
-REVIEW_REASON_REPOSITORY_FAILURE = "repository-failure"
-REVIEW_REASON_ENVIRONMENT_FAILURE = "environment-failure"
-REVIEW_REASON_CHECK_FAILED = "check-failed"
 
 
 # The fast review is offline by contract. Every check here reaches its verdict
@@ -850,9 +811,31 @@ FULL_REVIEW_CHECKS = (
 
 
 def print_review_result(result: ReviewResult) -> None:
-    stream = sys.stderr if result.status in {"fail", "unverified"} else sys.stdout
-    reason = f" ({result.reason_code})" if result.reason_code else ""
-    print(f"[{result.status}]{reason} {result.name}: {result.detail}", file=stream)
+    stream = sys.stdout if result.returncode == 0 else sys.stderr
+    print(
+        f"[{result.execution}] ({result.reason_code}) {result.name}: {result.detail}",
+        file=stream,
+    )
+
+
+def review_log_text(output: str | bytes | None) -> str:
+    if isinstance(output, bytes):
+        return output.decode(errors="replace")
+    return output or ""
+
+
+def review_process_result(
+    check: ReviewCheck, completed: subprocess.CompletedProcess[bytes]
+) -> ReviewResult:
+    return ReviewResult(
+        check.name,
+        "exited",
+        f"process exited with code {completed.returncode}",
+        REVIEW_REASON_PROCESS_EXITED,
+        returncode=completed.returncode,
+        stdout_tail=review_log_text(completed.stdout),
+        stderr_tail=review_log_text(completed.stderr),
+    )
 
 
 def probe_review_tool(tool: str) -> str | None:
@@ -902,7 +885,7 @@ def classify_review_tools(
         if unavailable:
             result = ReviewResult(
                 check.name,
-                "unverified",
+                "not-started",
                 "required tool preflight failed: " + "; ".join(unavailable),
                 REVIEW_REASON_TOOL_PREFLIGHT_FAILED,
             )
@@ -917,17 +900,19 @@ def classify_review_tools(
                     env={},
                     timeout=REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS,
                 )
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as error:
                 result = ReviewResult(
                     check.name,
-                    "unverified",
+                    "not-started",
                     "gh extension list timed out while checking gh aw",
                     REVIEW_REASON_CHECK_TIMEOUT,
+                    stdout_tail=review_log_text(error.output),
+                    stderr_tail=review_log_text(error.stderr),
                 )
             except OSError as error:
                 result = ReviewResult(
                     check.name,
-                    "unverified",
+                    "not-started",
                     f"gh aw is unavailable: {error}",
                     REVIEW_REASON_CHECK_START_FAILED,
                 )
@@ -946,9 +931,11 @@ def classify_review_tools(
                     )
                 result = ReviewResult(
                     check.name,
-                    "unverified",
+                    "not-started",
                     detail,
                     REVIEW_REASON_TOOL_PREFLIGHT_FAILED,
+                    stdout_tail=review_log_text(completed.stdout),
+                    stderr_tail=review_log_text(completed.stderr),
                 )
             print_review_result(result)
             results.append(result)
@@ -957,16 +944,8 @@ def classify_review_tools(
     return runnable, results
 
 
-def run_fast_review_checks(
-    inventory_json: Path | None = None,
-) -> list[ReviewResult]:
-    """Run the offline review layer once and report every verdict.
-
-    Each check runs in its own subprocess so one failure never hides the rest.
-    No check here reaches the network, a container registry, or the Docker
-    daemon, so a non-zero exit means the repository broke one of its own
-    invariants rather than that evidence was missing.
-    """
+def run_fast_review_checks() -> list[ReviewResult]:
+    """Run each offline target once and retain its execution evidence."""
     runnable, results = classify_review_tools(FAST_REVIEW_CHECKS)
     for check in runnable:
         arguments = [
@@ -974,8 +953,6 @@ def run_fast_review_checks(
             str(ROOT / "scripts" / "tasks.py"),
             check.target_name,
         ]
-        if check.name == "repo-health" and inventory_json is not None:
-            arguments.extend(["--inventory-json", str(inventory_json)])
         try:
             completed = run_review_command(
                 arguments,
@@ -983,31 +960,24 @@ def run_fast_review_checks(
                 env={},
                 timeout=check.timeout_seconds,
             )
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as error:
             result = ReviewResult(
                 check.name,
-                "unverified",
+                "timed-out",
                 f"check exceeded the {check.timeout_seconds}-second limit",
                 REVIEW_REASON_CHECK_TIMEOUT,
+                stdout_tail=review_log_text(error.output),
+                stderr_tail=review_log_text(error.stderr),
             )
         except OSError as error:
             result = ReviewResult(
                 check.name,
-                "unverified",
+                "not-started",
                 f"check could not be started: {error}",
                 REVIEW_REASON_CHECK_START_FAILED,
             )
         else:
-            if completed.returncode != 0:
-                status, reason_code, detail = classify_review_failure(check, completed)
-                result = ReviewResult(check.name, status, detail, reason_code)
-            else:
-                result = ReviewResult(
-                    check.name,
-                    "pass",
-                    "check passed",
-                    REVIEW_REASON_CHECK_PASSED,
-                )
+            result = review_process_result(check, completed)
         print_review_result(result)
         results.append(result)
     return results
@@ -1016,44 +986,31 @@ def run_fast_review_checks(
 def review_results_document(
     mode: str, results: Sequence[ReviewResult]
 ) -> dict[str, Any]:
-    """Build the machine-readable review result document.
-
-    ``review-repo-full`` embeds the fast results it already produced, so the
-    semantic layer reads structured ``status``/``reason_code`` values instead of
-    re-interpreting review stdout or re-running the deterministic checks.
-    """
-    statuses = {result.status for result in results}
-    unknown_statuses = statuses - REVIEW_RESULT_STATUSES
-    if unknown_statuses:
-        raise ValueError(f"unknown review statuses: {sorted(unknown_statuses)}")
-    if any(not result.reason_code for result in results):
-        raise ValueError("review result reason_code must not be empty")
-    if not results:
-        overall = "unverified"
-    elif "fail" in statuses:
-        overall = "fail"
-    elif "unverified" in statuses:
-        overall = "unverified"
-    else:
-        overall = "pass"
+    """Record target execution, not repository assessment or review completion."""
     return {
         "schema_version": REVIEW_RESULTS_SCHEMA_VERSION,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "mode": mode,
-        "status": overall,
-        "coverage": {
+        "command_exit_code": review_command_exit_code(results),
+        "execution_summary": {
             "total": len(results),
-            "pass": sum(1 for result in results if result.status == "pass"),
-            "fail": sum(1 for result in results if result.status == "fail"),
-            "unverified": sum(1 for result in results if result.status == "unverified"),
-            "excluded": sum(1 for result in results if result.status == "excluded"),
+            "exited_zero": sum(result.returncode == 0 for result in results),
+            "exited_nonzero": sum(
+                result.returncode is not None and result.returncode != 0
+                for result in results
+            ),
+            "not_started": sum(result.execution == "not-started" for result in results),
+            "timed_out": sum(result.execution == "timed-out" for result in results),
         },
         "checks": [
             {
                 "name": result.name,
-                "status": result.status,
+                "execution": result.execution,
+                "returncode": result.returncode,
                 "reason_code": result.reason_code,
                 "detail": result.detail,
+                "stdout_tail": result.stdout_tail,
+                "stderr_tail": result.stderr_tail,
             }
             for result in results
         ],
@@ -1073,10 +1030,11 @@ def write_review_results(
 
 
 def finish_review(results: Sequence[ReviewResult], success_message: str) -> None:
-    if any(result.status == "fail" for result in results):
-        raise SystemExit(1)
-    if any(result.status == "unverified" for result in results):
-        print("Repository review completed with unverified checks")
+    exit_code = review_command_exit_code(results)
+    if exit_code:
+        raise SystemExit(exit_code)
+    if not results or any(result.returncode != 0 for result in results):
+        print("Review target execution finished; see execution records for limitations")
         return
     print_success(success_message)
 
@@ -1286,51 +1244,35 @@ REVIEW_ENVIRONMENT_FAILURE_PATTERNS = (
 )
 
 
-def classify_review_failure(
-    _check: ReviewCheck,
-    completed: subprocess.CompletedProcess[bytes],
-) -> tuple[str, str, str]:
-    stdout = completed.stdout or b""
-    stderr = completed.stderr or b""
-    log_tail = (stdout + b"\n" + stderr).decode(errors="replace").lower()
-    if any(
-        re.search(pattern, log_tail) for pattern in REVIEW_REPOSITORY_FAILURE_PATTERNS
-    ):
-        return (
-            "fail",
-            REVIEW_REASON_REPOSITORY_FAILURE,
-            f"check exited with code {completed.returncode}; "
-            "repository-related test, lint, build, or generated-file failure detected",
+def review_command_exit_code(results: Sequence[ReviewResult]) -> int:
+    """Preserve the command's exit policy without assigning assessment results."""
+    for result in results:
+        if result.returncode is None or result.returncode == 0:
+            continue
+        log_tail = (result.stdout_tail + "\n" + result.stderr_tail).lower()
+        repository_diagnostic = any(
+            re.search(pattern, log_tail)
+            for pattern in REVIEW_REPOSITORY_FAILURE_PATTERNS
         )
-    for reason, patterns in REVIEW_ENVIRONMENT_FAILURE_PATTERNS:
-        if any(re.search(pattern, log_tail) for pattern in patterns):
-            return (
-                "unverified",
-                REVIEW_REASON_ENVIRONMENT_FAILURE,
-                f"check exited with code {completed.returncode}; {reason}",
-            )
-    return (
-        "fail",
-        REVIEW_REASON_CHECK_FAILED,
-        f"check exited with code {completed.returncode}; "
-        "no explicit environment or network failure was detected",
-    )
+        environment_diagnostic = any(
+            re.search(pattern, log_tail)
+            for _reason, patterns in REVIEW_ENVIRONMENT_FAILURE_PATTERNS
+            for pattern in patterns
+        )
+        if repository_diagnostic or not environment_diagnostic:
+            return 1
+    return 0
 
 
 def target_review_repo_fast(
-    inventory_json: Path | None = None,
     results_json: Path | None = None,
 ) -> None:
     print_step("Running fast repository review")
-    results = (
-        run_fast_review_checks()
-        if inventory_json is None
-        else run_fast_review_checks(inventory_json)
-    )
+    results = run_fast_review_checks()
     write_review_results("fast", results, results_json)
     finish_review(
         results,
-        "Fast repository review passed",
+        "Fast review targets exited with code 0",
     )
 
 
@@ -1350,55 +1292,43 @@ def run_review_checks(checks: Sequence[ReviewCheck]) -> list[ReviewResult]:
                 env={},
                 timeout=check.timeout_seconds,
             )
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as error:
             result = ReviewResult(
                 check.name,
-                "unverified",
+                "timed-out",
                 f"check exceeded the {check.timeout_seconds}-second limit",
                 REVIEW_REASON_CHECK_TIMEOUT,
+                stdout_tail=review_log_text(error.output),
+                stderr_tail=review_log_text(error.stderr),
             )
         except OSError as error:
             result = ReviewResult(
                 check.name,
-                "unverified",
+                "not-started",
                 f"check could not be started: {error}",
                 REVIEW_REASON_CHECK_START_FAILED,
             )
         else:
-            if completed.returncode != 0:
-                status, reason_code, detail = classify_review_failure(check, completed)
-                result = ReviewResult(check.name, status, detail, reason_code)
-            else:
-                result = ReviewResult(
-                    check.name,
-                    "pass",
-                    "check passed",
-                    REVIEW_REASON_CHECK_PASSED,
-                )
+            result = review_process_result(check, completed)
         print_review_result(result)
         results.append(result)
     return results
 
 
 def target_review_repo_full(
-    inventory_json: Path | None = None,
     results_json: Path | None = None,
 ) -> None:
     """Run the fast deterministic layer, then only what it cannot cover.
 
-    The caller runs this target in a dedicated worktree. The semantic evaluation
-    belongs to the review-repo agent, which consumes these structured results
+    The caller runs this target in a dedicated worktree and uses these
+    structured results for semantic evaluation
     instead of repeating any check.
     """
     print_step("Running full repository review")
-    results = (
-        run_fast_review_checks()
-        if inventory_json is None
-        else run_fast_review_checks(inventory_json)
-    )
+    results = run_fast_review_checks()
     results.extend(run_review_checks(FULL_REVIEW_CHECKS))
     write_review_results("full", results, results_json)
-    finish_review(results, "Full repository review passed")
+    finish_review(results, "Full review targets exited with code 0")
 
 
 def target_build_bicep() -> None:
@@ -2486,8 +2416,8 @@ def run_renovate_config_validator() -> str:
     invalid configuration (a repository defect) and
     RenovateEvidenceUnavailableError when Docker or the pinned image could not
     run the validator at all (an evidence gap). Distinguishing the two lets the
-    same call site report ``fail`` for a broken config and ``unverified`` for a
-    missing runtime, instead of collapsing both into one exit code.
+    caller distinguish a rejected configuration from a validator that could not
+    run, without inferring either from an exit code alone.
     """
     if shutil.which("docker") is None:
         raise RenovateEvidenceUnavailableError(
@@ -3587,7 +3517,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "format-check": target_format_check,
     "help": target_help,
     "install-tools": target_install_tools,
-    "inventory-repo": target_inventory_repo,
     "lint": target_lint,
     "lint-check": target_lint_check,
     "lint-k8s": target_lint_k8s,
@@ -3642,21 +3571,10 @@ def _main(argv: Sequence[str]) -> int:
     if target == "load" and len(argv) > 1:
         run_load_profile(argv[1])
         return 0
-    if target == "inventory-repo":
-        parser = argparse.ArgumentParser(prog="tasks.py inventory-repo")
-        parser.add_argument(
-            "--format",
-            choices=("json", "text"),
-            default="text",
-        )
-        args = parser.parse_args(argv[1:])
-        target_inventory_repo(args.format)
-        return 0
     if target == "check-repo-health":
         parser = argparse.ArgumentParser(prog="tasks.py check-repo-health")
-        parser.add_argument("--inventory-json", type=Path)
-        args = parser.parse_args(argv[1:])
-        target_check_repo_health(args.inventory_json)
+        parser.parse_args(argv[1:])
+        target_check_repo_health()
         return 0
     if target == "update-lefthook-pin":
         parser = argparse.ArgumentParser(prog="tasks.py update-lefthook-pin")
@@ -3666,7 +3584,6 @@ def _main(argv: Sequence[str]) -> int:
         return 0
     if target in {"review-repo-fast", "review-repo-full"}:
         parser = argparse.ArgumentParser(prog=f"tasks.py {target}")
-        parser.add_argument("--inventory-json", type=Path)
         parser.add_argument("--results-json", type=Path)
         args = parser.parse_args(argv[1:])
         review_target = (
@@ -3674,7 +3591,7 @@ def _main(argv: Sequence[str]) -> int:
             if target == "review-repo-fast"
             else target_review_repo_full
         )
-        review_target(args.inventory_json, args.results_json)
+        review_target(args.results_json)
         return 0
     if target == "qa-app":
         parser = argparse.ArgumentParser(prog="tasks.py qa-app")

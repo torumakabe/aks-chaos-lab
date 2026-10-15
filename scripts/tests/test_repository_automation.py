@@ -207,12 +207,14 @@ def test_weekly_workflows_preserve_direct_github_api_access() -> None:
         assert r"\"api.github.com\"" in lock
 
 
-def test_public_review_inputs_exist_in_repository_inventory() -> None:
+def test_repository_health_cli_checks_consistency_without_specialist_inventory() -> (
+    None
+):
     completed = subprocess.run(
         [
             sys.executable,
             str(REPO_ROOT / "scripts" / "repo_health.py"),
-            "inventory",
+            "check",
             "--format",
             "json",
         ],
@@ -221,35 +223,15 @@ def test_public_review_inputs_exist_in_repository_inventory() -> None:
         capture_output=True,
         text=True,
     )
-    inventory = json.loads(completed.stdout)["inventory"]
-    bicep_resources = {
-        item["value"] for item in inventory if item["category"] == "bicep-resource-api"
+    result = json.loads(completed.stdout)
+    assert "inventory" not in result
+    assert {item["id"] for item in result["checks"]} == {
+        "kubernetes-version",
+        "gh-aw-compiler-version",
+        "docker-base-digest",
     }
-    docker_images = {
-        item["value"] for item in inventory if item["category"] == "docker-base-image"
-    }
-    extension_bundles = {
-        item["value"]
-        for item in inventory
-        if item["category"] == "function-extension-bundle"
-    }
-    external_links = {
-        item["value"]
-        for item in inventory
-        if item["category"] == "documentation-external-link"
-    }
-
-    assert any(
-        value.startswith("Microsoft.ContainerService/managedClusters@")
-        for value in bicep_resources
-    )
-    assert any(image.startswith("python:3.14-slim@sha256:") for image in docker_images)
-    assert any(
-        image.startswith("astral/uv:") and "@sha256:" in image
-        for image in docker_images
-    )
-    assert "[4.*, 5.0.0)" in extension_bundles
-    assert "https://github.com/astral-sh/uv" in external_links
+    assert result["findings"] == []
+    assert result["coverage"]["excluded_kubernetes_documents"]
 
 
 def test_bicep_api_version_workflow_contract() -> None:
@@ -260,16 +242,21 @@ def test_bicep_api_version_workflow_contract() -> None:
     assert "schedule: weekly" in source
     assert "workflow_dispatch:" in source
     assert "bicep-api-version-updater/SKILL.md" in source
-    assert 'scripts/tasks.py" inventory-repo --format json' in source
-    assert "`bicep-resource-api`座標だけ" in source
+    assert "inventory-repo" not in source
+    assert "pre-agent-steps:" not in source
+    assert "Gitで対象のBicepファイルを列挙" in source
     assert "learn.microsoft.com" in source
     assert "Azure/azure-rest-api-specs" in source
     assert "Microsoft.ContainerService/{aks|fleet}/{stable|preview}" in source
-    assert "どちらからも公開情報を取得できない座標" in source
+    for reason in (
+        "not-processed",
+        "target-unresolved",
+        "evidence-unavailable",
+        "assessment-incomplete",
+    ):
+        assert reason in source
     assert "各HTTP requestを30秒以内" in source
-    assert "pre-agent-steps:" in source
-    assert "astral-sh/setup-uv@" in source
-    assert 'resolution-strategy: "lowest"' in source
+    assert "未完了のまま確認完了と報告してはなりません" in source
     assert "close-older-issues: true" in source
     for forbidden in (
         "azure/login",
@@ -292,6 +279,8 @@ def test_bicep_api_version_workflow_is_compiled() -> None:
     assert "issues: write" in lock
     assert "pull-requests: write" not in lock
     assert "id-token: write" not in lock
+    assert "inventory-repo" not in lock
+    assert "Generate Bicep API inventory" not in lock
 
 
 def test_bicep_api_version_workflow_uses_configurable_copilot_model() -> None:
