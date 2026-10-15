@@ -288,7 +288,7 @@ output aksIdentityPrincipalId string = aksIdentity.properties.principalId
 
 // AKS Managed Node OS Upgrade Schedule (weekly on Wednesday)
 #disable-next-line BCP081
-resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2026-04-01' = {
+resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2026-07-01' = {
   parent: aksCluster
   name: 'aksManagedNodeOSUpgradeSchedule'
   properties: {

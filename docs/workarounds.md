@@ -143,11 +143,11 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 
 ### C-2. AKS の preview API バージョンを継続使用
 
-- **概要**: 現行 IaC では AKS `managedClusters` に `Microsoft.ContainerService/managedClusters@2026-05-02-preview` を使用する。Fleet 関連 resource type は `Microsoft.ContainerService/fleets@2026-06-01` と同 version の member / update strategy / auto upgrade profile に移行済み。
-- **理由**: AKS の GA `2026-06-01` には、現行構成の VPA addon autoscaling に必要な `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling` が存在しない。現行 preview `2026-05-02-preview` の公式 schema には同プロパティが定義されているため、preview を継続する。
-- **場所**: `infra/modules/aks.bicep` と managedClusters を参照する各 Bicep module、`infra/modules/fleet.bicep`
-- **解消条件**: GA API の公式 schema が `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling` に対応し、同 API への移行後も `addonAutoscaling: Enabled` が維持される。
-- **確認方法**: GA API の公式 schema で同プロパティへの対応を確認してから、AKS `managedClusters` の API を置換し、`azd provision base --preview` で差分を確認する。承認済みの検証環境で `azd provision base` を適用し、GET で `provisioningState: Succeeded` と `addonAutoscaling: Enabled` が維持されることを確認する。デプロイ成功だけでは preview API を撤去しない。
+- **概要**: AKS の作成本体には `Microsoft.ContainerService/managedClusters@2026-05-02-preview` を使用する。ID と scope のみを使う existing 参照には GA API を使用する。Fleet 関連 resource type は `Microsoft.ContainerService/fleets@2026-06-01` と同 version の member / update strategy / auto upgrade profile に移行済み。
+- **理由**: AKS の GA `2026-06-01` には、現行構成で使う `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling`、`upgradeStrategy`、`upgradeSettingsBlueGreen` が存在しない。現行 preview `2026-05-02-preview` の公式 schema にはこれらのプロパティが定義されているため、preview を継続する。
+- **場所**: `infra/modules/aks.bicep` の AKS 作成宣言
+- **解消条件**: GA API の公式 schema が `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling`、`upgradeStrategy`、`upgradeSettingsBlueGreen` に対応し、同 API への移行後も現行設定が維持される。
+- **確認方法**: GA API の公式 schema でこれら3プロパティへの対応を確認してから、AKS `managedClusters` の API を置換し、`azd provision base --preview` で差分を確認する。承認済みの検証環境で `azd provision base` を適用し、GET で `provisioningState: Succeeded` と、3プロパティに設定した値が維持されることを確認する。デプロイ成功だけでは preview API を撤去しない。
 - **最終確認**: 2026-09-09、公式 REST 仕様の [stable 一覧](https://github.com/Azure/azure-rest-api-specs/tree/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable)で最新 GA が `2026-06-01` であることを確認。[同 GA の定義](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-06-01/managedClusters.json)には `addonAutoscaling` がなく、[現行 preview の定義](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json)には存在する。今回は公開仕様のみを確認し、実環境への適用は行っていない。
 - **実環境での確認**: 2026-07-24、公式 schema で GA `2026-05-01` に `addonAutoscaling` がなく、preview `2026-05-02-preview` に存在することを確認。managedClusters の全参照を最新 preview へ更新し、eval の base 差分デプロイが成功した。GET では `provisioningState: Succeeded` と `addonAutoscaling: Enabled` を確認した。
 

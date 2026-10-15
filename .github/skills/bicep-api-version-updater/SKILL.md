@@ -132,7 +132,7 @@ APIリファレンスページの上部に利用可能なAPIバージョン一�
 ```
 
 参考リンク:
-- AKS: https://aka.ms/aks/breakingchanges
+- AKS managedClusters API change log: https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters
 
 #### Step 5: APIバージョン更新（仮適用）
 
