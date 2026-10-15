@@ -119,5 +119,5 @@ patches:
     version: v2
 images:
 - name: placeholder
-  newName: acrj465mtnynj4se.azurecr.io/aks-chaos-lab/api-eval
-  newTag: azd-deploy-1782462687
+  newName: acrj465mtnynj4se.azurecr.io/aks-chaos-lab-approved
+  newTag: sha256-77a6bcbd27cd62ab86605360224de69782c97c528e5787bbca2b899947a237e5
