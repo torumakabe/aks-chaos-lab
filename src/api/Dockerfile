@@ -9,7 +9,7 @@
 #   docker build -f src/api/Dockerfile -t aks-chaos-lab:local .
 FROM astral/uv:0.13.0@sha256:cdc6093146eb3ff6a40107b38f008b789e050e77ad87865e381d9917da55a168 AS uv
 
-FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
+FROM python:3.14-slim@sha256:29e1fe7a54021a1d8990f59223f1246a4239b106895363680b23aa1265f73cb3
 
 # Copy uv binary from the uv image
 COPY --from=uv /uv /uvx /bin/
