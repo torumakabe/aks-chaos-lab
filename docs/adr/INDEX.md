@@ -28,3 +28,4 @@ Status 列は基本 Status の要約であり、既存の個別注記は補助�
 | 022 | [旧 SLI リソース移行完了後に専用 cleanup スクリプトを廃止する](022-retire-legacy-sli-cleanup-script.md) | Accepted | 2026-09-12 |
 | 023 | [開発端末に新しい版を要求する更新を公開から 7 日経過した版に限る](023-python-release-cooldown.md) | Accepted | 2026-09-22 |
 | 024 | [Python package registry の選択と同期を明示操作にする](024-explicit-python-registry-sync.md) | Accepted | 2026-10-12 |
+| 025 | [Azure SRE Agent の診断とレビュー型アラート対応を opt-in で導入する](025-azure-sre-agent-diagnostics-and-alert-response.md) | Accepted | 2026-10-19 |

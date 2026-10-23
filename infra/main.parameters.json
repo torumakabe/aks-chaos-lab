@@ -35,6 +35,9 @@
     "functionSubnetPrefix": {
       "value": "10.10.4.0/26"
     },
+    "sreAgentSubnetPrefix": {
+      "value": "${AZURE_SRE_AGENT_SUBNET_PREFIX:10.10.5.0/27}"
+    },
     "kubernetesVersion": {
       "value": "1.35"
     },
@@ -64,6 +67,24 @@
     },
     "enableContainerInsights": {
       "value": true
+    },
+    "enableSreAgent": {
+      "value": "${AZURE_SRE_AGENT_ENABLED:false}"
+    },
+    "enableSreAgentAzureMonitorIncidentIntegration": {
+      "value": "${AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED:false}"
+    },
+    "sreAgentLocation": {
+      "value": "${AZURE_SRE_AGENT_LOCATION:none}"
+    },
+    "sreAgentMonthlyAgentUnitLimit": {
+      "value": "${AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT:10000}"
+    },
+    "sreAgentModelProvider": {
+      "value": "${AZURE_SRE_AGENT_MODEL_PROVIDER:MicrosoftFoundry}"
+    },
+    "sreAgentModelName": {
+      "value": "${AZURE_SRE_AGENT_MODEL_NAME:Automatic}"
     },
     "containerInsightsPreset": {
       "value": "Custom"

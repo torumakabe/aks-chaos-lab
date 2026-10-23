@@ -120,4 +120,4 @@ patches:
 images:
 - name: placeholder
   newName: acrj465mtnynj4se.azurecr.io/aks-chaos-lab-approved
-  newTag: sha256-77a6bcbd27cd62ab86605360224de69782c97c528e5787bbca2b899947a237e5
+  newTag: sha256-7c8b77dfce58551dc42add3fe5f51f98d5bacfa66a8bf3ff3d65f2f020185f84

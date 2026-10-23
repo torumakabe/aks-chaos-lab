@@ -382,7 +382,7 @@ def target_help() -> None:
     print('Usage: uv run --no-project "${PWD}/scripts/tasks.py" <target>')
     print()
     print("Targets:")
-    for name in sorted({*TARGETS, "deploy-api-approved-index"}):
+    for name in sorted({*TARGETS, "deploy-api-approved-index", "deploy-services"}):
         print(f"  {name}")
 
 
@@ -610,7 +610,7 @@ def target_test_publisher() -> None:
 def target_test_hooks() -> None:
     print_step("Testing repository hooks")
     target_check_lefthook()
-    run_uv(["pytest", "scripts/tests/", "-q"])
+    run_uv(["pytest", "scripts/tests/", "-q"], env=pythonpath_env())
     print_success("Repository hook tests passed")
 
 
@@ -3239,6 +3239,108 @@ def target_package_api_approved_index() -> None:
     print(image)
 
 
+def target_prepare_publisher_dependencies() -> None:
+    config_path = selected_approved_index_config()
+    if (
+        config_path is None
+        and os.environ.get("AZD_ALLOW_PUBLIC_SOURCES", "").lower() != "true"
+    ):
+        raise SystemExit("error: Public PyPI requires AZD_ALLOW_PUBLIC_SOURCES=true.")
+    ensure_public_lock()
+    digest = lock_sha256()
+    with tempfile.TemporaryDirectory(prefix="sli-package-") as temporary:
+        directory = Path(temporary)
+        requirements = directory / "requirements.txt"
+        run(
+            [
+                "uv",
+                "export",
+                "--quiet",
+                "--project",
+                str(ROOT),
+                "--package",
+                "external-sli-publisher",
+                "--frozen",
+                "--no-config",
+                "--no-dev",
+                "--no-emit-workspace",
+                "--no-emit-index-url",
+                "--output-file",
+                str(requirements),
+            ]
+        )
+        try:
+            validate_exported_requirements(requirements)
+        except (OSError, PublicLockError) as error:
+            raise SystemExit(f"error: {error}") from error
+        staging = directory / ".python_packages"
+        dependencies = staging / "lib/site-packages"
+        install = [
+            "uv",
+            "pip",
+            "install",
+            "--require-hashes",
+            "--only-binary",
+            ":all:",
+            "--python-version",
+            "3.14",
+            "--python-platform",
+            "x86_64-manylinux_2_28",
+            "--target",
+            str(dependencies),
+            "-r",
+            str(requirements),
+        ]
+        if config_path is not None:
+            run_private_index_sync(install, config_path=config_path)
+        else:
+            run([*install, "--no-config", "--default-index", PUBLIC_PYPI_INDEX])
+        if lock_sha256() != digest:
+            raise SystemExit("error: uv.lock changed while packaging the publisher.")
+        destination = PUBLISHER_DIR / ".python_packages"
+        if destination.is_symlink():
+            raise SystemExit(
+                "error: Publisher dependency directory must not be a symlink."
+            )
+        if destination.exists():
+            shutil.rmtree(destination)
+        shutil.copytree(staging, destination)
+    print_success("Publisher Linux x64 dependencies prepared for azd packaging.")
+
+
+def target_deploy_services(*, image: str | None = None) -> None:
+    environment = deployment_environment_name(Deadline(30))
+    config_path = selected_approved_index_config()
+    if config_path is not None and not image:
+        raise SystemExit(
+            "error: An approved index requires --image from package-api-approved-index."
+        )
+    if (
+        config_path is None
+        and not image
+        and os.environ.get("AZD_ALLOW_PUBLIC_SOURCES", "").lower() != "true"
+    ):
+        raise SystemExit(
+            "error: Public API build requires AZD_ALLOW_PUBLIC_SOURCES=true."
+        )
+    if image:
+        from api_artifact import ApiArtifactError, inspect_local_image
+
+        try:
+            inspect_local_image(image)
+        except ApiArtifactError as error:
+            raise SystemExit(f"error: {error}") from error
+    run(["azd", "deploy", "api-instrumentation", "-e", environment])
+    target_deploy_node_provisioning()
+    if image:
+        target_deploy_api_approved_index(image)
+    else:
+        run(["azd", "deploy", "api", "-e", environment])
+    for service in ("observability", "chaos-mesh"):
+        run(["azd", "deploy", service, "-e", environment])
+    run(["azd", "deploy", "external-sli-publisher", "-e", environment])
+
+
 def deployment_environment_name(deadline: Deadline) -> str:
     name = os.environ.get("AZURE_ENV_NAME", "").strip()
     if not name:
@@ -3531,6 +3633,7 @@ TARGETS: dict[str, Callable[[], None]] = {
     "load-spike": target_load_spike,
     "load-stress": target_load_stress,
     "package-api-approved-index": target_package_api_approved_index,
+    "prepare-publisher-dependencies": target_prepare_publisher_dependencies,
     "qa": target_qa,
     "qa-app": target_qa_app,
     "qa-platform": target_qa_platform,
@@ -3561,6 +3664,12 @@ def _main(argv: Sequence[str]) -> int:
         return 0
 
     target = argv[0]
+    if target == "deploy-services":
+        parser = argparse.ArgumentParser(prog=f"tasks.py {target}")
+        parser.add_argument("--image")
+        args = parser.parse_args(argv[1:])
+        target_deploy_services(image=args.image)
+        return 0
     if target == "package-api-approved-index":
         parser = argparse.ArgumentParser(prog=f"tasks.py {target}")
         parser.parse_args(argv[1:])

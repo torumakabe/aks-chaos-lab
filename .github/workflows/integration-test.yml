@@ -243,6 +243,7 @@ jobs:
     environment: integration-test
     env:
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_RESOURCE_GROUP: ${{ needs.provision-and-deploy.outputs.resource_group }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -256,15 +257,32 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Install Azure Developer CLI
+        uses: Azure/setup-azd@0b7e3a35ab00f2eee7080c845eb39c3f0ebfa553 # v2.4.0
+
       - name: Setup uv and Python
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           resolution-strategy: "lowest"
           python-version: "3.14"
 
+      - name: Login to azd
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: azd auth login --client-id "$AZURE_CLIENT_ID" --federated-credential-provider github --tenant-id "$AZURE_TENANT_ID"
+
+      - name: Initialize azd environment
+        run: |
+          azd env new "$AZURE_ENV_NAME" --no-prompt
+          azd env set AZURE_LOCATION "$AZURE_LOCATION"
+          azd env set AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
+          RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-rg-aks-chaos-lab-${AZURE_ENV_NAME}}"
+          azd env set AZURE_RESOURCE_GROUP "$RESOURCE_GROUP"
+
       - name: Delete integration resources
         run: |
-          uv run --no-project --no-config --offline --no-python-downloads scripts/cleanup-azure-monitor-sli-resources.py
+          azd down --force --purge --no-prompt -e "$AZURE_ENV_NAME"
           {
             echo "## 🧹 Cleanup Completed"
             echo "- Environment: \`$AZURE_ENV_NAME\`"

@@ -137,9 +137,6 @@ class AzureCli:
             return subprocess.CompletedProcess(
                 args, 0, "false" if self.deleted_rg else "true", ""
             )
-        elif args[1:3] == ["group", "delete"]:
-            self.deleted_rg = True
-            payload = None
         elif args[1] == "rest":
             method = args[args.index("--method") + 1]
             url = args[args.index("--url") + 1]
@@ -295,7 +292,7 @@ def test_missing_subscription_never_issues_deletes(
     assert "AZURE_SUBSCRIPTION_ID is required" in capsys.readouterr().err
 
 
-def test_service_group_location_completes_before_dcra_and_record_deletion(
+def test_service_group_location_completes_before_dcra_and_sli_record_deletion(
     cleanup: ModuleType, cli: AzureCli
 ) -> None:
     cli.http_responses = [
@@ -314,7 +311,8 @@ def test_service_group_location_completes_before_dcra_and_record_deletion(
     last_poll = max(index for index, args in enumerate(cli.calls) if args[0] == "http")
     assert last_poll < cli.calls.index(cli.deletes[2])
     assert SERVICE_GROUP_ID in cli.deleted_service_groups
-    assert f"{ENV_NAME}-base" in cli.deleted_deployments
+    assert f"{ENV_NAME}-sli" in cli.deleted_deployments
+    assert f"{ENV_NAME}-base" not in cli.deleted_deployments
 
 
 def test_service_group_delete_204_needs_no_poll(
@@ -355,7 +353,7 @@ def test_service_group_operation_failure_retains_base_records(
 ) -> None:
     cli.http_responses = responses.copy()
     assert cleanup.main() == 1
-    assert cli.deleted_rg
+    assert not cli.deleted_rg
     assert f"{ENV_NAME}-base" not in cli.deleted_deployments
     assert SERVICE_GROUP_ID not in cli.deleted_service_groups
     assert (
@@ -383,7 +381,7 @@ def test_service_group_operation_deadline_caps_retry_after(
     assert cli.now == 10
     assert cli.sleeps == [3, 7]
     assert cli.http_timeouts == [10, 7]
-    assert cli.deleted_rg
+    assert not cli.deleted_rg
     assert f"{ENV_NAME}-base" not in cli.deleted_deployments
 
 
@@ -487,14 +485,13 @@ def test_all_operations_use_selected_subscription_in_cleanup_order(
     assert cli.default_subscription != SUBSCRIPTION
     assert cli.selected_subscriptions
     assert set(cli.selected_subscriptions) == {SUBSCRIPTION}
-    assert len(cli.deletes) == 6
+    assert len(cli.deletes) == 4
     assert SLI_ID in cli.deletes[0][cli.deletes[0].index("--url") + 1]
     assert SERVICE_GROUP_ID in cli.deletes[1][cli.deletes[1].index("--url") + 1]
     assert DCRA_ID in cli.deletes[2][cli.deletes[2].index("--url") + 1]
     assert f"{ENV_NAME}-sli" in cli.deletes[3]
-    assert cli.deletes[4][1:3] == ["group", "delete"]
-    assert RESOURCE_GROUP in cli.deletes[4]
-    assert f"{ENV_NAME}-base" in cli.deletes[5]
+    assert f"{ENV_NAME}-base" not in cli.deleted_deployments
+    assert not cli.deleted_rg
     assert all(args[1:3] != ["account", "set"] for args in cli.calls)
 
 
@@ -513,7 +510,7 @@ def test_dry_run_discovers_without_deleting(
     assert cleanup.main() == 0
     assert cli.deletes == []
     assert set(cli.selected_subscriptions) == {SUBSCRIPTION}
-    assert capsys.readouterr().err.count("dry-run: would") == 6
+    assert capsys.readouterr().err.count("dry-run: would") == 4
     assert cli.http_requests == []
     assert all(args[1:3] != ["account", "get-access-token"] for args in cli.calls)
 
@@ -574,7 +571,7 @@ def test_foreign_sli_id_fails_before_service_group_deletion(
 ) -> None:
     cli.sli_ids = [SLI_ID, sli_id]
     assert cleanup.main() == 1
-    assert cli.deleted_rg
+    assert not cli.deleted_rg
     assert all(
         "/serviceGroups/" not in args[args.index("--url") + 1]
         for args in cli.deletes
@@ -606,7 +603,6 @@ def test_foreign_cluster_id_never_used_for_dcra_deletion(
         ("deployment", "sub", "delete"),
         ("deployment", "sub", "list"),
         ("group", "exists"),
-        ("group", "delete"),
     ],
 )
 def test_failed_cleanup_is_not_reported_as_success(
@@ -621,18 +617,18 @@ def test_workaround_flags_preserve_skips(
     cleanup: ModuleType, cli: AzureCli, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("AZURE_MONITOR_SLI_FIX_SLI_VOID", "false")
-    monkeypatch.setenv("AZURE_MONITOR_SLI_FIX_BASE_VOID", "false")
     assert cleanup.main() == 0
     assert len(cli.deletes) == 3
-    assert all(args[1] not in ("group", "deployment") for args in cli.deletes)
+    assert all(args[1] != "deployment" for args in cli.deletes)
+    assert not cli.deleted_rg
 
 
 @pytest.mark.parametrize(
-    ("operation", "stdout", "expected_deletes"),
+    ("operation", "stdout"),
     [
-        ("group exists", "false", 0),
-        ("resource list", "[]", 1),
-        (f"get {DCRA_LIST_URL}", '{"value": []}', 1),
+        ("group exists", "false"),
+        ("resource list", "[]"),
+        (f"get {DCRA_LIST_URL}", '{"value": []}'),
         (
             f"get {DCRA_LIST_URL}",
             json.dumps(
@@ -642,7 +638,6 @@ def test_workaround_flags_preserve_skips(
                     ]
                 }
             ),
-            1,
         ),
     ],
 )
@@ -651,7 +646,6 @@ def test_confirmed_absence_skips_dcra_deletion(
     cli: AzureCli,
     operation: str,
     stdout: str,
-    expected_deletes: int,
 ) -> None:
     cli.service_groups = []
     if operation == "group exists":
@@ -659,10 +653,7 @@ def test_confirmed_absence_skips_dcra_deletion(
     cli.responses[operation] = [(0, stdout, "")]
     assert cleanup.main() == 0
     assert not cli.deleted_dcra
-    assert (
-        sum(args[1:3] == ["group", "delete"] for args in cli.deletes)
-        == expected_deletes
-    )
+    assert not any(args[1:3] == ["group", "delete"] for args in cli.calls)
 
 
 @pytest.mark.parametrize(
@@ -690,7 +681,7 @@ def test_failed_or_invalid_existence_check_blocks_rg_deletion(
     cli.responses[operation] = [response]
     with pytest.raises(SystemExit, match="1"):
         cleanup.main()
-    assert cli.deletes == []
+    assert not any(args[1:3] == ["group", "delete"] for args in cli.calls)
 
 
 @pytest.mark.parametrize("response", [(1, "", "Forbidden"), (0, "{}", "")])
@@ -706,7 +697,7 @@ def test_dcra_poll_failure_blocks_rg_deletion(
         cleanup.main()
     assert cli.deleted_dcra
     assert not cli.deleted_rg
-    assert len(cli.deletes) == 1
+    assert not any(args[1:3] == ["group", "delete"] for args in cli.calls)
 
 
 @pytest.mark.parametrize(
@@ -727,7 +718,7 @@ def test_service_group_failure_continues_subscription_cleanup_and_returns_failur
     cli.responses[operation] = [(1, "", "Forbidden")]
     assert cleanup.main() == 1
     assert cli.deleted_dcra
-    assert cli.deleted_rg
+    assert not cli.deleted_rg
     assert f"{ENV_NAME}-sli" in cli.deleted_deployments
     assert f"{ENV_NAME}-base" not in cli.deleted_deployments
     stderr = capsys.readouterr().err
@@ -744,10 +735,10 @@ def test_invalid_service_group_response_is_reported_as_failure(
 ) -> None:
     cli.responses[operation] = [(0, "{}", "")]
     assert cleanup.main() == 1
-    assert cli.deleted_rg
+    assert not cli.deleted_rg
 
 
-def test_service_group_and_dcra_failures_block_rg_deletion(
+def test_service_group_and_dcra_failures_block_cleanup(
     cleanup: ModuleType, cli: AzureCli
 ) -> None:
     cli.failure = ("rest",)
@@ -771,7 +762,7 @@ def test_dcra_list_checks_next_page_before_concluding_absence(
     assert cleanup.main() == 0
     assert any(next_link in args for args in cli.calls)
     assert cli.deleted_dcra
-    assert cli.deleted_rg
+    assert not cli.deleted_rg
 
 
 @pytest.mark.parametrize("next_link", [42, "https://other.example/associations"])
@@ -784,7 +775,7 @@ def test_invalid_dcra_next_link_blocks_rg_deletion(
     ]
     with pytest.raises(SystemExit, match="1"):
         cleanup.main()
-    assert cli.deletes == []
+    assert not any(args[1:3] == ["group", "delete"] for args in cli.calls)
 
 
 def test_dcra_still_present_after_polling_blocks_rg_deletion(
@@ -819,8 +810,8 @@ def test_retry_after_service_group_deleted_succeeds(
 
     calls_before_retry = len(cli.calls)
     assert cleanup.main() == 0
-    assert cli.deleted_rg
-    assert f"{ENV_NAME}-base" in cli.deleted_deployments
+    assert not cli.deleted_rg
+    assert f"{ENV_NAME}-base" not in cli.deleted_deployments
     assert not any(
         SLI_LIST_URL in " ".join(args) for args in cli.calls[calls_before_retry:]
     )
@@ -834,13 +825,13 @@ def test_service_group_failure_preserves_discovery_until_retry(
 ) -> None:
     cli.http_responses = [(202, {"Location": OPERATION_URL}), (500, {})]
     assert cleanup.main() == 1
-    assert cli.deleted_rg
+    assert not cli.deleted_rg
     assert SERVICE_GROUP_ID not in cli.deleted_service_groups
     assert f"{ENV_NAME}-base" not in cli.deleted_deployments
 
     assert cleanup.main() == 0
     assert SERVICE_GROUP_ID in cli.deleted_service_groups
-    assert f"{ENV_NAME}-base" in cli.deleted_deployments
+    assert f"{ENV_NAME}-base" not in cli.deleted_deployments
 
 
 @pytest.mark.parametrize(
@@ -862,7 +853,7 @@ def test_only_confirmed_service_group_absence_is_skipped(
 ) -> None:
     cli.responses[f"get {SERVICE_GROUP_URL}"] = [response]
     assert cleanup.main() == 1
-    assert cli.deleted_rg
+    assert not cli.deleted_rg
     assert not cli.deleted_service_groups
     assert not cli.deleted_slis
     assert f"{ENV_NAME}-base" not in cli.deleted_deployments
@@ -885,7 +876,7 @@ def test_invalid_deployment_discovery_response_fails(
 ) -> None:
     cli.responses["deployment operation"] = [(0, json.dumps(payload), "")]
     assert cleanup.main() == 1
-    assert cli.deleted_rg
+    assert not cli.deleted_rg
     assert f"{ENV_NAME}-base" not in cli.deleted_deployments
 
 
@@ -905,3 +896,27 @@ def test_discovery_deduplicates_service_group_ids(
         )
         == 1
     )
+
+
+def test_postdown_only_deletes_base_deployment_records(
+    cleanup: ModuleType, cli: AzureCli, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "post"])
+    assert cleanup.main() == 0
+    assert cli.deleted_deployments == {f"{ENV_NAME}-base"}
+    assert not cli.deleted_dcra
+    assert not cli.deleted_rg
+    assert not any(args[1:3] == ["group", "delete"] for args in cli.calls)
+    assert not any(args[1:3] == ["keyvault", "purge"] for args in cli.calls)
+
+
+def test_postdown_dry_run_leaves_base_deployment_record(
+    cleanup: ModuleType,
+    cli: AzureCli,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "post", "--dry-run"])
+    assert cleanup.main() == 0
+    assert cli.deleted_deployments == set()
+    assert "dry-run: would delete base deployment record" in capsys.readouterr().err

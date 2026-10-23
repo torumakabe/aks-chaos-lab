@@ -113,6 +113,28 @@ param enableContainerNetworkLogs bool = true
 @description('Deploy AKS control plane diagnostic logs (AKSAuditAdmin, AKSControlPlane) with Basic table plan (ADR-005)')
 param enableAksDiagnostics bool = true
 
+@description('Deploy Azure SRE Agent for read-only diagnostics')
+param enableSreAgent bool = false
+
+@description('Grant Monitoring Contributor to the SRE Agent user-assigned managed identity for Azure Monitor alert handling.')
+param enableSreAgentAzureMonitorIncidentIntegration bool = false
+
+@description('Optional Azure SRE Agent region. Must match the base location for VNet integration.')
+param sreAgentLocation string = ''
+@description('Dedicated SRE Agent subnet prefix (/27 or larger)')
+param sreAgentSubnetPrefix string = '10.10.5.0/27'
+
+@description('Azure Agent Units (AAUs) limit for Azure SRE Agent active-flow usage')
+@minValue(500)
+@maxValue(1000000)
+param sreAgentMonthlyAgentUnitLimit int = 10000
+
+@description('Default model provider for Azure SRE Agent')
+param sreAgentModelProvider string = 'MicrosoftFoundry'
+
+@description('Default model name for Azure SRE Agent')
+param sreAgentModelName string = 'Automatic'
+
 @description('Container Insights data collection preset (All, LogsAndEvents, Custom)')
 @allowed([
   'All'
@@ -168,6 +190,8 @@ var appAzureMonitorWorkspaceName = 'amw-app-${appName}-${environment}'
 var redisEnterpriseName = '${abbrs.cacheRedis}${resourceToken}'
 var chaosAppIdentityName = '${abbrs.managedIdentityUserAssignedIdentities}${appName}-chaos-app-${environment}'
 var nodeResourceGroupName = '${resourceGroupName}-node'
+var sreAgentName = 'sre-${appName}-${environment}'
+var effectiveSreAgentLocation = empty(sreAgentLocation) || sreAgentLocation == 'none' ? location : sreAgentLocation
 var serviceAccountNamespace = 'chaos-lab'
 var serviceAccountName = 'chaos-app-sa'
 var fleetName = 'fleet-${appName}-${environment}'
@@ -186,6 +210,7 @@ module network './modules/network.bicep' = {
     aksApiSubnetPrefix: aksApiSubnetPrefix
     functionSubnetPrefix: functionSubnetPrefix
     resourceToken: resourceToken
+    sreAgentSubnetPrefix: sreAgentSubnetPrefix
   }
 }
 
@@ -198,6 +223,46 @@ module azmonitorCore './modules/azmonitor/core.bicep' = {
     logAnalyticsName: logAnalyticsWorkspaceName
     applicationInsightsName: applicationInsightsName
     appAzureMonitorWorkspaceName: appAzureMonitorWorkspaceName
+  }
+}
+
+module sreAgent './modules/sre-agent.bicep' = if (enableSreAgent) {
+  name: 'sreAgent'
+  scope: resourceGroup
+  params: {
+    agentName: sreAgentName
+    location: effectiveSreAgentLocation
+    tags: tags
+    logAnalyticsWorkspaceId: azmonitorCore.outputs.logAnalyticsId
+    applicationInsightsResourceId: azmonitorCore.outputs.applicationInsightsId
+    applicationInsightsAppId: azmonitorCore.outputs.applicationInsightsAppId
+    deployerPrincipalId: deployer().objectId
+    monthlyAgentUnitLimit: sreAgentMonthlyAgentUnitLimit
+    modelProvider: sreAgentModelProvider
+    modelName: sreAgentModelName
+    enableAzureMonitorIncidentIntegration: enableSreAgentAzureMonitorIncidentIntegration
+    subnetId: network.outputs.sreAgentSubnetId
+  }
+}
+
+module sreAgentVault './modules/sre-agent-vault.bicep' = if (enableSreAgent) {
+  name: 'sreAgentVault'
+  scope: resourceGroup
+  params: {
+    location: location
+    tags: tags
+    vaultName: 'kvsregithub${resourceToken}'
+    vnetId: network.outputs.vnetId
+    privateEndpointSubnetId: network.outputs.peSubnetId
+    workspaceId: azmonitorCore.outputs.logAnalyticsId
+    agentPrincipalId: sreAgent!.outputs.systemAssignedPrincipalId
+  }
+}
+
+module sreAgentMonitoringContributorRoleAssignment './modules/sre-agent-monitoring-role-assignment.bicep' = if (enableSreAgent && enableSreAgentAzureMonitorIncidentIntegration) {
+  name: 'sreAgentMonitoringContributor-${environment}'
+  params: {
+    principalId: sreAgent!.outputs.userAssignedPrincipalId
   }
 }
 
@@ -612,6 +677,21 @@ output AZURE_LOG_ANALYTICS_ID string = azmonitorCore.outputs.logAnalyticsId
 output AZURE_LOG_ANALYTICS_WORKSPACE_ID string = azmonitorCore.outputs.logAnalyticsCustomerId
 @description('Log Analytics workspace name')
 output AZURE_LOG_ANALYTICS_WORKSPACE_NAME string = azmonitorCore.outputs.logAnalyticsNameOut
+
+@description('Azure SRE Agent resource ID')
+output AZURE_SRE_AGENT_ID string = enableSreAgent ? sreAgent!.outputs.agentId : ''
+
+@description('Azure SRE Agent endpoint')
+output AZURE_SRE_AGENT_ENDPOINT string = enableSreAgent ? sreAgent!.outputs.agentEndpoint : ''
+output AZURE_SRE_AGENT_VAULT_NAME string = enableSreAgent ? sreAgentVault!.outputs.vaultNameOut : ''
+output AZURE_SRE_AGENT_VAULT_ID string = enableSreAgent ? sreAgentVault!.outputs.vaultId : ''
+output AZURE_SRE_AGENT_VAULT_URI string = enableSreAgent ? sreAgentVault!.outputs.vaultUri : ''
+
+@description('Azure SRE Agent user-assigned managed identity resource ID')
+output AZURE_SRE_AGENT_IDENTITY_ID string = enableSreAgent ? sreAgent!.outputs.managedIdentityId : ''
+
+@description('Azure SRE Agent region')
+output AZURE_SRE_AGENT_LOCATION string = enableSreAgent ? effectiveSreAgentLocation : ''
 
 @description('Azure Monitor Workspace resource ID for Managed Prometheus')
 output AZURE_MONITOR_PROMETHEUS_WORKSPACE_ID string = prometheusWorkspaceResourceId

@@ -16,6 +16,8 @@ param aksApiSubnetPrefix string
 param functionSubnetPrefix string
 @description('Resource token for unique naming')
 param resourceToken string
+@description('Dedicated SRE Agent subnet prefix (/27 or larger)')
+param sreAgentSubnetPrefix string
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2026-03-01' = {
   name: vnetName
@@ -65,6 +67,22 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2026-03-01' = {
         name: 'snet-func'
         properties: {
           addressPrefix: functionSubnetPrefix
+          defaultOutboundAccess: false
+          delegations: [
+            {
+              name: 'Microsoft.App.environments'
+              properties: {
+                serviceName: 'Microsoft.App/environments'
+              }
+            }
+          ]
+        }
+      }
+      // Keep the subnet when an existing Agent is disabled in incremental deployments.
+      {
+        name: 'snet-sre-agent'
+        properties: {
+          addressPrefix: sreAgentSubnetPrefix
           defaultOutboundAccess: false
           delegations: [
             {
@@ -127,6 +145,7 @@ output aksSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnet
 output peSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-pe')
 output aksApiSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-aks-api')
 output functionSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-func')
+output sreAgentSubnetId string = resourceId('Microsoft.Network/virtualNetworks/subnets', vnetName, 'snet-sre-agent')
 output vnetNameOut string = virtualNetwork.name
 output publicIPAddress string = ingressPublicIP.properties.ipAddress
 output publicIPId string = ingressPublicIP.id

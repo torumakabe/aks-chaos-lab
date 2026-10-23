@@ -33,7 +33,11 @@ Azure Monitor SLI は Service Group に紐づくテナントレベル リソー�
 
 Service Group RBAC の制約は [docs/workarounds.md §A-5](workarounds.md#a-5-環境別-service-group-への-service-group-administrator-直付与が必要) で棚卸ししています。
 
-### 3. SLI 用 User Assigned Managed Identity に自動付与するロール
+### 3. Azure SRE Agent を使う場合
+
+Azure SRE Agent を有効にする環境では、デプロイ実行 identity に Agent、専用 Managed Identity、role assignments を作成する権限が必要です。`Microsoft.App` provider を登録し、subscription の Azure SRE Agent 利用登録と対象リージョン、モデルの利用可否を事前に確認してください。Azure Monitor incident integration も有効にする場合、subscription scope の Monitoring Contributor role assignment を追加する権限が必要です。このロールには alert rule や Log Analytics workspace などの書き込み操作が含まれます。
+
+### 4. SLI 用 User Assigned Managed Identity に自動付与するロール
 
 `infra/modules/azmonitor/sli-rbac.bicep` と `infra/modules/azmonitor/sli-managed-dcr-rbac.bicep` が、SLI 用 UAMI に以下を自動付与します。デプロイ主体にサブスクリプション スコープ権限があれば、追加操作は不要です。
 
@@ -117,6 +121,78 @@ azd up
 
 `base` と `sli` を分離する判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md)、デプロイ後の SLI 評価開始の確認は [可観測性ガイド](observability.md#アプリ信頼性-signal)を参照してください。`azd up` は SLI destination metric の出現までは待ちません。
 
+検証中、新規環境の初回配備で Service Group（`Microsoft.Management/serviceGroups`）の作成が `ResourceNotFound` で失敗した事例がありました。その後の検証では再現していません。同じエラーで停止した場合は、同じ配備コマンドを再実行してください。発生時は Service Group が作成済みで、再試行により配備が完了したため、同様に成功が期待できます。
+
+上記のサービス配備（2〜7）は、共通 task `deploy-services` が順番に実行します。通常の `up` と組織 index 向けの段階配備は、この task と各 service の hook を共有します。個別のサービスだけを更新するときは、従来どおり `azd deploy <service>` を使えます。
+
+### Azure SRE Agent (任意)
+
+SRE Agent は `base` layer の opt-in 機能です。`AZURE_SRE_AGENT_ENABLED` の既定値は `false` です。`true` にすると、`azd up` の全体デプロイで基盤とともに Agent を作成します。**この設定だけではインシデント連携は有効になりません。** Azure Monitor alert の取り込みには、後述の `AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED=true` も必要です。利用前に `Microsoft.App` provider、Azure SRE Agent の subscription 利用登録、対象リージョンとモデルの利用可否を確認してください。
+
+```bash
+azd env set AZURE_SRE_AGENT_ENABLED true
+azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000
+azd provision base --preview
+```
+
+preview で Agent、専用 User Assigned Managed Identity、専用 Application Insights、Resource Group 範囲の読み取り role assignments を確認してください。`base` layer には他の基盤リソースも含まれるため、既存リソースの変更を含むすべての差分が意図した内容であることを確認してから、全体をデプロイします。公開取得が許可された環境では次を実行します。組織承認済み package index を使う場合は、同じ環境設定を使って [専用の配備手順](#docker-build-のpackage-index)を実行してください。
+
+```bash
+azd up
+```
+
+Agent は既存 VNet の専用 subnet `snet-sre-agent` に接続するため、リージョンは `AZURE_LOCATION` と同じにします。`AZURE_SRE_AGENT_LOCATION` を明示する場合も同じ値が必要で、異なる値は base の preprovision hook が拒否します。専用 subnet の prefix は `AZURE_SRE_AGENT_SUBNET_PREFIX`（既定 `10.10.5.0/27`、/27 以上）で指定します。モデル設定は `AZURE_SRE_AGENT_MODEL_PROVIDER` と `AZURE_SRE_AGENT_MODEL_NAME` で変更できます。
+
+Agent 有効時は private Key Vault、Private Endpoint、Private DNS、Agent の Key Vault Crypto User、監査ログも Bicep で作成します。public access は無効、trusted services bypass は None です。base の postprovision hook は README のナレッジ登録とインデックス完了の確認を行い、incident integration が有効な場合だけ response plan も設定します。GitHub App、秘密鍵、GitHub 認証や Code Access の設定は待ちません。これらが未設定でも配備は完了します。
+
+GitHub 連携は任意であり、環境作成や Azure SRE Agent の利用に必須ではありません。GitHub の後日接続、鍵登録、README だけの更新は [Azure SRE Agent の運用](sre-agent.md)を参照してください。
+
+Agent は `Low` / `Review` で作成し、既存の chaos-app Application Insights と Log Analytics に connector で接続します。Azure Monitor metrics、Resource Graph、AKS 診断は Agent の組み込み機能で、Agent identity に付与した Azure RBAC 権限を使います。詳細は [Azure SRE Agent の connector と組み込み機能](https://learn.microsoft.com/azure/sre-agent/connectors)を参照してください。組み込み `QueryPrometheusMetrics` による Managed Prometheus endpoint 探索は本プロジェクトの初期導入範囲と受け入れ条件に含めません。今回の構成でのサポート可否を確認できていないためです。詳細は [Azure SRE Agent の可観測性](observability.md#azure-sre-agent) と [ADR-025](adr/025-azure-sre-agent-diagnostics-and-alert-response.md) を参照してください。
+
+Azure Monitor の alert を Agent に取り込む場合は、別途次の設定を有効にします。
+
+```bash
+azd env set AZURE_SRE_AGENT_ENABLED true
+azd env set AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED true
+azd provision base --preview
+```
+
+preview で Agent の `incidentManagementConfiguration` の差分を確認してから、`azd provision base` または `azd up` を実行します。Bicep が Azure Monitor を incident platform として設定し、Agent の user-assigned managed identity に subscription scope の Monitoring Contributor を割り当てます。azd の preview は表示名を持つ resource type だけを出力するため、role assignment は表示されません。配備後に `az role assignment list --all --assignee <user-assigned identity の principal ID>` で割り当てを確認してください。権限は alert rule や Log Analytics workspace の変更にも及ぶため、subscription 全体への付与が適切か確認してください。
+
+`base` layer の post-provision hook は、Azure SRE Agent の Data Plane API を使って、response plan `aks-chaos-lab-sli-short-window-review` を作成または更新します。`Title contains` は `SLI short-window alert` とし、Sev3 と `Review` mode に限定します。
+
+対象は Availability / Latency の短窓アラート計2件です。既定では15分内に5件以上の失敗 probe がある場合に発火します。判定式は [SLI metric alerts](observability.md#sli-metric-alerts) を参照してください。
+
+Baseline / 長窓アラートは長い評価窓の SLO 達成状況や error budget 消費を表すため、Agent の自動調査対象から外します。Kubernetes、publisher、Fleet 承認待ち、`aks-nodeos-autoupgrade` の alert も対象外です。これらの Azure Monitor alert と通知設定は維持します。
+
+Hook は旧 Fast / Slow plan と、以前の広い SLI / Kubernetes / publisher / Fleet plan を削除します。削除対象の名前は [設定スクリプト](../scripts/configure_sre_agent_incidents.py) の `LEGACY_PLAN_NAMES` で管理します。削除した plan が開始済みの調査は完了まで継続します。title 条件は resource ID を区別しないため、同じ文字列を含む別環境の alert も一致する可能性があります。
+
+アラート名を短窓 / 長窓へ変更すると、次回の `azd provision sli` は新しい名前のリソースを作成します。incremental deployment は旧名のアラートを削除しないため、再配備後に旧 `SLI fast burn rate alert for ...` と `SLI slow burn rate alert for ...` を確認し、残っているものを削除してください。
+
+Hook は quickstart plan が有効なら無効化し、ほかに有効な Autonomous plan が残っている場合は処理を失敗させます。Plan は組み込み `meta_agent` を指定し、専用 incident handler は設定しません。response plan の作成には `https://azuresre.dev` audience の access token を使います。Action Group はこの連携に使いません。API とポータルでの設定方法は [Azure Monitor alert integration](https://learn.microsoft.com/azure/sre-agent/automate-incidents) と [response plan setup](https://learn.microsoft.com/azure/sre-agent/response-plan) を参照してください。
+
+#### 既存環境へインシデント連携付きで追加する
+
+対象環境を各コマンドの `-e` で指定します。subscription scope の Monitoring Contributor の付与を確認したうえで、Agent 本体と incident integration の両方を有効にします。
+
+配備前に既存 SLI metric alert の location が AMW と一致することも確認します。異なる場合は、既存ルールの定義を保存し、同名で再配備する baseline ルールだけを削除してから `sli` を配備します。location は更新できないためです。詳細は [SLI metric alerts](observability.md#sli-metric-alerts) を参照してください。
+
+```bash
+azd env set AZURE_SRE_AGENT_ENABLED true -e "<environment>"
+azd env set AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED true -e "<environment>"
+azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000 -e "<environment>"
+azd provision base --preview -e "<environment>"
+azd provision base -e "<environment>"
+azd provision sli --preview -e "<environment>"
+azd provision sli -e "<environment>"
+```
+
+各 preview の差分を確認してから対応する配備コマンドを実行します。`base` は Agent と Azure Monitor 接続、response plan を設定し、`sli` はその plan が照合する短窓アラートを配備します。既存環境のアラートが旧 Fast / Slow 名のままでは、`SLI short-window alert` の title 条件に一致しません。新しい短窓と長窓アラートの作成を確認後、前述の旧アラートを削除します。既存アプリの変更や再ビルドは不要です。
+
+完了時は Agent の作成成功だけでなく、Azure Monitor 接続、専用 identity の Monitoring Contributor、有効な `Review` response plan、title 条件に一致する Availability / Latency の短窓アラート2件、README のインデックス完了、既存 API の応答を確認します。GitHub 接続は別の任意設定です。
+
+Agent を `false` に戻して incremental deployment を行っても、作成済み Agent は削除されません。Agent と専用リソースを廃止する場合は個別に削除してください。Agent が存在する間は Azure SRE Agent の利用料金が発生します。
+
 `api-instrumentation` は app-specific な `Instrumentation/chaos-app-otel` だけを `k8s/apps/chaos-app/instrumentation/` から適用します。クラスタ共通の `k8s/observability` には置きません。`Instrumentation` を `Deployment/chaos-app` より先に作成しないと、AKS App Monitoring の admission webhook が Pod template に `OTEL_EXPORTER_OTLP_*` を注入できず、API の Application Insights traces / metrics / logs と Redis dependency が欠落します。
 
 External SLI publisher の Function host storage と deployment storage は managed identity 接続です。Storage account key / connection string に依存しないため、`allowSharedKeyAccess=false` の環境でも `azd deploy external-sli-publisher` を使います。publisher storage は `publicNetworkAccess=Disabled` とし、Function App を `snet-func` に VNet integration して blob / queue / table の Private Endpoint 経由で接続します。公式 azd sample と同じく、デプロイ実行 principal には Storage Blob Data Owner を付与します。
@@ -132,7 +208,7 @@ azd provision base --preview
 azd provision sli --preview
 ```
 
-このプロジェクトは `azure.yaml` の `requiredVersions` で azd 1.33.0 以上を要求します。古い azd ではプロジェクトを実行せず、azd を更新してください。
+このプロジェクトは `azure.yaml` の `requiredVersions` で azd 1.35.1 以上を要求します。古い azd ではプロジェクトを実行せず、azd を更新してください。
 
 環境設定の復元などで `azd env refresh` を使うと、過去のデプロイ出力から値が取り込まれます。リージョンや VM サイズを変更する場合は、refresh 後に設定してください。
 
@@ -313,7 +389,7 @@ azd env set AZD_ALLOW_PUBLIC_SOURCES true -e "<env>"
 
 hook は標準ライブラリだけを使い、workspace の同期、ネットワーク接続、設定変更は行いません。起動にも `--offline --no-python-downloads` を指定するため、uv と Python 3.14 以降を事前に用意してください。このチェックは宣言された利用方針との矛盾を検出するもので、接続可否の確認や通信制御ではありません。個別の `azd package`、`azd deploy`、Docker build には `preup` は適用されません。
 
-組織承認済み index が必要な環境では、許可設定や uv 設定を変更してチェックを通すのではなく、以下の専用手順を使います。hook は build や適用方法の切り替えを自動実行しません。公開コンテナレジストリや Functions remote build の public PyPI も禁止されている場合は、専用手順もそのままでは使用できません。
+組織承認済み index が必要な環境では、許可設定や uv 設定を変更してチェックを通すのではなく、以下の専用手順を使います。hook は API build や適用方法の切り替えを自動実行しません。公開コンテナレジストリや Helm repository の利用も禁止されている場合は、別途その取得元を準備する必要があります。
 
 通常のDocker buildはpublic PyPIを使用します。
 
@@ -337,22 +413,33 @@ deploy はローカルの ID と Arm64 architecture を確認してから既存 
 
 `--from-package` が省略するのは build です。API の deploy hook による Instrumentation の存在確認と Pod への OTel 設定注入の確認も自動実行されるため、確認スクリプトを別途実行する必要はありません。API の Kustomize に含まれる CiliumNetworkPolicy、ConfigMap なども再適用します。API 配下の宣言とデプロイ先のリソースの差分を確認し、意図しない変更があれば適用を停止してください。CiliumNetworkPolicy は CoreDNS と Local DNS への DNS 名制限付き通信を許可します。異なる DNS 構成を使う場合は、適用前に許可先の整合を確認してください。
 
-初回構築のコマンド例を次に示します。ログイン、環境作成、権限と feature flag の準備後に実行してください。すべての `<env>` に同じ環境名を指定し、`<image-reference>` には先頭の build task が出力したイメージ参照全体を指定します。
+初回構築では、ログイン、環境作成、権限と feature flag の準備後に、以下の環境設定と配備を順に実行します。すべての `<env>` に同じ環境名を指定してください。`azd up` との違いは API image の build と成果物の渡し方だけで、機能の有効化設定と provision hook は共通です。
+
+**SRE Agent でインシデント調査まで利用する場合は、配備前に次の両フラグを設定します。** subscription scope の Monitoring Contributor を Agent の専用 identity に付与するため、[Azure SRE Agent の権限と設定](#azure-sre-agent-任意)を確認してください。診断のみの場合は incident integration のフラグを `false` にし、Agent を使わない場合はこの設定を省略します（両フラグの既定値は `false`）。
+
+```bash
+azd env set AZURE_SRE_AGENT_ENABLED true -e "<env>"
+azd env set AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED true -e "<env>"
+azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000 -e "<env>"
+```
+
+続いて、次の全工程を実行します。`<image-reference>` には build task が出力したイメージ参照全体を指定します。SRE Agent を有効にした場合、`base` で Agent と、有効化したインシデント連携を設定し、`sli` で対象アラートを配備します。`base` の成功だけで全体配備を完了としないでください。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" package-api-approved-index
 azd provision base -e "<env>"
-azd deploy api-instrumentation -e "<env>"
-azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-node-provisioning
-azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-api-approved-index \
+azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-services \
   --image "<image-reference>"
-azd deploy observability -e "<env>"
-azd deploy chaos-mesh -e "<env>"
-azd deploy external-sli-publisher -e "<env>"
 azd provision sli -e "<env>"
 ```
 
-通常の `azd up`、`azd package api`、`azd deploy api` は public PyPI で API を build し、事前ビルドを引き継ぎません。制限環境では上記手順を使い、`azure.yaml` の一時書換えや public PyPI への fallback は行いません。API 更新時に他サービスを再適用する必要はありません。Functions の remote build は従来どおり public PyPI を使います。認証が必要な index は専用 Docker build の対象外です。`uv.lock` は public PyPI の URL を維持します。
+通常の `azd up`、`azd package api`、`azd deploy api` は public PyPI で API を build し、事前ビルドを引き継ぎません。制限環境では上記手順を使い、`azure.yaml` の一時書換えや public PyPI への fallback は行いません。API 更新時に他サービスを再適用する必要はありません。認証が必要な index は専用 Docker build の対象外です。`uv.lock` は public PyPI の URL を維持します。
+
+Functions publisher は両方の手順で同じ prepackage hook を使います。hook は frozen な public lock から publisher の runtime 依存を export し、選択済み index から hash を検査して Linux x64 / Python 3.14 向け wheel を `.python_packages/lib/site-packages` に配置します。配備では `remoteBuild: false` とし、Functions 側で public PyPI から再取得しません。組織 index はこれらの wheel を提供する必要があり、ソース build や別 index への fallback は行いません。public index を選ぶ場合は `AZD_ALLOW_PUBLIC_SOURCES=true` が必要です。
+
+publisher 単独更新も `azd deploy external-sli-publisher -e "<env>"` で同じ hook が動きます。`--from-package` で独自 ZIP を渡すと package hook が省略されるため、その ZIP に Linux 向け依存を含める責任は実行者にあります。通常は指定しません。host の開発用 `.venv` をパッケージへコピーしません。
+
+base の SRE Agent hook も public / 組織 index で同じ処理を使います。Agent 有効時は README を登録し、incident integration 有効時は Azure Monitor 接続を確認して Review response plan を設定します。これらのスクリプトを手動で追加実行する必要はありません。GitHub の準備待ちを配備に含めず、後日設定後も通常の再配備は GitHub 認証設定を上書きしません。既存アプリを再配備せず Agent だけを追加する場合は、[既存環境への追加手順](#既存環境へインシデント連携付きで追加する)を使います。
 
 ### AKS の接続先と認証
 
@@ -457,7 +544,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" qa
 
 GitHub Environment `integration-test` に認証用 secrets `AZURE_CLIENT_ID`、`AZURE_TENANT_ID`、`AZURE_SUBSCRIPTION_ID` を設定します。identity には本書の構築と削除に必要な権限を付与します。`full` で公開取得が許可されている場合は、同 Environment の変数 `AZD_ALLOW_PUBLIC_SOURCES` を `true` に設定してください。workflow は未設定の値を補完しません。runner は `ubuntu-latest` を維持し、uv と Python を各処理の前に準備します。
 
-cleanup job は構築の成否にかかわらず、実行IDに対応する環境名と subscription を既存の `cleanup-azure-monitor-sli-resources.py` に渡します。`.azure` の引き継ぎは行いません。RG の削除完了待機を含めて job の上限を90分とし、削除失敗は job の失敗として報告します。
+cleanup job は構築の成否にかかわらず、実行IDに対応する一時 azd 環境を作成し、`azd down --force --purge` を実行します。`.azure` の引き継ぎは行わず、環境名、location、subscription、Resource Group を再設定します。hook は Service Group など azd の管理対象外のリソースを整理し、Resource Group の削除と Key Vault の purge は azd に任せます。job の上限は90分で、削除失敗は job の失敗として報告します。
 
 ## 負荷テスト
 
@@ -498,15 +585,15 @@ Azure Monitor SLI を有効化した環境では、Service Group scope の `Micr
 azd down --force --purge
 ```
 
-`predown` hook は対象環境の `AZURE_SUBSCRIPTION_ID` を必須とし、取得できなければ削除前に停止します。Azure CLI の既定 subscription は使わず、取得した値を各操作へ明示します。Service Group は tenant scope のため、環境名による所有確認も維持します。指定した RG が対象環境の命名規則に一致しない場合は、RG を削除せず停止します。
+`predown` hook は対象環境の `AZURE_SUBSCRIPTION_ID` を必須とし、取得できなければ削除前に停止します。Azure CLI の既定 subscription は使わず、取得した値を各操作へ明示します。Service Group は tenant scope のため、環境名による所有確認も維持します。指定した RG が対象環境の命名規則に一致しない場合は、削除前の cleanup を停止します。
 
 Service Group ID が環境変数にない場合は、対象環境の base デプロイの操作記録から取得します。操作記録を手動で削除した環境では、`AZURE_MONITOR_SLI_SERVICE_GROUP_ID` または `AZURE_MONITOR_SLI_SERVICE_GROUP_NAME` を指定してください。SG 本体の取得が `ResourceNotFound` を返した場合だけ SG の削除を省略し、SLI 一覧の403を削除済みとは扱いません。
 
 SG の DELETE が202を返した場合は、応答の `Location` で非同期削除の完了を確認します。`Retry-After` に従い、指定がなければ5秒間隔で、削除要求と完了待ちを合わせて最大10分待機します。処理中の SG 本体の GET は削除完了の判定に使いません。
 
-Service Group 側の探索や削除に失敗した場合は、エラーを記録して subscription 内の後始末を続け、最後に非ゼロで終了します。この場合、再実行で SG を特定できるよう base デプロイ記録は残します。RG、AKS、DCRA の存在確認は、正常な応答で対象の不在を確認できた場合だけ削除済みと扱います。存在確認や DCRA 削除後の確認に失敗した場合は、base RG を削除せず停止します。Service Group API の制約と改善確認項目は [workarounds.md §A-8](workarounds.md#a-8-service-group-api-の探索と不在応答を補う) を参照してください。
+Service Group 側の探索や削除に失敗した場合は、エラーを記録して subscription 内の後始末を続け、最後に非ゼロで終了します。この場合、再実行で SG を特定できるよう base デプロイ記録は残します。RG、AKS、DCRA の存在確認は、正常な応答で対象の不在を確認できた場合だけ削除済みと扱います。存在確認や DCRA 削除後の確認に失敗した場合は、`predown` hook が非ゼロで終了するため `azd down` は続行されません。Service Group API の制約と改善確認項目は [workarounds.md §A-8](workarounds.md#a-8-service-group-api-の探索と不在応答を補う) を参照してください。
 
-hook は Service Group scope の SLI / Service Group / AKS の OTLP Application Insights DCR association / deployment record / base resource group を整理します。AKS 上の OTLP DCRA を先に削除することで、App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) は base RG の削除に連動して消えます。詳細な順序と理由は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md)、[docs/workarounds.md §A-4](workarounds.md#a-4-predown-hook-で-service-group-scope-sli-と環境別-service-group-を削除)、[§B-2](workarounds.md#b-2-predown-hook-で-aks-上の-otlpappinsightsextension-dcra-を先に削除) を参照してください。
+`predown` hook は Service Group scope の SLI / Service Group と AKS の OTLP Application Insights DCR association、SLI layer の deployment record を整理します。base resource group は hook で削除せず、`azd down` に削除させます。`postdown` hook は残った base layer の deployment record を削除します。これにより `azd down --purge` が Key Vault を含むリソースを削除し、soft-deleted resource を purge する機能を利用できます。AKS 上の OTLP DCRA を先に削除することで、App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) は base RG の削除に連動して消えます。詳細な順序と理由は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md)、[docs/workarounds.md §A-4](workarounds.md#a-4-predown-hook-で-service-group-scope-sli-と環境別-service-group-を削除)、[§B-2](workarounds.md#b-2-predown-hook-で-aks-上の-otlpappinsightsextension-dcra-を先に削除) を参照してください。
 
 cleanup hook の構文・実行経路だけを非破壊で確認する場合は、削除系処理を dry-run にして hook を単体実行できます。
 
@@ -527,3 +614,4 @@ unset AZURE_MONITOR_SLI_CLEANUP_DRY_RUN
 - cleanup hook は system-protected deny assignment を解除しません
 - `azd down <layer>` のような layer 指定 down はサポート対象外です
 - `AZURE_MONITOR_SLI_CLEANUP_DRY_RUN=true` を付けた hook 単体実行では削除せず、対象検出とログ出力だけを行います
+- SRE Agent を有効にした環境の Key Vault（`kvsregithub<resourceToken>`）は purge protection を設定しません。環境を完全削除して同じ名前で再作成する場合は `azd down --force --purge` を使い、azd に Key Vault の purge を処理させます。purge protection 付きで作成された旧 vault は purge できず、`scheduledPurgeDate` の自動消去まで名前が残るため、その間は別の環境名を使ってください

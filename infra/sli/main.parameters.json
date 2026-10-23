@@ -32,14 +32,14 @@
     "enableSliAlerts": {
       "value": true
     },
-    "metricAlertLocation": {
-      "value": "eastus"
-    },
     "availabilitySliName": {
       "value": "${AZURE_MONITOR_AVAILABILITY_SLI_NAME:none}"
     },
     "latencySliName": {
       "value": "${AZURE_MONITOR_LATENCY_SLI_NAME:none}"
+    },
+    "externalSliProbeName": {
+      "value": "${AZURE_EXTERNAL_SLI_PROBE_NAME:none}"
     },
     "availabilityBaselineTargetPercent": {
       "value": 99
@@ -63,16 +63,16 @@
         "test"
       ]
     },
-    "fastBurnRateThreshold": {
-      "value": 14
+    "shortWindowFailedProbeThreshold": {
+      "value": 5
     },
-    "fastBurnRateLookbackHours": {
-      "value": 1
+    "shortWindowLookbackMinutes": {
+      "value": 15
     },
-    "slowBurnRateThreshold": {
+    "longWindowBurnRateThreshold": {
       "value": 6
     },
-    "slowBurnRateLookbackHours": {
+    "longWindowLookbackHours": {
       "value": 6
     },
     "actionGroupId": {

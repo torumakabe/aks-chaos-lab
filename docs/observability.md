@@ -7,14 +7,39 @@
 | 領域 | 役割 | 主なファイル / 参照 |
 |------|------|---------------------|
 | Application Insights | アプリの traces / metrics / logs と Function probe の dependency telemetry を受信 | `src/api/app/telemetry.py`, `src/external-sli-publisher/`, [ADR-006](adr/006-otlp-vendor-neutral-otel.md), [ADR-012](adr/012-functions-direct-external-sli-probe.md) |
+| Azure SRE Agent (任意) | Resource Group 内の読み取り専用診断。追加 opt-in で SLI 短窓アラートの Review 型調査 | [Azure SRE Agent](#azure-sre-agent), [ADR-025](adr/025-azure-sre-agent-diagnostics-and-alert-response.md) |
 | External SLI publisher | Azure Functions から `GET /` を probe し、Azure Monitor SLI 用 Prometheus good / total metrics を発行 | `src/external-sli-publisher/`, `infra/modules/functions/`, [ADR-012](adr/012-functions-direct-external-sli-probe.md) |
 | Azure Monitor managed Prometheus | Platform signals、Gateway diagnostic recording rules、external SLI metrics、alerts | `infra/modules/prometheus/`, [ADR-004](adr/004-envoy-gateway-metrics-for-slo.md) |
-| Azure Monitor SLI | 外形 Availability / Latency SLI definitions と burn-rate alerts | `infra/sli/`, [ADR-012](adr/012-functions-direct-external-sli-probe.md) |
+| Azure Monitor SLI | 外形 Availability / Latency SLI definitions と短窓 / 長窓アラート | `infra/sli/`, [ADR-012](adr/012-functions-direct-external-sli-probe.md) |
 | Container Insights | コンテナログ / メトリクスを Log Analytics に収集 | `k8s/observability/`, [ADR-003](adr/003-container-insights-custom-preset.md) |
 | Container network logs | ACNS + Cilium の eBPF network flow logs | `k8s/observability/container-network-log.yaml`, [ADR-002](adr/002-container-network-logs.md) |
 | Cilium L7 HTTP metrics | L7 policy 適用時の HTTP request metrics | `k8s/components/cilium-ingress-l7/`, [ADR-007](adr/007-acns-l7-observability.md) |
 
 Grafana ダッシュボードは Azure Portal の対象 AKS > Monitoring > Dashboards with Grafana から参照できます。
+
+## Azure SRE Agent
+
+private Key Vault、VNet、README ナレッジの自動設定と GitHub App の後日接続は [Azure SRE Agent の運用](sre-agent.md)を参照してください。
+
+Azure SRE Agent は `base` layer の opt-in 機能です。`AZURE_SRE_AGENT_ENABLED=true` を設定して `azd up` を実行すると、Agent 本体、専用 Managed Identity、Agent telemetry 用 Application Insights を作成し、既存の chaos-app Application Insights と Log Analytics workspace に connector で接続します。Azure Monitor metrics、Resource Graph、AKS 診断は組み込み機能で、Agent identity と Azure RBAC を使います。専用 Managed Identity と Agent の system-assigned identity には Resource Group 範囲で Reader、Monitoring Reader、Log Analytics Reader を付与し、Agent の操作設定は `Low` / `Review` にします。機能と connector の違いは [Azure SRE Agent の公式説明](https://learn.microsoft.com/azure/sre-agent/connectors)を参照してください。
+
+`AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED=true` は、Bicep で Azure Monitor を incident platform に設定し、Agent の user-assigned managed identity に subscription scope の Monitoring Contributor を付与します。このロールには alert rule や Log Analytics workspace の設定を変更できる権限も含まれます。Agent は alert を acknowledge して調査を開始するため、読み取り専用診断とは異なる動作です。base layer の post-provision hook は Data Plane API で SLI 短窓アラート用の `Review` response plan を1つ作成または更新します。対象は既定で15分内に失敗 probe が5件以上ある Availability / Latency の2 alert で、Baseline / 長窓アラートは対象外です。設定方法は[環境構築と運用手順](deployment.md#azure-sre-agent-任意)を参照してください。Action Group は不要です。
+
+Response plan の読み戻しには `https://azuresre.dev` audience の access token と `/api/v2/extendedAgent/incidentFilters` endpoint を使います。ARM incident filter endpoint ではなく、Azure SRE Agent の公式 template と同じ Data Plane API を使います。
+
+組み込み `QueryPrometheusMetrics` の Managed Prometheus endpoint 探索は、本プロジェクトの初期導入範囲に含めません。探索に必要な条件と今回の構成でのサポート可否が確認できていないためです。この判断は Agent 全体や Managed Prometheus の一般的なサポート可否を示すものではありません。導入手順は [環境構築と運用手順](deployment.md#azure-sre-agent-任意)、設計判断は [ADR-025](adr/025-azure-sre-agent-diagnostics-and-alert-response.md) を参照してください。
+
+### 配備後の読み取り確認
+
+Agent 自身に、対象 subscription とリソースを指定して次の照会を読み取り専用で実行させます。操作者が Azure Monitor から取得した結果だけでは、Agent の読み取り権限を確認したことにはなりません。
+
+1. Log Analytics の `OTelSpans` から chaos-app の HTTP 200 の server span を取得し、`OTelLogs` から `ScopeName == "app.main"` のログを取得します。[request telemetry](#アプリケーション-trace-と-request-telemetry) の KQL を使い、記録時刻に合わせて照会期間を指定します。
+2. Application Insights の analytics API では `requests` を照会し、Log Analytics の `TraceId` と `operation_Id`、HTTP status、時刻が一致することを確認します。Application Insights の `requests` による参照と、workspace の `AppRequests` への保存は区別します。
+3. Prometheus metrics は Agent の既存 Azure CLI 実行機能から、各 Azure Monitor workspace の query endpoint に `/api/v1/query` の GET を実行します。`az rest` の `--resource` は `https://prometheus.monitor.azure.com` を指定します。アプリ用 workspace では `{__name__="chaos_app.active_requests"}`、AKS 用 workspace では `container_cpu_usage_seconds_total{namespace="chaos-lab",container="app"}` を照会します。後者は累積 CPU 使用秒であり、CPU 使用率ではありません。
+
+`/health` は HTTP trace の収集対象外です。手動で request telemetry を生成する場合は `/` を使います。HTTP 応答と telemetry の取り込みは別に確認し、サンプリングと取り込み待ちを考慮して、対象時刻と trace ID を照合してください。
+
+照会で403が返った場合は、実行したツール名、照会先、エラーと correlation ID を記録し、現在の identity と role assignments を照合します。connector の一覧表示や作成成功だけでは、実 query の成功を確認できません。Agent の Azure CLI identity は `az account show` の `user.assignedIdentityInfo` と専用 UAMI の client ID で照合でき、MCP ツール内部の identity と同一とは限りません。Azure CLI の読み取り用ツールが Log Analytics の query POST を拒否する場合は、同じ query API の GET を使って照会します。
 
 ## AKS control plane metrics
 
@@ -107,6 +132,20 @@ count_over_time(chaos_app_external_availability_total{environment="<env>",servic
 ```
 
 SLI 作成後の destination metric は、SLI ARM resource の `destinationMetrics` に出る metric name を使って AMW の Prometheus query endpoint で確認します。`azd provision sli` の layer `preprovision` hook は入力 metric の出現を待ちます。destination metric は評価開始まで時間がかかるため、`azd up` の完了条件には含めません。評価開始を確認する場合は、デプロイ後に `uv run scripts/wait-for-external-sli-signals.py --skip-source --require-sli-destination` を手動実行します。
+
+### SLI metric alerts
+
+Azure Monitor の metric alerts は、publisher が Managed Prometheus に直接発行する good / total metrics から Availability と Latency を計算します。SLI destination metrics は評価処理の遅延があるため、短い検知窓には使いません。各クエリは `environment`、`service="chaos-app"`、`test` のラベルで対象 probe を絞り、Latency では `latencyThresholdLe` と同じ `le` bucket を選びます。
+
+| Alert | 評価条件 |
+|---|---|
+| Baseline | 既定の7日窓で、probe 数が10,080件以上あり、good / total が設定した Availability 99% または Latency 95% を下回る |
+| 短窓アラート | 15分窓内の失敗 probe が5件以上。毎分評価し、条件が1分継続した場合に発火する。1 probe/分では失敗率33%、Availability の burn rate は約33x、Latency は約6.7x |
+| 長窓アラート | 6時間窓の失敗率を SLO の error budget と比較し、burn rate が6x以上の状態が1分継続した場合に発火する |
+
+短窓アラートの5件は、Availability / Latency のいずれも同じ失敗件数で判定します。HTTP 2xx 以外、timeout、network error、および publisher が復元できない欠落 window は失敗として数えます。probe の発行が止まった状態は `ExternalSliPublisherHeartbeatMissing` でも検知します。metric alert の評価頻度は1分で、実際の通知時刻にはメトリクス取り込みと alert 評価の遅延が加わります。
+
+metric alert rule は Azure Monitor Workspace（AMW）と同じリージョンに作成します。AMW が japaneast のときに eastus へ作成した rule は、有効で Resource Health が Available でも評価されず、条件が成立しても発火しませんでした（同じ identity、scope、query で location だけを変えた rule の比較で確認）。作成先は `infra/sli/main.bicep` が既存 AMW の location から取得するため、parameter では指定しません。rule の location は作成後に変更できず、PUT は `InvalidResourceLocation` で拒否されます。誤ったリージョンに作成した rule は削除して再作成します。
 
 Gateway Envoy 由来の `gateway:chaos_app:http_request_duration:p95` と `gateway:chaos_app:http_error_rate:ratio` は、短期診断用の recording rule として残します。Azure Monitor SLI の error budget 判定には使いません。
 
