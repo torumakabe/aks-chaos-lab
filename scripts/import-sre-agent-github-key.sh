@@ -197,9 +197,11 @@ kubectl -n "$NAME" exec import -- sh -ceu '
 
 TTY_STATE=$(stty -g </dev/tty)
 stty -echo </dev/tty
-printf 'GitHub App の秘密鍵（PEM 形式）を入力します。\n形式: パスフレーズなしの RSA 秘密鍵。PKCS#1（BEGIN RSA PRIVATE KEY）または PKCS#8（BEGIN PRIVATE KEY）。\n1Password などから取り出す場合も、このいずれかの形式を選択してください。OpenSSH、公開鍵、証明書、暗号化された秘密鍵は対象外です。\nBEGIN 行から対応する END 行まで全文を貼り付け、Enter を押してください（入力は非表示、Ctrl+C で中止）:\n' >/dev/tty
+INPUT_PROMPT=$'GitHub App の秘密鍵（PEM 形式）を入力します。\n形式: パスフレーズなしの RSA 秘密鍵。PKCS#1（BEGIN RSA PRIVATE KEY）または PKCS#8（BEGIN PRIVATE KEY）。\n1Password などから取り出す場合も、このいずれかの形式を選択してください。OpenSSH、公開鍵、証明書、暗号化された秘密鍵は対象外です。\nBEGIN 行から対応する END 行まで全文を貼り付け、Enter を押してください（入力は非表示、Ctrl+C で中止）:\n'
 COMPLETE=false
-while IFS= read -r LINE </dev/tty; do
+# read 自身に案内を表示させ、表示直後の Ctrl+C も入力待機中に扱う。
+while IFS= read -r -p "$INPUT_PROMPT" LINE </dev/tty 2>/dev/tty; do
+  INPUT_PROMPT=
   LINE=${LINE%$'\r'}
   PEM+="$LINE"$'\n'
   case "$LINE" in

@@ -15,6 +15,7 @@ import pytest
 pytestmark = pytest.mark.skipif(os.name == "nt", reason="Bash and POSIX tty tests")
 SCRIPT = Path(__file__).resolve().parents[1] / "import-sre-agent-github-key.sh"
 PROMPT = "GitHub App の秘密鍵（PEM 形式）".encode()
+INPUT_PROMPT_END = "（入力は非表示、Ctrl+C で中止）:\r\n".encode()
 
 MOCK = r"""#!/usr/bin/env bash
 set -euo pipefail
@@ -230,7 +231,11 @@ def test_cleanup_refuses_unowned_resources(
 
 
 def run_with_tty(
-    env: dict[str, str], secret: bytes, *, interrupt: bool = False
+    env: dict[str, str],
+    secret: bytes,
+    *,
+    interrupt: bool = False,
+    read_size: int = 65536,
 ) -> tuple[int, bytes]:
     import pty
 
@@ -248,13 +253,14 @@ def run_with_tty(
             if not ready:
                 continue
             try:
-                chunk = os.read(master, 65536)
+                chunk = os.read(master, read_size)
             except OSError:
                 break
             if not chunk:
                 break
             output += chunk
-            if not sent and PROMPT in output and output.endswith(b"\r\n"):
+            # 複数行の案内は分割して届くため、最初の改行では入力を開始しない。
+            if not sent and INPUT_PROMPT_END in output:
                 if interrupt:
                     os.killpg(pid, signal.SIGINT)
                 else:
@@ -286,6 +292,7 @@ def test_hidden_input_and_uncertain_import_can_restart_without_new_version(
     state, env = cli
     rc, output = run_with_tty({**env, "FAIL_IMPORT_RESPONSE": "1"}, secret)
     assert rc != 0
+    assert output.count(PROMPT) == 1
     assert secret.splitlines()[1] not in output
     assert_clean(state)
     assert (state / "public").exists(), output.decode(errors="replace")
@@ -293,6 +300,7 @@ def test_hidden_input_and_uncertain_import_can_restart_without_new_version(
         {**env, "FAIL_LOGIN_ONCE": "1", "FAIL_VAULT_ONCE": "1"}, secret
     )
     assert rc == 0, output.decode(errors="replace")
+    assert output.count(PROMPT) == 1
     assert secret.splitlines()[1] not in output
     assert events(state).count("key-import") == 1
     assert_clean(state)
@@ -308,9 +316,13 @@ def test_invalid_secret_is_removed(
     assert_clean(state)
 
 
-def test_sigint_cleans_resources(cli: tuple[Path, dict[str, str]]) -> None:
+@pytest.mark.parametrize("read_size", [1, 65536])
+@pytest.mark.parametrize("interrupt", [False, True], ids=["ctrl-c", "sigint"])
+def test_sigint_cleans_resources(
+    cli: tuple[Path, dict[str, str]], read_size: int, interrupt: bool
+) -> None:
     state, env = cli
-    rc, _ = run_with_tty(env, b"", interrupt=True)
+    rc, _ = run_with_tty(env, b"\x03", interrupt=interrupt, read_size=read_size)
     assert rc == 130
     assert "key-import" not in events(state)
     assert_clean(state)
