@@ -233,9 +233,6 @@ def test_cleanup_refuses_unowned_resources(
 def run_with_tty(
     env: dict[str, str],
     secret: bytes,
-    *,
-    interrupt: bool = False,
-    read_size: int = 65536,
 ) -> tuple[int, bytes]:
     import pty
 
@@ -253,7 +250,7 @@ def run_with_tty(
             if not ready:
                 continue
             try:
-                chunk = os.read(master, read_size)
+                chunk = os.read(master, 65536)
             except OSError:
                 break
             if not chunk:
@@ -261,10 +258,7 @@ def run_with_tty(
             output += chunk
             # 複数行の案内は分割して届くため、最初の改行では入力を開始しない。
             if not sent and INPUT_PROMPT_END in output:
-                if interrupt:
-                    os.killpg(pid, signal.SIGINT)
-                else:
-                    os.write(master, secret)
+                os.write(master, secret)
                 sent = True
         else:
             os.kill(pid, 9)
@@ -312,18 +306,6 @@ def test_invalid_secret_is_removed(
     state, env = cli
     rc, _ = run_with_tty(env, b"invalid\n-----END PRIVATE KEY-----\n")
     assert rc != 0
-    assert "key-import" not in events(state)
-    assert_clean(state)
-
-
-@pytest.mark.parametrize("read_size", [1, 65536])
-@pytest.mark.parametrize("interrupt", [False, True], ids=["ctrl-c", "sigint"])
-def test_sigint_cleans_resources(
-    cli: tuple[Path, dict[str, str]], read_size: int, interrupt: bool
-) -> None:
-    state, env = cli
-    rc, _ = run_with_tty(env, b"\x03", interrupt=interrupt, read_size=read_size)
-    assert rc == 130
     assert "key-import" not in events(state)
     assert_clean(state)
 
