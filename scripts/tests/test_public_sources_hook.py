@@ -42,7 +42,7 @@ def test_unconfirmed_or_denied_policy_stops(
     assert "docs/deployment.md#docker-build-のpackage-index" in error
     assert "package-api-approved-index" in error
     assert f"azd env set {hook.POLICY_VARIABLE} true" in error
-    assert "Functions remote build" in error
+    assert "Functions の配備用依存" in error
 
 
 def test_missing_policy_is_not_approval(environ: dict[str, str]) -> None:

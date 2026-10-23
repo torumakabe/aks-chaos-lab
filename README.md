@@ -24,6 +24,7 @@ graph TD
   Prom[Azure Monitor managed Prometheus]
   SLI[Azure Monitor SLI]
   LA[Log Analytics]
+  SRE[Azure SRE Agent (optional)]
   CS[Azure Chaos Studio]
   Locust[Locust load tests]
 
@@ -42,6 +43,9 @@ graph TD
   App -->|Entra ID auth| Redis
   App -->|OTLP traces/metrics/logs| AppInsights
   AppInsights --> LA
+  SRE -->|App Insights connector| AppInsights
+  SRE -->|Log Analytics connector| LA
+  SRE -->|Resource Group read access| AKS
   Publisher -->|remote-write good/total| Prom
   GW -->|Envoy metrics| Prom
   Prom -->|external SLI metrics| SLI
@@ -55,7 +59,7 @@ graph TD
 | アプリ | Python 3.14 + FastAPI + Redis + OpenTelemetry | [`src/api/app/`](src/api/app/) |
 | インフラ | Bicep subscription scope + `azd` layers (`base`, `sli`) | [`infra/`](infra/), [`azure.yaml`](azure.yaml) |
 | Kubernetes | Kustomize, Gateway API, Cilium L7 policy, Chaos Mesh | [`k8s/`](k8s/) |
-| 可観測性 | Azure Functions external SLI probe/publisher, Application Insights, Managed Prometheus, Container Insights, SLI alerts | [docs/observability.md](docs/observability.md) |
+| 可観測性 | Azure Functions external SLI probe/publisher, Application Insights, Managed Prometheus, Container Insights, Azure SRE Agent (任意), SLI alerts | [docs/observability.md](docs/observability.md) |
 | 障害注入 | Azure Chaos Studio から Chaos Mesh 実験を実行 | [docs/chaos-experiments.md](docs/chaos-experiments.md) |
 
 設計判断の理由は README では繰り返しません。判断の背景や却下した選択肢は [ADR 一覧](docs/adr/INDEX.md) を参照してください。
@@ -106,6 +110,7 @@ azd down --force --purge
 |--------------|------|
 | 環境構築、権限、feature flag、`azd up/down`、ローカル開発、負荷テスト | [docs/deployment.md](docs/deployment.md) |
 | 可観測性のシグナル、SLI、アラート、OTLP logs、運用上の注意 | [docs/observability.md](docs/observability.md) |
+| Azure SRE Agent の自動設定、GitHub App の後日接続、ナレッジ更新 | [docs/sre-agent.md](docs/sre-agent.md) |
 | Chaos 実験の種類と実行方法 | [docs/chaos-experiments.md](docs/chaos-experiments.md) |
 | 依存パッケージとツールの更新責務、検査結果の解釈 | [docs/dependency-management.md](docs/dependency-management.md) |
 | なぜその構成にしたか | [docs/adr/INDEX.md](docs/adr/INDEX.md) |

@@ -829,7 +829,6 @@ def test_up_preserves_sequential_services_with_one_nap_step() -> None:
     config = yaml.safe_load((REPO_ROOT / "azure.yaml").read_text(encoding="utf-8"))
     assert config["workflows"]["up"]["steps"] == [
         {"azd": "provision base"},
-        {"azd": "deploy api-instrumentation"},
         {
             "azd": {
                 "args": [
@@ -839,16 +838,135 @@ def test_up_preserves_sequential_services_with_one_nap_step() -> None:
                     "run",
                     "--no-project",
                     "scripts/tasks.py",
-                    "deploy-node-provisioning",
+                    "deploy-services",
                 ]
             }
         },
-        {"azd": "deploy api"},
-        {"azd": "deploy observability"},
-        {"azd": "deploy chaos-mesh"},
-        {"azd": "deploy external-sli-publisher"},
         {"azd": "provision sli"},
     ]
+
+
+@pytest.mark.parametrize("private", [False, True])
+def test_deploy_services_shares_order_and_hooks(
+    monkeypatch: pytest.MonkeyPatch,
+    private: bool,
+) -> None:
+    import api_artifact
+
+    monkeypatch.setenv("AZD_ALLOW_PUBLIC_SOURCES", "true")
+    calls: list[str] = []
+    monkeypatch.setattr(tasks, "deployment_environment_name", lambda _: "test")
+    monkeypatch.setattr(
+        tasks,
+        "selected_approved_index_config",
+        lambda: Path("uv.toml") if private else None,
+    )
+    monkeypatch.setattr(api_artifact, "inspect_local_image", lambda _: "id")
+    monkeypatch.setattr(tasks, "run", lambda args, **_: calls.append(args[2]))
+    monkeypatch.setattr(
+        tasks, "target_deploy_node_provisioning", lambda: calls.append("nap")
+    )
+    monkeypatch.setattr(
+        tasks,
+        "target_deploy_api_approved_index",
+        lambda _: calls.append("prebuilt-api"),
+    )
+    tasks.target_deploy_services(image="image" if private else None)
+    assert calls == [
+        "api-instrumentation",
+        "nap",
+        "prebuilt-api" if private else "api",
+        "observability",
+        "chaos-mesh",
+        "external-sli-publisher",
+    ]
+
+
+def test_private_deploy_requires_explicit_image_before_applying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(tasks, "deployment_environment_name", lambda _: "test")
+    monkeypatch.setattr(
+        tasks, "selected_approved_index_config", lambda: Path("uv.toml")
+    )
+    monkeypatch.setattr(tasks, "run", lambda *_args, **_kwargs: pytest.fail("deployed"))
+    with pytest.raises(SystemExit, match="--image"):
+        tasks.target_deploy_services()
+
+
+def test_public_deploy_requires_approval_before_applying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("AZD_ALLOW_PUBLIC_SOURCES", raising=False)
+    monkeypatch.setattr(tasks, "deployment_environment_name", lambda _: "test")
+    monkeypatch.setattr(tasks, "selected_approved_index_config", lambda: None)
+    monkeypatch.setattr(tasks, "run", lambda *_args, **_kwargs: pytest.fail("deployed"))
+    with pytest.raises(SystemExit, match="AZD_ALLOW_PUBLIC_SOURCES"):
+        tasks.target_deploy_services()
+
+
+def test_publisher_uses_shared_local_package_hook() -> None:
+    import yaml
+
+    config = yaml.safe_load((REPO_ROOT / "azure.yaml").read_text(encoding="utf-8"))
+    publisher = config["services"]["external-sli-publisher"]
+    assert publisher["remoteBuild"] is False
+    for platform in ("windows", "posix"):
+        assert (
+            "prepare-publisher-dependencies"
+            in publisher["hooks"]["prepackage"][platform]["run"]
+        )
+
+
+@pytest.mark.parametrize("private", [False, True])
+def test_publisher_prepares_hashed_linux_dependencies(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    private: bool,
+) -> None:
+    configure_root(monkeypatch, tmp_path, "version = 1\n")
+    publisher = tmp_path / "publisher"
+    publisher.mkdir()
+    monkeypatch.setattr(tasks, "PUBLISHER_DIR", publisher)
+    monkeypatch.setenv("AZD_ALLOW_PUBLIC_SOURCES", "true")
+    monkeypatch.setattr(
+        tasks,
+        "selected_approved_index_config",
+        lambda: tmp_path / "uv.toml" if private else None,
+    )
+    monkeypatch.setattr(tasks, "ensure_public_lock", lambda: None)
+    monkeypatch.setattr(tasks, "validate_exported_requirements", lambda _: None)
+    calls: list[tuple[list[str], bool]] = []
+
+    def run(args: list[str], **kwargs: Any) -> None:
+        calls.append((args, "config_path" in kwargs))
+        if args[1] == "export":
+            Path(args[args.index("--output-file") + 1]).write_text(
+                "test==1", encoding="utf-8"
+            )
+        else:
+            target = Path(args[args.index("--target") + 1])
+            target.mkdir(parents=True)
+            (target / "dependency.py").write_text("# dependency\n", encoding="utf-8")
+
+    monkeypatch.setattr(tasks, "run", run)
+    monkeypatch.setattr(tasks, "run_private_index_sync", run)
+    tasks.target_prepare_publisher_dependencies()
+    assert "--frozen" in calls[0][0]
+    install, approved = calls[1]
+    assert approved is private
+    assert "--require-hashes" in install
+    assert install[install.index("--python-platform") + 1] == "x86_64-manylinux_2_28"
+    assert install[install.index("--python-version") + 1] == "3.14"
+    assert install[install.index("--only-binary") + 1] == ":all:"
+    assert (publisher / ".python_packages/lib/site-packages/dependency.py").is_file()
+
+
+def test_publisher_public_requires_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(tasks, "selected_approved_index_config", lambda: None)
+    monkeypatch.delenv("AZD_ALLOW_PUBLIC_SOURCES", raising=False)
+    with pytest.raises(SystemExit, match="AZD_ALLOW_PUBLIC_SOURCES"):
+        tasks.target_prepare_publisher_dependencies()
 
 
 def test_run_uv_binds_root_project_and_environment(

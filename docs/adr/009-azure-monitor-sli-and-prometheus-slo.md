@@ -17,6 +17,8 @@ ADR-004 では Gateway Envoy メトリクスを信頼性 signal として採用�
 ## Decision
 
 - Azure Monitor SLI で、外形 Availability / Latency に基づく SLO / SLI と error budget を評価し、burn-rate alert で通知する。
+- Azure Monitor の query-based metric alerts は、external SLI publisher の入力 good / total metrics を使って評価する。Baseline は設定された rolling period の全 probe 件数を確認してから SLO target と比較する。短窓アラートは15分間に5件以上の失敗 probe を検知し、長窓アラートは6時間窓で SLO error budget に対する burn rate が6x以上の場合に検知する。いずれも1分間隔で評価し、条件が1分継続した場合に発火する。
+- Latency alert は SLI 定義と同じ `latencyThresholdLe` の `le` bucket を使う。publisher の入力 metrics は1分ごとに発行されるため、短窓の判定に SLI destination metrics を使わない。
 - Managed Prometheus の短期アラートは、Kubernetes 基盤と external SLI publisher の異常を検知する operational / incident detection alert として維持する。publisher の停止は `ExternalSliPublisherHeartbeatMissing` で検知する。
 - Prometheus alert 名、labels、feature flag は `slo` ではなく operational alert として命名する。
 - Gateway Envoy 由来の p95 レイテンシとエラー率の recording rules は、短期診断用に維持する。Gateway 指標による高エラー率、遅延、無通信の短期アラートは廃止し、SLO 評価と通知には外形 SLI を使う。
@@ -26,6 +28,7 @@ ADR-004 では Gateway Envoy メトリクスを信頼性 signal として採用�
 ## Consequences
 
 - 長期の SLO / error budget 評価と、数分単位の operational alert を分離できる。
+- 短窓アラートの5件しきい値は、1 probe/分の場合に15分内の失敗率33%に相当する。SLO target が異なる Availability と Latency では burn rate が異なる。
 - Gateway Envoy recording rules は短期診断に限定する。Gateway 内部の指標を使う短期通知は行わず、基盤と publisher の異常検知は Managed Prometheus alerts で継続する。
 - Azure Monitor SLI は preview API と Service Group scope resource に依存する。必要な RBAC、Service Group cleanup、入力 metric 出現待ちは [docs/deployment.md](../deployment.md) と [docs/workarounds.md](../workarounds.md) に置く。
 - SLI input / destination metrics、Gateway Envoy recording rules、external SLI publisher の観測方法は [docs/observability.md](../observability.md) に置く。

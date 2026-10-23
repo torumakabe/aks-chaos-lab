@@ -700,81 +700,9 @@ def delete_sli_layer_deployment_records(
             raise SystemExit(1)
 
 
-def delete_base_resource_group_sync(
-    env_name: str,
-    resource_group: str,
-    subscription_id: str,
-    *,
-    dry_run: bool,
-) -> None:
-    if not env_flag("AZURE_MONITOR_SLI_FIX_BASE_VOID", default=True):
-        log(
-            "AZURE_MONITOR_SLI_FIX_BASE_VOID=false; skipping base RG sync delete (evidence-collection mode)"
-        )
-        return
-
-    if not resource_group and env_name:
-        resource_group = f"rg-aks-chaos-lab-{env_name}"
-
-    if not resource_group:
-        log(
-            "AZURE_RESOURCE_GROUP and AZURE_ENV_NAME are not set; skipping base RG sync delete"
-        )
-        return
-
-    if not resource_group_exists(resource_group, subscription_id):
-        log(f"base resource group {resource_group} is already deleted")
-        return
-
-    log(f"deleting base resource group {resource_group} (synchronous)")
-    if dry_run:
-        log(f"dry-run: would delete base resource group {resource_group}")
-        return
-
-    completed = run_command(
-        [
-            "az",
-            "group",
-            "delete",
-            "--subscription",
-            subscription_id,
-            "--name",
-            resource_group,
-            "--yes",
-            "--no-wait",
-            "--output",
-            "none",
-        ],
-        allow_failure=True,
-        quiet_stderr=True,
-    )
-    if completed.returncode != 0:
-        log(f"failed to initiate base RG deletion for {resource_group}")
-        raise SystemExit(1)
-
-    for attempt in range(1, 241):
-        if not resource_group_exists(resource_group, subscription_id):
-            log(f"base resource group {resource_group} deleted (attempt {attempt})")
-            return
-        if attempt == 1 or attempt % 12 == 0:
-            log(f"{resource_group} still deleting (attempt {attempt}/240)")
-        time.sleep(15)
-
-    log(
-        f"base resource group {resource_group} still exists after delete timeout; manual cleanup required"
-    )
-    raise SystemExit(1)
-
-
 def delete_base_layer_deployment_records(
     env_name: str, subscription_id: str, *, dry_run: bool
 ) -> None:
-    if not env_flag("AZURE_MONITOR_SLI_FIX_BASE_VOID", default=True):
-        log(
-            "AZURE_MONITOR_SLI_FIX_BASE_VOID=false; skipping base layer void prevention (evidence-collection mode)"
-        )
-        return
-
     if not env_name:
         log(
             "AZURE_ENV_NAME is not set; skipping base sub-scope deployment record cleanup"
@@ -827,9 +755,9 @@ def delete_base_layer_deployment_records(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Clean up Azure Monitor SLI resources before azd down.",
+        description="Clean up resources around azd down.",
     )
-    parser.add_argument("phase", nargs="?", default="pre")
+    parser.add_argument("phase", nargs="?", choices=("pre", "post"), default="pre")
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -840,9 +768,6 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if args.phase != "pre":
-        log(f"unknown cleanup phase: {args.phase} (expected 'pre')")
-        return 1
 
     dry_run = args.dry_run or env_flag("AZURE_MONITOR_SLI_CLEANUP_DRY_RUN")
     require_command("az")
@@ -883,6 +808,23 @@ def main() -> int:
             f"/providers/Microsoft.Management/serviceGroups/{service_group_name}"
         )
 
+    if not resource_group and env_name:
+        resource_group = f"rg-aks-chaos-lab-{env_name}"
+
+    if not aks_cluster_name and env_name:
+        aks_cluster_name = f"aks-aks-chaos-lab-{env_name}"
+
+    if resource_group and not is_owned_resource_group(resource_group, env_name):
+        log(
+            "resource group is outside current env naming scope; "
+            f"stopping cleanup: env={env_name}, resourceGroup={resource_group}"
+        )
+        return 1
+
+    if args.phase == "post":
+        delete_base_layer_deployment_records(env_name, subscription_id, dry_run=dry_run)
+        return 0
+
     service_group_failed = False
     try:
         candidate_service_group_ids = (
@@ -917,36 +859,14 @@ def main() -> int:
         service_group_failed = True
         log("Service Group cleanup failed; continuing subscription-scoped cleanup")
 
-    if not resource_group and env_name:
-        resource_group = f"rg-aks-chaos-lab-{env_name}"
-
-    if not aks_cluster_name and env_name:
-        aks_cluster_name = f"aks-aks-chaos-lab-{env_name}"
-
-    if resource_group and not is_owned_resource_group(resource_group, env_name):
-        log(
-            "resource group is outside current env naming scope; "
-            f"stopping RG-scoped cleanup: env={env_name}, resourceGroup={resource_group}"
-        )
-        return 1
-
     delete_otlp_app_insights_dcra(
         resource_group, aks_cluster_name, subscription_id, dry_run=dry_run
     )
 
-    # Eliminate the void deployment polling 404 risk by short-circuiting both layers'
-    # Destroy paths. Order matters:
-    #   1. SLI record first (sub-scope only, no RG)
-    #   2. Base RG sync delete
-    #   3. Base record last, retained if Service Group cleanup needs a retry
     delete_sli_layer_deployment_records(env_name, subscription_id, dry_run=dry_run)
-    delete_base_resource_group_sync(
-        env_name, resource_group, subscription_id, dry_run=dry_run
-    )
     if service_group_failed:
-        log("retaining base deployment records for Service Group cleanup retry")
+        log("retaining deployment records for Service Group cleanup retry")
         return 1
-    delete_base_layer_deployment_records(env_name, subscription_id, dry_run=dry_run)
     return 0
 
 

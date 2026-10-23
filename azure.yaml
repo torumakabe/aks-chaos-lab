@@ -8,6 +8,21 @@ infra:
   layers:
     - name: base
       path: ./infra
+      hooks:
+        preprovision:
+          windows:
+            run: uv run --no-project --no-config ..\scripts\configure_sre_agent.py validate
+            interactive: false
+          posix:
+            run: uv run --no-project --no-config ../scripts/configure_sre_agent.py validate
+            interactive: false
+        postprovision:
+          windows:
+            run: uv run --no-project --no-config ..\scripts\configure_sre_agent.py
+            interactive: false
+          posix:
+            run: uv run --no-project --no-config ../scripts/configure_sre_agent.py
+            interactive: false
     - name: sli
       path: ./infra/sli
       hooks:
@@ -22,7 +37,6 @@ workflows:
   up:
     steps:
       - azd: provision base
-      - azd: deploy api-instrumentation
       - azd:
           args:
             - exec
@@ -31,11 +45,7 @@ workflows:
             - run
             - --no-project
             - scripts/tasks.py
-            - deploy-node-provisioning
-      - azd: deploy api
-      - azd: deploy observability
-      - azd: deploy chaos-mesh
-      - azd: deploy external-sli-publisher
+            - deploy-services
       - azd: provision sli
 
 hooks:
@@ -52,10 +62,17 @@ hooks:
       continueOnError: false
   predown:
     windows:
-      run: uv run scripts/cleanup-azure-monitor-sli-resources.py
+      run: uv run --no-project --no-config scripts/cleanup-azure-monitor-sli-resources.py
       interactive: false
     posix:
-      run: uv run scripts/cleanup-azure-monitor-sli-resources.py
+      run: uv run --no-project --no-config scripts/cleanup-azure-monitor-sli-resources.py
+      interactive: false
+  postdown:
+    windows:
+      run: uv run --no-project --no-config scripts/cleanup-azure-monitor-sli-resources.py post
+      interactive: false
+    posix:
+      run: uv run --no-project --no-config scripts/cleanup-azure-monitor-sli-resources.py post
       interactive: false
 
 services:
@@ -145,6 +162,15 @@ services:
     language: python
     host: function
     resourceName: ${AZURE_EXTERNAL_SLI_FUNCTION_APP_NAME}
+    remoteBuild: false
+    hooks:
+      prepackage:
+        windows:
+          run: uv run --no-project --no-config ..\..\scripts\tasks.py prepare-publisher-dependencies
+          interactive: false
+        posix:
+          run: uv run --no-project --no-config ../../scripts/tasks.py prepare-publisher-dependencies
+          interactive: false
   chaos-mesh:
     project: .
     host: aks

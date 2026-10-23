@@ -21,7 +21,7 @@ from approved_index_config import (
 
 POLICY_VARIABLE = "AZD_ALLOW_PUBLIC_SOURCES"
 GUIDANCE = f"""
-通常の azd up は public PyPI（API build / Functions remote build）、公開コンテナレジストリ、Helm repository を使用します。
+通常の azd up は public PyPI（API build / Functions の配備用依存）、公開コンテナレジストリ、Helm repository を使用します。
 公開取得が許可済みの場合:
   azd env set {POLICY_VARIABLE} true -e "<env>"
 承認済み Python index を使う場合:

@@ -56,6 +56,7 @@ output logAnalyticsCustomerId string = logAnalyticsWorkspace.properties.customer
 output logAnalyticsNameOut string = logAnalyticsWorkspace.name
 output applicationInsightsId string = applicationInsights.id
 output applicationInsightsNameOut string = applicationInsights.name
+output applicationInsightsAppId string = applicationInsights.properties.AppId
 output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
 #disable-next-line BCP053
 output applicationInsightsDataCollectionRuleId string = applicationInsights.properties.DataCollectionRuleResourceId

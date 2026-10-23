@@ -27,17 +27,17 @@ param prometheusWorkspaceResourceId string = ''
 @description('Metric namespace used by Azure Monitor SLI for Managed Prometheus metrics')
 param metricNamespace string = 'customdefault'
 
-@description('Enable Azure Monitor SLI baseline / fast burn / slow burn metric alerts')
+@description('Enable Azure Monitor SLI baseline / short-window / long-window metric alerts')
 param enableSliAlerts bool = true
-
-@description('Location used for Azure Monitor SLI-generated metric alert resources')
-param metricAlertLocation string = 'eastus'
 
 @description('Availability SLI resource name')
 param availabilitySliName string = ''
 
 @description('Latency SLI resource name')
 param latencySliName string = ''
+
+@description('External SLI probe name emitted in the Prometheus test label')
+param externalSliProbeName string = ''
 
 @description('Availability SLI baseline target percentage')
 @minValue(0)
@@ -76,21 +76,21 @@ param signalDimensions string[] = [
   'test'
 ]
 
-@description('Azure Monitor SLI fast burn-rate alert threshold')
+@description('Minimum failed probe windows required by the Azure Monitor SLI short-window alert')
 @minValue(1)
-param fastBurnRateThreshold int = 14
+param shortWindowFailedProbeThreshold int = 5
 
-@description('Azure Monitor SLI fast burn-rate alert lookback in hours')
+@description('Azure Monitor SLI short-window alert lookback in minutes')
 @minValue(1)
-param fastBurnRateLookbackHours int = 1
+param shortWindowLookbackMinutes int = 15
 
-@description('Azure Monitor SLI slow burn-rate alert threshold')
+@description('Azure Monitor SLI long-window burn-rate alert threshold')
 @minValue(1)
-param slowBurnRateThreshold int = 6
+param longWindowBurnRateThreshold int = 6
 
-@description('Azure Monitor SLI slow burn-rate alert lookback in hours')
+@description('Azure Monitor SLI long-window burn-rate alert lookback in hours')
 @minValue(1)
-param slowBurnRateLookbackHours int = 6
+param longWindowLookbackHours int = 6
 
 @description('Action Group resource ID for alerts')
 param actionGroupId string = ''
@@ -119,6 +119,12 @@ var hasSliPipeline = !empty(normalizedSliIdentityResourceId) && !empty(normalize
 var hasSliNames = !empty(normalizedAvailabilitySliName) && !empty(normalizedLatencySliName)
 var canCreateSli = enabled && hasServiceGroup && hasSliPipeline && hasSliNames
 
+// metric alert rule は AMW と同じリージョンに作成する。別リージョンでは評価されない。
+resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = if (canCreateSli && enableSliAlerts) {
+  scope: resourceGroup(effectiveResourceGroupName)
+  name: last(split(normalizedPrometheusWorkspaceResourceId, '/'))
+}
+
 module azureMonitorSliDefinitions '../modules/azmonitor/sli-definitions.bicep' = if (canCreateSli) {
   // Subscription-scoped deployment name; suffix with environment so different
   // regions don't collide.
@@ -144,22 +150,29 @@ module azureMonitorSliMetricAlerts '../modules/azmonitor/sli-metric-alerts.bicep
   name: 'azureMonitorSliMetricAlerts'
   scope: resourceGroup(effectiveResourceGroupName)
   params: {
-    location: metricAlertLocation
+    #disable-next-line BCP318
+    location: prometheusWorkspace.location
     tags: tags
     prometheusWorkspaceResourceId: normalizedPrometheusWorkspaceResourceId
     sliIdentityResourceId: normalizedSliIdentityResourceId
     actionGroupId: normalizedActionGroupId
     serviceGroupId: normalizedServiceGroupId
+    environment: environment
+    externalSliProbeName: externalSliProbeName
     #disable-next-line BCP318
     availabilitySliId: azureMonitorSliDefinitions.outputs.availabilitySliId
     availabilitySliName: normalizedAvailabilitySliName
     #disable-next-line BCP318
     latencySliId: azureMonitorSliDefinitions.outputs.latencySliId
     latencySliName: normalizedLatencySliName
-    fastBurnRateThreshold: fastBurnRateThreshold
-    fastBurnRateLookbackHours: fastBurnRateLookbackHours
-    slowBurnRateThreshold: slowBurnRateThreshold
-    slowBurnRateLookbackHours: slowBurnRateLookbackHours
+    availabilityBaselineTargetPercent: availabilityBaselineTargetPercent
+    latencyBaselineTargetPercent: latencyBaselineTargetPercent
+    latencyThresholdLe: latencyThresholdLe
+    evaluationPeriodDays: evaluationPeriodDays
+    shortWindowFailedProbeThreshold: shortWindowFailedProbeThreshold
+    shortWindowLookbackMinutes: shortWindowLookbackMinutes
+    longWindowBurnRateThreshold: longWindowBurnRateThreshold
+    longWindowLookbackHours: longWindowLookbackHours
   }
 }
 
@@ -182,14 +195,14 @@ output AZURE_MONITOR_SLI_BASELINE_ALERT_IDS array = canCreateSli && enableSliAle
   ? azureMonitorSliMetricAlerts.outputs.baselineAlertIds
   : []
 
-@description('Azure Monitor SLI fast burn-rate alert resource IDs')
+@description('Azure Monitor SLI short-window alert resource IDs')
 #disable-next-line BCP318
-output AZURE_MONITOR_SLI_FAST_BURN_ALERT_IDS array = canCreateSli && enableSliAlerts
-  ? azureMonitorSliMetricAlerts.outputs.fastBurnRateAlertIds
+output AZURE_MONITOR_SLI_SHORT_WINDOW_ALERT_IDS array = canCreateSli && enableSliAlerts
+  ? azureMonitorSliMetricAlerts.outputs.shortWindowAlertIds
   : []
 
-@description('Azure Monitor SLI slow burn-rate alert resource IDs')
+@description('Azure Monitor SLI long-window alert resource IDs')
 #disable-next-line BCP318
-output AZURE_MONITOR_SLI_SLOW_BURN_ALERT_IDS array = canCreateSli && enableSliAlerts
-  ? azureMonitorSliMetricAlerts.outputs.slowBurnRateAlertIds
+output AZURE_MONITOR_SLI_LONG_WINDOW_ALERT_IDS array = canCreateSli && enableSliAlerts
+  ? azureMonitorSliMetricAlerts.outputs.longWindowAlertIds
   : []
