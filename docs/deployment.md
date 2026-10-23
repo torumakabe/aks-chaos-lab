@@ -121,6 +121,28 @@ azd up
 
 `base` と `sli` を分離する判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md)、デプロイ後の SLI 評価開始の確認は [可観測性ガイド](observability.md#アプリ信頼性-signal)を参照してください。`azd up` は SLI destination metric の出現までは待ちません。
 
+### Bicep の適用前差分確認
+
+Bicep の差分確認には、[What-if 分析スキル](../.github/skills/bicep-what-if-analysis/SKILL.md)を使います。このスクリプトは `azd provision --preview` の出力を解析するのではなく、選択中の azd 環境と `azure.yaml` の layer に対応する Bicep、parameters file から `az deployment sub what-if` を実行します。対象環境を `azd env select "<environment>"` で選択してから実行してください。
+
+```bash
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
+
+# external SLI metrics が出現した後に SLI layer を確認する場合
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer sli
+```
+
+スクリプトは Azure に what-if を照会し、成功時に `.github/skills/bicep-what-if-analysis/scripts/patterns/pattern_stats.json` を解析履歴として更新します。デプロイや preprovision / postprovision hook は実行しません。what-if も `azd provision --preview` と同様に、出力を人が確認して適用を判断する手順です。分析器は差分を細かく表示し、既知パターンに基づく分類と根拠を示しますが、適用可否は自動判定しません。
+
+適用前に、次の順で判断してください。
+
+1. 対象環境、subscription、layer が予定どおりで、what-if が最後まで完了したことを確認します。対象違いや解析失敗があれば適用しません。
+2. Create、Modify、Delete の各リソースについて、変更対象とプロパティを予定していた変更と照合します。Delete、RBAC / identity、ネットワーク、セキュリティ設定、共有リソースの変更は個別に確認します。text 出力で有効差分の省略が警告された場合は、`--format json` で全差分を確認します。
+3. `⚠️` と `❓`、および `pending` の差分は、Bicep の意図、既存リソースの状態、必要に応じて ARM schema と照合します。`noise_confirmed` や `📘` も、それだけで適用可とは判断せず、表示された根拠がそのリソースとプロパティに当てはまることを確認します。Bicep 照合の `notDefined` は、変数やモジュール経由の設定がない証明にはなりません。
+4. 差分ごとに「予定した変更」「根拠を確認した既知の差分」「未説明」のいずれかに整理します。未説明の差分、予期しない削除、必要な差分の欠落が残る場合は適用を止め、原因を確認してから再度 what-if を実行します。すべての差分を説明できた後に、確認者が適用可否を決めます。
+
+分類は差分の安全性を保証しません。特に Bicep 外で hook が行う操作は what-if の対象外です。適用する場合も、対象 layer の hook と実行される操作を別途確認してください。
+
 検証中、新規環境の初回配備で Service Group（`Microsoft.Management/serviceGroups`）の作成が `ResourceNotFound` で失敗した事例がありました。その後の検証では再現していません。同じエラーで停止した場合は、同じ配備コマンドを再実行してください。発生時は Service Group が作成済みで、再試行により配備が完了したため、同様に成功が期待できます。
 
 上記のサービス配備（2〜7）は、共通 task `deploy-services` が順番に実行します。通常の `up` と組織 index 向けの段階配備は、この task と各 service の hook を共有します。個別のサービスだけを更新するときは、従来どおり `azd deploy <service>` を使えます。
@@ -132,10 +154,10 @@ SRE Agent は `base` layer の opt-in 機能です。`AZURE_SRE_AGENT_ENABLED` �
 ```bash
 azd env set AZURE_SRE_AGENT_ENABLED true
 azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000
-azd provision base --preview
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 ```
 
-preview で Agent、専用 User Assigned Managed Identity、専用 Application Insights、Resource Group 範囲の読み取り role assignments を確認してください。`base` layer には他の基盤リソースも含まれるため、既存リソースの変更を含むすべての差分が意図した内容であることを確認してから、全体をデプロイします。公開取得が許可された環境では次を実行します。組織承認済み package index を使う場合は、同じ環境設定を使って [専用の配備手順](#docker-build-のpackage-index)を実行してください。
+分析結果で Agent、専用 User Assigned Managed Identity、専用 Application Insights、Resource Group 範囲の role assignments を確認してください。`base` layer には他の基盤リソースも含まれるため、既存リソースの変更を含むすべての差分が意図した内容であることを確認してから、全体をデプロイします。公開取得が許可された環境では次を実行します。組織承認済み package index を使う場合は、同じ環境設定を使って [専用の配備手順](#docker-build-のpackage-index)を実行してください。
 
 ```bash
 azd up
@@ -154,10 +176,10 @@ Azure Monitor の alert を Agent に取り込む場合は、別途次の設定�
 ```bash
 azd env set AZURE_SRE_AGENT_ENABLED true
 azd env set AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED true
-azd provision base --preview
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 ```
 
-preview で Agent の `incidentManagementConfiguration` の差分を確認してから、`azd provision base` または `azd up` を実行します。Bicep が Azure Monitor を incident platform として設定し、Agent の user-assigned managed identity に subscription scope の Monitoring Contributor を割り当てます。azd の preview は表示名を持つ resource type だけを出力するため、role assignment は表示されません。配備後に `az role assignment list --all --assignee <user-assigned identity の principal ID>` で割り当てを確認してください。権限は alert rule や Log Analytics workspace の変更にも及ぶため、subscription 全体への付与が適切か確認してください。
+分析結果で Agent の `incidentManagementConfiguration` と subscription scope の Monitoring Contributor role assignment を確認してから、`azd provision base` または `azd up` を実行します。Bicep が Azure Monitor を incident platform として設定し、Agent の user-assigned managed identity に Monitoring Contributor を割り当てます。配備後も `az role assignment list --all --assignee <user-assigned identity の principal ID>` で割り当てを確認してください。権限は alert rule や Log Analytics workspace の変更にも及ぶため、subscription 全体への付与が適切か確認してください。
 
 `base` layer の post-provision hook は、Azure SRE Agent の Data Plane API を使って、response plan `aks-chaos-lab-sli-short-window-review` を作成または更新します。`Title contains` は `SLI short-window alert` とし、Sev3 と `Review` mode に限定します。
 
@@ -178,16 +200,17 @@ Hook は quickstart plan が有効なら無効化し、ほかに有効な Autono
 配備前に既存 SLI metric alert の location が AMW と一致することも確認します。異なる場合は、既存ルールの定義を保存し、同名で再配備する baseline ルールだけを削除してから `sli` を配備します。location は更新できないためです。詳細は [SLI metric alerts](observability.md#sli-metric-alerts) を参照してください。
 
 ```bash
+azd env select "<environment>"
 azd env set AZURE_SRE_AGENT_ENABLED true -e "<environment>"
 azd env set AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED true -e "<environment>"
 azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000 -e "<environment>"
-azd provision base --preview -e "<environment>"
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 azd provision base -e "<environment>"
-azd provision sli --preview -e "<environment>"
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer sli
 azd provision sli -e "<environment>"
 ```
 
-各 preview の差分を確認してから対応する配備コマンドを実行します。`base` は Agent と Azure Monitor 接続、response plan を設定し、`sli` はその plan が照合する短窓アラートを配備します。既存環境のアラートが旧 Fast / Slow 名のままでは、`SLI short-window alert` の title 条件に一致しません。新しい短窓と長窓アラートの作成を確認後、前述の旧アラートを削除します。既存アプリの変更や再ビルドは不要です。
+各 layer の what-if 分析結果を確認してから対応する配備コマンドを実行します。`base` は Agent と Azure Monitor 接続、response plan を設定し、`sli` はその plan が照合する短窓アラートを配備します。既存環境のアラートが旧 Fast / Slow 名のままでは、`SLI short-window alert` の title 条件に一致しません。新しい短窓と長窓アラートの作成を確認後、前述の旧アラートを削除します。既存アプリの変更や再ビルドは不要です。
 
 完了時は Agent の作成成功だけでなく、Azure Monitor 接続、専用 identity の Monitoring Contributor、有効な `Review` response plan、title 条件に一致する Availability / Latency の短窓アラート2件、README のインデックス完了、既存 API の応答を確認します。GitHub 接続は別の任意設定です。
 
@@ -198,15 +221,6 @@ Agent を `false` に戻して incremental deployment を行っても、作成�
 External SLI publisher の Function host storage と deployment storage は managed identity 接続です。Storage account key / connection string に依存しないため、`allowSharedKeyAccess=false` の環境でも `azd deploy external-sli-publisher` を使います。publisher storage は `publicNetworkAccess=Disabled` とし、Function App を `snet-func` に VNet integration して blob / queue / table の Private Endpoint 経由で接続します。公式 azd sample と同じく、デプロイ実行 principal には Storage Blob Data Owner を付与します。
 
 azd 1.33.0 は ZIP を Function App の SCM エンドポイント `/api/publish` へ送信します（[実装](https://github.com/Azure/azure-dev/blob/29133b640536436db9b56f8db4b1781cb136e5ba/cli/azd/pkg/azsdk/funcapp_host_client.go)）。デプロイ実行元に必要なのは SCM への接続で、storage の Private Endpoint へ直接アップロードする構成ではありません。storage への接続は Functions 側で行います。デプロイ失敗時に publisher storage の public access を一時的に開ける運用は行いません。
-
-差分確認:
-
-```bash
-azd provision base --preview
-
-# external SLI metrics 出現後、SLI finalize の差分を見る場合
-azd provision sli --preview
-```
 
 このプロジェクトは `azure.yaml` の `requiredVersions` で azd 1.35.1 以上を要求します。古い azd ではプロジェクトを実行せず、azd を更新してください。
 
@@ -220,10 +234,11 @@ azd provision sli --preview
 
 既存環境で初めて有効化する際は、ノード更新前に `kubectl apply -f k8s/apps/chaos-app/ciliumnetworkpolicy-egress-allowlist.yaml` で DNS 許可を反映してください。有効化と無効化ではノードの再イメージ化による停止を想定し、他の Chaos 実験を停止して実施します。PDB があっても無停止は保証されません。
 
-`<environment>` は対象の azd 環境名に置き換えます。プレビューに意図しない差分がある場合は、続く `azd up` を実行しません。
+`<environment>` は対象の azd 環境名に置き換えます。what-if 分析を実行する前に対象環境を選択します。意図を説明できない差分がある場合は、続く `azd up` を実行しません。
 
 ```bash
-azd provision base --preview -e <environment>
+azd env select "<environment>"
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 azd up -e <environment>
 ```
 
@@ -236,10 +251,11 @@ Node Auto Provisioning（NAP）は既定で有効です。`AZURE_AKS_ENABLE_NODE
 NAP有効時はSystem AgentPoolがArm64 2台固定となり、Cluster Autoscalerは無効になります。未設定の既存環境でも次回のbase layer適用からこの構成が要求されるため、適用前に差分を確認してください。NAPを使わない新規環境や、NAP無効の既存環境を維持する場合は、適用前に `azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING false -e "<env>"` を実行してください。明示的な `false` は引き続き無効として扱います。
 
 ```bash
-azd provision base --preview -e "<env>"
+azd env select "<env>"
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 ```
 
-既存環境のpreviewにAKS以外の意図しない変更、またはSystem AgentPoolの削除や置換が含まれる場合は、base layerを適用しません。Azure PolicyがsubnetへBicep管理外のNSGを関連付ける環境では、previewにNSG関連付けの削除が表示されます。対象NSGがポリシー管理であり、subnetの名前、address prefix、delegationに変更がないことを確認した場合は、期待されたdriftとして扱います。
+既存環境の分析結果にAKS以外の意図しない変更、またはSystem AgentPoolの削除や置換が含まれる場合は、base layerを適用しません。Azure PolicyがsubnetへBicep管理外のNSGを関連付ける環境では、NSG関連付けの削除が差分に表示されます。対象NSGがポリシー管理であり、subnetの名前、address prefix、delegationに変更がないことを確認した場合は、期待されたdriftとして扱います。
 
 差分確認後、標準の `azd up` で AKS の NAP 設定と AKSNodeClass／NodePool を適用します。
 
@@ -266,7 +282,7 @@ NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` �
 5. `az aks nodepool update --enable-cluster-autoscaler --min-count 1 --max-count 3`でSystem AgentPoolのCluster Autoscalerを復元する。
 6. System AgentPool、既存workload、外部health endpointを確認する。
 7. `azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING false -e "<env>"` で無効を明示する。未設定にすると次回の適用で再び有効化されるため、設定を削除しない。
-8. `azd provision base --preview -e "<env>"`を実行し、NAPに関する差分が解消したことを確認する。ポリシー管理のNSG関連付けは期待されたdriftとして残る場合がある。
+8. 対象環境を選択して What-if 分析スキルを `--layer base` で実行し、NAPに関する差分が解消したことを確認する。ポリシー管理のNSG関連付けは期待されたdriftとして残る場合がある。
 
 ## ローカル開発
 

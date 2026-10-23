@@ -152,4 +152,4 @@ Agent、専用 subnet、VNet は同じリージョンで使う。`AZURE_SRE_AGEN
 
 Agent の opt-in を false に戻しても、作成済み Agent、Vault、role assignment は削除されない。Key Vault は purge protection を設定していない。環境を完全削除する場合は `azd down --force --purge` を実行し、azd の purge 機能を使う。Agent と Vault の費用を含め、廃止は明示的な操作として行う。
 
-検証環境で手動作成した subnet、Private Endpoint、RBAC が残っている場合は、base の再適用前に preview で差分を確認する。特に `snet-sre-agent-test` と既定の `snet-sre-agent` の address prefix 重複、Agent の接続先変更、同じ principal / scope / role の異なる role assignment 名に注意する。既存 Agent の接続先を変えるには切断と再接続が必要なため、通常配備の hook による強制切断や検証用リソースの自動削除は行わない。
+検証環境で手動作成した subnet、Private Endpoint、RBAC が残っている場合は、対象環境を選択して [What-if 分析スキル](../.github/skills/bicep-what-if-analysis/SKILL.md)を `--layer base` で実行し、base の再適用前に差分を確認する。特に `snet-sre-agent-test` と既定の `snet-sre-agent` の address prefix 重複、Agent の接続先変更、同じ principal / scope / role の異なる role assignment 名に注意する。既存 Agent の接続先を変えるには切断と再接続が必要なため、通常配備の hook による強制切断や検証用リソースの自動削除は行わない。

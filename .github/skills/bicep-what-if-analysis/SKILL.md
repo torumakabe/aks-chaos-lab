@@ -1,8 +1,8 @@
 ---
 name: bicep-what-if-analysis
 description: >-
-  Bicep/ARM what-if 出力の分析、明示された what-if 実行、ノイズパターンの編集を支援する。
-  「what-if を実行」「ノイズを分類」「Bicep 定義との差分を確認」「未分類のパターンを追加」で使用する。
+  Bicep/ARM what-if 出力の分析、適用前の差分確認、明示された what-if 実行、ノイズパターンの編集を支援する。
+  「適用前の差分を確認」「what-if を実行」「ノイズを分類」「Bicep 定義との差分を確認」「未分類のパターンを追加」で使用する。
   実行時は Azure を照会してローカルの使用統計を更新する。提供済み出力の分析では照会や編集を行わない。
   azd プロジェクト (azure.yaml 存在) と単体 Bicep デプロイの両方に対応。
 ---
@@ -16,10 +16,12 @@ Bicep/ARM what-if の変更内容をノイズパターンと照合し、判断�
 | 依頼 | 操作と副作用 |
 |------|--------------|
 | 提供済みの what-if 出力を分析する | 出力と必要な Bicep、パターン定義を読む。スクリプトを起動せず、Azure 照会、統計更新、パターン編集を行わない |
-| what-if を実行する | 対象を特定してスクリプトを実行する。`az deployment sub what-if` による Azure 照会と、正常終了時の `scripts/patterns/pattern_stats.json` 更新が発生する。デプロイは行わない |
+| what-if を実行する | 対象を特定してスクリプトを実行する。`az deployment sub what-if` による Azure 照会と、正常終了時の `.github/skills/bicep-what-if-analysis/scripts/patterns/pattern_stats.json` 更新が発生する。デプロイは行わない |
 | ノイズパターンを追加、修正する | [パターン管理ガイド](references/pattern-guide.md) を読み、根拠と適用範囲を確認して依頼されたパターンだけを編集する |
 
-what-if 実行を明示され、subscription、layer または template などの対象が決まっている場合は、同じ実行承認を再確認しない。対象が曖昧な場合だけ、必要な情報を確認する。
+適用前の差分確認として what-if が依頼され、subscription、layer または template などの対象が決まっている場合は、このスキルのスクリプトを実行する。Azure what-if の照会と解析履歴の更新を伴う。対象が曖昧な場合だけ、必要な情報を確認する。既存の `azd provision --preview` 出力をこのスクリプトの入力として扱わない。
+
+azd プロジェクトでは、実行前に対象環境が選択されていることを確認する。`azure.yaml` に複数の `infra.layers` がある場合は `--layer` で対象を明示し、既定 layer への暗黙のフォールバックを使わない。`azd env get-values` の `AZURE_SUBSCRIPTION_ID` と `AZURE_LOCATION` が対象環境と一致することも確認する。what-if はスクリプトが受け取った Bicep とパラメーターを評価するものであり、azd hooks の処理は評価しない。
 
 正常終了時の `pattern_stats.json` は解析履歴として保持する。`lastRun` と、マッチしたパターンの `lastMatched` / `matchCount` が未使用パターン警告に使われるため、生成差分を副作用として復元しない。既存出力の分析に、この更新契約を適用しない。
 
@@ -40,7 +42,13 @@ uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_i
 
 ### azd プロジェクト (multi layer)
 
-`azure.yaml` の `infra.layers` を `--layer` で指定すると、`<path>/main.bicep` と `<path>/main.parameters.json` を自動採用し、parameters file 内の `${ENV_VAR}` / `${ENV_VAR=default}` を `azd env get-values` の値で解決する。`=default` は未設定または空の値に適用する。既存の `${ENV_VAR:default}` も従来どおり解決する。
+先に対象環境を選択します。
+
+```bash
+azd env select "<environment>"
+```
+
+`azure.yaml` の `infra.layers` を `--layer` で指定すると、`<path>/main.bicep` と `<path>/main.parameters.json` を自動採用し、parameters file 内の `${ENV_VAR}` / `${ENV_VAR=default}` を選択中の `azd env get-values` の値で解決する。`=default` は未設定または空の値に適用する。既存の `${ENV_VAR:default}` も従来どおり解決する。実行前に選択中環境の subscription と location が対象と一致することを確認する。
 
 ```bash
 # 特定の layer (本リポ例: base / sli) を解析
@@ -67,6 +75,8 @@ uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_i
 分類は安全性の保証ではない。text 出力に非表示の変更を知らせる警告がある場合は、その制限も伝える。提供された出力に必要な詳細がなければ未確認とし、分析依頼だけで再実行しない。
 
 Create は誤検知候補も含めてリソース名を表示し、候補には要確認の注記を付ける。型の一致や状態情報の不足だけでは、正当な新規作成と誤検知を区別できない。JSON の `likelyFalsePositive` と `createFalsePositives` は候補のフラグと件数であり、作成不要と確定した結果ではない。
+
+適用前確認では、対象環境、subscription、layer と what-if の完了を確認してから、Create / Modify / Delete を予定した変更に照合する。Delete、RBAC / identity、ネットワーク、セキュリティ設定、共有リソースは個別に確認する。`⚠️`、`❓`、`pending` は必要に応じて Bicep、既存リソースの状態、ARM schema と照合する。`noise_confirmed`、`📘`、`notDefined` も許可判定ではなく、個別の差分と根拠を確認するための情報として扱う。差分が省略された警告がある場合は JSON 出力を使う。未説明の差分、予期しない削除、必要な差分の欠落、対象外の hook 操作が残る場合は適用を止める。判断根拠を説明できる差分だけになった後、適用可否は人間が決める。azd layer の適用前手順は [deployment guide](../../../docs/deployment.md#bicep-の適用前差分確認) を参照する。
 
 ```
 Resources:
