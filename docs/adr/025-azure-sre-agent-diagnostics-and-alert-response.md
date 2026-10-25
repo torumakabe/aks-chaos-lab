@@ -4,6 +4,8 @@
 
 Accepted
 
+[ADR-026](026-manage-infrastructure-with-deployment-stacks.md) は、専用リソースの廃止方法を明示的な手動削除から Deployment Stacks の定義除外による削除へ変更した。Agent の opt-in、権限範囲とレビュー型対応の判断は維持する。
+
 - Date: 2026-10-19
 - Updated: 2026-10-22
 

@@ -8,6 +8,13 @@ infra:
   layers:
     - name: base
       path: ./infra
+      deploymentStacks:
+        actionOnUnmanage:
+          resources: delete
+          resourceGroups: delete
+          managementGroups: delete
+        denySettings:
+          mode: none
       hooks:
         preprovision:
           windows:
@@ -25,6 +32,13 @@ infra:
             interactive: false
     - name: sli
       path: ./infra/sli
+      deploymentStacks:
+        actionOnUnmanage:
+          resources: delete
+          resourceGroups: delete
+          managementGroups: delete
+        denySettings:
+          mode: none
       hooks:
         preprovision:
           windows:
@@ -49,6 +63,13 @@ workflows:
       - azd: provision sli
 
 hooks:
+  preprovision:
+    windows:
+      run: uv run --no-project --no-config scripts/deployment_stacks.py
+      interactive: false
+    posix:
+      run: uv run --no-project --no-config scripts/deployment_stacks.py
+      interactive: false
   preup:
     windows:
       shell: pwsh

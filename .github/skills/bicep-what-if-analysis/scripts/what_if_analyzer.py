@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 import sys
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -1087,7 +1088,7 @@ def detect_azd_project() -> tuple[bool, dict[str, str]]:
 
 
 def parse_azure_yaml_layers(yaml_path: str = "azure.yaml") -> list[dict[str, str]]:
-    """azure.yaml の infra.layers セクションを解析し [{name, path}] を返す。
+    """azure.yaml の layer 名、path と Stack 設定を読み取る。
 
     PyYAML 等の追加依存を避け、行ベースの簡易パーサで実装する。
     azd の典型構造 (indent 2 / 4 / 6) に対応。
@@ -1134,6 +1135,7 @@ def parse_azure_yaml_layers(yaml_path: str = "azure.yaml") -> list[dict[str, str
     layers: list[dict[str, str]] = []
     in_infra = False
     in_layers = False
+    stack_section = ""
     current: dict[str, str] = {}
 
     with open(yaml_path, encoding="utf-8") as f:
@@ -1187,6 +1189,19 @@ def parse_azure_yaml_layers(yaml_path: str = "azure.yaml") -> list[dict[str, str
                 m = re.match(r"([A-Za-z_][\w-]*)\s*:\s*(.*)$", stripped)
                 if m:
                     current[m.group(1)] = _strip_value(m.group(2))
+                    stack_section = ""
+                continue
+            if "deploymentStacks" in current:
+                if line.startswith("        ") and not line.startswith("          "):
+                    stack_section = stripped.removesuffix(":")
+                elif line.startswith("          ") and not line.startswith(
+                    "            "
+                ):
+                    m = re.match(r"([A-Za-z_][\w-]*)\s*:\s*(.*)$", stripped)
+                    if m and stack_section in ("actionOnUnmanage", "denySettings"):
+                        current[f"stack.{stack_section}.{m.group(1)}"] = _strip_value(
+                            m.group(2)
+                        )
 
     # 最後の項目を flush
     if current:
@@ -1206,7 +1221,13 @@ def parse_azure_yaml_layers(yaml_path: str = "azure.yaml") -> list[dict[str, str
             )
             continue
         seen.add(layer["name"])
-        result.append({"name": layer["name"], "path": layer["path"]})
+        entry = {"name": layer["name"], "path": layer["path"]}
+        if "deploymentStacks" in layer:
+            entry["deploymentStacks"] = "enabled"
+            entry.update(
+                {key: value for key, value in layer.items() if key.startswith("stack.")}
+            )
+        result.append(entry)
 
     return result
 
@@ -1303,8 +1324,9 @@ def run_what_if(
     parameters: dict[str, Any] | None = None,
     parameters_file: str | None = None,
     extra_env: dict[str, str] | None = None,
+    stack_name: str | None = None,
 ) -> dict[str, Any]:
-    """az deployment sub what-if を実行し、結果を返す。
+    """通常または Stack の subscription what-if を実行する。
 
     parameters_file が指定された場合、`--parameters @<file>` を最初に追加し、
     その後に `parameters` dict を `--parameters key=value` で追加する。
@@ -1327,6 +1349,30 @@ def run_what_if(
         "json",
         "--no-pretty-print",
     ]
+    if stack_name:
+        if not subscription or not re.fullmatch(r"[-\w.()]+", stack_name):
+            raise RuntimeError(
+                "Stack what-if requires a subscription and a valid stack name"
+            )
+        result_name = f"whatif-{stack_name[:45]}-{uuid.uuid4().hex[:12]}"
+        cmd[1:4] = ["stack-whatif", "sub", "create"]
+        cmd.extend(
+            [
+                "--name",
+                result_name,
+                "--stack-id",
+                f"/subscriptions/{subscription}/providers/Microsoft.Resources/deploymentStacks/{stack_name}",
+                "--action-on-unmanage",
+                "deleteAll",
+                "--deny-settings-mode",
+                "none",
+                "--retention-interval",
+                "PT1H",
+            ]
+        )
+        logger.warning(
+            "Creates Azure what-if result %s (retained for one hour)", result_name
+        )
     # Windows: resolve az -> az.cmd so subprocess can find it without shell=True
     resolved = shutil.which(cmd[0])
     if resolved:
@@ -1351,13 +1397,93 @@ def run_what_if(
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
     if result.returncode != 0:
-        # エラーでも JSON が返る場合がある
-        try:
-            return json.loads(result.stdout)
-        except json.JSONDecodeError:
-            raise RuntimeError(f"what-if failed: {result.stderr}") from None
-
+        if stack_name:
+            raise RuntimeError(f"Stack what-if failed: {result.stderr}")
+        raise RuntimeError(f"what-if failed: {result.stderr}")
+    if stack_name:
+        return normalize_stack_what_if(json.loads(result.stdout))
     return json.loads(result.stdout)
+
+
+def normalize_stack_what_if(payload: dict[str, Any]) -> dict[str, Any]:
+    properties = payload.get("properties", {})
+    if properties.get("provisioningState", "").lower() != "succeeded" or properties.get(
+        "error"
+    ):
+        raise RuntimeError(f"Stack what-if did not succeed: {properties.get('error')}")
+    changes = properties.get("changes", {})
+    resources = changes.get("resourceChanges")
+    if not isinstance(resources, list):
+        raise RuntimeError("Stack what-if returned no resourceChanges array")
+    operations = {
+        "create": "Create",
+        "modify": "Modify",
+        "delete": "Delete",
+        "detach": "Detach",
+        "nochange": "NoChange",
+        "unsupported": "Unsupported",
+        "array": "Array",
+        "noeffect": "NoEffect",
+    }
+
+    def normalize_delta(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                **item,
+                "changeType": operations.get(
+                    item["changeType"].lower(), item["changeType"]
+                ),
+                **(
+                    {"children": normalize_delta(item["children"])}
+                    if item.get("children")
+                    else {}
+                ),
+            }
+            for item in items
+        ]
+
+    normalized = []
+    for resource in resources:
+        configuration = resource.get("resourceConfigurationChanges") or {}
+        normalized.append(
+            {
+                "resourceId": resource["id"],
+                "changeType": operations.get(
+                    resource["changeType"].lower(), resource["changeType"]
+                ),
+                "before": configuration.get("before"),
+                "after": configuration.get("after"),
+                "delta": normalize_delta(configuration.get("delta") or []),
+                "stack": {
+                    key: resource.get(key)
+                    for key in (
+                        "changeCertainty",
+                        "managementStatusChange",
+                        "denyStatusChange",
+                        "unsupportedReason",
+                    )
+                },
+            }
+        )
+    diagnostics = properties.get("diagnostics") or []
+    for diagnostic in diagnostics:
+        logger.warning(
+            "Stack what-if diagnostic: %s", json.dumps(diagnostic, ensure_ascii=False)
+        )
+        if diagnostic.get("level", "").lower() == "error":
+            raise RuntimeError("Stack what-if reported an error diagnostic")
+    return {
+        "changes": normalized,
+        "stack": {
+            "resultId": payload.get("id"),
+            "stackId": properties.get("deploymentStackResourceId"),
+            "stackLastModified": properties.get("deploymentStackLastModified"),
+            "actionOnUnmanage": properties.get("actionOnUnmanage"),
+            "denySettingsChange": changes.get("denySettingsChange"),
+            "deploymentScopeChange": changes.get("deploymentScopeChange"),
+            "diagnostics": diagnostics,
+        },
+    }
 
 
 def is_readonly_property(path: str, resource_type: str = "") -> bool:
@@ -1652,7 +1778,9 @@ def extract_resource_changes(
         change_type = change.get("changeType", "Unknown")
 
         normalized_resource_id = resource_id
-        resource_type = extract_resource_type_from_id(resource_id)
+        resource_type = extract_resource_type_from_id(
+            resource_id, use_last_provider="stack" in change
+        )
         parts = resource_id.split("/")
         resource_name = parts[-1] if parts else ""
 
@@ -1685,6 +1813,8 @@ def extract_resource_changes(
 
         # Create false positive 判定
         change_entry["likelyFalsePositive"] = is_create_false_positive(change_entry)
+        if "stack" in change:
+            change_entry["stack"] = change["stack"]
 
         changes.append(change_entry)
 
@@ -1728,6 +1858,8 @@ def build_output(
     # サマリー集計
     create_false_positives = 0
     summary = {"create": 0, "modify": 0, "delete": 0, "noChange": 0, "ignore": 0}
+    if "stack" in what_if_result:
+        summary.update({"detach": 0, "unsupported": 0})
     for change in changes:
         op = change["operation"].lower()
         if op == "create":
@@ -1742,6 +1874,8 @@ def build_output(
             summary["noChange"] += 1
         elif op == "ignore":
             summary["ignore"] += 1
+        elif op in {"detach", "unsupported"} and op in summary:
+            summary[op] += 1
 
     # 評価サマリー
     evaluation_summary = {"noise_confirmed": 0, "pending": 0, "drift_candidate": 0}
@@ -1778,6 +1912,8 @@ def build_output(
         "changes": changes,
         "pendingEvaluations": pending_evaluations,
     }
+    if "stack" in what_if_result:
+        output["stack"] = what_if_result["stack"]
 
     # 注意メッセージ
     if bicep_summary["notDefined"] > 0:
@@ -1959,6 +2095,8 @@ def should_show_resource_in_text_output(change: dict[str, Any]) -> bool:
     filtered_resource_types は NoChange / Ignore / Unsupported などのノイズ削減に使い、
     Create / Modify / Delete は重要差分を隠さないよう常に表示する。
     """
+    if "stack" in change:
+        return True
     if is_known_acr_acrpull_unsupported(change):
         return False
 
@@ -2023,6 +2161,10 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
         type_padded = display_type.ljust(max_type_len)
 
         lines.append(f"  {op_padded} : {type_padded} : {resource_name}")
+        if "stack" in change:
+            lines.append(
+                f"      Stack: {json.dumps(change['stack'], ensure_ascii=False)}"
+            )
 
         if op == "Create" and change.get("likelyFalsePositive", False):
             lines.append(
@@ -2058,6 +2200,11 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
             "text 出力で非表示です。--format json で確認してください。"
         )
 
+    if "stack" in output_data:
+        lines.append("")
+        lines.append(
+            f"Stack what-if: {json.dumps(output_data['stack'], ensure_ascii=False)}"
+        )
     return "\n".join(lines)
 
 
@@ -2108,6 +2255,10 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--stack-name",
+        help="Subscription Stack name (uses deleteAll, deny mode none; creates a one-hour what-if result)",
+    )
+    parser.add_argument(
         "--list-layers",
         action="store_true",
         help="azure.yaml の infra.layers を一覧表示して終了する。",
@@ -2138,6 +2289,15 @@ def main() -> int:
         for layer in layers:
             print(f"{layer['name']}\t{layer['path']}")
         return 0
+    if (
+        not args.no_azd
+        and not args.layer
+        and any("deploymentStacks" in layer for layer in layers)
+    ):
+        logger.error(
+            "Stack project requires --layer; no fallback to standard ARM what-if"
+        )
+        return 1
 
     # azd プロジェクト検出 (env 値が必要なら別途 azd env get-values を試行)
     is_azd = False
@@ -2151,6 +2311,7 @@ def main() -> int:
     subscription = args.subscription
     parameters: dict[str, Any] = {}
     parameters_file: str | None = None
+    stack_name = args.stack_name
 
     # --layer 指定時: azure.yaml から template / parameters file を解決
     if args.layer:
@@ -2166,6 +2327,27 @@ def main() -> int:
                 available,
             )
             return 1
+        if "deploymentStacks" in match:
+            expected_settings = {
+                "stack.actionOnUnmanage.resources": "delete",
+                "stack.actionOnUnmanage.resourceGroups": "delete",
+                "stack.actionOnUnmanage.managementGroups": "delete",
+                "stack.denySettings.mode": "none",
+            }
+            actual_settings = {
+                key: value for key, value in match.items() if key.startswith("stack.")
+            }
+            if actual_settings != expected_settings:
+                logger.error(
+                    "Stack what-if supports only deleteAll and deny mode none; layer settings differ"
+                )
+                return 1
+            if not is_azd or not azd_values.get("AZURE_ENV_NAME"):
+                logger.error("Stack layer requires a selected azd environment")
+                return 1
+            stack_name = (
+                stack_name or f"azd-stack-{azd_values['AZURE_ENV_NAME']}-{args.layer}"
+            )
         layer_root = (Path("azure.yaml").parent / match["path"]).resolve()
         if not args.template:
             template = str(layer_root / "main.bicep")
@@ -2231,8 +2413,9 @@ def main() -> int:
             subscription=subscription,
             parameters=parameters if parameters else None,
             parameters_file=parameters_file,
+            stack_name=stack_name,
         )
-    except RuntimeError as e:
+    except (RuntimeError, ValueError, OSError, KeyError, TypeError) as e:
         logger.error("what-if failed: %s", e)
         return 1
 

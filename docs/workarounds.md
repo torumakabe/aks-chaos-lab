@@ -90,21 +90,21 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 
 ### A-4. `predown` hook で Service Group scope SLI と環境別 Service Group を削除
 
-- **概要**: `azd down` 前に `uv run scripts/cleanup-azure-monitor-sli-resources.py` を実行し、Service Group scope の SLI と環境別 Service Group を削除する。
-- **理由**: `azd down` は subscription / resource group scope までしか到達せず、tenant scope（Service Group / SLI）が残留する。
+- **概要**: Stack 未移行の環境を従来の方法で削除する場合だけ、`azd down` 前に cleanup hook が Service Group scope の SLI と環境別 Service Group を削除する。Stack 管理中はこの処理を省略し、azd に sli → base の順で削除させる。
+- **理由**: 通常の incremental deployment を使う azd down では tenant scope リソースが残留する。Deployment Stacks では tenant scope の Service Group と SLI も管理と削除の対象になるため、hook との二重削除を避ける。
 - **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、`azure.yaml`、ADR-009
-- **解消条件**: `azd` が tenant scope のリソースを `down` で cascade delete できるようになる、または Service Group が subscription scope のリソースとして提供される。
+- **解消条件**: 既存環境の Stack 移行が完了し、未移行環境を削除するための従来処理が不要になる。
 - **確認方法**: Service Group cleanup を一時的に無効化して `azd down` 後、Service Group / SLI が残らないか確認する。
-- **最終確認**: 2026-05-17、Service Group cleanup を外すと Service Group と availability / latency SLI が残留。削除不可。
+- **最終確認**: 2026-10-24、検証用 subscription Stacks が tenant scope の SLI 2件と Service Group を取り込み、定義除外時に sli → base の順で削除できた。既存環境の移行前のため、従来処理は残す。
 
-### A-5. 環境別 Service Group への `Service Group Administrator` 直付与が必要
+### A-5. 新規 Service Group の権限反映を待つ
 
-- **概要**: 親 Service Group の Contributor では子 Service Group の `Microsoft.Monitor/slis/write` が継承されないため、環境別 Service Group に対して直接 `Service Group Administrator` を付与する。
-- **理由**: Service Group の親子関係は Azure RBAC のリソース ID パス継承と独立している。
-- **場所**: `docs/deployment.md` §必要なロール §2、ADR-009 §RBAC
-- **解消条件**: Service Group RBAC が Azure RBAC の path 継承に揃う、または親 Service Group からの継承で SLI 作成が許可される。
-- **確認方法**: 親 Service Group の Contributor のみを付与し、子 Service Group での SLI 作成が通るか確認する。
-- **最終確認**: 2026-05-17、親 Service Group Contributor のみでは `Microsoft.Monitor/slis/write` が AuthorizationFailed。削除不可。
+- **概要**: 環境別 Service Group 上の `Service Group Administrator` 割り当てを確認する。作成者への自動付与があれば追加せず、不足する場合だけ付与する。割り当て確認後の `slis/write` の403は、資産や割り当てを変更せず、時間を置いて再試行する。
+- **理由**: 新規 Service Group では割り当てが存在していても SLI 操作への反映が遅れる。[公式概要](https://learn.microsoft.com/azure/governance/service-groups/overview#role-based-access-controls)では作成者への自動付与と子 Service Group へのロール継承を説明している。2026-05-17 の親 Contributor による SLI 操作失敗は、Service Group 全般の継承非対応を意味しない。
+- **場所**: `docs/deployment.md` §新規 Service Group 作成後の権限準備
+- **解消条件**: 新規 Service Group の作成直後から必要な SLI 操作が成功し、対象 scope の権限確認と待機を個別に案内する必要がなくなる。親ロールのみでの SLI 操作は、直接割り当ての有無と反映時間を区別して再評価する。
+- **確認方法**: 新規 Service Group の割り当て、対象 identity と scope を確認し、同じ SLI 定義を時間を置いて再試行する。待機中に Service Group や割り当てを変更しない。
+- **最終確認**: 2026-10-24、新規 Service Group の Administrator 自動付与を確認後、権限を変更せず約10分待つと Availability SLI の作成が成功した。Latency SLI の一時エラーは同じ定義の再実行で解消し、2件とも Stack への取り込み、what-if の削除予測、定義除外による削除が成功した。
 
 ### A-8. Service Group API の探索と不在応答を補う
 
@@ -240,3 +240,12 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 - **解消条件**: 同じ条件の既存 pool で `localdns-config` の更新だけによりノード構成が反映され、新規 Pod の名前解決と Local DNS のメトリクスを確認できるようになる。
 - **確認方法**: 更新前後のノード設定と新規 Pod の resolver を比較し、各ノードの `up{job="localdns-metrics"}` と問い合わせ counter を確認する。
 - **最終確認**: 2026-09-07、`eval` の新規 System ノード2台で `169.254.10.11` を使う名前解決と `up=1` を確認した。
+
+### D-15. azd layer の deploymentStacks 設定と公開 schema の差
+
+- **対象範囲**: `azure.yaml` の `infra.layers[].deploymentStacks`。azd 1.37.1 の実行時はこの設定を読み込むが、同版の公開 JSON schema の layer properties には含まれないため、エディターに未定義プロパティの警告が出る。
+- **対応**: 設定は実行時の `provisioning.Options.DeploymentStacks` に従い各 layer に置く。親の `infra.deploymentStacks` へ移すと layers との併用検証に失敗する。schema の独自コピーや validation の無効化は追加しない。
+- **根拠**: [azd 1.37.1 の Options](https://github.com/Azure/azure-dev/blob/6bd1275b6b31104034673946953533eb860dd646/cli/azd/pkg/infra/provisioning/provider.go)、[公開 schema](https://github.com/Azure/azure-dev/blob/6bd1275b6b31104034673946953533eb860dd646/schemas/v1.0/azure.yaml.json)。
+- **解消条件**: 公開 schema が layer の `deploymentStacks` を定義し、エディターと CLI の両方で同じ設定を受け付ける。
+- **確認方法**: schema の layer properties と CLI の設定読込を確認する。読込確認には存在しない名前を指定した `azd hooks run stacks-config-validation-only` を使い、Azure の配備は行わない。
+- **最終確認**: 2026-10-24、azd 1.37.1 で base / sli の設定読込が成功した。ユーザーの alpha 設定は変更していない。

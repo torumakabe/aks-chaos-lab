@@ -16,7 +16,7 @@ Bicep/ARM what-if の変更内容をノイズパターンと照合し、判断�
 | 依頼 | 操作と副作用 |
 |------|--------------|
 | 提供済みの what-if 出力を分析する | 出力と必要な Bicep、パターン定義を読む。スクリプトを起動せず、Azure 照会、統計更新、パターン編集を行わない |
-| what-if を実行する | 対象を特定してスクリプトを実行する。`az deployment sub what-if` による Azure 照会と、正常終了時の `.github/skills/bicep-what-if-analysis/scripts/patterns/pattern_stats.json` 更新が発生する。デプロイは行わない |
+| what-if を実行する | 対象を特定してスクリプトを実行する。通常は `az deployment sub what-if`、Stacks 設定のある layer は `az stack-whatif sub create` を使う。後者は保持期間1時間の Azure what-if 結果リソースを作成する。正常終了時に `pattern_stats.json` を更新する。対象リソースの配備や削除は行わない |
 | ノイズパターンを追加、修正する | [パターン管理ガイド](references/pattern-guide.md) を読み、根拠と適用範囲を確認して依頼されたパターンだけを編集する |
 
 適用前の差分確認として what-if が依頼され、subscription、layer または template などの対象が決まっている場合は、このスキルのスクリプトを実行する。Azure what-if の照会と解析履歴の更新を伴う。対象が曖昧な場合だけ、必要な情報を確認する。既存の `azd provision --preview` 出力をこのスクリプトの入力として扱わない。
@@ -56,7 +56,9 @@ uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_i
 uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer sli
 ```
 
-`--layer` 未指定で multi-layer リポを実行した場合は `./infra/main.bicep` (= base 相当) が解析され、stderr に `--layer` 利用を促す警告が出る。
+Stacks 設定のあるプロジェクトでは `--layer` が必須で、省略すると Azure 照会前に停止する。layer の `deploymentStacks` 設定から Stack 用 what-if を選択し、選択中環境の `azd-stack-<env>-<layer>` を評価する。初回作成前の Stack も指定できる。通常の ARM what-if や azd の preview へフォールバックしない。
+
+Stack 用 what-if は、本リポジトリの `deleteAll`、deny mode `none` と同じ条件を使い、layer 設定が異なる場合は停止する。`create --no-pretty-print` はプロパティ変更を含む結果を取得する。JSON と text に結果 ID、削除予測、管理状態の変更、予測の確度、deny 設定の変更、diagnostics を残す。結果リソースは Azure が1時間後に削除する。`azd provision --preview` は azd 1.37.1 の Stacks 対応では使えず、通常の ARM what-if は Stack の管理除外による削除を評価しない。
 
 ### 非 azd プロジェクト
 
@@ -113,6 +115,7 @@ Resources:
 | `-s, --subscription` | Azure subscription ID | azd の値または Azure CLI の既定値 |
 | `--no-azd` | azd 自動検出を無効化 | off |
 | `--layer` | `azure.yaml` の `infra.layers` から layer を指定し template / parameters file を自動解決 | - |
+| `--stack-name` | subscription Stack の名前を明示する。`deleteAll`、deny mode `none` で保持期間1時間の what-if 結果を作成する | Stack layer では azd 環境名と layer から生成 |
 | `--list-layers` | `azure.yaml` の layer 一覧を tab 区切りで表示し終了 | - |
 | `-p, --parameter` | パラメータの inline override (`KEY VALUE`) | - |
 | `-v, --verbose` | 詳細ログ出力 | off |

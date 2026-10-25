@@ -18,7 +18,14 @@ import urllib.request
 from collections.abc import Sequence
 from email.message import Message
 from http.client import HTTPException
+from pathlib import Path
 from typing import Any
+
+SCRIPTS = Path(__file__).resolve().parent
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+
+from deployment_stacks import enabled as stacks_enabled  # noqa: E402
 
 SERVICE_GROUP_API_VERSION = "2024-02-01-preview"
 SLI_API_VERSION = "2025-03-01-preview"
@@ -434,16 +441,10 @@ def delete_service_group_and_wait(
             raise SystemExit(1)
 
 
-def delete_service_group_sli_resources(
+def service_group_sli_ids(
     service_group_id: str,
     subscription_id: str,
-    *,
-    dry_run: bool,
-) -> None:
-    if not service_group_exists(service_group_id, subscription_id):
-        log(f"Service Group {service_group_id} is already deleted")
-        return
-
+) -> list[str]:
     service_group_url = resource_url(service_group_id).rstrip("/")
     payload = command_json(
         [
@@ -475,7 +476,20 @@ def delete_service_group_sli_resources(
         ):
             log(f"SLI ID is outside the selected Service Group: {sli_id}")
             raise SystemExit(1)
+    return sli_ids
 
+
+def delete_service_group_sli_resources(
+    service_group_id: str,
+    subscription_id: str,
+    *,
+    dry_run: bool,
+) -> None:
+    if not service_group_exists(service_group_id, subscription_id):
+        log(f"Service Group {service_group_id} is already deleted")
+        return
+
+    sli_ids = service_group_sli_ids(service_group_id, subscription_id)
     if sli_ids:
         for sli_id in sli_ids:
             log(f"deleting SLI {sli_id}")
@@ -766,6 +780,90 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def stack_managed_cleanup(env_name: str, subscription_id: str) -> bool:
+    if not env_name:
+        log("AZURE_ENV_NAME is required for Stack discovery")
+        raise SystemExit(1)
+    payload = command_json(
+        [
+            "az",
+            "stack",
+            "sub",
+            "list",
+            "--subscription",
+            subscription_id,
+            "--output",
+            "json",
+        ]
+    )
+    if not isinstance(payload, list):
+        log("invalid Stack list response")
+        raise SystemExit(1)
+    found: set[str] = set()
+    managed_service_groups: set[str] = set()
+    for stack in payload:
+        if not isinstance(stack, dict):
+            log("invalid Stack list entry")
+            raise SystemExit(1)
+        for layer in ("base", "sli"):
+            if stack.get("name") != f"azd-stack-{env_name}-{layer}":
+                continue
+            tags = stack.get("tags", {})
+            if not isinstance(tags, dict) or (
+                tags.get("azd-env-name") != env_name
+                or tags.get("azd-layer-name") != layer
+            ):
+                log("Stack tags do not match the selected environment and layer")
+                raise SystemExit(1)
+            found.add(layer)
+            if layer == "base":
+                resources = stack.get("resources") or []
+                if not isinstance(resources, list):
+                    log("invalid Stack resources response")
+                    raise SystemExit(1)
+                for resource in resources:
+                    if not isinstance(resource, dict) or not isinstance(
+                        resource.get("id"), str
+                    ):
+                        log("invalid Stack resource ID")
+                        raise SystemExit(1)
+                    resource_id = resource["id"]
+                    if is_owned_service_group_id(resource_id, env_name):
+                        managed_service_groups.add(resource_id)
+    try:
+        enabled = stacks_enabled()
+    except (RuntimeError, OSError) as error:
+        log(str(error))
+        raise SystemExit(1) from error
+    if found and not enabled:
+        log(
+            "enable alpha.deployment.stacks before deleting a Stack-managed environment"
+        )
+        raise SystemExit(1)
+    if "sli" in found and "base" not in found:
+        log("base Stack is missing; complete the base migration before azd down")
+        raise SystemExit(1)
+    if "base" in found and "sli" not in found:
+        for service_group_id in managed_service_groups:
+            if service_group_exists(service_group_id, subscription_id) and (
+                service_group_sli_ids(service_group_id, subscription_id)
+            ):
+                log(
+                    "SLI resources exist without a sli Stack; complete the sli migration before azd down"
+                )
+                raise SystemExit(1)
+    if (
+        enabled
+        and "base" not in found
+        and resource_group_exists(f"rg-aks-chaos-lab-{env_name}", subscription_id)
+    ):
+        log(
+            "base Stack is missing; migrate base before azd down, or disable Stacks to delete an unmigrated environment"
+        )
+        raise SystemExit(1)
+    return enabled
+
+
 def main() -> int:
     args = parse_args()
 
@@ -822,7 +920,17 @@ def main() -> int:
         return 1
 
     if args.phase == "post":
+        delete_sli_layer_deployment_records(env_name, subscription_id, dry_run=dry_run)
         delete_base_layer_deployment_records(env_name, subscription_id, dry_run=dry_run)
+        return 0
+
+    if stack_managed_cleanup(env_name, subscription_id):
+        log(
+            "Stacks own SLI and Service Group deletion; azd down deletes sli before base"
+        )
+        delete_otlp_app_insights_dcra(
+            resource_group, aks_cluster_name, subscription_id, dry_run=dry_run
+        )
         return 0
 
     service_group_failed = False

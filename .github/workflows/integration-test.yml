@@ -29,6 +29,7 @@ permissions:
   contents: read
 
 env:
+  AZD_ALPHA_ENABLE_DEPLOYMENT_STACKS: "true"
   AZURE_ENV_NAME: inttest-${{ github.run_id }}
   AZURE_LOCATION: japaneast
 

@@ -6,6 +6,7 @@ what_if_analyzer のユニットテスト
 """
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -32,9 +33,13 @@ from what_if_analyzer import (
     is_main_resource,
     is_readonly_property,
     match_known_default,
+    normalize_stack_what_if,
     parse_azure_yaml_layers,
     resolve_parameters_file_placeholders,
     run_what_if,
+)
+from what_if_analyzer import (
+    main as analyzer_main,
 )
 
 
@@ -1898,6 +1903,128 @@ class TestRunWhatIfCommandConstruction(unittest.TestCase):
             self.assertFalse(
                 isinstance(arg, str) and arg.startswith("@"),
                 f"unexpected file arg: {arg}",
+            )
+
+
+class TestStackWhatIf(unittest.TestCase):
+    def test_project_layer_selects_stack_and_requires_explicit_layer(self) -> None:
+        env = {
+            "AZURE_ENV_NAME": "eval",
+            "AZURE_LOCATION": "japaneast",
+            "AZURE_SUBSCRIPTION_ID": "sub",
+        }
+        with (
+            patch("what_if_analyzer.detect_azd_project", return_value=(True, env)),
+            patch(
+                "what_if_analyzer.resolve_parameters_file_placeholders", return_value={}
+            ),
+            patch("what_if_analyzer.run_what_if", return_value={"changes": []}) as run,
+            patch("what_if_analyzer.get_pattern_loader") as loader,
+            patch("sys.argv", ["analyzer", "--layer", "base"]),
+        ):
+            loader.return_value.get_unused_patterns.return_value = []
+            self.assertEqual(analyzer_main(), 0)
+            self.assertEqual(run.call_args.kwargs["stack_name"], "azd-stack-eval-base")
+        with (
+            patch("sys.argv", ["analyzer"]),
+            patch("what_if_analyzer.run_what_if") as run,
+        ):
+            self.assertEqual(analyzer_main(), 1)
+            run.assert_not_called()
+
+    def payload(self) -> dict:
+        return {
+            "id": "/subscriptions/sub/providers/Microsoft.Resources/deploymentStacksWhatIfResults/test",
+            "properties": {
+                "provisioningState": "succeeded",
+                "deploymentStackResourceId": "/subscriptions/sub/providers/Microsoft.Resources/deploymentStacks/test",
+                "diagnostics": [],
+                "changes": {
+                    "resourceChanges": [
+                        {
+                            "id": "/providers/Microsoft.Management/serviceGroups/test/providers/Microsoft.Monitor/slis/availability",
+                            "changeType": "delete",
+                            "changeCertainty": "definite",
+                            "managementStatusChange": {
+                                "before": "managed",
+                                "after": "notManaged",
+                            },
+                        }
+                    ],
+                },
+            },
+        }
+
+    def test_delete_and_stack_evidence_are_preserved(self) -> None:
+        normalized = normalize_stack_what_if(self.payload())
+        output = build_output(normalized, "test.bicep", "japaneast")
+        self.assertEqual(output["summary"]["delete"], 1)
+        self.assertEqual(output["changes"][0]["resourceType"], "Microsoft.Monitor/slis")
+        self.assertEqual(output["changes"][0]["stack"]["changeCertainty"], "definite")
+        self.assertIn("notManaged", format_azd_style_output(output))
+        self.assertIn("resultId", output["stack"])
+
+    def test_nested_property_change_types_are_normalized(self) -> None:
+        payload = self.payload()
+        resource = payload["properties"]["changes"]["resourceChanges"][0]
+        resource["changeType"] = "modify"
+        resource["resourceConfigurationChanges"] = {
+            "delta": [
+                {
+                    "path": "properties.values",
+                    "changeType": "array",
+                    "children": [
+                        {"path": "[0]", "changeType": "modify", "before": 1, "after": 2}
+                    ],
+                }
+            ]
+        }
+        result = normalize_stack_what_if(payload)
+        self.assertEqual(
+            result["changes"][0]["delta"][0]["children"][0]["changeType"], "Modify"
+        )
+
+    def test_failed_and_missing_results_are_rejected(self) -> None:
+        for properties in (
+            {"provisioningState": "failed"},
+            {"provisioningState": "succeeded"},
+        ):
+            with self.assertRaises(RuntimeError):
+                normalize_stack_what_if({"properties": properties})
+
+    def test_stack_command_includes_deletion_policy_and_json_output(
+        self,
+    ) -> None:
+        results = [
+            subprocess.CompletedProcess([], 0, json.dumps(self.payload()), ""),
+        ]
+        with patch("what_if_analyzer.subprocess.run", side_effect=results) as run:
+            run_what_if(
+                "test.bicep",
+                "japaneast",
+                subscription="sub",
+                stack_name="azd-stack-eval-base",
+                parameters_file="params.json",
+                parameters={"environment": "eval"},
+            )
+        create = run.call_args_list[0].args[0]
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(create[1:4], ["stack-whatif", "sub", "create"])
+        self.assertIn("deleteAll", create)
+        self.assertIn("PT1H", create)
+        self.assertLess(create.index("@params.json"), create.index("environment=eval"))
+        self.assertIn("--no-pretty-print", create)
+
+    def test_layer_parser_recognizes_stack_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "azure.yaml"
+            path.write_text(
+                "infra:\n  layers:\n    - name: base\n      path: ./infra\n"
+                "      deploymentStacks:\n        denySettings:\n          mode: none\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                parse_azure_yaml_layers(str(path))[0]["deploymentStacks"], "enabled"
             )
 
 

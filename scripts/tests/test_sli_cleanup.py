@@ -80,6 +80,7 @@ class AzureCli:
         self.pending_service_groups: set[str] = set()
         self.now = 0.0
         self.sleeps: list[float] = []
+        self.stacks: list[dict[str, Any]] = []
 
     def __call__(
         self, args: list[str], **_kwargs: Any
@@ -108,7 +109,9 @@ class AzureCli:
         payload: Any
         if args[1:3] == ["account", "get-access-token"]:
             return subprocess.CompletedProcess(args, 0, "fake-access-value", "")
-        if args[1:3] == ["resource", "list"]:
+        if args[1:4] == ["stack", "sub", "list"]:
+            payload = self.stacks
+        elif args[1:3] == ["resource", "list"]:
             assert args[args.index("--resource-group") + 1] == RESOURCE_GROUP
             assert args[args.index("--name") + 1] == CLUSTER_NAME
             assert (
@@ -244,6 +247,7 @@ def cleanup(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
         module.shutil, "which", lambda name: name if name == "az" else None
     )
     monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(module, "stacks_enabled", lambda: False)
     return module
 
 
@@ -898,12 +902,12 @@ def test_discovery_deduplicates_service_group_ids(
     )
 
 
-def test_postdown_only_deletes_base_deployment_records(
+def test_postdown_only_deletes_layer_deployment_records(
     cleanup: ModuleType, cli: AzureCli, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(sys, "argv", [str(SCRIPT), "post"])
     assert cleanup.main() == 0
-    assert cli.deleted_deployments == {f"{ENV_NAME}-base"}
+    assert cli.deleted_deployments == {f"{ENV_NAME}-base", f"{ENV_NAME}-sli"}
     assert not cli.deleted_dcra
     assert not cli.deleted_rg
     assert not any(args[1:3] == ["group", "delete"] for args in cli.calls)
@@ -920,3 +924,71 @@ def test_postdown_dry_run_leaves_base_deployment_record(
     assert cleanup.main() == 0
     assert cli.deleted_deployments == set()
     assert "dry-run: would delete base deployment record" in capsys.readouterr().err
+
+
+def stack_entry(layer: str) -> dict[str, Any]:
+    return {
+        "name": f"azd-stack-{ENV_NAME}-{layer}",
+        "tags": {"azd-env-name": ENV_NAME, "azd-layer-name": layer},
+        "resources": [{"id": SERVICE_GROUP_ID}] if layer == "base" else [],
+    }
+
+
+def test_stack_cleanup_leaves_managed_resources_and_records_to_azd(
+    cleanup: ModuleType, cli: AzureCli, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cleanup, "stacks_enabled", lambda: True)
+    cli.stacks = [stack_entry("base"), stack_entry("sli")]
+    assert cleanup.main() == 0
+    assert cli.deleted_dcra
+    assert not cli.deleted_service_groups
+    assert not cli.deleted_slis
+    assert not cli.deleted_deployments
+
+
+def test_stack_with_different_environment_tags_blocks_deletion(
+    cleanup: ModuleType, cli: AzureCli, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cleanup, "stacks_enabled", lambda: True)
+    stack = stack_entry("base")
+    stack["tags"]["azd-env-name"] = "unrelated"
+    cli.stacks = [stack]
+    with pytest.raises(SystemExit):
+        cleanup.main()
+    assert not cli.deletes
+
+
+@pytest.mark.parametrize(
+    "enabled,layers", [(False, ["base", "sli"]), (True, ["sli"]), (True, [])]
+)
+def test_incomplete_or_disabled_stack_migration_blocks_deletion(
+    cleanup: ModuleType,
+    cli: AzureCli,
+    monkeypatch: pytest.MonkeyPatch,
+    enabled: bool,
+    layers: list[str],
+) -> None:
+    monkeypatch.setattr(cleanup, "stacks_enabled", lambda: enabled)
+    cli.stacks = [stack_entry(layer) for layer in layers]
+    with pytest.raises(SystemExit):
+        cleanup.main()
+    assert not cli.deletes
+
+
+@pytest.mark.parametrize("has_slis", [True, False])
+def test_base_only_stack_blocks_unmanaged_slis_but_allows_empty_sli_cleanup(
+    cleanup: ModuleType,
+    cli: AzureCli,
+    monkeypatch: pytest.MonkeyPatch,
+    has_slis: bool,
+) -> None:
+    monkeypatch.setattr(cleanup, "stacks_enabled", lambda: True)
+    cli.stacks = [stack_entry("base")]
+    if has_slis:
+        with pytest.raises(SystemExit):
+            cleanup.main()
+        assert not cli.deletes
+    else:
+        cli.sli_ids = []
+        assert cleanup.main() == 0
+        assert cli.deleted_dcra
