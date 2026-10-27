@@ -1,66 +1,38 @@
 ---
 name: bicep-what-if-analysis
 description: >-
-  Bicep/ARM what-if 出力の分析、適用前の差分確認、明示された what-if 実行、ノイズパターンの編集を支援する。
-  「適用前の差分を確認」「what-if を実行」「ノイズを分類」「Bicep 定義との差分を確認」「未分類のパターンを追加」で使用する。
-  実行時は Azure を照会してローカルの使用統計を更新する。提供済み出力の分析では照会や編集を行わない。
-  azd プロジェクト (azure.yaml 存在) と単体 Bicep デプロイの両方に対応。
+  Azure Bicep / ARM what-if の実行と結果分析を支援する。
+  「適用前の差分を確認」「what-if を実行」「what-if 結果を分析」で使用する。
+  azd の複数 layer と Deployment Stacks に対応する。
 ---
 
 # Bicep What-If Analysis
 
-Bicep/ARM what-if の変更内容をノイズパターンと照合し、判断根拠を示す。
+what-if の結果を使い、リソースごとに予定される操作とプロパティ差分を説明する。what-if は予測であり、適用結果や適用の許可を示さない。
 
 ## 依頼に応じた操作
 
-| 依頼 | 操作と副作用 |
-|------|--------------|
-| 提供済みの what-if 出力を分析する | 出力と必要な Bicep、パターン定義を読む。スクリプトを起動せず、Azure 照会、統計更新、パターン編集を行わない |
-| what-if を実行する | 対象を特定してスクリプトを実行する。通常は `az deployment sub what-if`、Stacks 設定のある layer は `az stack-whatif sub create` を使う。後者は保持期間1時間の Azure what-if 結果リソースを作成する。正常終了時に `pattern_stats.json` を更新する。対象リソースの配備や削除は行わない |
-| ノイズパターンを追加、修正する | [パターン管理ガイド](references/pattern-guide.md) を読み、根拠と適用範囲を確認して依頼されたパターンだけを編集する |
+| 依頼 | 実施内容 |
+|---|---|
+| what-if を実行する | 対象環境と layer を確認し、このスキルの分析器を実行する。Azureに問い合わせ、正常終了時に解析履歴を更新する。リソースの適用や削除はしない |
+| 提供済みの what-if 結果を分析する | 提供された結果と必要な Bicep を読む。分析器を実行せず、Azure照会やファイル編集をしない |
+| ノイズパターンを編集する | ユーザーが明示的に依頼した場合だけ、[パターン管理ガイド](references/pattern-guide.md)に従う |
 
-適用前の差分確認として what-if が依頼され、subscription、layer または template などの対象が決まっている場合は、このスキルのスクリプトを実行する。Azure what-if の照会と解析履歴の更新を伴う。対象が曖昧な場合だけ、必要な情報を確認する。既存の `azd provision --preview` 出力をこのスクリプトの入力として扱わない。
+## what-if の実行
 
-azd プロジェクトでは、実行前に対象環境が選択されていることを確認する。`azure.yaml` に複数の `infra.layers` がある場合は `--layer` で対象を明示し、既定 layer への暗黙のフォールバックを使わない。`azd env get-values` の `AZURE_SUBSCRIPTION_ID` と `AZURE_LOCATION` が対象環境と一致することも確認する。what-if はスクリプトが受け取った Bicep とパラメーターを評価するものであり、azd hooks の処理は評価しない。
+リポジトリルートで実行する。Stacks 設定がある場合、分析器は `az stack-whatif sub create` を使い、通常の ARM what-if や `azd provision --preview` に切り替えない。Stack what-if 結果は Azure に1時間保持され、正常終了時は `scripts/patterns/pattern_stats.json` が更新される。
 
-正常終了時の `pattern_stats.json` は解析履歴として保持する。`lastRun` と、マッチしたパターンの `lastMatched` / `matchCount` が未使用パターン警告に使われるため、生成差分を副作用として復元しない。既存出力の分析に、この更新契約を適用しない。
-
-## 実行コマンド
-
-以下はリポジトリルートから実行する。`--help` と `--list-layers` はローカル情報の表示だけで終了し、Azure 照会も統計更新も行わない。
-
-```bash
-uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --help
-uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --list-layers
-```
-
-### azd プロジェクト (single layer)
-
-```bash
-uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py"
-```
-
-### azd プロジェクト (multi layer)
-
-先に対象環境を選択します。
+azd の対象環境を選び、subscription と location を確認する。複数 layer があるプロジェクトでは対象を `--layer` で明示する。
 
 ```bash
 azd env select "<environment>"
-```
-
-`azure.yaml` の `infra.layers` を `--layer` で指定すると、`<path>/main.bicep` と `<path>/main.parameters.json` を自動採用し、parameters file 内の `${ENV_VAR}` / `${ENV_VAR=default}` を選択中の `azd env get-values` の値で解決する。`=default` は未設定または空の値に適用する。既存の `${ENV_VAR:default}` も従来どおり解決する。実行前に選択中環境の subscription と location が対象と一致することを確認する。
-
-```bash
-# 特定の layer (本リポ例: base / sli) を解析
 uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
-uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer sli
 ```
 
-Stacks 設定のあるプロジェクトでは `--layer` が必須で、省略すると Azure 照会前に停止する。layer の `deploymentStacks` 設定から Stack 用 what-if を選択し、選択中環境の `azd-stack-<env>-<layer>` を評価する。初回作成前の Stack も指定できる。通常の ARM what-if や azd の preview へフォールバックしない。
+対象の layer に応じて `base` を `sli` などへ置き換える。`--help` と `--list-layers` はローカル情報だけを表示し、Azureへ問い合わせない。
+Stacks 設定があるプロジェクトでは、layer 数にかかわらず `--layer` を指定する。省略時に別の layer や通常の ARM what-if へ切り替えない。
 
-Stack 用 what-if は、本リポジトリの `deleteAll`、deny mode `none` と同じ条件を使い、layer 設定が異なる場合は停止する。`create --no-pretty-print` はプロパティ変更を含む結果を取得する。JSON と text に結果 ID、削除予測、管理状態の変更、予測の確度、deny 設定の変更、diagnostics を残す。結果リソースは Azure が1時間後に削除する。`azd provision --preview` は azd 1.37.1 の Stacks 対応では使えず、通常の ARM what-if は Stack の管理除外による削除を評価しない。
-
-### 非 azd プロジェクト
+非 azd プロジェクトでは template、subscription、location を明示する。
 
 ```bash
 uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" \
@@ -68,60 +40,32 @@ uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_i
   --location japaneast --template infra/main.bicep -p environmentName dev
 ```
 
-パターンファイルは本スキルの `scripts/patterns/` 配下にある。
+## 結果の読み方と報告
 
-## 分析と報告
+出力先頭の操作件数、Delete の予測確度、Stack 診断を確認する。その後 Create、Modify、Delete、Detach、Unsupported の対象リソースを確認する。Modify の各差分は、リソース名、プロパティパス、変更前値、変更後値を示す。Stack の管理状態や deny 設定の変更は、リソースプロパティと分けて説明する。テキスト出力で一部を省略した場合は、省略件数と `--format json` で詳細を確認できることを伝える。
 
-変更の要点、要確認または未分類のプロパティ、判断根拠を、依頼された詳しさで報告する。全文は求められた場合に示す。ノイズか乖離かの最終判断は人間が行う。
+Stack what-if に `ShortCircuitedResourceId` がある場合、ARM は実行時参照を含むリソース ID を解決できず、確定差分のない管理対象を `potential Delete` として報告することがある。この結果だけでは、テンプレートからリソースが外れたことも、適用時に削除されることも示さない。診断、変更確度、管理状態を確認し、必要なら削除候補の ID を Stack の管理対象一覧と照合する。診断だけを根拠に Bicep の ID 生成方法を変更案として示さない。
 
-分類は安全性の保証ではない。text 出力に非表示の変更を知らせる警告がある場合は、その制限も伝える。提供された出力に必要な詳細がなければ未確認とし、分析依頼だけで再実行しない。
+`provisioningState` や `etag` など read-only と分類したプロパティも、変更前後の値と分類理由を表示する。分類だけを理由に差分を省略しない。read-only と確認できないプロパティは設定差分として扱う。JSON には全差分を残す。
 
-Create は誤検知候補も含めてリソース名を表示し、候補には要確認の注記を付ける。型の一致や状態情報の不足だけでは、正当な新規作成と誤検知を区別できない。JSON の `likelyFalsePositive` と `createFalsePositives` は候補のフラグと件数であり、作成不要と確定した結果ではない。
+Bicep 照合はソース検索による参考情報である。検索結果がないことを「Bicepで管理されていない」と断定しない。参照箇所を確認できない場合は、そのまま未確認と伝える。noise pattern、`pending`、`noise_confirmed`、`notDefined` は事実の説明を補助する情報であり、安全性や適用可否の結論に使わない。
 
-適用前確認では、対象環境、subscription、layer と what-if の完了を確認してから、Create / Modify / Delete を予定した変更に照合する。Delete、RBAC / identity、ネットワーク、セキュリティ設定、共有リソースは個別に確認する。`⚠️`、`❓`、`pending` は必要に応じて Bicep、既存リソースの状態、ARM schema と照合する。`noise_confirmed`、`📘`、`notDefined` も許可判定ではなく、個別の差分と根拠を確認するための情報として扱う。差分が省略された警告がある場合は JSON 出力を使う。未説明の差分、予期しない削除、必要な差分の欠落、対象外の hook 操作が残る場合は適用を止める。判断根拠を説明できる差分だけになった後、適用可否は人間が決める。azd layer の適用前手順は [deployment guide](../../../docs/deployment.md#bicep-の適用前差分確認) を参照する。
+各差分について、what-if の予測、確認できた Bicep の根拠、未確認事項を区別して報告する。適用可否は自動判定しない。適用前に確認する項目は [deployment guide](../../../docs/deployment.md#bicep-の適用前差分確認) を参照する。
 
-```
-Resources:
-  Skip     : Resource group          : rg-xxx
-  Modify   : AKS Managed Cluster     : aks-xxx
-      - tags.CostControl  ⚠️ カスタムタグは運用ポリシーに依存するため要確認
-      - properties.enableRBAC  📘 変更前が既定値: RBAC 有効化は AKS デフォルト。差分は要確認
-      * properties.provisioningState  🔒 readOnly（Azure 自動設定）
-```
-
-| 記号 | 意味 |
-|------|------|
-| `-` | 削除 |
-| `+` | 追加 |
-| `*` | 変更 |
-| 🔒 | readOnly（Azure 自動設定） |
-| 📘 | 変更前後のどちらが既定値に一致したかを示す情報 |
-| ⚠️ | 要確認（自動設定の条件やARM参照式の解決結果を含む） |
-| ❓ | 未分類（パターン追加を検討） |
-
-## 未分類が出た場合
-
-1. 対象の ARM スキーマを Azure MCP Server の bicepschema などで確認し、既定値や既知の what-if 制限は公開情報で調べる。
-2. 根拠、対象リソース、プロパティ、分類を示す。分析だけの依頼なら、追加候補の報告で終了する。
-3. パターン変更を依頼されている場合は、[パターン管理ガイド](references/pattern-guide.md) に従って `scripts/patterns/noise_patterns.json` を編集し、ローカルで検証する。確認済みの変更について承認を繰り返し求めない。
+提供された結果だけでは変更前後の値や対象リソースを確認できない場合、推測で補わず、確認できない情報を明記する。分析依頼だけを受けた場合は、what-ifを再実行しない。
 
 ## オプション
 
-| オプション | 説明 | デフォルト |
-|-----------|------|-----------|
-| `-f, --format` | `text` / `json` | `text` |
-| `-t, --template` | Bicep ファイル | `./infra/main.bicep` (azd) / `./main.bicep` |
-| `-l, --location` | Azure リージョン | azd から取得 |
-| `-s, --subscription` | Azure subscription ID | azd の値または Azure CLI の既定値 |
-| `--no-azd` | azd 自動検出を無効化 | off |
-| `--layer` | `azure.yaml` の `infra.layers` から layer を指定し template / parameters file を自動解決 | - |
-| `--stack-name` | subscription Stack の名前を明示する。`deleteAll`、deny mode `none` で保持期間1時間の what-if 結果を作成する | Stack layer では azd 環境名と layer から生成 |
-| `--list-layers` | `azure.yaml` の layer 一覧を tab 区切りで表示し終了 | - |
-| `-p, --parameter` | パラメータの inline override (`KEY VALUE`) | - |
-| `-v, --verbose` | 詳細ログ出力 | off |
+| オプション | 説明 |
+|---|---|
+| `-f, --format` | `text` または `json` |
+| `-t, --template` | Bicep template |
+| `-l, --location` | Azure region |
+| `-s, --subscription` | Subscription ID |
+| `--no-azd` | azd 自動検出を無効化 |
+| `--layer` | `azure.yaml` の infra layer |
+| `--stack-name` | Stack 名を明示 |
+| `--list-layers` | azd layer 一覧を表示して終了 |
+| `-p, --parameter` | inline parameter。`KEY VALUE` を指定 |
 
-## 前提条件
-
-- スクリプト実行には uv と Python 3.14+。スクリプトは標準ライブラリのみを使用する。
-- what-if 実行には Azure CLI と対象 subscription の認証、権限。
-- azd 環境の値を使う場合は `azd` CLI。
+実行には uv、Python 3.14 以上、Azure CLI の認証が必要。azd 環境値を使う場合は azd CLI も必要。

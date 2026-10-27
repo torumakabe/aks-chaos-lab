@@ -1448,6 +1448,7 @@ def normalize_stack_what_if(payload: dict[str, Any]) -> dict[str, Any]:
         normalized.append(
             {
                 "resourceId": resource["id"],
+                "resourceType": resource.get("type"),
                 "changeType": operations.get(
                     resource["changeType"].lower(), resource["changeType"]
                 ),
@@ -1778,19 +1779,28 @@ def extract_resource_changes(
         change_type = change.get("changeType", "Unknown")
 
         normalized_resource_id = resource_id
-        resource_type = extract_resource_type_from_id(
-            resource_id, use_last_provider="stack" in change
-        )
-        parts = resource_id.split("/")
-        resource_name = parts[-1] if parts else ""
+        is_expression = resource_id.lstrip().startswith("[")
+        resource_name = "<dynamic>" if is_expression else resource_id.rsplit("/", 1)[-1]
 
-        normalized_unsupported = normalize_unsupported_extension_resource(resource_id)
-        if change_type == "Unsupported" and normalized_unsupported is not None:
-            (
-                normalized_resource_id,
-                resource_type,
-                resource_name,
-            ) = normalized_unsupported
+        if change.get("resourceType"):
+            resource_type = change["resourceType"]
+        elif is_expression:
+            resource_type = ""
+            # Preserve legacy ARM extension normalization; Stack IDs remain unchanged.
+            if "stack" not in change and change_type == "Unsupported":
+                normalized_unsupported = normalize_unsupported_extension_resource(
+                    resource_id
+                )
+                if normalized_unsupported is not None:
+                    (
+                        normalized_resource_id,
+                        resource_type,
+                        resource_name,
+                    ) = normalized_unsupported
+        else:
+            resource_type = extract_resource_type_from_id(
+                resource_id, use_last_provider="stack" in change
+            )
 
         # プロパティ変更をフラット化（リソースタイプを渡す）
         delta = change.get("delta", [])
@@ -2119,7 +2129,49 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
     lines: list[str] = []
 
     lines.append("Resources:")
+    lines.append("※ What-if の予測結果です。適用可否の判定ではありません。")
     lines.append("")
+
+    summary = output_data.get("summary", {})
+    operation_counts = [
+        ("Create", summary.get("create", 0)),
+        ("Modify", summary.get("modify", 0)),
+        ("Delete", summary.get("delete", 0)),
+        ("Detach", summary.get("detach", 0)),
+        ("Unsupported", summary.get("unsupported", 0)),
+        ("Skip", summary.get("noChange", 0) + summary.get("ignore", 0)),
+    ]
+    if any(count for _, count in operation_counts):
+        lines.append(
+            "Summary: "
+            + ", ".join(
+                f"{operation} {count}" for operation, count in operation_counts if count
+            )
+        )
+
+    if "stack" in output_data:
+        delete_certainty: dict[str, int] = {}
+        for change in output_data["changes"]:
+            if change["operation"] == "Delete":
+                certainty = change.get("stack", {}).get("changeCertainty", "unknown")
+                delete_certainty[certainty] = delete_certainty.get(certainty, 0) + 1
+        if delete_certainty:
+            lines.append(
+                "Delete certainty: "
+                + ", ".join(
+                    f"{certainty} {count}"
+                    for certainty, count in sorted(delete_certainty.items())
+                )
+            )
+
+        diagnostics = output_data["stack"].get("diagnostics", [])
+        for diagnostic in diagnostics:
+            level = diagnostic.get("level", "warning").upper()
+            code = diagnostic.get("code", "unknown")
+            message = diagnostic.get("message", "")
+            lines.append(f"Stack diagnostic ({level}, {code}): {message}")
+        if diagnostics or delete_certainty:
+            lines.append("")
 
     # 操作タイプの表示順と表示名
     operation_display = {
@@ -2140,7 +2192,6 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
         for c in output_data["changes"]
         if is_effective_change(c) and not should_show_resource_in_text_output(c)
     )
-
     # 最大幅を計算（整列用）
     max_op_len = 8  # "Modify" など
     max_type_len = 0
@@ -2177,6 +2228,7 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
                 change_type = pc.get("changeType", "")
                 path = pc.get("path", "")
                 ref_info = pc.get("referenceInfo", "")
+                is_readonly = pc.get("evaluation", {}).get("reason") == "readOnly"
 
                 # 変更タイプに応じた記号
                 if change_type == "Delete":
@@ -2188,11 +2240,21 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
                 else:
                     symbol = "*"
 
+                before = json.dumps(
+                    pc.get("before"), ensure_ascii=False, separators=(",", ":")
+                )
+                after = json.dumps(
+                    pc.get("after"), ensure_ascii=False, separators=(",", ":")
+                )
+                value_change = f"{before} -> {after}"
+                if is_readonly:
+                    ref_info = "🔒 readOnly（Azure 自動設定）"
+
                 # 参考情報がある場合は表示
                 if ref_info:
-                    lines.append(f"      {symbol} {path}  {ref_info}")
+                    lines.append(f"      {symbol} {path}: {value_change}  {ref_info}")
                 else:
-                    lines.append(f"      {symbol} {path}")
+                    lines.append(f"      {symbol} {path}: {value_change}")
 
     if hidden_effective_count > 0:
         lines.append(

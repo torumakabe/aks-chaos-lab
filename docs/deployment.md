@@ -137,6 +137,10 @@ az stack sub show --subscription "<subscription-id>" --name "azd-stack-<env>-sli
 
 移行後に alpha 機能を無効にして incremental deployment に戻すと、Stack の削除管理が行われません。Stack を残したまま通常配備へ戻さないでください。移行前の環境を削除する場合の扱いは[環境削除](#環境削除)を参照してください。
 
+Stacks 未移行の既存環境を削除する場合も、まず上記の手順で base と sli の定義を変えずに Stack へ取り込みます。その後、環境削除を実行します。アプリの再ビルドやサービスの再配備は不要です。
+
+Stack の作成や再作成が `ResourceNotFound`（404）で終了しても、Azure 側では配備が成功している場合があります。Stack が一覧に存在するのに個別取得が404になる場合は、先行 deployment の完了後に同じ `azd provision` を再実行します。確認と再実行の手順は [workarounds.md §D-16](workarounds.md#d-16-stack-の作成後に個別取得が404になる場合)を参照してください。
+
 ### `azd up`
 
 新しい Service Group を使う初回構築では、先に[新規 Service Group 作成後の権限準備](#新規-service-group-作成後の権限準備)を完了してから `azd up` を実行します。`azd up` は base と sli の間で権限付与を待って停止しません。組織承認済み package index を使う場合は、[専用の配備手順](#docker-build-のpackage-index)を使います。
@@ -175,16 +179,15 @@ uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_i
 
 スクリプトは Azure に保持期間1時間の `Microsoft.Resources/deploymentStacksWhatIfResults` リソースを作成し、プロパティ変更を含む結果を取得します。対象リソースを配備、削除せず、hook も実行しません。成功時に `.github/skills/bicep-what-if-analysis/scripts/patterns/pattern_stats.json` を解析履歴として更新します。結果 ID は出力に残り、保持期間後に Azure が削除します。what-if 結果の作成権限も必要です。
 
-azd 1.37.1 の Stacks 対応は `azd provision --preview` をサポートしません。通常の `az deployment sub what-if` は管理対象から外れるリソースの削除を評価しないため、移行後の代替には使いません。分析器は `--layer` を省略すると停止します。出力には削除予測、Stack の管理状態、予測の確度、diagnostics と deny 設定の変更を含めます。分類結果だけで適用可否は判定せず、人が差分と根拠を確認します。
+azd 1.37.1 の Stacks 対応は `azd provision --preview` をサポートしません。通常の `az deployment sub what-if` は管理対象から外れるリソースの削除を評価しないため、移行後の代替には使いません。分析器は `--layer` を省略すると停止します。適用前の確認方法と出力の読み方は[What-if 分析スキル](../.github/skills/bicep-what-if-analysis/SKILL.md)を参照してください。
 
-適用前に、次の順で判断してください。
+適用前に、対象環境、subscription、layer と what-if の成功を確認します。Create、Modify、Delete、Detach の対象リソースとプロパティの前後値を、予定した変更およびBicepの宣言と照合します。Delete、RBAC / identity、ネットワーク、セキュリティ設定、共有リソースは個別に確認し、テキスト出力で省略された差分は `--format json` で確認します。分類結果やBicep検索結果だけで安全性を判定せず、適用可否は人が決めます。
 
-1. 対象環境、subscription、layer が予定どおりで、what-if が最後まで完了したことを確認します。対象違いや解析失敗があれば適用しません。
-2. Create、Modify、Delete の各リソースについて、変更対象とプロパティを予定していた変更と照合します。Delete、RBAC / identity、ネットワーク、セキュリティ設定、共有リソースの変更は個別に確認します。text 出力で有効差分の省略が警告された場合は、`--format json` で全差分を確認します。
-3. `⚠️` と `❓`、および `pending` の差分は、Bicep の意図、既存リソースの状態、必要に応じて ARM schema と照合します。`noise_confirmed` や `📘` も、それだけで適用可とは判断せず、表示された根拠がそのリソースとプロパティに当てはまることを確認します。Bicep 照合の `notDefined` は、変数やモジュール経由の設定がない証明にはなりません。
-4. 差分ごとに「予定した変更」「根拠を確認した既知の差分」「未説明」のいずれかに整理します。未説明の差分、予期しない削除、必要な差分の欠落が残る場合は適用を止め、原因を確認してから再度 what-if を実行します。すべての差分を説明できた後に、確認者が適用可否を決めます。
+分析器は操作件数、Stack の削除予測確度、Stack 診断を出力の先頭に示します。read-only と分類したプロパティも、変更前後の値と分類を表示します。
 
-分類は差分の安全性を保証しません。特に Bicep 外で hook が行う操作は what-if の対象外です。適用する場合も、対象 layer の hook と実行される操作を別途確認してください。
+Stack 結果のリソース型は Azure が返した値を優先します。未解決の ARM 式では名前を `<dynamic>` と表示し、JSON の `resourceId` と `originalResourceId` に元の式を保持します。対象の宣言は `stack.unsupportedReason` に含まれるテンプレート内の位置と照合してください。
+
+what-if は azd hook の操作を評価しません。適用前に対象 layer の hook が実行する操作も確認します。
 
 検証中、新規環境の初回配備で Service Group（`Microsoft.Management/serviceGroups`）の作成が `ResourceNotFound` で失敗した事例がありました。その後の検証では再現していません。同じエラーで停止した場合は、同じ配備コマンドを再実行してください。発生時は Service Group が作成済みで、再試行により配備が完了したため、同様に成功が期待できます。
 
@@ -643,39 +646,31 @@ Chaos実験の観察時は、別ターミナルで`uv run --no-project "${PWD}/s
 
 ## 環境削除
 
-削除時も Deployment Stacks を有効にし、cleanup hook を有効にした project-level `azd down` を実行します。azd が sli → base の順で Stack と管理対象リソースを削除します。SLI と metric alerts を先に、その後 Service Group、Agent、基盤リソース、環境専用 Resource Group を削除します。
+削除時も Deployment Stacks を有効にし、project-level `azd down` を実行します。azd が sli → base の順で Stack と管理対象リソースを削除します。SLI と metric alerts を先に、その後 Service Group、Agent、基盤リソース、環境専用 Resource Group を削除します。
 
 ```bash
 azd down --force --purge
 ```
 
-`predown` hook は対象環境の `AZURE_SUBSCRIPTION_ID` を必須とし、取得できなければ削除前に停止します。Azure CLI の既定 subscription は使わず、取得した値を各操作へ明示します。Service Group は tenant scope のため、環境名による所有確認も維持します。指定した RG が対象環境の命名規則に一致しない場合は、削除前の cleanup を停止します。
+`predown` hook は対象環境の `AZURE_SUBSCRIPTION_ID` を必須とし、取得できなければ削除前に停止します。Azure CLI の既定 subscription は使わず、取得した値を各操作へ明示します。指定した RG が対象環境の命名規則に一致しない場合も停止します。
 
-`predown` hook は対象環境の Stack 名と環境名、layer のタグを確認します。Stack 管理中は SLI と Service Group の手動削除や deployment record の先行削除を行わず、AKS 上の OTLP Application Insights DCRA だけを先に削除します。これにより Application Insights の managed RG が残る問題を回避します。`postdown` は対象環境、layer のタグが付いた sli / base の旧 deployment records を削除します。Stack の生成した内部 deployment records すべてを列挙して削除する処理ではありません。
+`predown` hook は対象環境の Stack 名と環境名、layer のタグを確認します。Stacks が無効な場合、既存 Resource Group に base Stack がない場合、または移行途中の不整合がある場合は停止します。Stack 管理対象のリソースは手動削除せず、azd に Stack の削除を任せます。Stack 未移行の環境は、前述の移行手順で取り込んでから削除します。
 
-Stack が存在するのに alpha 機能が無効な場合、sli Stack だけが存在する場合、または base Stack の Service Group に SLI が残るのに sli Stack がない場合は、hook が削除前に停止します。移行途中の環境は不足する layer を取り込んでから削除します。sli がまだ作成されていない環境や、sli の削除後に base の削除を再試行する場合は、base だけでも削除できます。まだ移行していない環境を従来の方法で削除する場合だけ、`AZD_ALPHA_ENABLE_DEPLOYMENT_STACKS=false` を実行プロセスへ設定します。Stack がないことを hook が確認したうえで、従来の Service Group / SLI cleanup と通常の azd down を行います。
+deployment records は履歴メタデータであり、実リソースの削除漏れを示しません。[Azure の標準 grooming](https://learn.microsoft.com/azure/azure-resource-manager/templates/deployment-history-deletions)に任せます。
 
-従来の cleanup では、Service Group ID が環境変数にない場合に base デプロイの操作記録から取得します。SG 本体の GET が404 `ResourceNotFound` の場合だけ削除済みと扱い、403は不在と判定しません。SG の DELETE が202の場合は `Location` の非同期処理を最大10分待ちます。削除後の GET が403なら再作成せず時間を置いて404を確認します。Service Group 側の失敗時は subscription 内の cleanup 後に非ゼロで終了し、再試行用に base デプロイ記録を残します。[workarounds.md §A-8](workarounds.md#a-8-service-group-api-の探索と不在応答を補う) を参照してください。
+Stack が存在するのに alpha 機能が無効な場合、sli Stack だけが存在する場合、または base Stack の Service Group に SLI が残るのに sli Stack がない場合は、hook が削除前に停止します。sli Stack がまだ作成されていない環境や、sli の削除後に base の削除を再試行する場合は、base Stack だけでも削除できます。
 
 環境全体を残して SLI 機能だけを廃止する場合も、先に sli の定義を削除します。`infra/sli/main.parameters.json` の `enabled` を false にし、sli の what-if と `azd provision sli` を完了してから、`infra/main.parameters.json` の `enableAzureMonitorSli` を false にして base の what-if と `azd provision base` を行います。base を先に適用すると、SLI が参照中の Service Group や identity を削除するため、この順序を逆にしないでください。
 
-cleanup hook の構文・実行経路だけを非破壊で確認する場合は、削除系処理を dry-run にして hook を単体実行できます。
-
-```powershell
-$env:AZURE_MONITOR_SLI_CLEANUP_DRY_RUN = "true"
-azd hooks run predown --platform windows
-Remove-Item Env:AZURE_MONITOR_SLI_CLEANUP_DRY_RUN
-```
+削除前提条件の確認だけを行う場合は、読み取り専用の predown hook を単体実行します。
 
 ```bash
-export AZURE_MONITOR_SLI_CLEANUP_DRY_RUN=true
-azd hooks run predown --platform posix
-unset AZURE_MONITOR_SLI_CLEANUP_DRY_RUN
+azd hooks run predown
 ```
 
 注意点:
 
-- cleanup hook は system-protected deny assignment を解除しません
+- predown hook は Stack の削除前提を読み取り専用で確認し、リソースを削除しません
 - `azd down <layer>` のような layer 指定 down はサポート対象外です
-- `AZURE_MONITOR_SLI_CLEANUP_DRY_RUN=true` を付けた hook 単体実行では削除せず、対象検出とログ出力だけを行います
+- Stack 削除は system-protected deny assignment を解除しません
 - SRE Agent を有効にした環境の Key Vault（`kvsregithub<resourceToken>`）は purge protection を設定しません。環境を完全削除して同じ名前で再作成する場合は `azd down --force --purge` を使い、azd に Key Vault の purge を処理させます。purge protection 付きで作成された旧 vault は purge できず、`scheduledPurgeDate` の自動消去まで名前が残るため、その間は別の環境名を使ってください

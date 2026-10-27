@@ -83,17 +83,10 @@ hooks:
       continueOnError: false
   predown:
     windows:
-      run: uv run --no-project --no-config scripts/cleanup-azure-monitor-sli-resources.py
+      run: uv run --no-project --no-config scripts/validate-deployment-stacks-before-down.py
       interactive: false
     posix:
-      run: uv run --no-project --no-config scripts/cleanup-azure-monitor-sli-resources.py
-      interactive: false
-  postdown:
-    windows:
-      run: uv run --no-project --no-config scripts/cleanup-azure-monitor-sli-resources.py post
-      interactive: false
-    posix:
-      run: uv run --no-project --no-config scripts/cleanup-azure-monitor-sli-resources.py post
+      run: uv run --no-project --no-config scripts/validate-deployment-stacks-before-down.py
       interactive: false
 
 services:
