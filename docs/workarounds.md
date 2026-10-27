@@ -4,6 +4,14 @@
 
 ID は履歴追跡用に固定する。削除済み ID は再利用しない。
 
+## 2026-10-27 棚卸し結果
+
+| ID | 反映内容 | 検証結果 |
+|---|---|---|
+| A-4 | 削除 | 環境削除を Stack 前提にし、Service Group と SLI の手動削除を hook から除いた。Stack 未移行環境は既存環境の移行手順で取り込んでから削除する。 |
+| A-8 | 更新 | base Stack に SLI が残る一方で sli Stack がない状態を、削除前に検出する処理へ対象を限定した。 |
+| B-2 | 削除 | Stack 管理環境では DCRA の先行削除を行わず、Stack に削除を任せる。未移行環境向けの削除分岐は廃止した。 |
+
 ## 2026-09-09 棚卸し結果
 
 gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結果を確認した。
@@ -50,7 +58,7 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 |---|---|---|
 | A-6 | 削除 | `AZD_DEPLOY_TIMEOUT` 未設定の fresh `azd up` が成功。 |
 | B-1 | 削除 | `Microsoft.Insights/components@2020-02-02` でも OTLP managed DCR / managed RG が作成された。 |
-| B-3 | 削除 | B-2 の DCRA 先行削除を残す前提では、`postdown` force-delete なしで `ai_*_managed` が残留しない。 |
+| B-3 | 削除 | 従来の削除方法では B-2 の先行削除により残留を回避。Stack 構成では B-2 なしでも `ai_*_managed` の削除を確認済み。 |
 | B-4 | 削除 | 現行 Microsoft Learn では誤記 `AKSAzureMonitorAISupportPreview` が確認できない。feature flag 管理は C-1 に集約。 |
 | C-1 | 一部削除 | `AKS-OMSAppMonitoring` 未登録でも full `azd up` 成功。`Microsoft.Insights/components@2020-02-02` 前提では `OtlpApplicationInsights` 未登録でも OTLP managed DCR / managed RG 作成成功。Azure Monitor SLI destination metrics は `EnableCustomMetricsV2` が Pending のまま動作したため、SLI 用 feature flag 登録手順を削除。残り 2 flag は AKS preflight で必要なため継続。 |
 | C-2 | 一部削除 | 当時の検証では AKS `managedClusters` を `2026-03-01` GA API に移行し、Fleet は GA API が `UnsupportedApiVersion` のため preview 継続とした。現行 IaC の状態は 2026-06-26 棚卸しを参照。 |
@@ -88,45 +96,27 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 - **確認方法**: 承認済みの検証環境で managed DCR のロールを一つずつ外し、他の権限を固定して RBAC 伝播後の結果を比較する。Publisher は SLI 作成と更新時の validation、Reader は公式の読み出し要件と destination metric の読み出し結果を確認する。両ロールを同時に外した結果や、PUT の成功だけで双方の不要を判断しない。
 - **最終確認**: 2026-07-24、`eval` 環境で managed DCR の `Monitoring Metrics Publisher` を外し、SLI の description 変更で PUT を発生させると `DestinationAmwAccountAccessValidator` access denied。割り当てを同じ ID で復旧し、RBAC 伝播後に provision 成功。この実測は Publisher の必要性を示すものであり、Reader の単独除去は検証していない。
 
-### A-4. `predown` hook で Service Group scope SLI と環境別 Service Group を削除
+### A-5. 新規 Service Group の権限反映を待つ
 
-- **概要**: `azd down` 前に `uv run scripts/cleanup-azure-monitor-sli-resources.py` を実行し、Service Group scope の SLI と環境別 Service Group を削除する。
-- **理由**: `azd down` は subscription / resource group scope までしか到達せず、tenant scope（Service Group / SLI）が残留する。
-- **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、`azure.yaml`、ADR-009
-- **解消条件**: `azd` が tenant scope のリソースを `down` で cascade delete できるようになる、または Service Group が subscription scope のリソースとして提供される。
-- **確認方法**: Service Group cleanup を一時的に無効化して `azd down` 後、Service Group / SLI が残らないか確認する。
-- **最終確認**: 2026-05-17、Service Group cleanup を外すと Service Group と availability / latency SLI が残留。削除不可。
+- **概要**: 環境別 Service Group 上の `Service Group Administrator` 割り当てを確認する。作成者への自動付与があれば追加せず、不足する場合だけ付与する。割り当て確認後の `slis/write` の403は、資産や割り当てを変更せず、時間を置いて再試行する。
+- **理由**: 新規 Service Group では割り当てが存在していても SLI 操作への反映が遅れる。[公式概要](https://learn.microsoft.com/azure/governance/service-groups/overview#role-based-access-controls)では作成者への自動付与と子 Service Group へのロール継承を説明している。2026-05-17 の親 Contributor による SLI 操作失敗は、Service Group 全般の継承非対応を意味しない。
+- **場所**: `docs/deployment.md` §新規 Service Group 作成後の権限準備
+- **解消条件**: 新規 Service Group の作成直後から必要な SLI 操作が成功し、対象 scope の権限確認と待機を個別に案内する必要がなくなる。親ロールのみでの SLI 操作は、直接割り当ての有無と反映時間を区別して再評価する。
+- **確認方法**: 新規 Service Group の割り当て、対象 identity と scope を確認し、同じ SLI 定義を時間を置いて再試行する。待機中に Service Group や割り当てを変更しない。
+- **最終確認**: 2026-10-24、新規 Service Group の Administrator 自動付与を確認後、権限を変更せず約10分待つと Availability SLI の作成が成功した。Latency SLI の一時エラーは同じ定義の再実行で解消し、2件とも Stack への取り込み、what-if の削除予測、定義除外による削除が成功した。
 
-### A-5. 環境別 Service Group への `Service Group Administrator` 直付与が必要
+### A-8. base Stack に残る未管理 SLI を削除前に検出する
 
-- **概要**: 親 Service Group の Contributor では子 Service Group の `Microsoft.Monitor/slis/write` が継承されないため、環境別 Service Group に対して直接 `Service Group Administrator` を付与する。
-- **理由**: Service Group の親子関係は Azure RBAC のリソース ID パス継承と独立している。
-- **場所**: `docs/deployment.md` §必要なロール §2、ADR-009 §RBAC
-- **解消条件**: Service Group RBAC が Azure RBAC の path 継承に揃う、または親 Service Group からの継承で SLI 作成が許可される。
-- **確認方法**: 親 Service Group の Contributor のみを付与し、子 Service Group での SLI 作成が通るか確認する。
-- **最終確認**: 2026-05-17、親 Service Group Contributor のみでは `Microsoft.Monitor/slis/write` が AuthorizationFailed。削除不可。
-
-### A-8. Service Group API の探索と不在応答を補う
-
-- **概要**: cleanup は Service Group ID が未指定の場合、対象環境の base デプロイの操作記録から ID を取得する。SG 本体の GET が `ResourceNotFound` を返した場合は削除済みとして扱い、SLI 一覧は取得しない。SG 削除は `Location` で非同期処理の完了を待ち、失敗や時間切れの場合は再実行用に base デプロイ記録を残す。
-- **理由**: 使用中の `2024-02-01-preview` には Service Group の一覧 GET がなく、SG 不在時の SLI 一覧取得は403を返す場合がある。これらを通常の一覧取得や不存在判定として扱うと、探索に失敗したり、削除済み環境の cleanup が失敗を繰り返したりする。`az rest` は非同期削除を待たず、Azure CLI 2.90.0 の `az resource` も SG の tenant scope ID を受け付けないため、SG 削除の完了待ちはスクリプトが担当する。
-- **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、[環境削除](deployment.md#環境削除)
-- **解消条件**: Service Group 管理 API またはその CLI に一覧操作が追加され、作成直後を含め対象を取得できるようになれば、デプロイ操作記録による探索を置き換える。SG 不在時の SLI API 応答を権限不足と区別できるようになれば、SG 本体の先行確認を再評価する。CLI が構造化したエラーコードを返すようになれば、現在の stderr からの抽出を置き換える。CLI が tenant scope の SG 削除と非同期処理の完了待ちを扱えるようになれば、スクリプト内の HTTP 処理を置き換える。GA への移行だけでは撤去しない。
-- **確認方法**: `review-repo full` の棚卸しで、[公開 API 定義](https://github.com/Azure/azure-rest-api-specs/tree/main/specification/management/resource-manager/Microsoft.Management/ServiceGroups)と[管理 API の説明](https://learn.microsoft.com/azure/governance/service-groups/manage-service-groups)を確認し、一覧操作、不在時の応答、CLI の tenant scope 対応と完了待ちの改善を報告する。実環境の調査を依頼された場合は、既存 SG と不在 SG の GET / SLI 一覧を読み取り専用で照会し、変更後の応答を確認する。
-- **最終確認**: 2026-09-08、公開仕様に一覧 GET がなく、実 API でも404。SG 本体の不在は404 `ResourceNotFound`、同じ SG の SLI 一覧は403 `AuthorizationFailed`。`eval` の base デプロイの操作記録から SG ID を取得できた。
+- **概要**: base Stack があり sli Stack がない場合、base Stack の管理対象から環境所有の Service Group ID を取得する。Service Group が存在し SLI が残っていれば、削除を止めて sli Stack への取り込みを求める。
+- **理由**: base Stack だけを削除すると、sli Stack が管理していない tenant scope の SLI が残る可能性がある。Service Group の一覧 API がないため、base Stack のリソース一覧を使って確認する。
+- **場所**: `scripts/validate-deployment-stacks-before-down.py`、[環境削除](deployment.md#環境削除)
+- **解消条件**: azd が Stack 間の tenant scope 依存関係を検証し、削除前に未管理 SLI を検出する。
+- **確認方法**: hook のテストで、base Stack に Service Group が含まれ SLI が残る場合に停止し、SLI がない場合は削除を許可することを確認する。
+- **最終確認**: 2026-10-27、Stack 削除前提のテストで上記2条件を確認した。実環境への照会は行っていない。
 
 ---
 
 ## B. OTLP / Application Insights 関連 (ADR-006)
-
-### B-2. `predown` hook で AKS 上の `OtlpAppInsightsExtension` DCRA を先に削除
-
-- **概要**: `azd down` 前に AKS の OTLP DCR association を削除する。
-- **理由**: B-3 の `postdown` force-delete を削除したため、App Insights managed RG (`ai_*_managed`) を残さないには AKS 上の DCRA を先に外す必要がある。DCRA を残したまま base RG を削除すると `ai_*_managed` が残留する。
-- **場所**: `scripts/cleanup-azure-monitor-sli-resources.py`、ADR-009
-- **解消条件**: AKS DCRA を残したまま `azd down` しても `ai_*_managed` が残留しない deprovision flow になる。
-- **確認方法**: B-2 の DCRA 削除を一時的に無効化して `azd down` を実行し、`ai_*_managed` が残らないか確認する。
-- **最終確認**: 2026-05-17、B-2 と B-3 を両方外すと `ai_*_managed` が残留。B-2 を残して B-3 を外した場合は残留なし。
 
 ---
 
@@ -147,7 +137,7 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 - **理由**: AKS の GA `2026-06-01` には、現行構成で使う `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling`、`upgradeStrategy`、`upgradeSettingsBlueGreen` が存在しない。現行 preview `2026-05-02-preview` の公式 schema にはこれらのプロパティが定義されているため、preview を継続する。
 - **場所**: `infra/modules/aks.bicep` の AKS 作成宣言
 - **解消条件**: GA API の公式 schema が `workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling`、`upgradeStrategy`、`upgradeSettingsBlueGreen` に対応し、同 API への移行後も現行設定が維持される。
-- **確認方法**: GA API の公式 schema でこれら3プロパティへの対応を確認してから、AKS `managedClusters` の API を置換し、`azd provision base --preview` で差分を確認する。承認済みの検証環境で `azd provision base` を適用し、GET で `provisioningState: Succeeded` と、3プロパティに設定した値が維持されることを確認する。デプロイ成功だけでは preview API を撤去しない。
+- **確認方法**: GA API の公式 schema でこれら3プロパティへの対応を確認してから、AKS `managedClusters` の API を置換し、対象環境を選択して [What-if 分析スキル](../.github/skills/bicep-what-if-analysis/SKILL.md)を `--layer base` で実行する。差分を確認後、承認済みの検証環境で `azd provision base` を適用し、GET で `provisioningState: Succeeded` と、3プロパティに設定した値が維持されることを確認する。デプロイ成功だけでは preview API を撤去しない。
 - **最終確認**: 2026-09-09、公式 REST 仕様の [stable 一覧](https://github.com/Azure/azure-rest-api-specs/tree/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable)で最新 GA が `2026-06-01` であることを確認。[同 GA の定義](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-06-01/managedClusters.json)には `addonAutoscaling` がなく、[現行 preview の定義](https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json)には存在する。今回は公開仕様のみを確認し、実環境への適用は行っていない。
 - **実環境での確認**: 2026-07-24、公式 schema で GA `2026-05-01` に `addonAutoscaling` がなく、preview `2026-05-02-preview` に存在することを確認。managedClusters の全参照を最新 preview へ更新し、eval の base 差分デプロイが成功した。GET では `provisioningState: Succeeded` と `addonAutoscaling: Enabled` を確認した。
 
@@ -240,3 +230,43 @@ gh-aw v0.88.7 の公式ソースと、週次 workflow 3 件のコンパイル結
 - **解消条件**: 同じ条件の既存 pool で `localdns-config` の更新だけによりノード構成が反映され、新規 Pod の名前解決と Local DNS のメトリクスを確認できるようになる。
 - **確認方法**: 更新前後のノード設定と新規 Pod の resolver を比較し、各ノードの `up{job="localdns-metrics"}` と問い合わせ counter を確認する。
 - **最終確認**: 2026-09-07、`eval` の新規 System ノード2台で `169.254.10.11` を使う名前解決と `up=1` を確認した。
+
+### D-15. azd layer の deploymentStacks 設定と公開 schema の差
+
+- **対象範囲**: `azure.yaml` の `infra.layers[].deploymentStacks`。azd 1.37.1 の実行時はこの設定を読み込むが、同版の公開 JSON schema の layer properties には含まれないため、エディターに未定義プロパティの警告が出る。
+- **対応**: 設定は実行時の `provisioning.Options.DeploymentStacks` に従い各 layer に置く。親の `infra.deploymentStacks` へ移すと layers との併用検証に失敗する。schema の独自コピーや validation の無効化は追加しない。
+- **根拠**: [azd 1.37.1 の Options](https://github.com/Azure/azure-dev/blob/6bd1275b6b31104034673946953533eb860dd646/cli/azd/pkg/infra/provisioning/provider.go)、[公開 schema](https://github.com/Azure/azure-dev/blob/6bd1275b6b31104034673946953533eb860dd646/schemas/v1.0/azure.yaml.json)。
+- **解消条件**: 公開 schema が layer の `deploymentStacks` を定義し、エディターと CLI の両方で同じ設定を受け付ける。
+- **確認方法**: schema の layer properties と CLI の設定読込を確認する。読込確認には存在しない名前を指定した `azd hooks run stacks-config-validation-only` を使い、Azure の配備は行わない。
+- **最終確認**: 2026-10-24、azd 1.37.1 で base / sli の設定読込が成功した。ユーザーの alpha 設定は変更していない。
+
+### D-16. Stack の作成後に個別取得が404になる場合
+
+- **対象範囲**: `azd provision` が Stack の `ResourceNotFound`（404）で終了し、`az stack sub list` には対象 Stack が存在する一方、`az stack sub show` は404になる場合。
+- **対応**: 先行 deployment の完了を確認し、環境、layer、定義、opt-in 設定を変えずに、`azd provision` を `--no-state` 付きで再実行する。個別のリソース削除やアプリの再ビルドは不要。
+- **解消条件**: この症状について Azure または azd の修正が確認され、同じ構成の作成と再作成で再実行せずに Stack を取得できる。
+- **最終確認**: 2026-10-26、azd 1.37.1 と AKS App Monitoring 有効構成で、配備後の Stack 本体の GET が404になる症状を確認した。`--no-state` 付きの同じコマンドの再実行で取得が回復し、管理対象6リソースの ID を保持して成功した。`--no-state` なしでの回復は未確認。その後の標準削除から120秒後の同名再作成は初回で成功した。発生原因は未特定。
+
+対象環境の subscription ID、環境名、失敗した layer を指定し、Stack 内部の最新 deployment を確認する。
+
+```bash
+SUBSCRIPTION_ID="<subscription-id>"
+ENV_NAME="<env>"
+LAYER="base"
+STACK_NAME="azd-stack-${ENV_NAME}-${LAYER}"
+
+az deployment sub list --subscription "$SUBSCRIPTION_ID" \
+  --query "sort_by([?starts_with(name, '${STACK_NAME}-')], &properties.timestamp)[-1].{name:name,state:properties.provisioningState}" \
+  --output json
+```
+
+`state` が `Running` などの処理中なら完了を待つ。`Succeeded` なら、失敗したときの引数を維持し、`--no-state` を付けて provision を再実行する。基本形は次のとおり。`Failed`、`Canceled`、または該当履歴がない場合は、この回避策で再実行せず、元のエラーと対象を確認する。
+
+```bash
+azd provision "$LAYER" -e "$ENV_NAME" --no-state
+
+az stack sub show --subscription "$SUBSCRIPTION_ID" --name "$STACK_NAME" \
+  --query '{state:provisioningState,resources:resources}' --output json
+```
+
+Stack の `state` が `succeeded`、対象リソースの `status` が `managed` であることを確認する。再実行でも同じ404になる場合は、反復せず `azd --debug` のログと deployment の correlation ID を保存して調査する。

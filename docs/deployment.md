@@ -26,12 +26,22 @@
 
 Azure Monitor SLI は Service Group に紐づくテナントレベル リソースです。Service Group / SLI はサブスクリプションを超えるため、サブスクリプション Owner だけでは作成できません。
 
-- 既定構成 (`enableAzureMonitorSli=true`): tenant root の Service Group 配下に環境別 Service Group を作成するため、tenant root Service Group 上で Service Group の作成 / 子リソース管理ができる権限が必要
-- 別の親 Service Group を使う場合: `AZURE_MONITOR_SLI_PARENT_SERVICE_GROUP_ID` / `azureMonitorSliParentServiceGroupId` で指定し、その親 Service Group 上で Service Group の作成 / 子リソース管理ができること
-- 既存の環境別 Service Group を再利用する場合: `AZURE_MONITOR_SLI_SERVICE_GROUP_RESOURCE_ID` / `azureMonitorSliServiceGroupResourceId` で指定し、その Service Group で SLI 作成 (`Microsoft.Monitor/slis/write`) ができること
-- 環境別 Service Group で作成権限を付与する構成例は、デプロイ実行 identity に対する **Service Group Administrator** の直接付与
+- **Service Group の作成権限**: 既定構成 (`enableAzureMonitorSli=true`) では tenant root Service Group 上で、環境別 Service Group を作成できる権限が必要です。別の親を使う場合は `AZURE_MONITOR_SLI_PARENT_SERVICE_GROUP_ID` / `azureMonitorSliParentServiceGroupId` で指定し、その親での作成権限を準備します。
+- **SLI の操作権限**: デプロイ実行 identity の、環境別 Service Group 上の **Service Group Administrator** 割り当てを確認します。作成者には自動付与されるため、既に存在する割り当てを追加し直す必要はありません。別 identity で配備する場合など、割り当てが不足する場合だけ管理者が付与します。
+- 既存の環境別 Service Group を再利用する場合は、`AZURE_MONITOR_SLI_SERVICE_GROUP_RESOURCE_ID` / `azureMonitorSliServiceGroupResourceId` で指定し、その Service Group 上の権限を確認します。[公式仕様](https://learn.microsoft.com/azure/governance/service-groups/overview#role-based-access-controls)では子 Service Group へのロール継承をサポートしていますが、メンバーとして関連付けたリソースへは継承しません。過去の SLI 操作の失敗を、Service Group 全般の継承非対応とは扱いません。
 
-Service Group RBAC の制約は [docs/workarounds.md §A-5](workarounds.md#a-5-環境別-service-group-への-service-group-administrator-直付与が必要) で棚卸ししています。
+Service Group の権限反映待ちは [docs/workarounds.md §A-5](workarounds.md#a-5-新規-service-group-の権限反映を待つ) を参照してください。
+
+#### 新規 Service Group 作成後の権限準備
+
+新規環境では、次の順で準備します。既存 Service Group を使う場合も、SLI 配備前に対象 identity の割り当てを確認してください。
+
+1. 親 Service Group での作成権限を準備し、`azd provision base -e "<env>"` で環境別 Service Group を作成します。
+2. `azd env get-value AZURE_MONITOR_SLI_SERVICE_GROUP_ID -e "<env>"` で対象 ID を取得します。
+3. 対象 scope とデプロイ実行 identity の Service Group Administrator 割り当てを確認します。自動付与済みなら変更せず、不足する場合だけ権限を付与できる管理者が付与します。
+4. サービス配備後に `azd provision sli -e "<env>"` を実行します。新規作成直後に `Microsoft.Monitor/slis/write` の403が出た場合は、scope、identity、割り当てが正しいことを確認し、Service Group や割り当てを変更せず5分間隔で同じコマンドを再試行します。30分を作業上の区切りとし、解消しなければ資産を保持して調査します。認証情報の更新が案内された場合は再認証して再試行します。SLI 以外のエラーは内容を確認します。
+
+不足するロールの追加は Bicep や hook では自動実行しません。一時検証でも、必要な権限付与と後始末を事前に決めます。反映待ちの根拠と回避策の対象は [workarounds.md §A-5](workarounds.md#a-5-新規-service-group-の権限反映を待つ) を参照してください。
 
 ### 3. Azure SRE Agent を使う場合
 
@@ -99,11 +109,46 @@ az fleet gate approve \
 
 リソース名は `appName` と `environment` に応じて読み替えてください。
 
+### Deployment Stacks の有効化と既存環境の移行
+
+base と sli は、それぞれ subscription scope の `azd-stack-<env>-base` と `azd-stack-<env>-sli` で管理します。`azure.yaml` の `deploymentStacks` は、定義から外した管理対象リソースと環境専用 Resource Group を削除し、deny assignment は作成しない設定です。Service Group と SLI の tenant scope リソースも管理対象です。`existing` 参照で使う Service Group など、テンプレートが作成しないリソースは取り込みません。
+
+azd の Deployment Stacks 対応は alpha 機能です。配備前に実行端末で有効にします。CI は `AZD_ALPHA_ENABLE_DEPLOYMENT_STACKS=true` で有効にします。
+
+```bash
+azd config set alpha.deployment.stacks on
+```
+
+project の preprovision hook は、この機能が無効なら配備前に停止します。設定を追加しただけでは既存環境を移行しません。layer の設定は azd 1.37.1 で読み込めることを確認していますが、公開 JSON schema では未定義のため、エディターが警告する場合があります。対象と撤去条件は [workarounds.md §D-15](workarounds.md#d-15-azd-layer-の-deploymentstacks-設定と公開-schema-の差) を参照してください。
+
+既存環境は、opt-in フラグやリソース名を変えず、現在の構成を最初に取り込みます。初回取り込みより前に削除した定義は Stack の管理対象にならず、そのリソースは残ります。取り込みと機能の無効化を同時に行わないでください。
+
+1. `azd env select "<env>"` で対象環境を選び、subscription、location、現在の opt-in 設定を確認します。
+2. [適用前差分確認](#bicep-の適用前差分確認)を `--layer base` で実行し、意図しない変更や削除がないことを確認して `azd provision base -e "<env>"` を実行します。
+3. 同じく `--layer sli` の差分を確認し、`azd provision sli -e "<env>"` を実行します。既存アプリの再ビルドやサービス再配備は不要です。
+4. 次のコマンドで各 Stack の `provisioningState` が `succeeded`、対象リソースの `status` が `managed` であることを確認します。初回失敗で一部だけ取り込まれた場合は、同じフラグのまま原因を解消して再実行します。
+
+```bash
+az stack sub show --subscription "<subscription-id>" --name "azd-stack-<env>-base" \
+  --query '{state:provisioningState,resources:resources}' --output json
+az stack sub show --subscription "<subscription-id>" --name "azd-stack-<env>-sli" \
+  --query '{state:provisioningState,resources:resources}' --output json
+```
+
+移行後に alpha 機能を無効にして incremental deployment に戻すと、Stack の削除管理が行われません。Stack を残したまま通常配備へ戻さないでください。移行前の環境を削除する場合の扱いは[環境削除](#環境削除)を参照してください。
+
+Stacks 未移行の既存環境を削除する場合も、まず上記の手順で base と sli の定義を変えずに Stack へ取り込みます。その後、環境削除を実行します。アプリの再ビルドやサービスの再配備は不要です。
+
+Stack の作成や再作成が `ResourceNotFound`（404）で終了しても、Azure 側では配備が成功している場合があります。Stack が一覧に存在するのに個別取得が404になる場合は、先行 deployment の完了後に同じ `azd provision` を再実行します。確認と再実行の手順は [workarounds.md §D-16](workarounds.md#d-16-stack-の作成後に個別取得が404になる場合)を参照してください。
+
 ### `azd up`
+
+新しい Service Group を使う初回構築では、先に[新規 Service Group 作成後の権限準備](#新規-service-group-作成後の権限準備)を完了してから `azd up` を実行します。`azd up` は base と sli の間で権限付与を待って停止しません。組織承認済み package index を使う場合は、[専用の配備手順](#docker-build-のpackage-index)を使います。
 
 ```bash
 azd config set alpha.aks.kustomize on
 azd config set alpha.aks.helm on
+azd config set alpha.deployment.stacks on
 azd init
 azd up
 ```
@@ -121,6 +166,29 @@ azd up
 
 `base` と `sli` を分離する判断は [ADR-012](adr/012-functions-direct-external-sli-probe.md)、デプロイ後の SLI 評価開始の確認は [可観測性ガイド](observability.md#アプリ信頼性-signal)を参照してください。`azd up` は SLI destination metric の出現までは待ちません。
 
+### Bicep の適用前差分確認
+
+Bicep の差分確認には、[What-if 分析スキル](../.github/skills/bicep-what-if-analysis/SKILL.md)を使います。選択中の azd 環境と `azure.yaml` の layer に対応する Bicep、parameters file から `az stack-whatif sub create` を実行します。対象環境を `azd env select "<environment>"` で選択してから実行してください。初回取り込み前の、まだ存在しない Stack も対象にできます。
+
+```bash
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
+
+# external SLI metrics が出現した後に SLI layer を確認する場合
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer sli
+```
+
+スクリプトは Azure に保持期間1時間の `Microsoft.Resources/deploymentStacksWhatIfResults` リソースを作成し、プロパティ変更を含む結果を取得します。対象リソースを配備、削除せず、hook も実行しません。成功時に `.github/skills/bicep-what-if-analysis/scripts/patterns/pattern_stats.json` を解析履歴として更新します。結果 ID は出力に残り、保持期間後に Azure が削除します。what-if 結果の作成権限も必要です。
+
+azd 1.37.1 の Stacks 対応は `azd provision --preview` をサポートしません。通常の `az deployment sub what-if` は管理対象から外れるリソースの削除を評価しないため、移行後の代替には使いません。分析器は `--layer` を省略すると停止します。適用前の確認方法と出力の読み方は[What-if 分析スキル](../.github/skills/bicep-what-if-analysis/SKILL.md)を参照してください。
+
+適用前に、対象環境、subscription、layer と what-if の成功を確認します。Create、Modify、Delete、Detach の対象リソースとプロパティの前後値を、予定した変更およびBicepの宣言と照合します。Delete、RBAC / identity、ネットワーク、セキュリティ設定、共有リソースは個別に確認し、テキスト出力で省略された差分は `--format json` で確認します。分類結果やBicep検索結果だけで安全性を判定せず、適用可否は人が決めます。
+
+分析器は操作件数、Stack の削除予測確度、Stack 診断を出力の先頭に示します。read-only と分類したプロパティも、変更前後の値と分類を表示します。
+
+Stack 結果のリソース型は Azure が返した値を優先します。未解決の ARM 式では名前を `<dynamic>` と表示し、JSON の `resourceId` と `originalResourceId` に元の式を保持します。対象の宣言は `stack.unsupportedReason` に含まれるテンプレート内の位置と照合してください。
+
+what-if は azd hook の操作を評価しません。適用前に対象 layer の hook が実行する操作も確認します。
+
 検証中、新規環境の初回配備で Service Group（`Microsoft.Management/serviceGroups`）の作成が `ResourceNotFound` で失敗した事例がありました。その後の検証では再現していません。同じエラーで停止した場合は、同じ配備コマンドを再実行してください。発生時は Service Group が作成済みで、再試行により配備が完了したため、同様に成功が期待できます。
 
 上記のサービス配備（2〜7）は、共通 task `deploy-services` が順番に実行します。通常の `up` と組織 index 向けの段階配備は、この task と各 service の hook を共有します。個別のサービスだけを更新するときは、従来どおり `azd deploy <service>` を使えます。
@@ -132,10 +200,10 @@ SRE Agent は `base` layer の opt-in 機能です。`AZURE_SRE_AGENT_ENABLED` �
 ```bash
 azd env set AZURE_SRE_AGENT_ENABLED true
 azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000
-azd provision base --preview
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 ```
 
-preview で Agent、専用 User Assigned Managed Identity、専用 Application Insights、Resource Group 範囲の読み取り role assignments を確認してください。`base` layer には他の基盤リソースも含まれるため、既存リソースの変更を含むすべての差分が意図した内容であることを確認してから、全体をデプロイします。公開取得が許可された環境では次を実行します。組織承認済み package index を使う場合は、同じ環境設定を使って [専用の配備手順](#docker-build-のpackage-index)を実行してください。
+分析結果で Agent、専用 User Assigned Managed Identity、専用 Application Insights、Resource Group 範囲の role assignments を確認してください。`base` layer には他の基盤リソースも含まれるため、既存リソースの変更を含むすべての差分が意図した内容であることを確認してから、全体をデプロイします。公開取得が許可された環境では次を実行します。組織承認済み package index を使う場合は、同じ環境設定を使って [専用の配備手順](#docker-build-のpackage-index)を実行してください。
 
 ```bash
 azd up
@@ -154,10 +222,10 @@ Azure Monitor の alert を Agent に取り込む場合は、別途次の設定�
 ```bash
 azd env set AZURE_SRE_AGENT_ENABLED true
 azd env set AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED true
-azd provision base --preview
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 ```
 
-preview で Agent の `incidentManagementConfiguration` の差分を確認してから、`azd provision base` または `azd up` を実行します。Bicep が Azure Monitor を incident platform として設定し、Agent の user-assigned managed identity に subscription scope の Monitoring Contributor を割り当てます。azd の preview は表示名を持つ resource type だけを出力するため、role assignment は表示されません。配備後に `az role assignment list --all --assignee <user-assigned identity の principal ID>` で割り当てを確認してください。権限は alert rule や Log Analytics workspace の変更にも及ぶため、subscription 全体への付与が適切か確認してください。
+分析結果で Agent の `incidentManagementConfiguration` と subscription scope の Monitoring Contributor role assignment を確認してから、`azd provision base` または `azd up` を実行します。Bicep が Azure Monitor を incident platform として設定し、Agent の user-assigned managed identity に Monitoring Contributor を割り当てます。配備後も `az role assignment list --all --assignee <user-assigned identity の principal ID>` で割り当てを確認してください。権限は alert rule や Log Analytics workspace の変更にも及ぶため、subscription 全体への付与が適切か確認してください。
 
 `base` layer の post-provision hook は、Azure SRE Agent の Data Plane API を使って、response plan `aks-chaos-lab-sli-short-window-review` を作成または更新します。`Title contains` は `SLI short-window alert` とし、Sev3 と `Review` mode に限定します。
 
@@ -167,7 +235,7 @@ Baseline / 長窓アラートは長い評価窓の SLO 達成状況や error bud
 
 Hook は旧 Fast / Slow plan と、以前の広い SLI / Kubernetes / publisher / Fleet plan を削除します。削除対象の名前は [設定スクリプト](../scripts/configure_sre_agent_incidents.py) の `LEGACY_PLAN_NAMES` で管理します。削除した plan が開始済みの調査は完了まで継続します。title 条件は resource ID を区別しないため、同じ文字列を含む別環境の alert も一致する可能性があります。
 
-アラート名を短窓 / 長窓へ変更すると、次回の `azd provision sli` は新しい名前のリソースを作成します。incremental deployment は旧名のアラートを削除しないため、再配備後に旧 `SLI fast burn rate alert for ...` と `SLI slow burn rate alert for ...` を確認し、残っているものを削除してください。
+アラート名を変更すると、次回の `azd provision sli` は新しい名前のリソースを作成し、同じ Stack が管理していた旧名のアラートを削除します。初回取り込み前に定義から外れていた旧 `SLI fast burn rate alert for ...` と `SLI slow burn rate alert for ...` は管理対象にならないため、残存していれば対象を確認して別途削除します。
 
 Hook は quickstart plan が有効なら無効化し、ほかに有効な Autonomous plan が残っている場合は処理を失敗させます。Plan は組み込み `meta_agent` を指定し、専用 incident handler は設定しません。response plan の作成には `https://azuresre.dev` audience の access token を使います。Action Group はこの連携に使いません。API とポータルでの設定方法は [Azure Monitor alert integration](https://learn.microsoft.com/azure/sre-agent/automate-incidents) と [response plan setup](https://learn.microsoft.com/azure/sre-agent/response-plan) を参照してください。
 
@@ -178,35 +246,27 @@ Hook は quickstart plan が有効なら無効化し、ほかに有効な Autono
 配備前に既存 SLI metric alert の location が AMW と一致することも確認します。異なる場合は、既存ルールの定義を保存し、同名で再配備する baseline ルールだけを削除してから `sli` を配備します。location は更新できないためです。詳細は [SLI metric alerts](observability.md#sli-metric-alerts) を参照してください。
 
 ```bash
+azd env select "<environment>"
 azd env set AZURE_SRE_AGENT_ENABLED true -e "<environment>"
 azd env set AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED true -e "<environment>"
 azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000 -e "<environment>"
-azd provision base --preview -e "<environment>"
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 azd provision base -e "<environment>"
-azd provision sli --preview -e "<environment>"
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer sli
 azd provision sli -e "<environment>"
 ```
 
-各 preview の差分を確認してから対応する配備コマンドを実行します。`base` は Agent と Azure Monitor 接続、response plan を設定し、`sli` はその plan が照合する短窓アラートを配備します。既存環境のアラートが旧 Fast / Slow 名のままでは、`SLI short-window alert` の title 条件に一致しません。新しい短窓と長窓アラートの作成を確認後、前述の旧アラートを削除します。既存アプリの変更や再ビルドは不要です。
+各 layer の what-if 分析結果を確認してから対応する配備コマンドを実行します。`base` は Agent と Azure Monitor 接続、response plan を設定し、`sli` はその plan が照合する短窓アラートを配備します。既存環境のアラートが旧 Fast / Slow 名のままでは、`SLI short-window alert` の title 条件に一致しません。新しい短窓と長窓アラートの作成を確認後、前述の旧アラートを削除します。既存アプリの変更や再ビルドは不要です。
 
 完了時は Agent の作成成功だけでなく、Azure Monitor 接続、専用 identity の Monitoring Contributor、有効な `Review` response plan、title 条件に一致する Availability / Latency の短窓アラート2件、README のインデックス完了、既存 API の応答を確認します。GitHub 接続は別の任意設定です。
 
-Agent を `false` に戻して incremental deployment を行っても、作成済み Agent は削除されません。Agent と専用リソースを廃止する場合は個別に削除してください。Agent が存在する間は Azure SRE Agent の利用料金が発生します。
+Agent を廃止する場合は、まず有効な構成のまま[既存環境の Stack 取り込み](#deployment-stacks-の有効化と既存環境の移行)を完了します。`AZURE_SRE_AGENT_ENABLED=false` と `AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED=false` を設定し、`--layer base` の what-if で Agent、専用 identity、Vault、Private Endpoint、専用 RBAC などの削除を確認してから `azd provision base` を実行します。共有 VNet と予約済み subnet は維持します。既存アプリの再ビルドや再配備は不要です。Vault は soft-delete され、通常の Stack 更新では purge しません。
 
 `api-instrumentation` は app-specific な `Instrumentation/chaos-app-otel` だけを `k8s/apps/chaos-app/instrumentation/` から適用します。クラスタ共通の `k8s/observability` には置きません。`Instrumentation` を `Deployment/chaos-app` より先に作成しないと、AKS App Monitoring の admission webhook が Pod template に `OTEL_EXPORTER_OTLP_*` を注入できず、API の Application Insights traces / metrics / logs と Redis dependency が欠落します。
 
 External SLI publisher の Function host storage と deployment storage は managed identity 接続です。Storage account key / connection string に依存しないため、`allowSharedKeyAccess=false` の環境でも `azd deploy external-sli-publisher` を使います。publisher storage は `publicNetworkAccess=Disabled` とし、Function App を `snet-func` に VNet integration して blob / queue / table の Private Endpoint 経由で接続します。公式 azd sample と同じく、デプロイ実行 principal には Storage Blob Data Owner を付与します。
 
 azd 1.33.0 は ZIP を Function App の SCM エンドポイント `/api/publish` へ送信します（[実装](https://github.com/Azure/azure-dev/blob/29133b640536436db9b56f8db4b1781cb136e5ba/cli/azd/pkg/azsdk/funcapp_host_client.go)）。デプロイ実行元に必要なのは SCM への接続で、storage の Private Endpoint へ直接アップロードする構成ではありません。storage への接続は Functions 側で行います。デプロイ失敗時に publisher storage の public access を一時的に開ける運用は行いません。
-
-差分確認:
-
-```bash
-azd provision base --preview
-
-# external SLI metrics 出現後、SLI finalize の差分を見る場合
-azd provision sli --preview
-```
 
 このプロジェクトは `azure.yaml` の `requiredVersions` で azd 1.35.1 以上を要求します。古い azd ではプロジェクトを実行せず、azd を更新してください。
 
@@ -220,10 +280,11 @@ azd provision sli --preview
 
 既存環境で初めて有効化する際は、ノード更新前に `kubectl apply -f k8s/apps/chaos-app/ciliumnetworkpolicy-egress-allowlist.yaml` で DNS 許可を反映してください。有効化と無効化ではノードの再イメージ化による停止を想定し、他の Chaos 実験を停止して実施します。PDB があっても無停止は保証されません。
 
-`<environment>` は対象の azd 環境名に置き換えます。プレビューに意図しない差分がある場合は、続く `azd up` を実行しません。
+`<environment>` は対象の azd 環境名に置き換えます。what-if 分析を実行する前に対象環境を選択します。意図を説明できない差分がある場合は、続く `azd up` を実行しません。
 
 ```bash
-azd provision base --preview -e <environment>
+azd env select "<environment>"
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 azd up -e <environment>
 ```
 
@@ -236,10 +297,11 @@ Node Auto Provisioning（NAP）は既定で有効です。`AZURE_AKS_ENABLE_NODE
 NAP有効時はSystem AgentPoolがArm64 2台固定となり、Cluster Autoscalerは無効になります。未設定の既存環境でも次回のbase layer適用からこの構成が要求されるため、適用前に差分を確認してください。NAPを使わない新規環境や、NAP無効の既存環境を維持する場合は、適用前に `azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING false -e "<env>"` を実行してください。明示的な `false` は引き続き無効として扱います。
 
 ```bash
-azd provision base --preview -e "<env>"
+azd env select "<env>"
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 ```
 
-既存環境のpreviewにAKS以外の意図しない変更、またはSystem AgentPoolの削除や置換が含まれる場合は、base layerを適用しません。Azure PolicyがsubnetへBicep管理外のNSGを関連付ける環境では、previewにNSG関連付けの削除が表示されます。対象NSGがポリシー管理であり、subnetの名前、address prefix、delegationに変更がないことを確認した場合は、期待されたdriftとして扱います。
+既存環境の分析結果にAKS以外の意図しない変更、またはSystem AgentPoolの削除や置換が含まれる場合は、base layerを適用しません。Azure PolicyがsubnetへBicep管理外のNSGを関連付ける環境では、NSG関連付けの削除が差分に表示されます。対象NSGがポリシー管理であり、subnetの名前、address prefix、delegationに変更がないことを確認した場合は、期待されたdriftとして扱います。
 
 差分確認後、標準の `azd up` で AKS の NAP 設定と AKSNodeClass／NodePool を適用します。
 
@@ -266,7 +328,7 @@ NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` �
 5. `az aks nodepool update --enable-cluster-autoscaler --min-count 1 --max-count 3`でSystem AgentPoolのCluster Autoscalerを復元する。
 6. System AgentPool、既存workload、外部health endpointを確認する。
 7. `azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING false -e "<env>"` で無効を明示する。未設定にすると次回の適用で再び有効化されるため、設定を削除しない。
-8. `azd provision base --preview -e "<env>"`を実行し、NAPに関する差分が解消したことを確認する。ポリシー管理のNSG関連付けは期待されたdriftとして残る場合がある。
+8. 対象環境を選択して What-if 分析スキルを `--layer base` で実行し、NAPに関する差分が解消したことを確認する。ポリシー管理のNSG関連付けは期待されたdriftとして残る場合がある。
 
 ## ローカル開発
 
@@ -428,6 +490,11 @@ azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000 -e "<env>"
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" package-api-approved-index
 azd provision base -e "<env>"
+```
+
+新しい Service Group を作成した場合は、ここで[新規 Service Group 作成後の権限準備](#新規-service-group-作成後の権限準備)の手順2〜3を実施します。既存 Service Group の場合も割り当てを確認してください。最後の SLI 配備で403になった場合は同節の反映待ちと再試行を行い、アプリの再ビルドや再配備は繰り返しません。
+
+```bash
 azd exec -e "<env>" -- uv run --no-project "${PWD}/scripts/tasks.py" deploy-services \
   --image "<image-reference>"
 azd provision sli -e "<env>"
@@ -544,7 +611,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" qa
 
 GitHub Environment `integration-test` に認証用 secrets `AZURE_CLIENT_ID`、`AZURE_TENANT_ID`、`AZURE_SUBSCRIPTION_ID` を設定します。identity には本書の構築と削除に必要な権限を付与します。`full` で公開取得が許可されている場合は、同 Environment の変数 `AZD_ALLOW_PUBLIC_SOURCES` を `true` に設定してください。workflow は未設定の値を補完しません。runner は `ubuntu-latest` を維持し、uv と Python を各処理の前に準備します。
 
-cleanup job は構築の成否にかかわらず、実行IDに対応する一時 azd 環境を作成し、`azd down --force --purge` を実行します。`.azure` の引き継ぎは行わず、環境名、location、subscription、Resource Group を再設定します。hook は Service Group など azd の管理対象外のリソースを整理し、Resource Group の削除と Key Vault の purge は azd に任せます。job の上限は90分で、削除失敗は job の失敗として報告します。
+cleanup job は構築の成否にかかわらず、実行IDに対応する一時 azd 環境を作成し、`azd down --force --purge` を実行します。`.azure` の引き継ぎは行わず、環境名、location、subscription、Resource Group を再設定します。job の上限は90分で、削除失敗は job の失敗として報告します。
 
 ## 負荷テスト
 
@@ -579,39 +646,31 @@ Chaos実験の観察時は、別ターミナルで`uv run --no-project "${PWD}/s
 
 ## 環境削除
 
-Azure Monitor SLI を有効化した環境では、Service Group scope の `Microsoft.Monitor/slis` と環境別 Service Group が resource group の外に存在します。削除時は cleanup hook を有効にして project-level `azd down` を実行してください。
+削除時も Deployment Stacks を有効にし、project-level `azd down` を実行します。azd が sli → base の順で Stack と管理対象リソースを削除します。SLI と metric alerts を先に、その後 Service Group、Agent、基盤リソース、環境専用 Resource Group を削除します。
 
 ```bash
 azd down --force --purge
 ```
 
-`predown` hook は対象環境の `AZURE_SUBSCRIPTION_ID` を必須とし、取得できなければ削除前に停止します。Azure CLI の既定 subscription は使わず、取得した値を各操作へ明示します。Service Group は tenant scope のため、環境名による所有確認も維持します。指定した RG が対象環境の命名規則に一致しない場合は、削除前の cleanup を停止します。
+`predown` hook は対象環境の `AZURE_SUBSCRIPTION_ID` を必須とし、取得できなければ削除前に停止します。Azure CLI の既定 subscription は使わず、取得した値を各操作へ明示します。指定した RG が対象環境の命名規則に一致しない場合も停止します。
 
-Service Group ID が環境変数にない場合は、対象環境の base デプロイの操作記録から取得します。操作記録を手動で削除した環境では、`AZURE_MONITOR_SLI_SERVICE_GROUP_ID` または `AZURE_MONITOR_SLI_SERVICE_GROUP_NAME` を指定してください。SG 本体の取得が `ResourceNotFound` を返した場合だけ SG の削除を省略し、SLI 一覧の403を削除済みとは扱いません。
+`predown` hook は対象環境の Stack 名と環境名、layer のタグを確認します。Stacks が無効な場合、既存 Resource Group に base Stack がない場合、または移行途中の不整合がある場合は停止します。Stack 管理対象のリソースは手動削除せず、azd に Stack の削除を任せます。Stack 未移行の環境は、前述の移行手順で取り込んでから削除します。
 
-SG の DELETE が202を返した場合は、応答の `Location` で非同期削除の完了を確認します。`Retry-After` に従い、指定がなければ5秒間隔で、削除要求と完了待ちを合わせて最大10分待機します。処理中の SG 本体の GET は削除完了の判定に使いません。
+deployment records は履歴メタデータであり、実リソースの削除漏れを示しません。[Azure の標準 grooming](https://learn.microsoft.com/azure/azure-resource-manager/templates/deployment-history-deletions)に任せます。
 
-Service Group 側の探索や削除に失敗した場合は、エラーを記録して subscription 内の後始末を続け、最後に非ゼロで終了します。この場合、再実行で SG を特定できるよう base デプロイ記録は残します。RG、AKS、DCRA の存在確認は、正常な応答で対象の不在を確認できた場合だけ削除済みと扱います。存在確認や DCRA 削除後の確認に失敗した場合は、`predown` hook が非ゼロで終了するため `azd down` は続行されません。Service Group API の制約と改善確認項目は [workarounds.md §A-8](workarounds.md#a-8-service-group-api-の探索と不在応答を補う) を参照してください。
+Stack が存在するのに alpha 機能が無効な場合、sli Stack だけが存在する場合、または base Stack の Service Group に SLI が残るのに sli Stack がない場合は、hook が削除前に停止します。sli Stack がまだ作成されていない環境や、sli の削除後に base の削除を再試行する場合は、base Stack だけでも削除できます。
 
-`predown` hook は Service Group scope の SLI / Service Group と AKS の OTLP Application Insights DCR association、SLI layer の deployment record を整理します。base resource group は hook で削除せず、`azd down` に削除させます。`postdown` hook は残った base layer の deployment record を削除します。これにより `azd down --purge` が Key Vault を含むリソースを削除し、soft-deleted resource を purge する機能を利用できます。AKS 上の OTLP DCRA を先に削除することで、App Insights managed resource group (`ai_<appi-name>_<guid>_managed`) は base RG の削除に連動して消えます。詳細な順序と理由は [ADR-009](adr/009-azure-monitor-sli-and-prometheus-slo.md)、[docs/workarounds.md §A-4](workarounds.md#a-4-predown-hook-で-service-group-scope-sli-と環境別-service-group-を削除)、[§B-2](workarounds.md#b-2-predown-hook-で-aks-上の-otlpappinsightsextension-dcra-を先に削除) を参照してください。
+環境全体を残して SLI 機能だけを廃止する場合も、先に sli の定義を削除します。`infra/sli/main.parameters.json` の `enabled` を false にし、sli の what-if と `azd provision sli` を完了してから、`infra/main.parameters.json` の `enableAzureMonitorSli` を false にして base の what-if と `azd provision base` を行います。base を先に適用すると、SLI が参照中の Service Group や identity を削除するため、この順序を逆にしないでください。
 
-cleanup hook の構文・実行経路だけを非破壊で確認する場合は、削除系処理を dry-run にして hook を単体実行できます。
-
-```powershell
-$env:AZURE_MONITOR_SLI_CLEANUP_DRY_RUN = "true"
-azd hooks run predown --platform windows
-Remove-Item Env:AZURE_MONITOR_SLI_CLEANUP_DRY_RUN
-```
+削除前提条件の確認だけを行う場合は、読み取り専用の predown hook を単体実行します。
 
 ```bash
-export AZURE_MONITOR_SLI_CLEANUP_DRY_RUN=true
-azd hooks run predown --platform posix
-unset AZURE_MONITOR_SLI_CLEANUP_DRY_RUN
+azd hooks run predown
 ```
 
 注意点:
 
-- cleanup hook は system-protected deny assignment を解除しません
+- predown hook は Stack の削除前提を読み取り専用で確認し、リソースを削除しません
 - `azd down <layer>` のような layer 指定 down はサポート対象外です
-- `AZURE_MONITOR_SLI_CLEANUP_DRY_RUN=true` を付けた hook 単体実行では削除せず、対象検出とログ出力だけを行います
+- Stack 削除は system-protected deny assignment を解除しません
 - SRE Agent を有効にした環境の Key Vault（`kvsregithub<resourceToken>`）は purge protection を設定しません。環境を完全削除して同じ名前で再作成する場合は `azd down --force --purge` を使い、azd に Key Vault の purge を処理させます。purge protection 付きで作成された旧 vault は purge できず、`scheduledPurgeDate` の自動消去まで名前が残るため、その間は別の環境名を使ってください

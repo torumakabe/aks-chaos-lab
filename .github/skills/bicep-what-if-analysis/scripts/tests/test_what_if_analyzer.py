@@ -6,6 +6,7 @@ what_if_analyzer のユニットテスト
 """
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -32,9 +33,13 @@ from what_if_analyzer import (
     is_main_resource,
     is_readonly_property,
     match_known_default,
+    normalize_stack_what_if,
     parse_azure_yaml_layers,
     resolve_parameters_file_placeholders,
     run_what_if,
+)
+from what_if_analyzer import (
+    main as analyzer_main,
 )
 
 
@@ -276,7 +281,9 @@ class TestEvaluatePropertyChange(unittest.TestCase):
                         self.assertIn("ARM 参照式", text)
                         self.assertIn("要確認", text)
 
-    def test_unverified_readonly_paths_remain_pending_in_output(self) -> None:
+    def test_unverified_and_readonly_paths_remain_visible(
+        self,
+    ) -> None:
         cases = (
             (
                 "Microsoft.Monitor/accounts/monitor-test",
@@ -345,7 +352,6 @@ class TestEvaluatePropertyChange(unittest.TestCase):
                         evaluation = change["evaluation"]
                         text = format_azd_style_output(output)
                         self.assertIn(resource_path.rsplit("/", 1)[-1], text)
-                        self.assertIn(f"~ {path}  ", text)
                         self.assertNotIn("非表示", text)
                         if path == "properties.provisioningState":
                             self.assertEqual(evaluation["status"], "noise_confirmed")
@@ -355,6 +361,7 @@ class TestEvaluatePropertyChange(unittest.TestCase):
                                 output["evaluationSummary"]["noise_confirmed"], 1
                             )
                             self.assertEqual(output["pendingEvaluations"]["count"], 0)
+                            self.assertIn(f'~ {path}: "Succeeded" -> "Updating"', text)
                             self.assertIn("🔒 readOnly", text)
                         else:
                             self.assertEqual(evaluation["status"], "pending")
@@ -364,7 +371,8 @@ class TestEvaluatePropertyChange(unittest.TestCase):
                                 output["evaluationSummary"]["noise_confirmed"], 0
                             )
                             self.assertEqual(output["pendingEvaluations"]["count"], 1)
-                            self.assertIn(f"~ {path}  ❓ 未分類。確認推奨", text)
+                            self.assertIn(f'~ {path}: "Succeeded" -> "Updating"', text)
+                            self.assertIn("❓ 未分類。確認推奨", text)
                             self.assertNotIn("readOnly", text)
 
     def test_service_group_member_property_evaluations_in_output(self) -> None:
@@ -421,8 +429,8 @@ class TestEvaluatePropertyChange(unittest.TestCase):
                         self.assertEqual(change["path"], path)
                         evaluation = change["evaluation"]
                         text = format_azd_style_output(output)
-                        self.assertIn(path, text)
                         if property_name == "targetTenant":
+                            self.assertIn(path, text)
                             self.assertEqual(evaluation["status"], "pending")
                             self.assertIsNone(evaluation["reason"])
                             self.assertIsNone(evaluation["confidence"])
@@ -432,6 +440,12 @@ class TestEvaluatePropertyChange(unittest.TestCase):
                             self.assertEqual(output["pendingEvaluations"]["count"], 1)
                             self.assertNotIn("readOnly", text)
                         else:
+                            self.assertIn(path, text)
+                            self.assertIn(
+                                '"11111111-1111-4111-8111-111111111111" -> '
+                                '"22222222-2222-4222-8222-222222222222"',
+                                text,
+                            )
                             self.assertEqual(evaluation["status"], "noise_confirmed")
                             self.assertEqual(evaluation["reason"], "readOnly")
                             self.assertEqual(evaluation["confidence"], "high")
@@ -439,7 +453,7 @@ class TestEvaluatePropertyChange(unittest.TestCase):
                                 output["evaluationSummary"]["noise_confirmed"], 1
                             )
                             self.assertEqual(output["pendingEvaluations"]["count"], 0)
-                            self.assertIn("readOnly", text)
+                            self.assertIn("🔒 readOnly", text)
 
     def test_noeffect_and_readonly_keep_precedence_over_arm_reference(self) -> None:
         for path, change_type, reason in (
@@ -1136,6 +1150,8 @@ class TestFormatAzdStyleOutput(unittest.TestCase):
                         {
                             "changeType": "Modify",
                             "path": "properties.rules.0.expression",
+                            "before": "old-expression",
+                            "after": "new-expression",
                             "referenceInfo": "❓ 未分類。確認推奨",
                         }
                     ],
@@ -1150,6 +1166,108 @@ class TestFormatAzdStyleOutput(unittest.TestCase):
         self.assertIn("Prometheus Rule Group", result)
         self.assertIn("app-operational-alerts", result)
         self.assertIn("properties.rules.0.expression", result)
+        self.assertIn('"old-expression" -> "new-expression"', result)
+        self.assertIn("適用可否の判定ではありません", result)
+
+    def test_readonly_property_is_separated_without_hiding_configuration(
+        self,
+    ) -> None:
+        """readOnly 差分も値と分類を表示し、設定差分を保持する"""
+        output_data = {
+            "changes": [
+                {
+                    "operation": "Modify",
+                    "resourceType": "Microsoft.Example/resources",
+                    "resourceName": "example",
+                    "propertyChanges": [
+                        {
+                            "changeType": "Modify",
+                            "path": "properties.provisioningState",
+                            "before": "Succeeded",
+                            "after": "Updating",
+                            "evaluation": {
+                                "status": "noise_confirmed",
+                                "reason": "readOnly",
+                            },
+                        },
+                        {
+                            "changeType": "Delete",
+                            "path": "properties.networkAccess",
+                            "before": "Private",
+                            "after": None,
+                            "evaluation": {
+                                "status": "pending",
+                                "reason": None,
+                            },
+                        },
+                    ],
+                }
+            ]
+        }
+
+        result = format_azd_style_output(output_data)
+
+        self.assertIn('"Private" -> null', result)
+        self.assertIn("properties.networkAccess", result)
+        self.assertIn('"Succeeded" -> "Updating"', result)
+        self.assertIn("properties.provisioningState", result)
+        self.assertIn("🔒 readOnly", result)
+
+    def test_stack_summary_surfaces_potential_deletes_and_diagnostics(self) -> None:
+        """Stack の操作件数、削除確度、診断をプロパティ差分より先に示す"""
+        output_data = {
+            "summary": {
+                "create": 0,
+                "modify": 1,
+                "delete": 2,
+                "detach": 0,
+                "unsupported": 1,
+                "noChange": 0,
+                "ignore": 0,
+            },
+            "changes": [
+                {
+                    "operation": "Delete",
+                    "resourceType": "Microsoft.Example/resources",
+                    "resourceName": "potential-one",
+                    "stack": {"changeCertainty": "potential"},
+                    "propertyChanges": [],
+                },
+                {
+                    "operation": "Delete",
+                    "resourceType": "Microsoft.Example/resources",
+                    "resourceName": "potential-two",
+                    "stack": {"changeCertainty": "potential"},
+                    "propertyChanges": [],
+                },
+                {
+                    "operation": "Unsupported",
+                    "resourceType": "Microsoft.Example/resources",
+                    "resourceName": "unsupported",
+                    "stack": {"changeCertainty": "definite"},
+                    "propertyChanges": [],
+                },
+            ],
+            "stack": {
+                "diagnostics": [
+                    {
+                        "level": "warning",
+                        "code": "ShortCircuitedResourceId",
+                        "message": "Result is non-deterministic.",
+                    }
+                ]
+            },
+        }
+
+        result = format_azd_style_output(output_data)
+
+        self.assertIn("Summary: Modify 1, Delete 2, Unsupported 1", result)
+        self.assertIn("Delete certainty: potential 2", result)
+        self.assertIn(
+            "Stack diagnostic (WARNING, ShortCircuitedResourceId): "
+            "Result is non-deterministic.",
+            result,
+        )
 
     def test_filtered_prometheus_rule_group_nochange_is_hidden(self) -> None:
         """filtered_resource_types 対象の NoChange は引き続き非表示にする"""
@@ -1171,7 +1289,10 @@ class TestFormatAzdStyleOutput(unittest.TestCase):
 
         result = format_azd_style_output(output_data)
 
-        self.assertEqual(result.strip(), "Resources:")
+        self.assertEqual(
+            result.strip(),
+            "Resources:\n※ What-if の予測結果です。適用可否の判定ではありません。",
+        )
 
     def test_filters_known_acr_acrpull_unsupported(self) -> None:
         """既知の ACR AcrPull Unsupported だけを非表示にする"""
@@ -1204,7 +1325,10 @@ class TestFormatAzdStyleOutput(unittest.TestCase):
 
         result = format_azd_style_output(output_data)
 
-        self.assertEqual(result.strip(), "Resources:")
+        self.assertEqual(
+            result.strip(),
+            "Resources:\n※ What-if の予測結果です。適用可否の判定ではありません。",
+        )
 
     def test_filters_acr_role_assignment_by_provider_type(self) -> None:
         """ACR の拡張リソース role assignment は実際のプロバイダー型でフィルタされる"""
@@ -1238,7 +1362,10 @@ class TestFormatAzdStyleOutput(unittest.TestCase):
 
         # 拡張リソース型マッチングにより Microsoft.Authorization/roleAssignments として
         # filtered_resource_types にマッチしフィルタされる
-        self.assertEqual(result.strip(), "Resources:")
+        self.assertEqual(
+            result.strip(),
+            "Resources:\n※ What-if の予測結果です。適用可否の判定ではありません。",
+        )
 
 
 class TestPatternStats(unittest.TestCase):
@@ -1898,6 +2025,199 @@ class TestRunWhatIfCommandConstruction(unittest.TestCase):
             self.assertFalse(
                 isinstance(arg, str) and arg.startswith("@"),
                 f"unexpected file arg: {arg}",
+            )
+
+
+class TestStackWhatIf(unittest.TestCase):
+    def test_project_layer_selects_stack_and_requires_explicit_layer(self) -> None:
+        env = {
+            "AZURE_ENV_NAME": "eval",
+            "AZURE_LOCATION": "japaneast",
+            "AZURE_SUBSCRIPTION_ID": "sub",
+        }
+        with (
+            patch("what_if_analyzer.detect_azd_project", return_value=(True, env)),
+            patch(
+                "what_if_analyzer.resolve_parameters_file_placeholders", return_value={}
+            ),
+            patch("what_if_analyzer.run_what_if", return_value={"changes": []}) as run,
+            patch("what_if_analyzer.get_pattern_loader") as loader,
+            patch("sys.argv", ["analyzer", "--layer", "base"]),
+        ):
+            loader.return_value.get_unused_patterns.return_value = []
+            self.assertEqual(analyzer_main(), 0)
+            self.assertEqual(run.call_args.kwargs["stack_name"], "azd-stack-eval-base")
+        with (
+            patch("sys.argv", ["analyzer"]),
+            patch("what_if_analyzer.run_what_if") as run,
+        ):
+            self.assertEqual(analyzer_main(), 1)
+            run.assert_not_called()
+
+    def payload(self) -> dict:
+        return {
+            "id": "/subscriptions/sub/providers/Microsoft.Resources/deploymentStacksWhatIfResults/test",
+            "properties": {
+                "provisioningState": "succeeded",
+                "deploymentStackResourceId": "/subscriptions/sub/providers/Microsoft.Resources/deploymentStacks/test",
+                "diagnostics": [],
+                "changes": {
+                    "resourceChanges": [
+                        {
+                            "id": "/providers/Microsoft.Management/serviceGroups/test/providers/Microsoft.Monitor/slis/availability",
+                            "changeType": "delete",
+                            "changeCertainty": "definite",
+                            "managementStatusChange": {
+                                "before": "managed",
+                                "after": "notManaged",
+                            },
+                        }
+                    ],
+                },
+            },
+        }
+
+    def test_delete_and_stack_evidence_are_preserved(self) -> None:
+        normalized = normalize_stack_what_if(self.payload())
+        output = build_output(normalized, "test.bicep", "japaneast")
+        self.assertEqual(output["summary"]["delete"], 1)
+        self.assertEqual(output["changes"][0]["resourceType"], "Microsoft.Monitor/slis")
+        self.assertEqual(output["changes"][0]["stack"]["changeCertainty"], "definite")
+        self.assertIn("notManaged", format_azd_style_output(output))
+        self.assertIn("resultId", output["stack"])
+
+    def test_nested_property_change_types_are_normalized(self) -> None:
+        payload = self.payload()
+        resource = payload["properties"]["changes"]["resourceChanges"][0]
+        resource["changeType"] = "modify"
+        resource["resourceConfigurationChanges"] = {
+            "delta": [
+                {
+                    "path": "properties.values",
+                    "changeType": "array",
+                    "children": [
+                        {"path": "[0]", "changeType": "modify", "before": 1, "after": 2}
+                    ],
+                }
+            ]
+        }
+        result = normalize_stack_what_if(payload)
+        self.assertEqual(
+            result["changes"][0]["delta"][0]["children"][0]["changeType"], "Modify"
+        )
+
+    def test_unresolved_ids_preserve_stack_resource_type_and_original_expression(
+        self,
+    ) -> None:
+        expressions = [
+            "[resourceId('sub', 'rg', 'Microsoft.Authorization/roleAssignments', "
+            "guid(reference('/subscriptions/sub/resourceGroups/rg/providers/"
+            "Microsoft.Insights/scheduledQueryRules/alert').identity.principalId, "
+            "'/subscriptions/sub/providers/Microsoft.Authorization/roleDefinitions/reader'))]",
+            "[extensionResourceId('/subscriptions/sub/resourceGroups/rg/providers/"
+            "Microsoft.ContainerRegistry/registries/acr', "
+            "'Microsoft.Authorization/roleAssignments', guid('runtime'))]",
+        ]
+        for expression in expressions:
+            with self.subTest(expression=expression):
+                payload = self.payload()
+                payload["properties"]["changes"]["resourceChanges"] = [
+                    {
+                        "id": expression,
+                        "type": "Microsoft.Authorization/roleAssignments",
+                        "changeType": "unsupported",
+                        "unsupportedReason": "Resource ID cannot be calculated.",
+                    }
+                ]
+                output = build_output(
+                    normalize_stack_what_if(payload), "test.bicep", "japaneast"
+                )
+                change = output["changes"][0]
+                self.assertEqual(
+                    change["resourceType"], "Microsoft.Authorization/roleAssignments"
+                )
+                self.assertEqual(change["resourceName"], "<dynamic>")
+                self.assertEqual(change["resourceId"], expression)
+                self.assertEqual(change["originalResourceId"], expression)
+                text = format_azd_style_output(output)
+                self.assertIn("<dynamic>", text)
+                self.assertIn("Resource ID cannot be calculated.", text)
+
+    def test_resource_identity_uses_explicit_type_before_id_inference(self) -> None:
+        cases = [
+            (
+                "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Test/items/item[0]",
+                "Microsoft.Test/items",
+                "item[0]",
+                "Microsoft.Test/items",
+            ),
+            (
+                "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Test/items/item",
+                None,
+                "item",
+                "Microsoft.Test/items",
+            ),
+            (
+                "[guid(reference('/providers/Microsoft.Test/items/referenced').id)]",
+                None,
+                "<dynamic>",
+                "",
+            ),
+        ]
+        for resource_id, explicit_type, name, expected_type in cases:
+            with self.subTest(resource_id=resource_id):
+                change = {
+                    "resourceId": resource_id,
+                    "resourceType": explicit_type,
+                    "changeType": "Unsupported",
+                    "stack": {},
+                }
+                result = extract_resource_changes({"changes": [change]})[0]
+                self.assertEqual(result["resourceId"], resource_id)
+                self.assertEqual(result["resourceName"], name)
+                self.assertEqual(result["resourceType"], expected_type)
+
+    def test_failed_and_missing_results_are_rejected(self) -> None:
+        for properties in (
+            {"provisioningState": "failed"},
+            {"provisioningState": "succeeded"},
+        ):
+            with self.assertRaises(RuntimeError):
+                normalize_stack_what_if({"properties": properties})
+
+    def test_stack_command_includes_deletion_policy_and_json_output(
+        self,
+    ) -> None:
+        results = [
+            subprocess.CompletedProcess([], 0, json.dumps(self.payload()), ""),
+        ]
+        with patch("what_if_analyzer.subprocess.run", side_effect=results) as run:
+            run_what_if(
+                "test.bicep",
+                "japaneast",
+                subscription="sub",
+                stack_name="azd-stack-eval-base",
+                parameters_file="params.json",
+                parameters={"environment": "eval"},
+            )
+        create = run.call_args_list[0].args[0]
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(create[1:4], ["stack-whatif", "sub", "create"])
+        self.assertIn("deleteAll", create)
+        self.assertIn("PT1H", create)
+        self.assertLess(create.index("@params.json"), create.index("environment=eval"))
+        self.assertIn("--no-pretty-print", create)
+
+    def test_layer_parser_recognizes_stack_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "azure.yaml"
+            path.write_text(
+                "infra:\n  layers:\n    - name: base\n      path: ./infra\n"
+                "      deploymentStacks:\n        denySettings:\n          mode: none\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                parse_azure_yaml_layers(str(path))[0]["deploymentStacks"], "enabled"
             )
 
 
