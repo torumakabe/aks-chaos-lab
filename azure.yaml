@@ -2,7 +2,7 @@
 name: aks-chaos-lab
 
 requiredVersions:
-  azd: '>= 1.36.0'
+  azd: '>= 1.37.0'
 
 infra:
   layers:
