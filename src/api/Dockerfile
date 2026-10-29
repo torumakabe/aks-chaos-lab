@@ -7,7 +7,7 @@
 # Build context MUST be the repository root because the workspace lockfile lives at the
 # repository root. Build with:
 #   docker build -f src/api/Dockerfile -t aks-chaos-lab:local .
-FROM astral/uv:0.13.4@sha256:9f130421e930bfbdc563c00740466603f8723158e90297d07957c2294640262b AS uv
+FROM astral/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff AS uv
 
 FROM python:3.14-slim@sha256:cd89c30eda26ee911a4611b18680086e0ea42e6f5f8cbe653d07fa7958c9cec8
 
