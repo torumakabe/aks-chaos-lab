@@ -763,5 +763,41 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/sites",
+    "attempt": 1,
+    "started_monotonic": 2710.232178173,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/2025-03-01/sites",
+    "attempt": 1,
+    "started_monotonic": 2713.232317851,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.5061032870003146
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/2026-07-15/sites",
+    "attempt": 1,
+    "started_monotonic": 2716.232465497,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7768670049999855
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/change-log/sites",
+    "attempt": 1,
+    "started_monotonic": 2719.232587826,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8700965689999975
   }
 ]

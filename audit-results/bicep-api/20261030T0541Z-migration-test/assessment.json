@@ -1,161 +1,847 @@
 {
-  "pair": "Microsoft.Web/serverfarms@2026-07-15",
+  "pair": "Microsoft.Web/sites@2026-07-15",
   "results": [
     {
       "file": "infra/modules/functions/external-sli-publisher.bicep",
-      "name": "appServicePlan",
-      "line": 287,
-      "type": "Microsoft.Web/serverfarms",
+      "name": "functionApp",
+      "line": 301,
+      "type": "Microsoft.Web/sites",
       "version": "2026-07-15",
       "existing": false,
-      "start": 8865,
-      "end": 9112,
-      "header": "resource appServicePlan 'Microsoft.Web/serverfarms@2026-07-15' = ",
-      "body": "{\n  name: appServicePlanName\n  location: location\n  tags: tags\n  kind: 'functionapp'\n  sku: {\n    name: 'FC1'\n    tier: 'FlexConsumption'\n  }\n  properties: {\n    reserved: true\n  }\n}",
+      "start": 9114,
+      "end": 12211,
+      "header": "resource functionApp 'Microsoft.Web/sites@2026-07-15' = ",
+      "body": "{\n  name: functionAppName\n  location: location\n  tags: union(tags, {\n    'azd-service-name': 'external-sli-publisher'\n  })\n  kind: 'functionapp,linux'\n  identity: {\n    type: 'SystemAssigned'\n  }\n  properties: {\n    serverFarmId: appServicePlan.id\n    httpsOnly: true\n    virtualNetworkSubnetId: functionSubnetId\n    functionAppConfig: {\n      deployment: {\n        storage: {\n          type: 'blobContainer'\n          value: deploymentStorageUrl\n          authentication: {\n            type: 'SystemAssignedIdentity'\n          }\n        }\n      }\n      runtime: {\n        name: 'python'\n        version: '3.14'\n      }\n      scaleAndConcurrency: {\n        maximumInstanceCount: maximumInstanceCount\n        instanceMemoryMB: instanceMemoryMB\n      }\n    }\n    siteConfig: {\n      ftpsState: 'Disabled'\n      minTlsVersion: '1.2'\n      appSettings: [\n        {\n          name: 'AzureWebJobsStorage__credential'\n          value: 'managedidentity'\n        }\n        {\n          name: 'AzureWebJobsStorage__blobServiceUri'\n          value: 'https://${storageAccount.name}.blob.${az.environment().suffixes.storage}'\n        }\n        {\n          name: 'AzureWebJobsStorage__queueServiceUri'\n          value: 'https://${storageAccount.name}.queue.${az.environment().suffixes.storage}'\n        }\n        {\n          name: 'AzureWebJobsStorage__tableServiceUri'\n          value: 'https://${storageAccount.name}.table.${az.environment().suffixes.storage}'\n        }\n        {\n          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'\n          value: applicationInsightsConnectionString\n        }\n        {\n          name: 'AZURE_ENV_NAME'\n          value: environment\n        }\n        {\n          name: 'EXTERNAL_SLI_CRON_SCHEDULE'\n          value: publisherCronSchedule\n        }\n        {\n          name: 'EXTERNAL_SLI_SERVICE_NAME'\n          value: 'chaos-app'\n        }\n        {\n          name: 'EXTERNAL_SLI_TELEMETRY_ROLE_NAME'\n          value: 'external-sli-publisher'\n        }\n        {\n          name: 'OTEL_SERVICE_NAME'\n          value: 'external-sli-publisher'\n        }\n        {\n          name: 'EXTERNAL_SLI_PROBE_URL'\n          value: probeUrl\n        }\n        {\n          name: 'EXTERNAL_SLI_PROBE_NAME'\n          value: probeName\n        }\n        {\n          name: 'PROMETHEUS_REMOTE_WRITE_URL'\n          value: prometheusRemoteWriteUrl\n        }\n        {\n          name: 'EXTERNAL_SLI_STATE_BLOB_URL'\n          value: stateBlobUrl\n        }\n        {\n          name: 'EXTERNAL_SLI_WINDOW_SECONDS'\n          value: '${publisherWindowSeconds}'\n        }\n        {\n          name: 'EXTERNAL_SLI_PROBE_TIMEOUT_SECONDS'\n          value: '${probeTimeoutSeconds}'\n        }\n        {\n          name: 'EXTERNAL_SLI_MAX_CATCHUP_WINDOWS'\n          value: '${maxCatchupWindows}'\n        }\n        {\n          name: 'EXTERNAL_SLI_NOT_BEFORE_UTC'\n          value: signalNotBeforeUtc\n        }\n      ]\n    }\n  }\n  dependsOn: [\n    storageBlobPrivateDnsZoneGroup\n    storageQueuePrivateDnsZoneGroup\n    storageTablePrivateDnsZoneGroup\n  ]\n}",
       "status": "verified",
-      "reason": "Learn latest linked version is 2025-03-01; REST stable inventory/README has newer stable 2026-07-15, equal to current. Exact REST schemas 2025-03-01, 2026-03-15, and 2026-07-15 agree on all used fields. Learn 2026-07-15 page is unavailable (404), so the explicit source-version discrepancy is retained; no newer REST GA exists.",
-      "migration": "現在値2026-07-15は固定REST repositoryの最新stableであり、更新候補なし。Learn selectorの最新linked version 2025-03-01はより古い。両REST schemaのused fieldsは同一。kind/sku name/tierはstring型でenumがないため、個別SKU提供可否はsubscription照会なしでは検証対象外。",
+      "reason": "Learn latest linked version is 2025-03-01; exact Learn and REST 2025-03-01 candidate schemas were checked. Pinned REST README/package and stable path inventory identify 2026-07-15 as latest stable, equal to current. Exact current schema and 2026-03-15 prior schema agree on all used contracts except runtime.name adds enum value go; python remains supported. Learn 2026-07-15 page returned 404; this source discrepancy is retained without timing explanation.",
+      "migration": "現在値2026-07-15はpinned REST repositoryのlatest stable。Learn selectorのlatest linked version is 2025-03-01 (older). No newer REST GA candidate exists. Current runtime.name adds go while retaining python; all used fields/values remain compatible. runtime.version and kind literals are strings without schema enum; provider support is not queried.",
       "findings": [],
       "usage": [
         {
           "source_id": "body:8",
           "label": "name",
           "path": "/name",
-          "expression": "  name: appServicePlanName",
-          "analysis": "JSON Pointer /name is the required REST path parameter `name`, not request body. REST constrains it as string without a published pattern/length; appServicePlanName is truncated to at most 40 chars by the Bicep source."
+          "expression": "  name: functionAppName",
+          "analysis": "JSON Pointer /name is Bicep resource identity mapped to REST path parameter `name`; REST response model marks name readOnly. Path parameter is string without pattern/length restriction; functionAppName is truncated to at most 60 characters."
         },
         {
-          "source_id": "body:39",
+          "source_id": "body:36",
           "label": "location",
           "path": "/location",
           "expression": "  location: location",
-          "analysis": "JSON Pointer /location maps to REST location string. The module receives main location (default japaneast); schema imposes no enum or additional field constraint."
+          "analysis": "JSON Pointer /location maps to REST root location string, the only required root field; module receives main deployment location (default japaneast)."
         },
         {
-          "source_id": "body:56",
+          "source_id": "body:53",
           "label": "tags",
           "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags maps to an object with string additionalProperties. Main passes {'azd-env-name': environment}, so this is a string-valued map; module default {} also conforms."
+          "expression": "  tags: union(tags, {",
+          "analysis": "JSON Pointer /tags maps to a REST string-valued tag map; union combines inherited tags with one checked literal."
         },
         {
-          "source_id": "body:69",
+          "source_id": "body:91",
+          "label": "azd-service-name",
+          "path": "/tags/azd-service-name",
+          "expression": "    'azd-service-name': 'external-sli-publisher'",
+          "analysis": "JSON Pointer /tags/azd-service-name is the added tag-map entry with literal string 'external-sli-publisher'; it is not a Site property."
+        },
+        {
+          "source_id": "body:129",
           "label": "kind",
           "path": "/kind",
-          "expression": "  kind: 'functionapp'",
-          "analysis": "JSON Pointer /kind maps to a REST string. Literal 'functionapp' is type-compatible; schema has no enum to constrain supported resource-kind values."
+          "expression": "  kind: 'functionapp,linux'",
+          "analysis": "JSON Pointer /kind maps to REST string; literal 'functionapp,linux' is type-compatible. OpenAPI provides no enum for allowed resource kinds."
         },
         {
-          "source_id": "body:90",
-          "label": "sku",
-          "path": "/sku",
-          "expression": "  sku: {",
-          "analysis": "JSON Pointer /sku maps to the REST SkuDescription object; name and tier members are strings, with no required list or enum in the schema."
+          "source_id": "body:161",
+          "label": "identity",
+          "path": "/identity",
+          "expression": "  identity: {",
+          "analysis": "JSON Pointer /identity maps to ManagedServiceIdentity object; its type member is analyzed separately."
         },
         {
-          "source_id": "body:102",
-          "label": "name",
-          "path": "/sku/name",
-          "expression": "    name: 'FC1'",
-          "analysis": "JSON Pointer /sku/name maps to string with no schema enum. Literal 'FC1' is type-compatible; provider-specific offer availability is not checked by the public schema and no Azure query was performed."
+          "source_id": "body:173",
+          "label": "type",
+          "path": "/identity/type",
+          "expression": "    type: 'SystemAssigned'",
+          "analysis": "JSON Pointer /identity/type maps to enum containing SystemAssigned; this pairs with SystemAssignedIdentity deployment-storage authentication."
         },
         {
-          "source_id": "body:118",
-          "label": "tier",
-          "path": "/sku/tier",
-          "expression": "    tier: 'FlexConsumption'",
-          "analysis": "JSON Pointer /sku/tier maps to string with no schema enum. Literal 'FlexConsumption' is type-compatible; provider-specific offer availability is not checked by the public schema and no Azure query was performed."
-        },
-        {
-          "source_id": "body:154",
+          "source_id": "body:208",
           "label": "properties",
           "path": "/properties",
           "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties maps to AppServicePlanProperties object; the supplied reserved member is checked below."
+          "analysis": "JSON Pointer /properties maps to SiteProperties; every set field is mapped below."
         },
         {
-          "source_id": "body:170",
-          "label": "reserved",
-          "path": "/properties/reserved",
-          "expression": "    reserved: true",
-          "analysis": "JSON Pointer /properties/reserved maps to boolean. Literal true matches the REST description for a Linux App Service plan."
+          "source_id": "body:228",
+          "label": "serverFarmId",
+          "path": "/properties/serverFarmId",
+          "expression": "    serverFarmId: appServicePlan.id",
+          "analysis": "JSON Pointer /properties/serverFarmId is string plan resource ID; appServicePlan.id is the Microsoft.Web/serverfarms resource created in this module."
+        },
+        {
+          "source_id": "body:261",
+          "label": "httpsOnly",
+          "path": "/properties/httpsOnly",
+          "expression": "    httpsOnly: true",
+          "analysis": "JSON Pointer /properties/httpsOnly maps to boolean; true enables HTTPS-only requests."
+        },
+        {
+          "source_id": "body:294",
+          "label": "virtualNetworkSubnetId",
+          "path": "/properties/virtualNetworkSubnetId",
+          "expression": "    virtualNetworkSubnetId: functionSubnetId",
+          "analysis": "JSON Pointer /properties/virtualNetworkSubnetId maps to documented subnet resource-ID string; network.outputs.functionSubnetId is generated by resourceId(Microsoft.Network/virtualNetworks/subnets,...)."
+        },
+        {
+          "source_id": "body:334",
+          "label": "functionAppConfig",
+          "path": "/properties/functionAppConfig",
+          "expression": "    functionAppConfig: {",
+          "analysis": "JSON Pointer /properties/functionAppConfig maps to FunctionAppConfig; deployment, runtime, and scale settings are analyzed separately."
+        },
+        {
+          "source_id": "body:354",
+          "label": "deployment",
+          "path": "/properties/functionAppConfig/deployment",
+          "expression": "      deployment: {",
+          "analysis": "JSON Pointer /properties/functionAppConfig/deployment maps to deployment configuration object."
+        },
+        {
+          "source_id": "body:373",
+          "label": "storage",
+          "path": "/properties/functionAppConfig/deployment/storage",
+          "expression": "        storage: {",
+          "analysis": "JSON Pointer /properties/functionAppConfig/deployment/storage maps to FunctionsDeploymentStorage; type, URI, and authentication are analyzed separately."
+        },
+        {
+          "source_id": "body:391",
+          "label": "type",
+          "path": "/properties/functionAppConfig/deployment/storage/type",
+          "expression": "          type: 'blobContainer'",
+          "analysis": "JSON Pointer /properties/functionAppConfig/deployment/storage/type enum contains only blobContainer; literal matches."
+        },
+        {
+          "source_id": "body:424",
+          "label": "value",
+          "path": "/properties/functionAppConfig/deployment/storage/value",
+          "expression": "          value: deploymentStorageUrl",
+          "analysis": "JSON Pointer /properties/functionAppConfig/deployment/storage/value is string URL; deploymentStorageUrl uses Storage primaryEndpoints.blob and previously verified external-sli-package container, matching documented blobContainer URI form."
+        },
+        {
+          "source_id": "body:471",
+          "label": "authentication",
+          "path": "/properties/functionAppConfig/deployment/storage/authentication",
+          "expression": "          authentication: {",
+          "analysis": "JSON Pointer /properties/functionAppConfig/deployment/storage/authentication maps to authentication object; nested type is analyzed separately."
+        },
+        {
+          "source_id": "body:491",
+          "label": "type",
+          "path": "/properties/functionAppConfig/deployment/storage/authentication/type",
+          "expression": "            type: 'SystemAssignedIdentity'",
+          "analysis": "JSON Pointer /properties/functionAppConfig/deployment/storage/authentication/type enum includes SystemAssignedIdentity; Site identity is SystemAssigned."
+        },
+        {
+          "source_id": "body:561",
+          "label": "runtime",
+          "path": "/properties/functionAppConfig/runtime",
+          "expression": "      runtime: {",
+          "analysis": "JSON Pointer /properties/functionAppConfig/runtime maps to runtime object; name and version are analyzed separately."
+        },
+        {
+          "source_id": "body:577",
+          "label": "name",
+          "path": "/properties/functionAppConfig/runtime/name",
+          "expression": "        name: 'python'",
+          "analysis": "JSON Pointer /properties/functionAppConfig/runtime/name enum contains python in Learn latest and current; current adds go vs 2026-03 without removing python. Literal matches."
+        },
+        {
+          "source_id": "body:603",
+          "label": "version",
+          "path": "/properties/functionAppConfig/runtime/version",
+          "expression": "        version: '3.14'",
+          "analysis": "JSON Pointer /properties/functionAppConfig/runtime/version is string; '3.14' is type-compatible and schema has no version enum."
+        },
+        {
+          "source_id": "body:645",
+          "label": "scaleAndConcurrency",
+          "path": "/properties/functionAppConfig/scaleAndConcurrency",
+          "expression": "      scaleAndConcurrency: {",
+          "analysis": "JSON Pointer /properties/functionAppConfig/scaleAndConcurrency maps to concurrency object; integer members are analyzed separately."
+        },
+        {
+          "source_id": "body:677",
+          "label": "maximumInstanceCount",
+          "path": "/properties/functionAppConfig/scaleAndConcurrency/maximumInstanceCount",
+          "expression": "        maximumInstanceCount: maximumInstanceCount",
+          "analysis": "JSON Pointer /properties/functionAppConfig/scaleAndConcurrency/maximumInstanceCount is integer; source parameter constrained 40..1000, default 40."
+        },
+        {
+          "source_id": "body:724",
+          "label": "instanceMemoryMB",
+          "path": "/properties/functionAppConfig/scaleAndConcurrency/instanceMemoryMB",
+          "expression": "        instanceMemoryMB: instanceMemoryMB",
+          "analysis": "JSON Pointer /properties/functionAppConfig/scaleAndConcurrency/instanceMemoryMB is integer; source allows only 2048 or 4096, default 2048."
+        },
+        {
+          "source_id": "body:771",
+          "label": "siteConfig",
+          "path": "/properties/siteConfig",
+          "expression": "    siteConfig: {",
+          "analysis": "JSON Pointer /properties/siteConfig maps to SiteConfig; ftpsState, minTlsVersion, and appSettings are analyzed separately."
+        },
+        {
+          "source_id": "body:790",
+          "label": "ftpsState",
+          "path": "/properties/siteConfig/ftpsState",
+          "expression": "      ftpsState: 'Disabled'",
+          "analysis": "JSON Pointer /properties/siteConfig/ftpsState enum includes Disabled; literal matches."
+        },
+        {
+          "source_id": "body:822",
+          "label": "minTlsVersion",
+          "path": "/properties/siteConfig/minTlsVersion",
+          "expression": "      minTlsVersion: '1.2'",
+          "analysis": "JSON Pointer /properties/siteConfig/minTlsVersion enum includes '1.2'; literal matches."
+        },
+        {
+          "source_id": "body:847",
+          "label": "appSettings",
+          "path": "/properties/siteConfig/appSettings",
+          "expression": "      appSettings: [",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings is array of NameValuePair; all 18 source pairs are checked, with string name/value items in both schemas."
+        },
+        {
+          "source_id": "body:875",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'AzureWebJobsStorage__credential'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'AzureWebJobsStorage__credential' has no enum constraint."
+        },
+        {
+          "source_id": "body:926",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: 'managedidentity'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'AzureWebJobsStorage__credential'; source \"'managedidentity'\" is string or string interpolation. host storage credential selector; literal managedidentity is a string."
+        },
+        {
+          "source_id": "body:980",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'AzureWebJobsStorage__blobServiceUri'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'AzureWebJobsStorage__blobServiceUri' has no enum constraint."
+        },
+        {
+          "source_id": "body:1035",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: 'https://${storageAccount.name}.blob.${az.environment().suffixes.storage}'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'AzureWebJobsStorage__blobServiceUri'; source \"'https://${storageAccount.name}.blob.${az.environment().suffixes.storage}'\" is string or string interpolation. Storage primaryEndpoints.blob plus Azure environment storage suffix builds a service URI string."
+        },
+        {
+          "source_id": "body:1146",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'AzureWebJobsStorage__queueServiceUri'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'AzureWebJobsStorage__queueServiceUri' has no enum constraint."
+        },
+        {
+          "source_id": "body:1202",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: 'https://${storageAccount.name}.queue.${az.environment().suffixes.storage}'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'AzureWebJobsStorage__queueServiceUri'; source \"'https://${storageAccount.name}.queue.${az.environment().suffixes.storage}'\" is string or string interpolation. Storage primaryEndpoints.queue plus Azure environment storage suffix builds a service URI string."
+        },
+        {
+          "source_id": "body:1314",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'AzureWebJobsStorage__tableServiceUri'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'AzureWebJobsStorage__tableServiceUri' has no enum constraint."
+        },
+        {
+          "source_id": "body:1370",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: 'https://${storageAccount.name}.table.${az.environment().suffixes.storage}'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'AzureWebJobsStorage__tableServiceUri'; source \"'https://${storageAccount.name}.table.${az.environment().suffixes.storage}'\" is string or string interpolation. Storage primaryEndpoints.table plus Azure environment storage suffix builds a service URI string."
+        },
+        {
+          "source_id": "body:1482",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'APPLICATIONINSIGHTS_CONNECTION_STRING' has no enum constraint."
+        },
+        {
+          "source_id": "body:1539",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: applicationInsightsConnectionString",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'APPLICATIONINSIGHTS_CONNECTION_STRING'; source 'applicationInsightsConnectionString' is string or string interpolation. string parameter sourced from the Application Insights module output; only type/reference is inspected, not the value."
+        },
+        {
+          "source_id": "body:1611",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'AZURE_ENV_NAME'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'AZURE_ENV_NAME' has no enum constraint."
+        },
+        {
+          "source_id": "body:1645",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: environment",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'AZURE_ENV_NAME'; source 'environment' is string or string interpolation. environment string parameter passed through."
+        },
+        {
+          "source_id": "body:1693",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'EXTERNAL_SLI_CRON_SCHEDULE'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'EXTERNAL_SLI_CRON_SCHEDULE' has no enum constraint."
+        },
+        {
+          "source_id": "body:1739",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: publisherCronSchedule",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'EXTERNAL_SLI_CRON_SCHEDULE'; source 'publisherCronSchedule' is string or string interpolation. publisherCronSchedule string parameter, default 0 */1 * * * *."
+        },
+        {
+          "source_id": "body:1797",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'EXTERNAL_SLI_SERVICE_NAME'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'EXTERNAL_SLI_SERVICE_NAME' has no enum constraint."
+        },
+        {
+          "source_id": "body:1842",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: 'chaos-app'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'EXTERNAL_SLI_SERVICE_NAME'; source \"'chaos-app'\" is string or string interpolation. literal chaos-app string."
+        },
+        {
+          "source_id": "body:1890",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'EXTERNAL_SLI_TELEMETRY_ROLE_NAME'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'EXTERNAL_SLI_TELEMETRY_ROLE_NAME' has no enum constraint."
+        },
+        {
+          "source_id": "body:1942",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: 'external-sli-publisher'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'EXTERNAL_SLI_TELEMETRY_ROLE_NAME'; source \"'external-sli-publisher'\" is string or string interpolation. literal external-sli-publisher string."
+        },
+        {
+          "source_id": "body:2003",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'OTEL_SERVICE_NAME'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'OTEL_SERVICE_NAME' has no enum constraint."
+        },
+        {
+          "source_id": "body:2040",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: 'external-sli-publisher'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'OTEL_SERVICE_NAME'; source \"'external-sli-publisher'\" is string or string interpolation. literal external-sli-publisher string."
+        },
+        {
+          "source_id": "body:2101",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'EXTERNAL_SLI_PROBE_URL'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'EXTERNAL_SLI_PROBE_URL' has no enum constraint."
+        },
+        {
+          "source_id": "body:2143",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: probeUrl",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'EXTERNAL_SLI_PROBE_URL'; source 'probeUrl' is string or string interpolation. probeUrl string parameter; no runtime URL is supplied."
+        },
+        {
+          "source_id": "body:2188",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'EXTERNAL_SLI_PROBE_NAME'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'EXTERNAL_SLI_PROBE_NAME' has no enum constraint."
+        },
+        {
+          "source_id": "body:2231",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: probeName",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'EXTERNAL_SLI_PROBE_NAME'; source 'probeName' is string or string interpolation. probeName string parameter."
+        },
+        {
+          "source_id": "body:2277",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'PROMETHEUS_REMOTE_WRITE_URL'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'PROMETHEUS_REMOTE_WRITE_URL' has no enum constraint."
+        },
+        {
+          "source_id": "body:2324",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: prometheusRemoteWriteUrl",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'PROMETHEUS_REMOTE_WRITE_URL'; source 'prometheusRemoteWriteUrl' is string or string interpolation. prometheusRemoteWriteUrl string parameter from pipeline output; no value read."
+        },
+        {
+          "source_id": "body:2385",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'EXTERNAL_SLI_STATE_BLOB_URL'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'EXTERNAL_SLI_STATE_BLOB_URL' has no enum constraint."
+        },
+        {
+          "source_id": "body:2432",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: stateBlobUrl",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'EXTERNAL_SLI_STATE_BLOB_URL'; source 'stateBlobUrl' is string or string interpolation. stateBlobUrl string built from Storage blob endpoint, container, and blob name."
+        },
+        {
+          "source_id": "body:2481",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'EXTERNAL_SLI_WINDOW_SECONDS'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'EXTERNAL_SLI_WINDOW_SECONDS' has no enum constraint."
+        },
+        {
+          "source_id": "body:2528",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: '${publisherWindowSeconds}'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'EXTERNAL_SLI_WINDOW_SECONDS'; source \"'${publisherWindowSeconds}'\" is string or string interpolation. publisherWindowSeconds integer is interpolated to string; @minValue(60)."
+        },
+        {
+          "source_id": "body:2592",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'EXTERNAL_SLI_PROBE_TIMEOUT_SECONDS'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'EXTERNAL_SLI_PROBE_TIMEOUT_SECONDS' has no enum constraint."
+        },
+        {
+          "source_id": "body:2646",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: '${probeTimeoutSeconds}'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'EXTERNAL_SLI_PROBE_TIMEOUT_SECONDS'; source \"'${probeTimeoutSeconds}'\" is string or string interpolation. probeTimeoutSeconds integer is interpolated to string; @minValue(6)."
+        },
+        {
+          "source_id": "body:2707",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'EXTERNAL_SLI_MAX_CATCHUP_WINDOWS'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'EXTERNAL_SLI_MAX_CATCHUP_WINDOWS' has no enum constraint."
+        },
+        {
+          "source_id": "body:2759",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: '${maxCatchupWindows}'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'EXTERNAL_SLI_MAX_CATCHUP_WINDOWS'; source \"'${maxCatchupWindows}'\" is string or string interpolation. maxCatchupWindows integer is interpolated to string; @minValue(1)."
+        },
+        {
+          "source_id": "body:2818",
+          "label": "name",
+          "path": "/properties/siteConfig/appSettings/[]/name",
+          "expression": "          name: 'EXTERNAL_SLI_NOT_BEFORE_UTC'",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/name maps to NameValuePair.name:string; exact key 'EXTERNAL_SLI_NOT_BEFORE_UTC' has no enum constraint."
+        },
+        {
+          "source_id": "body:2865",
+          "label": "value",
+          "path": "/properties/siteConfig/appSettings/[]/value",
+          "expression": "          value: signalNotBeforeUtc",
+          "analysis": "JSON Pointer /properties/siteConfig/appSettings/[]/value maps to NameValuePair.value:string for 'EXTERNAL_SLI_NOT_BEFORE_UTC'; source 'signalNotBeforeUtc' is string or string interpolation. signalNotBeforeUtc string parameter, default utcNow()."
+        },
+        {
+          "source_id": "body:2925",
+          "label": "dependsOn",
+          "path": "/dependsOn",
+          "expression": "  dependsOn: [",
+          "analysis": "JSON Pointer /dependsOn is Bicep dependsOn language dependency, not REST JSON; it orders creation after the corresponding Storage private-DNS zone group."
+        },
+        {
+          "source_id": "body:line:2929",
+          "label": "$expression",
+          "path": "/dependsOn/[]/$expression-line/113",
+          "expression": "    storageBlobPrivateDnsZoneGroup",
+          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/113 is Bicep dependsOn language dependency, not REST JSON; it orders creation after the corresponding Storage private-DNS zone group."
+        },
+        {
+          "source_id": "body:line:2964",
+          "label": "$expression",
+          "path": "/dependsOn/[]/$expression-line/114",
+          "expression": "    storageQueuePrivateDnsZoneGroup",
+          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/114 is Bicep dependsOn language dependency, not REST JSON; it orders creation after the corresponding Storage private-DNS zone group."
+        },
+        {
+          "source_id": "body:line:3000",
+          "label": "$expression",
+          "path": "/dependsOn/[]/$expression-line/115",
+          "expression": "    storageTablePrivateDnsZoneGroup",
+          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/115 is Bicep dependsOn language dependency, not REST JSON; it orders creation after the corresponding Storage private-DNS zone group."
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource appServicePlan 'Microsoft.Web/serverfarms@2026-07-15' = ",
-          "analysis": "JSON Pointer /$expression-line/0 is the Bicep API type/version header, not REST payload. The current version 2026-07-15 is the latest stable REST OpenAPI package in the pinned source tree."
+          "expression": "resource functionApp 'Microsoft.Web/sites@2026-07-15' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is Bicep API version header, not REST payload. REST latest stable 2026-07-15 equals current; Learn latest linked version is 2025-03-01."
         },
         {
-          "source_id": "symbol:appServicePlanName:line:0",
+          "source_id": "symbol:applicationInsightsConnectionString:line:0",
           "label": "$expression",
-          "path": "/$symbol/appServicePlanName/$expression-line/0",
-          "expression": "var appServicePlanName = substring(appServicePlanNameBase, 0, min(40, length(appServicePlanNameBase)))",
-          "analysis": "JSON Pointer /$symbol/appServicePlanName/$expression-line/0 points to appServicePlanName, derived by substring(appServicePlanNameBase, 0, min(40, length(...))); the REST path parameter is an unconstrained string."
+          "path": "/$symbol/applicationInsightsConnectionString/$expression-line/0",
+          "expression": "@description('Application Insights connection string used by the Function App runtime')",
+          "analysis": "JSON Pointer /$symbol/applicationInsightsConnectionString/$expression-line/0 identifies the string parameter for APPLICATIONINSIGHTS_CONNECTION_STRING from App Insights output; no actual connection-string value was read."
         },
         {
-          "source_id": "symbol:appServicePlanNameBase:line:0",
+          "source_id": "symbol:applicationInsightsConnectionString:line:88",
           "label": "$expression",
-          "path": "/$symbol/appServicePlanNameBase/$expression-line/0",
-          "expression": "var appServicePlanNameBase = 'aspflex-${appName}-external-sli-${environment}'",
-          "analysis": "JSON Pointer /$symbol/appServicePlanNameBase/$expression-line/0 points to the concatenated `aspflex-${appName}-external-sli-${environment}` name source; it is a string and is later truncated to 40 characters."
+          "path": "/$symbol/applicationInsightsConnectionString/$expression-line/1",
+          "expression": "param applicationInsightsConnectionString string",
+          "analysis": "JSON Pointer /$symbol/applicationInsightsConnectionString/$expression-line/1 identifies the string parameter for APPLICATIONINSIGHTS_CONNECTION_STRING from App Insights output; no actual connection-string value was read."
         },
         {
-          "source_id": "symbol:appName:line:0",
+          "source_id": "symbol:deploymentStorageUrl:line:0",
           "label": "$expression",
-          "path": "/$symbol/appName/$expression-line/0",
-          "expression": "@description('Workload/application name')",
-          "analysis": "JSON Pointer /$symbol/appName/$expression-line/0 points to appName (main default 'aks-chaos-lab', otherwise string parameter) used in plan-name construction."
+          "path": "/$symbol/deploymentStorageUrl/$expression-line/0",
+          "expression": "var deploymentStorageUrl = '${storageAccount.properties.primaryEndpoints.blob}${deploymentContainerName}'",
+          "analysis": "JSON Pointer /$symbol/deploymentStorageUrl/$expression-line/0 identifies string URL from Storage primaryEndpoints.blob and deploymentContainerName; endpoint type is string and the container was verified separately."
         },
         {
-          "source_id": "symbol:appName:line:42",
+          "source_id": "symbol:deploymentContainerName:line:0",
           "label": "$expression",
-          "path": "/$symbol/appName/$expression-line/1",
-          "expression": "param appName string",
-          "analysis": "JSON Pointer /$symbol/appName/$expression-line/1 points to appName (main default 'aks-chaos-lab', otherwise string parameter) used in plan-name construction."
+          "path": "/$symbol/deploymentContainerName/$expression-line/0",
+          "expression": "var deploymentContainerName = 'external-sli-package'",
+          "analysis": "JSON Pointer /$symbol/deploymentContainerName/$expression-line/0 identifies literal external-sli-package, already checked against container constraints in its Storage pair."
         },
         {
           "source_id": "symbol:environment:line:0",
           "label": "$expression",
           "path": "/$symbol/environment/$expression-line/0",
           "expression": "@description('Environment name')",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/0 points to environment (main default 'dev', otherwise string parameter) used in plan-name construction."
+          "analysis": "JSON Pointer /$symbol/environment/$expression-line/0 identifies environment string parameter (main default 'dev'); used in app-setting value and function name."
         },
         {
           "source_id": "symbol:environment:line:33",
           "label": "$expression",
           "path": "/$symbol/environment/$expression-line/1",
           "expression": "param environment string",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/1 points to environment (main default 'dev', otherwise string parameter) used in plan-name construction."
+          "analysis": "JSON Pointer /$symbol/environment/$expression-line/1 identifies environment string parameter (main default 'dev'); used in app-setting value and function name."
+        },
+        {
+          "source_id": "symbol:functionAppName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/functionAppName/$expression-line/0",
+          "expression": "var functionAppName = substring(functionAppNameBase, 0, min(60, length(functionAppNameBase)))",
+          "analysis": "JSON Pointer /$symbol/functionAppName/$expression-line/0 identifies Function App name derived with substring(..., min(60, length(...))); REST path parameter is string."
+        },
+        {
+          "source_id": "symbol:functionAppNameBase:line:0",
+          "label": "$expression",
+          "path": "/$symbol/functionAppNameBase/$expression-line/0",
+          "expression": "var functionAppNameBase = 'func-${appName}-external-sli-${environment}-${resourceToken}'",
+          "analysis": "JSON Pointer /$symbol/functionAppNameBase/$expression-line/0 identifies concatenated appName, environment, and resourceToken string, later truncated for resource name."
+        },
+        {
+          "source_id": "symbol:appName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/appName/$expression-line/0",
+          "expression": "@description('Workload/application name')",
+          "analysis": "JSON Pointer /$symbol/appName/$expression-line/0 identifies appName string parameter (main default 'aks-chaos-lab') used in Function App name."
+        },
+        {
+          "source_id": "symbol:appName:line:42",
+          "label": "$expression",
+          "path": "/$symbol/appName/$expression-line/1",
+          "expression": "param appName string",
+          "analysis": "JSON Pointer /$symbol/appName/$expression-line/1 identifies appName string parameter (main default 'aks-chaos-lab') used in Function App name."
+        },
+        {
+          "source_id": "symbol:functionSubnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/functionSubnetId/$expression-line/0",
+          "expression": "@description('Delegated subnet resource ID for Flex Consumption VNet integration')",
+          "analysis": "JSON Pointer /$symbol/functionSubnetId/$expression-line/0 identifies string parameter from network.outputs.functionSubnetId, resourceId(Microsoft.Network/virtualNetworks/subnets,...) matching REST path format."
+        },
+        {
+          "source_id": "symbol:functionSubnetId:line:83",
+          "label": "$expression",
+          "path": "/$symbol/functionSubnetId/$expression-line/1",
+          "expression": "param functionSubnetId string",
+          "analysis": "JSON Pointer /$symbol/functionSubnetId/$expression-line/1 identifies string parameter from network.outputs.functionSubnetId, resourceId(Microsoft.Network/virtualNetworks/subnets,...) matching REST path format."
+        },
+        {
+          "source_id": "symbol:instanceMemoryMB:line:0",
+          "label": "$expression",
+          "path": "/$symbol/instanceMemoryMB/$expression-line/0",
+          "expression": "@description('Flex Consumption instance memory in MB')",
+          "analysis": "JSON Pointer /$symbol/instanceMemoryMB/$expression-line/0 identifies integer instanceMemoryMB allowed only [2048,4096], default 2048; REST field is integer."
+        },
+        {
+          "source_id": "symbol:instanceMemoryMB:line:55",
+          "label": "$expression",
+          "path": "/$symbol/instanceMemoryMB/$expression-line/1",
+          "expression": "@allowed([",
+          "analysis": "JSON Pointer /$symbol/instanceMemoryMB/$expression-line/1 identifies integer instanceMemoryMB allowed only [2048,4096], default 2048; REST field is integer."
+        },
+        {
+          "source_id": "symbol:instanceMemoryMB:line:66",
+          "label": "$expression",
+          "path": "/$symbol/instanceMemoryMB/[]/$expression-line/2",
+          "expression": "  2048",
+          "analysis": "JSON Pointer /$symbol/instanceMemoryMB/[]/$expression-line/2 identifies integer instanceMemoryMB allowed only [2048,4096], default 2048; REST field is integer."
+        },
+        {
+          "source_id": "symbol:instanceMemoryMB:line:73",
+          "label": "$expression",
+          "path": "/$symbol/instanceMemoryMB/[]/$expression-line/3",
+          "expression": "  4096",
+          "analysis": "JSON Pointer /$symbol/instanceMemoryMB/[]/$expression-line/3 identifies integer instanceMemoryMB allowed only [2048,4096], default 2048; REST field is integer."
+        },
+        {
+          "source_id": "symbol:instanceMemoryMB:line:83",
+          "label": "$expression",
+          "path": "/$symbol/instanceMemoryMB/$expression-line/5",
+          "expression": "param instanceMemoryMB int = 2048",
+          "analysis": "JSON Pointer /$symbol/instanceMemoryMB/$expression-line/5 identifies integer instanceMemoryMB allowed only [2048,4096], default 2048; REST field is integer."
         },
         {
           "source_id": "symbol:location:line:0",
           "label": "$expression",
           "path": "/$symbol/location/$expression-line/0",
           "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 points to the string deployment-location parameter; main default is 'japaneast' and passes through to required plan location."
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 identifies deployment location string parameter; main default japaneast is passed to required Site.location."
         },
         {
           "source_id": "symbol:location:line:36",
           "label": "$expression",
           "path": "/$symbol/location/$expression-line/1",
           "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 points to the string deployment-location parameter; main default is 'japaneast' and passes through to required plan location."
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 identifies deployment location string parameter; main default japaneast is passed to required Site.location."
+        },
+        {
+          "source_id": "symbol:maxCatchupWindows:line:0",
+          "label": "$expression",
+          "path": "/$symbol/maxCatchupWindows/$expression-line/0",
+          "expression": "@description('Maximum closed windows published by one timer invocation')",
+          "analysis": "JSON Pointer /$symbol/maxCatchupWindows/$expression-line/0 identifies integer maxCatchupWindows with @minValue(1), default 60; app setting interpolates it to string."
+        },
+        {
+          "source_id": "symbol:maxCatchupWindows:line:73",
+          "label": "$expression",
+          "path": "/$symbol/maxCatchupWindows/$expression-line/1",
+          "expression": "@minValue(1)",
+          "analysis": "JSON Pointer /$symbol/maxCatchupWindows/$expression-line/1 identifies integer maxCatchupWindows with @minValue(1), default 60; app setting interpolates it to string."
+        },
+        {
+          "source_id": "symbol:maxCatchupWindows:line:86",
+          "label": "$expression",
+          "path": "/$symbol/maxCatchupWindows/$expression-line/2",
+          "expression": "param maxCatchupWindows int = 60",
+          "analysis": "JSON Pointer /$symbol/maxCatchupWindows/$expression-line/2 identifies integer maxCatchupWindows with @minValue(1), default 60; app setting interpolates it to string."
+        },
+        {
+          "source_id": "symbol:maximumInstanceCount:line:0",
+          "label": "$expression",
+          "path": "/$symbol/maximumInstanceCount/$expression-line/0",
+          "expression": "@description('Maximum Flex Consumption scale-out instance count for the publisher')",
+          "analysis": "JSON Pointer /$symbol/maximumInstanceCount/$expression-line/0 identifies integer maximumInstanceCount constrained 40..1000, default 40; REST scale field is integer."
+        },
+        {
+          "source_id": "symbol:maximumInstanceCount:line:84",
+          "label": "$expression",
+          "path": "/$symbol/maximumInstanceCount/$expression-line/1",
+          "expression": "@minValue(40)",
+          "analysis": "JSON Pointer /$symbol/maximumInstanceCount/$expression-line/1 identifies integer maximumInstanceCount constrained 40..1000, default 40; REST scale field is integer."
+        },
+        {
+          "source_id": "symbol:maximumInstanceCount:line:98",
+          "label": "$expression",
+          "path": "/$symbol/maximumInstanceCount/$expression-line/2",
+          "expression": "@maxValue(1000)",
+          "analysis": "JSON Pointer /$symbol/maximumInstanceCount/$expression-line/2 identifies integer maximumInstanceCount constrained 40..1000, default 40; REST scale field is integer."
+        },
+        {
+          "source_id": "symbol:maximumInstanceCount:line:114",
+          "label": "$expression",
+          "path": "/$symbol/maximumInstanceCount/$expression-line/3",
+          "expression": "param maximumInstanceCount int = 40",
+          "analysis": "JSON Pointer /$symbol/maximumInstanceCount/$expression-line/3 identifies integer maximumInstanceCount constrained 40..1000, default 40; REST scale field is integer."
+        },
+        {
+          "source_id": "symbol:probeName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/probeName/$expression-line/0",
+          "expression": "@description('Probe name used in Prometheus labels')",
+          "analysis": "JSON Pointer /$symbol/probeName/$expression-line/0 identifies string parameter used as app-setting value; actual value is not supplied."
+        },
+        {
+          "source_id": "symbol:probeName:line:53",
+          "label": "$expression",
+          "path": "/$symbol/probeName/$expression-line/1",
+          "expression": "param probeName string",
+          "analysis": "JSON Pointer /$symbol/probeName/$expression-line/1 identifies string parameter used as app-setting value; actual value is not supplied."
+        },
+        {
+          "source_id": "symbol:probeTimeoutSeconds:line:0",
+          "label": "$expression",
+          "path": "/$symbol/probeTimeoutSeconds/$expression-line/0",
+          "expression": "@description('Probe timeout in seconds')",
+          "analysis": "JSON Pointer /$symbol/probeTimeoutSeconds/$expression-line/0 identifies integer probeTimeoutSeconds with @minValue(6), default 10; app setting interpolates it to string."
+        },
+        {
+          "source_id": "symbol:probeTimeoutSeconds:line:41",
+          "label": "$expression",
+          "path": "/$symbol/probeTimeoutSeconds/$expression-line/1",
+          "expression": "@minValue(6)",
+          "analysis": "JSON Pointer /$symbol/probeTimeoutSeconds/$expression-line/1 identifies integer probeTimeoutSeconds with @minValue(6), default 10; app setting interpolates it to string."
+        },
+        {
+          "source_id": "symbol:probeTimeoutSeconds:line:54",
+          "label": "$expression",
+          "path": "/$symbol/probeTimeoutSeconds/$expression-line/2",
+          "expression": "param probeTimeoutSeconds int = 10",
+          "analysis": "JSON Pointer /$symbol/probeTimeoutSeconds/$expression-line/2 identifies integer probeTimeoutSeconds with @minValue(6), default 10; app setting interpolates it to string."
+        },
+        {
+          "source_id": "symbol:probeUrl:line:0",
+          "label": "$expression",
+          "path": "/$symbol/probeUrl/$expression-line/0",
+          "expression": "@description('URL probed by the external SLI publisher')",
+          "analysis": "JSON Pointer /$symbol/probeUrl/$expression-line/0 identifies string parameter used as app-setting value; actual URL is not supplied."
+        },
+        {
+          "source_id": "symbol:probeUrl:line:57",
+          "label": "$expression",
+          "path": "/$symbol/probeUrl/$expression-line/1",
+          "expression": "param probeUrl string",
+          "analysis": "JSON Pointer /$symbol/probeUrl/$expression-line/1 identifies string parameter used as app-setting value; actual URL is not supplied."
+        },
+        {
+          "source_id": "symbol:prometheusRemoteWriteUrl:line:0",
+          "label": "$expression",
+          "path": "/$symbol/prometheusRemoteWriteUrl/$expression-line/0",
+          "expression": "@description('Managed Prometheus remote-write URL')",
+          "analysis": "JSON Pointer /$symbol/prometheusRemoteWriteUrl/$expression-line/0 identifies string parameter from Prometheus pipeline module output; no actual URL value was read."
+        },
+        {
+          "source_id": "symbol:prometheusRemoteWriteUrl:line:52",
+          "label": "$expression",
+          "path": "/$symbol/prometheusRemoteWriteUrl/$expression-line/1",
+          "expression": "param prometheusRemoteWriteUrl string",
+          "analysis": "JSON Pointer /$symbol/prometheusRemoteWriteUrl/$expression-line/1 identifies string parameter from Prometheus pipeline module output; no actual URL value was read."
+        },
+        {
+          "source_id": "symbol:publisherCronSchedule:line:0",
+          "label": "$expression",
+          "path": "/$symbol/publisherCronSchedule/$expression-line/0",
+          "expression": "@description('Timer schedule for the external SLI publisher')",
+          "analysis": "JSON Pointer /$symbol/publisherCronSchedule/$expression-line/0 identifies string publisherCronSchedule, default '0 */1 * * * *', passed as app setting."
+        },
+        {
+          "source_id": "symbol:publisherCronSchedule:line:62",
+          "label": "$expression",
+          "path": "/$symbol/publisherCronSchedule/$expression-line/1",
+          "expression": "param publisherCronSchedule string = '0 */1 * * * *'",
+          "analysis": "JSON Pointer /$symbol/publisherCronSchedule/$expression-line/1 identifies string publisherCronSchedule, default '0 */1 * * * *', passed as app setting."
+        },
+        {
+          "source_id": "symbol:publisherWindowSeconds:line:0",
+          "label": "$expression",
+          "path": "/$symbol/publisherWindowSeconds/$expression-line/0",
+          "expression": "@description('Publisher aggregation window size in seconds')",
+          "analysis": "JSON Pointer /$symbol/publisherWindowSeconds/$expression-line/0 identifies integer publisherWindowSeconds with @minValue(60), default 60; app setting interpolates it to string."
+        },
+        {
+          "source_id": "symbol:publisherWindowSeconds:line:61",
+          "label": "$expression",
+          "path": "/$symbol/publisherWindowSeconds/$expression-line/1",
+          "expression": "@minValue(60)",
+          "analysis": "JSON Pointer /$symbol/publisherWindowSeconds/$expression-line/1 identifies integer publisherWindowSeconds with @minValue(60), default 60; app setting interpolates it to string."
+        },
+        {
+          "source_id": "symbol:publisherWindowSeconds:line:75",
+          "label": "$expression",
+          "path": "/$symbol/publisherWindowSeconds/$expression-line/2",
+          "expression": "param publisherWindowSeconds int = 60",
+          "analysis": "JSON Pointer /$symbol/publisherWindowSeconds/$expression-line/2 identifies integer publisherWindowSeconds with @minValue(60), default 60; app setting interpolates it to string."
+        },
+        {
+          "source_id": "symbol:resourceToken:line:0",
+          "label": "$expression",
+          "path": "/$symbol/resourceToken/$expression-line/0",
+          "expression": "@description('Unique resource token from the base deployment')",
+          "analysis": "JSON Pointer /$symbol/resourceToken/$expression-line/0 identifies string resourceToken module parameter passed from main; used in resource name only."
+        },
+        {
+          "source_id": "symbol:resourceToken:line:63",
+          "label": "$expression",
+          "path": "/$symbol/resourceToken/$expression-line/1",
+          "expression": "param resourceToken string",
+          "analysis": "JSON Pointer /$symbol/resourceToken/$expression-line/1 identifies string resourceToken module parameter passed from main; used in resource name only."
+        },
+        {
+          "source_id": "symbol:signalNotBeforeUtc:line:0",
+          "label": "$expression",
+          "path": "/$symbol/signalNotBeforeUtc/$expression-line/0",
+          "expression": "@description('Earliest window start that the publisher may emit. Prevents first deployment from backfilling pre-test windows as bad.')",
+          "analysis": "JSON Pointer /$symbol/signalNotBeforeUtc/$expression-line/0 identifies string signalNotBeforeUtc, default utcNow(), used as app-setting value."
+        },
+        {
+          "source_id": "symbol:signalNotBeforeUtc:line:135",
+          "label": "$expression",
+          "path": "/$symbol/signalNotBeforeUtc/$expression-line/1",
+          "expression": "param signalNotBeforeUtc string = utcNow()",
+          "analysis": "JSON Pointer /$symbol/signalNotBeforeUtc/$expression-line/1 identifies string signalNotBeforeUtc, default utcNow(), used as app-setting value."
+        },
+        {
+          "source_id": "symbol:stateBlobUrl:line:0",
+          "label": "$expression",
+          "path": "/$symbol/stateBlobUrl/$expression-line/0",
+          "expression": "var stateBlobUrl = 'https://${storageAccount.name}.blob.${az.environment().suffixes.storage}/${stateContainerName}/${stateBlobName}'",
+          "analysis": "JSON Pointer /$symbol/stateBlobUrl/$expression-line/0 identifies string URL assembled from Storage blob endpoint, stateContainerName, and stateBlobName."
+        },
+        {
+          "source_id": "symbol:stateBlobName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/stateBlobName/$expression-line/0",
+          "expression": "var stateBlobName = 'publisher-state.json'",
+          "analysis": "JSON Pointer /$symbol/stateBlobName/$expression-line/0 identifies literal publisher-state.json used in the blob URL path."
+        },
+        {
+          "source_id": "symbol:stateContainerName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/stateContainerName/$expression-line/0",
+          "expression": "var stateContainerName = 'external-sli-state'",
+          "analysis": "JSON Pointer /$symbol/stateContainerName/$expression-line/0 identifies literal external-sli-state, verified in the Storage containers pair."
         },
         {
           "source_id": "symbol:tags:line:0",
           "label": "$expression",
           "path": "/$symbol/tags/$expression-line/0",
           "expression": "@description('Tags applied to all resources')",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 points to module/main tags map; main creates azd-env-name with string value environment, matching REST string-valued map."
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 identifies module tags object default {} / main string-valued tag map; union adds another string, matching REST additionalProperties:string."
         },
         {
           "source_id": "symbol:tags:line:46",
           "label": "$expression",
           "path": "/$symbol/tags/$expression-line/1",
           "expression": "param tags object = {}",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 points to module/main tags map; main creates azd-env-name with string value environment, matching REST string-valued map."
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 identifies module tags object default {} / main string-valued tag map; union adds another string, matching REST additionalProperties:string."
         }
       ]
     }
@@ -163,7 +849,7 @@
   "evidence": {
     "current": {
       "version": "2026-07-15",
-      "analysis": "Pinned REST README tag package-2026-07 maps to stable/2026-07-15/openapi.json; the full stable path inventory has 2026-07-15 as its latest version. This exact current schema defines the AppServicePlan request model and every used field. The version-specific Learn page for 2026-07-15 returned 404; this absence is recorded, not treated as a schema failure because exact REST source is available.",
+      "analysis": "Pinned REST README tag package-2026-07 maps to stable/2026-07-15/openapi.json; full stable path metadata confirms it is latest REST version. Exact current Site schema resolves $ref, enums, nested FunctionAppConfig, NameValuePair items, and required fields. The version-specific Learn 2026-07-15 URL returned 404; exact REST schema is available.",
       "urls": [
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/readme.md",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json"
@@ -171,19 +857,21 @@
     },
     "ga": {
       "version": "2026-07-15",
-      "analysis": "REST latest stable is 2026-07-15, same as current. Learn latest page links 2025-03-01; its exact version page and matching REST schema were also checked and have the same used-field contract. Learn and REST version listings differ; no timing explanation is inferred.",
+      "analysis": "REST latest stable is 2026-07-15, equal to current. Learn latest linked version is 2025-03-01; its exact Learn and REST schemas were fetched. Learn and REST version listings differ, with no timing explanation inferred. All used field type/required contracts are identical; current runtime.name adds enum go vs prior 2026-03 and retains python.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/serverfarms",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/2025-03-01/serverfarms",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/sites",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/2025-03-01/sites",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2025-03-01/openapi.json",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json"
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-03-15/openapi.json"
       ]
     },
     "breaking": {
-      "analysis": "Learn change log through 2025-03-01 adds plan identity/install-script/network-related properties; none of the used fields are changed. Current REST 2026-07-15 and preceding 2026-03-15 OpenAPI definitions for used fields are identical.",
+      "analysis": "Learn change log latest entry 2025-03-01 reports no properties added/updated/removed; its 2024-11 entry changes other unused fields. REST current 2026-07-15 adds runtime.name enum go vs 2026-03-15, retains python, and adds optional siteUpdateStrategy; neither affects used values.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/change-log/serverfarms",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/change-log/sites",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2025-03-01/openapi.json",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-03-15/openapi.json",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json"
       ]
