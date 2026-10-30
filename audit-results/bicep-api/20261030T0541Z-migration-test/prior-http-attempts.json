@@ -1,0 +1,668 @@
+[
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.authorization/roleassignments",
+    "attempt": 1,
+    "started_monotonic": 1132.406580266,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.authorization/change-log/roleassignments",
+    "attempt": 1,
+    "started_monotonic": 1135.406686408,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.789513206000038
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/authorization/resource-manager/Microsoft.Authorization/Authorization/readme.md",
+    "attempt": 1,
+    "started_monotonic": 1135.536981226,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/authorization/resource-manager/Microsoft.Authorization/Authorization/stable/2022-04-01/authorization-RoleAssignmentsCalls.json",
+    "attempt": 1,
+    "started_monotonic": 1135.699612364,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.authorization/2022-04-01/roleassignments",
+    "attempt": 1,
+    "started_monotonic": 1245.719946602,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/redisenterprise/databases/accesspolicyassignments",
+    "attempt": 1,
+    "started_monotonic": 1405.162476652,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/redisenterprise/change-log/databases/accesspolicyassignments",
+    "attempt": 1,
+    "started_monotonic": 1408.162588272,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.817232464999961
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/readme.md",
+    "attempt": 1,
+    "started_monotonic": 1408.273072707,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2025-07-01/redisenterprise.json",
+    "attempt": 1,
+    "started_monotonic": 1408.428164857,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2026-09-01/redisenterprise.json",
+    "attempt": 1,
+    "started_monotonic": 1408.574769713,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/change-log/redisenterprise/databases/accesspolicyassignments",
+    "attempt": 1,
+    "started_monotonic": 1432.088215266,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2025-07-01/redisenterprise/databases/accesspolicyassignments",
+    "attempt": 1,
+    "started_monotonic": 1457.778766665,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2026-09-01/redisenterprise/databases/accesspolicyassignments",
+    "attempt": 1,
+    "started_monotonic": 1460.778904579,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7954524079998464
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/redisenterprise/databases",
+    "attempt": 1,
+    "started_monotonic": 1529.642639096,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/change-log/redisenterprise/databases",
+    "attempt": 1,
+    "started_monotonic": 1532.642748623,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8683590289999756
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2025-07-01/redisenterprise/databases",
+    "attempt": 1,
+    "started_monotonic": 1535.642850872,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7735983079999187
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2026-09-01/redisenterprise/databases",
+    "attempt": 1,
+    "started_monotonic": 1538.642958342,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7414551419999498
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v3/types.json",
+    "attempt": 1,
+    "started_monotonic": 1558.281885379,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/redisenterprise",
+    "attempt": 1,
+    "started_monotonic": 1670.983562482,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/change-log/redisenterprise",
+    "attempt": 1,
+    "started_monotonic": 1673.983686962,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.906597050000073
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2025-07-01/redisenterprise",
+    "attempt": 1,
+    "started_monotonic": 1676.983817816,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8731869090001965
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v2/types.json",
+    "attempt": 1,
+    "started_monotonic": 1705.731381794,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json",
+    "attempt": 1,
+    "started_monotonic": 1705.885270467,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json",
+    "attempt": 1,
+    "started_monotonic": 1706.018235209,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2026-09-01/redisenterprise",
+    "attempt": 1,
+    "started_monotonic": 1755.886052632,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/experiments",
+    "attempt": 1,
+    "started_monotonic": 1816.181779836,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/change-log/experiments",
+    "attempt": 1,
+    "started_monotonic": 1819.18188424,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.819436198999938
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/experiments",
+    "attempt": 1,
+    "started_monotonic": 1822.182037171,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.902431349000153
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/readme.md",
+    "attempt": 1,
+    "started_monotonic": 1822.33238975,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 1822.513762526,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json",
+    "attempt": 1,
+    "started_monotonic": 1931.406238985,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/managedidentity.json",
+    "attempt": 1,
+    "started_monotonic": 1965.772189853,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/targets/capabilities",
+    "attempt": 1,
+    "started_monotonic": 2058.406682986,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/change-log/targets/capabilities",
+    "attempt": 1,
+    "started_monotonic": 2061.406810927,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8412700260000747
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/targets/capabilities",
+    "attempt": 1,
+    "started_monotonic": 2064.406921544,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8062198259999604
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/targets",
+    "attempt": 1,
+    "started_monotonic": 2146.766220603,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/change-log/targets",
+    "attempt": 1,
+    "started_monotonic": 2149.766335434,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8343089340000915
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/targets",
+    "attempt": 1,
+    "started_monotonic": 2152.766443766,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.902614131000064
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerregistry/registries",
+    "attempt": 1,
+    "started_monotonic": 2218.526929365,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerregistry/change-log/registries",
+    "attempt": 1,
+    "started_monotonic": 2221.527031443,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.896106893999786
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerregistry/2025-11-01/registries",
+    "attempt": 1,
+    "started_monotonic": 2224.5271126,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7951240480001616
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerregistry/resource-manager/Microsoft.ContainerRegistry/Registry/readme.md",
+    "attempt": 1,
+    "started_monotonic": 2224.632746687,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerregistry/resource-manager/Microsoft.ContainerRegistry/Registry/stable/2025-11-01/containerregistry.json",
+    "attempt": 1,
+    "started_monotonic": 2224.763712593,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/fleets/autoupgradeprofiles",
+    "attempt": 1,
+    "started_monotonic": 2346.273395844,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/autoupgradeprofiles",
+    "attempt": 1,
+    "started_monotonic": 2349.273505324,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.86747665699977
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/autoupgradeprofiles",
+    "attempt": 1,
+    "started_monotonic": 2352.273616559,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8818005690000064
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md",
+    "attempt": 1,
+    "started_monotonic": 2352.350653169,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+    "attempt": 1,
+    "started_monotonic": 2352.496891901,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/fleets/members",
+    "attempt": 1,
+    "started_monotonic": 2453.126948934,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/members",
+    "attempt": 1,
+    "started_monotonic": 2456.127053397,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.896549977000177
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/members",
+    "attempt": 1,
+    "started_monotonic": 2459.127156884,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.860733686000003
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/fleets/updatestrategies",
+    "attempt": 1,
+    "started_monotonic": 2560.912788036,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/updatestrategies",
+    "attempt": 1,
+    "started_monotonic": 2563.912888819,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8724846640002397
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/updatestrategies",
+    "attempt": 1,
+    "started_monotonic": 2566.912989344,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8468373649998284
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets",
+    "attempt": 1,
+    "started_monotonic": 2670.071561058,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets",
+    "attempt": 1,
+    "started_monotonic": 2673.071674755,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.810113129000001
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/preview/2026-06-02-preview/fleets.json",
+    "attempt": 1,
+    "started_monotonic": 2748.386619637,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-07-01/managedclusters/maintenanceconfigurations",
+    "attempt": 1,
+    "started_monotonic": 2865.559258143,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters/maintenanceconfigurations",
+    "attempt": 1,
+    "started_monotonic": 2868.559375824,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8777884619998986
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters/maintenanceconfigurations",
+    "attempt": 1,
+    "started_monotonic": 2871.559500591,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.9233426990003863
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-07-01/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 2871.620475818,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 2871.873215124,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 2872.094466855,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md",
+    "attempt": 1,
+    "started_monotonic": 2872.344231576,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-05-02-preview/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 3055.691712208,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 3058.69182225,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.5969403879998936
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 3061.691942156,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.735566228999687
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 3061.921167681,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/data-types",
+    "attempt": 1,
+    "started_monotonic": 3344.867707218,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/search/?terms=Bicep%20null%20resource%20property",
+    "attempt": 1,
+    "started_monotonic": 3363.205557462,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/conditional-resource-deployment",
+    "attempt": 1,
+    "started_monotonic": 3415.560144342,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/nullable",
+    "attempt": 1,
+    "started_monotonic": 3418.560276303,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.9154916580000645
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 3716.871758387,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-06-01/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 3717.042432176,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "source": "Azure/azure-rest-api-specs",
+  "commit": "fb9f2e6a38761232e8601419798654960aec703a",
+  "operations": [
+    {
+      "command": "git clone --bare --filter=blob:none --depth 1 https://github.com/Azure/azure-rest-api-specs /tmp/bicep-api-audit.cXVb7Y/azure-rest-api-specs.git",
+      "exit_code": 0
+    },
+    {
+      "command": "git --git-dir=/tmp/bicep-api-audit.cXVb7Y/azure-rest-api-specs.git fetch --filter=blob:none --depth 1 origin fb9f2e6a38761232e8601419798654960aec703a",
+      "exit_code": 0
+    },
+    {
+      "command": "git --git-dir=/tmp/bicep-api-audit.cXVb7Y/azure-rest-api-specs.git ls-tree -r --name-only fb9f2e6a38761232e8601419798654960aec703a specification",
+      "exit_code": 0,
+      "path_count": 367921
+    }
+  ]
+}

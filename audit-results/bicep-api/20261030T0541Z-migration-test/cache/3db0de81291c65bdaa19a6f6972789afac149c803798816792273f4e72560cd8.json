@@ -1,0 +1,32 @@
+{
+  "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/managedidentity.json",
+  "final_url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/managedidentity.json",
+  "status": 200,
+  "headers": {
+    "Content-Length": "3834",
+    "Accept-Ranges": "bytes",
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "max-age=300",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cross-Origin-Resource-Policy": "cross-origin",
+    "Date": "Fri, 30 Oct 2026 05:32:29 GMT",
+    "Etag": "\"e20c5e49d887f5d8567dddf4fe506a2aa2490cded3e891edd5ccc66354c4959a\"",
+    "Expires": "Fri, 30 Oct 2026 05:37:29 GMT",
+    "Source-Age": "0",
+    "Strict-Transport-Security": "max-age=31536000",
+    "Vary": "Authorization,Accept-Encoding",
+    "Via": "1.1 varnish",
+    "X-Cache": "MISS",
+    "X-Cache-Hits": "0",
+    "X-Content-Type-Options": "nosniff",
+    "X-Fastly-Request-Id": "ecd360f266ea999baf007bc213b48ec1fe94832b",
+    "X-Frame-Options": "deny",
+    "X-Github-Edge-Region": "iad",
+    "X-Github-Request-Id": "C7EE:465A0:21F9:2EAE:6AE42BE8",
+    "X-Served-By": "cache-dfw-kdfw8210103-DFW",
+    "X-Timer": "S1793338349.318618,VS0,VE83",
+    "X-Xss-Protection": "1; mode=block"
+  },
+  "body": "{\n  \"swagger\": \"2.0\",\n  \"info\": {\n    \"title\": \"Common types\",\n    \"version\": \"5.0\"\n  },\n  \"paths\": {},\n  \"definitions\": {\n    \"ManagedServiceIdentity\": {\n      \"type\": \"object\",\n      \"description\": \"Managed service identity (system assigned and/or user assigned identities)\",\n      \"properties\": {\n        \"principalId\": {\n          \"type\": \"string\",\n          \"format\": \"uuid\",\n          \"description\": \"The service principal ID of the system assigned identity. This property will only be provided for a system assigned identity.\",\n          \"readOnly\": true\n        },\n        \"tenantId\": {\n          \"type\": \"string\",\n          \"format\": \"uuid\",\n          \"description\": \"The tenant ID of the system assigned identity. This property will only be provided for a system assigned identity.\",\n          \"readOnly\": true\n        },\n        \"type\": {\n          \"$ref\": \"#/definitions/ManagedServiceIdentityType\"\n        },\n        \"userAssignedIdentities\": {\n          \"$ref\": \"#/definitions/UserAssignedIdentities\"\n        }\n      },\n      \"required\": [\n        \"type\"\n      ]\n    },\n    \"ManagedServiceIdentityType\": {\n      \"type\": \"string\",\n      \"description\": \"Type of managed service identity (where both SystemAssigned and UserAssigned types are allowed).\",\n      \"enum\": [\n        \"None\",\n        \"SystemAssigned\",\n        \"UserAssigned\",\n        \"SystemAssigned,UserAssigned\"\n      ],\n      \"x-ms-enum\": {\n        \"name\": \"ManagedServiceIdentityType\",\n        \"modelAsString\": true\n      }\n    },\n    \"SystemAssignedServiceIdentity\": {\n      \"type\": \"object\",\n      \"description\": \"Managed service identity (either system assigned, or none)\",\n      \"properties\": {\n        \"principalId\": {\n          \"type\": \"string\",\n          \"format\": \"uuid\",\n          \"description\": \"The service principal ID of the system assigned identity. This property will only be provided for a system assigned identity.\",\n          \"readOnly\": true\n        },\n        \"tenantId\": {\n          \"type\": \"string\",\n          \"format\": \"uuid\",\n          \"description\": \"The tenant ID of the system assigned identity. This property will only be provided for a system assigned identity.\",\n          \"readOnly\": true\n        },\n        \"type\": {\n          \"$ref\": \"#/definitions/SystemAssignedServiceIdentityType\"\n        }\n      },\n      \"required\": [\n        \"type\"\n      ]\n    },\n    \"SystemAssignedServiceIdentityType\": {\n      \"type\": \"string\",\n      \"description\": \"Type of managed service identity (either system assigned, or none).\",\n      \"enum\": [\n        \"None\",\n        \"SystemAssigned\"\n      ],\n      \"x-ms-enum\": {\n        \"name\": \"SystemAssignedServiceIdentityType\",\n        \"modelAsString\": true\n      }\n    },\n    \"UserAssignedIdentities\": {\n      \"type\": \"object\",\n      \"title\": \"User-Assigned Identities\",\n      \"description\": \"The set of user assigned identities associated with the resource. The userAssignedIdentities dictionary keys will be ARM resource ids in the form: '/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ManagedIdentity/userAssignedIdentities/{identityName}. The dictionary values can be empty objects ({}) in requests.\",\n      \"additionalProperties\": {\n        \"$ref\": \"#/definitions/UserAssignedIdentity\",\n        \"x-nullable\": true\n      }\n    },\n    \"UserAssignedIdentity\": {\n      \"type\": \"object\",\n      \"description\": \"User assigned identity properties\",\n      \"properties\": {\n        \"principalId\": {\n          \"type\": \"string\",\n          \"format\": \"uuid\",\n          \"description\": \"The principal ID of the assigned identity.\",\n          \"readOnly\": true\n        },\n        \"clientId\": {\n          \"type\": \"string\",\n          \"format\": \"uuid\",\n          \"description\": \"The client ID of the assigned identity.\",\n          \"readOnly\": true\n        }\n      }\n    }\n  }\n}\n"
+}
