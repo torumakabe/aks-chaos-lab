@@ -367,5 +367,131 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.kubernetesconfiguration/2025-03-01/extensions",
+    "attempt": 1,
+    "started_monotonic": 4270.448061932,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.kubernetesconfiguration/change-log/extensions",
+    "attempt": 1,
+    "started_monotonic": 4273.448156224,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.695805322000524
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/kubernetesconfiguration/resource-manager/Microsoft.KubernetesConfiguration/extensions/readme.md",
+    "attempt": 1,
+    "started_monotonic": 4273.666722259,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/kubernetesconfiguration/resource-manager/Microsoft.KubernetesConfiguration/extensions/stable/2025-03-01/extensions.json",
+    "attempt": 1,
+    "started_monotonic": 4273.820528878,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v3/types.json",
+    "attempt": 1,
+    "started_monotonic": 4287.288344031,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/search/?terms=Inspektor%20Gadget%20AKS%20extension",
+    "attempt": 1,
+    "started_monotonic": 4305.051418654,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/api/search?search=Inspektor%20Gadget%20AKS&locale=en-us&%24top=10",
+    "attempt": 1,
+    "started_monotonic": 4316.627274926,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/aks/inspektor-gadget",
+    "attempt": 1,
+    "started_monotonic": 4319.627375269,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.14504896499966
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/aks/inspektor-gadget-overview",
+    "attempt": 1,
+    "started_monotonic": 4322.627467503,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.776963173000695
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/aks/use-inspektor-gadget",
+    "attempt": 1,
+    "started_monotonic": 4325.627556948,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.78952579900033
+  },
+  {
+    "url": "https://learn.microsoft.com/api/search?search=Inspektor%20Gadget%20extensionType%20microsoft.inspektorgadget&locale=en-us&%24top=12",
+    "attempt": 1,
+    "started_monotonic": 4332.95966728,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/api/search?search=Install%20configure%20Inspektor%20Gadget%20extension%20AKS&locale=en-us&%24top=12",
+    "attempt": 1,
+    "started_monotonic": 4335.959799908,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.219001618999755
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/aks/inspektor-gadget-configure",
+    "attempt": 1,
+    "started_monotonic": 4341.929458586,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/kubernetesconfiguration/resource-manager/Microsoft.KubernetesConfiguration/extensions/stable/2025-03-01/examples/CreateExtension.json",
+    "attempt": 1,
+    "started_monotonic": 4380.778196642,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

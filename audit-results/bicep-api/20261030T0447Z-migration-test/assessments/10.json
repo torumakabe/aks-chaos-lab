@@ -1,0 +1,100 @@
+{
+  "pair": "Microsoft.KubernetesConfiguration/extensions@2025-03-01",
+  "results": [
+    {
+      "file": "infra/modules/inspektor-gadget.bicep",
+      "name": "inspektorGadgetExtension",
+      "line": 9,
+      "type": "Microsoft.KubernetesConfiguration/extensions",
+      "version": "2025-03-01",
+      "existing": false,
+      "start": 203,
+      "end": 476,
+      "header": "resource inspektorGadgetExtension 'Microsoft.KubernetesConfiguration/extensions@2025-03-01' = ",
+      "body": "{\n  name: 'inspektor-gadget'\n  scope: aksCluster\n  properties: {\n    extensionType: 'microsoft.inspektorgadget'\n    releaseTrain: 'preview'\n    autoUpgradeMinorVersion: true\n  }\n}",
+      "status": "verified",
+      "reason": "The exact stable 2025-03-01 Learn and pinned REST schemas were read. Both identify 2025-03-01 as the latest GA; stable REST tree versions end at 2025-03-01. The body schema resolves through common ProxyResource: response-only id/name/type are readOnly, while the source supplies the properties. All three property types and exact documented values match; the exact Inspektor Gadget install guidance confirms extensionType, lowercase preview releaseTrain, and default minor auto-upgrade.",
+      "migration": "Current API 2025-03-01 is already the latest GA. The extension product is preview, but the declared API version is stable; no API-version migration is needed. The 2025-03 change log adds other properties and does not change any of the three used properties.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'inspektor-gadget'",
+          "analysis": "Original Bicep JSON Pointer /name maps to the PUT path parameter {extensionName}; the source name inspektor-gadget is the exact name used by the official Learn install command. The REST request example supplies resource identity in the path, not a writable body name."
+        },
+        {
+          "source_id": "body:36",
+          "label": "scope",
+          "path": "/scope",
+          "expression": "  scope: aksCluster",
+          "analysis": "Bicep scope selects the existing Microsoft.ContainerService/managedClusters parent and forms the cluster segment of the REST path ({clusterRp}/{clusterResourceName}/{clusterName}/providers/Microsoft.KubernetesConfiguration/extensions/{extensionName}). This is a Bicep language deployment-scope property, not REST JSON properties.scope (which separately controls cluster/namespace installation)."
+        },
+        {
+          "source_id": "body:61",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "Original /properties is the REST ExtensionProperties object. It contains only extensionType, releaseTrain, and autoUpgradeMinorVersion in this declaration; each is separately checked below. No required writable properties are omitted; common ProxyResource id/name/type are response-only."
+        },
+        {
+          "source_id": "body:82",
+          "label": "extensionType",
+          "path": "/properties/extensionType",
+          "expression": "    extensionType: 'microsoft.inspektorgadget'",
+          "analysis": "REST properties.extensionType is string and must identify a type registered with Microsoft.KubernetesConfiguration. The exact source literal microsoft.inspektorgadget is the extension type used in Microsoft Learn’s Inspektor Gadget AKS install command."
+        },
+        {
+          "source_id": "body:128",
+          "label": "releaseTrain",
+          "path": "/properties/releaseTrain",
+          "expression": "    releaseTrain: 'preview'",
+          "analysis": "REST properties.releaseTrain is string (no enum constraint); when auto-upgrade is enabled it identifies the train. Microsoft Learn’s exact Inspektor Gadget install command specifies lowercase --release-train preview, matching the source literal."
+        },
+        {
+          "source_id": "body:167",
+          "label": "autoUpgradeMinorVersion",
+          "path": "/properties/autoUpgradeMinorVersion",
+          "expression": "    autoUpgradeMinorVersion: true",
+          "analysis": "REST properties.autoUpgradeMinorVersion is boolean. Literal true matches the schema and the Learn guide states minor auto-upgrade is enabled by default for this extension."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource inspektorGadgetExtension 'Microsoft.KubernetesConfiguration/extensions@2025-03-01' = ",
+          "analysis": "Resource declaration header uses Microsoft.KubernetesConfiguration/extensions@2025-03-01. Learn identifies this as Latest; at the pinned REST commit the only stable versions are 2024-11-01 and 2025-03-01, so it is already latest GA."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2025-03-01",
+      "analysis": "Fetched exact Learn resource page and pinned stable OpenAPI. Extension resolves through common ProxyResource; id/name/type are read-only response properties, and request body properties are the ExtensionProperties schema. extensionType/releaseTrain are strings, autoUpgradeMinorVersion boolean. The official Inspektor Gadget install article confirms the exact extension type and preview train; the pinned example confirms the request body shape and parent cluster route.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.kubernetesconfiguration/2025-03-01/extensions",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/kubernetesconfiguration/resource-manager/Microsoft.KubernetesConfiguration/extensions/stable/2025-03-01/extensions.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/kubernetesconfiguration/resource-manager/Microsoft.KubernetesConfiguration/extensions/readme.md",
+        "https://learn.microsoft.com/en-us/azure/aks/inspektor-gadget-configure"
+      ]
+    },
+    "ga": {
+      "version": "2025-03-01",
+      "analysis": "Learn version selector labels 2025-03-01 as Latest and provides no later stable API. The complete pinned resource-manager tree has stable extension schemas only for 2024-11-01 and 2025-03-01 (older previews are not GA); the exact 2025-03-01 schema is therefore both current and latest GA. No candidate API change is required.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.kubernetesconfiguration/2025-03-01/extensions",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/kubernetesconfiguration/resource-manager/Microsoft.KubernetesConfiguration/extensions/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/kubernetesconfiguration/resource-manager/Microsoft.KubernetesConfiguration/extensions/stable/2025-03-01/extensions.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn change log for 2025-03-01 lists additions (including additionalDetails, autoUpgradeMode, extensionState, managementDetails) but none modify extensionType, releaseTrain, or autoUpgradeMinorVersion. Learn install steps use microsoft.inspektorgadget, lowercase release-train preview, and default enabled minor auto-upgrade, matching all source values.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.kubernetesconfiguration/change-log/extensions",
+        "https://learn.microsoft.com/en-us/azure/aks/inspektor-gadget-configure"
+      ]
+    }
+  }
+}
