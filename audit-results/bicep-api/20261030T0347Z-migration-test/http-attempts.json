@@ -160,5 +160,68 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/redisenterprise",
+    "attempt": 1,
+    "started_monotonic": 1670.983562482,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/change-log/redisenterprise",
+    "attempt": 1,
+    "started_monotonic": 1673.983686962,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.906597050000073
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2025-07-01/redisenterprise",
+    "attempt": 1,
+    "started_monotonic": 1676.983817816,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8731869090001965
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v2/types.json",
+    "attempt": 1,
+    "started_monotonic": 1705.731381794,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json",
+    "attempt": 1,
+    "started_monotonic": 1705.885270467,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json",
+    "attempt": 1,
+    "started_monotonic": 1706.018235209,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2026-09-01/redisenterprise",
+    "attempt": 1,
+    "started_monotonic": 1755.886052632,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

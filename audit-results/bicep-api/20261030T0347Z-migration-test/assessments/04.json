@@ -1,0 +1,239 @@
+{
+  "pair": "Microsoft.Cache/redisEnterprise@2025-07-01",
+  "results": [
+    {
+      "file": "infra/modules/azmonitor/service-group-members.bicep",
+      "name": "redisEnterprise",
+      "line": 46,
+      "type": "Microsoft.Cache/redisEnterprise",
+      "version": "2025-07-01",
+      "existing": true,
+      "start": 1306,
+      "end": 1408,
+      "header": "resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-07-01' existing = ",
+      "body": "{\n  name: redisName\n}",
+      "status": "verified",
+      "reason": "Existing reference declaration only; it supplies the resource name and no create payload, so create-only required fields are not treated as missing. Current and latest GA references, name typing, and source coverage were checked.",
+      "migration": "Reference only; 2026-09-01 is latest GA, but this declaration has no create payload.",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "Current 2025-07-01; latest GA 2026-09-01. Exact current/candidate resource schemas preserve all used identity, SKU, network, TLS, and high-availability fields. The 2026-09-01 changelog reports no property changes; existing declaration is reference-only."
+        }
+      ],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: redisName",
+          "analysis": "body:8: Bicep source JSON Pointer /name (expression 'name: redisName'); Existing Bicep resource name maps to the redisEnterprise clusterName path parameter; it is not request payload."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-07-01' existing = ",
+          "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-07-01' existing =\"); The existing modifier makes this a symbolic reference, not a create/update request; no payload properties or create-only required fields are inferred."
+        },
+        {
+          "source_id": "symbol:redisName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/redisName/$expression-line/0",
+          "expression": "@description('Azure Managed Redis name')",
+          "analysis": "symbol:redisName:line:0: Bicep source JSON Pointer /$symbol/redisName/$expression-line/0 (expression \"@description('Azure Managed Redis name')\"); The string-typed redisName parameter is used only as the existing-resource name/path; no create properties are supplied or required."
+        },
+        {
+          "source_id": "symbol:redisName:line:41",
+          "label": "$expression",
+          "path": "/$symbol/redisName/$expression-line/1",
+          "expression": "param redisName string",
+          "analysis": "symbol:redisName:line:41: Bicep source JSON Pointer /$symbol/redisName/$expression-line/1 (expression 'param redisName string'); The string-typed redisName parameter is used only as the existing-resource name/path; no create properties are supplied or required."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/redis.bicep",
+      "name": "redisEnterprise",
+      "line": 15,
+      "type": "Microsoft.Cache/redisEnterprise",
+      "version": "2025-07-01",
+      "existing": false,
+      "start": 401,
+      "end": 715,
+      "header": "resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-07-01' = ",
+      "body": "{\n  name: redisName\n  location: location\n  tags: tags\n  sku: { name: 'Balanced_B0' }\n  identity: { type: 'SystemAssigned' }\n  properties: {\n    minimumTlsVersion: '1.2'\n    highAvailability: 'Enabled'\n    publicNetworkAccess: 'Disabled'\n  }\n}",
+      "status": "verified",
+      "reason": "Learn identifies 2026-09-01 as latest stable GA. Current and candidate REST schemas were expanded through ClusterCreateProperties, ClusterProperties, Sku, tracked-resource, and managed-identity refs; all required fields and supplied enums/literals match.",
+      "migration": "2026-09-01 GA移行可能。必須 location/sku/publicNetworkAccess と使用中のenum/literalが候補schemaに適合。",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "Current 2025-07-01; latest GA 2026-09-01. Exact current/candidate resource schemas preserve all used identity, SKU, network, TLS, and high-availability fields. The 2026-09-01 changelog reports no property changes; existing declaration is reference-only."
+        }
+      ],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: redisName",
+          "analysis": "body:8: Bicep source JSON Pointer /name (expression 'name: redisName'); Bicep source pointer is retained as a JSON Pointer into the original source; it is not confused with the REST model path."
+        },
+        {
+          "source_id": "body:30",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "body:30: Bicep source JSON Pointer /location (expression 'location: location'); Maps to the required TrackedResource.location string; the supplied location parameter is declared string."
+        },
+        {
+          "source_id": "body:47",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "body:47: Bicep source JSON Pointer /tags (expression 'tags: tags'); Maps to TrackedResource.tags object with additionalProperties string. The module receives main.bicep var tags containing azd-env-name from string environment, so each actual tag value is a string."
+        },
+        {
+          "source_id": "body:59",
+          "label": "sku",
+          "path": "/sku",
+          "expression": "  sku: { name: 'Balanced_B0' }",
+          "analysis": "body:59: Bicep source JSON Pointer /sku (expression \"sku: { name: 'Balanced_B0' }\"); Maps to the required Sku object. Sku.name is required and is provided; capacity is optional in the schema."
+        },
+        {
+          "source_id": "body:67",
+          "label": "name",
+          "path": "/sku/name",
+          "expression": "  sku: { name: 'Balanced_B0' }",
+          "analysis": "body:67: Bicep source JSON Pointer /sku/name (expression \"sku: { name: 'Balanced_B0' }\"); Maps to required Sku.name; 'Balanced_B0' is an exact member of the current and GA candidate SKU enum."
+        },
+        {
+          "source_id": "body:95",
+          "label": "identity",
+          "path": "/identity",
+          "expression": "  identity: { type: 'SystemAssigned' }",
+          "analysis": "body:95: Bicep source JSON Pointer /identity (expression \"identity: { type: 'SystemAssigned' }\"); Maps to optional ManagedServiceIdentity; the object contains its required/defined type discriminator."
+        },
+        {
+          "source_id": "body:103",
+          "label": "type",
+          "path": "/identity/type",
+          "expression": "  identity: { type: 'SystemAssigned' }",
+          "analysis": "body:103: Bicep source JSON Pointer /identity/type (expression \"identity: { type: 'SystemAssigned' }\"); Maps to ManagedServiceIdentity.type; 'SystemAssigned' is an allowed enum value in both versions."
+        },
+        {
+          "source_id": "body:136",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "body:136: Bicep source JSON Pointer /properties (expression 'properties: {'); Request payload wrapper maps to ClusterCreateProperties. Current and candidate schemas require publicNetworkAccess, which is present; root required location and sku are also present."
+        },
+        {
+          "source_id": "body:161",
+          "label": "minimumTlsVersion",
+          "path": "/properties/minimumTlsVersion",
+          "expression": "    minimumTlsVersion: '1.2'",
+          "analysis": "body:161: Bicep source JSON Pointer /properties/minimumTlsVersion (expression \"minimumTlsVersion: '1.2'\"); Maps to ClusterProperties.minimumTlsVersion; string literal '1.2' is an allowed enum value in current and candidate schemas."
+        },
+        {
+          "source_id": "body:189",
+          "label": "highAvailability",
+          "path": "/properties/highAvailability",
+          "expression": "    highAvailability: 'Enabled'",
+          "analysis": "body:189: Bicep source JSON Pointer /properties/highAvailability (expression \"highAvailability: 'Enabled'\"); Maps to ClusterProperties.highAvailability; string literal 'Enabled' is an allowed enum value in current and candidate schemas."
+        },
+        {
+          "source_id": "body:224",
+          "label": "publicNetworkAccess",
+          "path": "/properties/publicNetworkAccess",
+          "expression": "    publicNetworkAccess: 'Disabled'",
+          "analysis": "body:224: Bicep source JSON Pointer /properties/publicNetworkAccess (expression \"publicNetworkAccess: 'Disabled'\"); Maps to required ClusterCreateProperties.publicNetworkAccess; string literal 'Disabled' is an allowed enum value in current and candidate schemas."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-07-01' = ",
+          "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2025-07-01' =\"); Resource declaration header identifies the current stable API version; this is not a request property."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "symbol:location:line:0: Bicep source JSON Pointer /$symbol/location/$expression-line/0 (expression \"@description('Deployment location')\"); Bicep location parameter is declared string and supplies required REST TrackedResource.location."
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "symbol:location:line:36: Bicep source JSON Pointer /$symbol/location/$expression-line/1 (expression 'param location string'); Bicep location parameter is declared string and supplies required REST TrackedResource.location."
+        },
+        {
+          "source_id": "symbol:redisName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/redisName/$expression-line/0",
+          "expression": "@description('Azure Managed Redis name')",
+          "analysis": "symbol:redisName:line:0: Bicep source JSON Pointer /$symbol/redisName/$expression-line/0 (expression \"@description('Azure Managed Redis name')\"); Bicep redisName parameter is declared string and supplies the REST clusterName path segment; it is not body data."
+        },
+        {
+          "source_id": "symbol:redisName:line:41",
+          "label": "$expression",
+          "path": "/$symbol/redisName/$expression-line/1",
+          "expression": "param redisName string",
+          "analysis": "symbol:redisName:line:41: Bicep source JSON Pointer /$symbol/redisName/$expression-line/1 (expression 'param redisName string'); Bicep redisName parameter is declared string and supplies the REST clusterName path segment; it is not body data."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags object')",
+          "analysis": "symbol:tags:line:0: Bicep source JSON Pointer /$symbol/tags/$expression-line/0 (expression \"@description('Tags object')\"); Bicep tags parameter receives main.bicep var tags; azd-env-name maps to string environment, satisfying REST tags.additionalProperties string."
+        },
+        {
+          "source_id": "symbol:tags:line:28",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object",
+          "analysis": "symbol:tags:line:28: Bicep source JSON Pointer /$symbol/tags/$expression-line/1 (expression 'param tags object'); Bicep tags parameter receives main.bicep var tags; azd-env-name maps to string environment, satisfying REST tags.additionalProperties string."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2025-07-01",
+      "analysis": "Learn selector and fixed REST stable document identify 2025-07-01 as current. Exact PUT Cluster body was inspected: root required location and sku; ClusterCreateProperties allOf ClusterProperties requires publicNetworkAccess; type/enum paths for SKU, identity, TLS, high availability, tags/additionalProperties resolved with Schemas and pinned common-types refs. Existing declaration was handled as a reference, not validated as a create payload.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2025-07-01/redisenterprise",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2025-07-01/redisenterprise.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v2/types.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json"
+      ]
+    },
+    "ga": {
+      "version": "2026-09-01",
+      "analysis": "Learn selector shows latest stable GA 2026-09-01 and newer 2026-10-01-preview. The exact candidate Cluster/ClusterCreateProperties schema and refs preserve required location, sku, publicNetworkAccess and all used enum values. No API-list ordering or type-definition presence was used to infer latest GA.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2026-09-01/redisenterprise",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2026-09-01/redisenterprise.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn change log: 2026-09-01 has no properties added, updated, or removed. The 2025-07-01 model transition to ClusterCreateProperties is covered by the exact current create schema; preview-only maintenanceConfiguration additions are optional and unused. No change affects the fields used here.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/change-log/redisenterprise",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2025-07-01/redisenterprise.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2026-09-01/redisenterprise.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v2/types.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json"
+      ]
+    }
+  }
+}
