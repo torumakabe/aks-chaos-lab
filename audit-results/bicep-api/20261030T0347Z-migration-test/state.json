@@ -44106,9 +44106,178 @@
       }
     },
     "Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2026-07-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/aks.bicep",
+          "name": "aksMaintenanceNodeConf",
+          "line": 291,
+          "type": "Microsoft.ContainerService/managedClusters/maintenanceConfigurations",
+          "version": "2026-07-01",
+          "existing": false,
+          "start": 9289,
+          "end": 9740,
+          "header": "resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2026-07-01' = ",
+          "body": "{\n  parent: aksCluster\n  name: 'aksManagedNodeOSUpgradeSchedule'\n  properties: {\n    maintenanceWindow: {\n      durationHours: 4\n      schedule: {\n        weekly: {\n          dayOfWeek: 'Wednesday'\n          intervalWeeks: 1\n        }\n      }\n      startDate: '2025-04-01'\n      startTime: '00:00'\n      utcOffset: '+09:00'\n    }\n  }\n}",
+          "status": "verified",
+          "reason": "Learn lists 2026-08-01 as the latest stable GA, newer than current 2026-07-01; 2026-08-02-preview is not GA. Exact current and candidate schemas both require schedule, durationHours, and startTime inside maintenanceWindow; the weekly schedule requires dayOfWeek and intervalWeeks. The supplied values satisfy all numeric, enum, date, and pattern constraints, and the exact operation allows the literal configuration name.",
+          "migration": "Compatible with latest GA 2026-08-01; check-only identifies an update candidate but makes no source changes.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "Current 2026-07-01; latest GA 2026-08-01. Exact current and candidate schemas support the same used maintenanceWindow fields and literals. The 2026-08-01 change log removes maintenanceWindowId, which this declaration does not use; preview 2026-08-02-preview is not treated as GA."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:10",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: aksCluster",
+              "analysis": "body:10: Bicep source JSON Pointer /parent (expression 'parent: aksCluster'); Bicep parent aksCluster supplies the managedClusters resourceName route segment and establishes child-resource scope; it is not part of the REST body."
+            },
+            {
+              "source_id": "body:29",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'aksManagedNodeOSUpgradeSchedule'",
+              "analysis": "body:29: Bicep source JSON Pointer /name (expression \"name: 'aksManagedNodeOSUpgradeSchedule'\"); The child name maps to the required configName path parameter, whose exact operation description allows only default, aksManagedAutoUpgradeSchedule, or aksManagedNodeOSUpgradeSchedule; the supplied literal is allowed."
+            },
+            {
+              "source_id": "body:77",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "body:77: Bicep source JSON Pointer /properties (expression 'properties: {'); Maps to the MaintenanceConfiguration body properties object; it supplies maintenanceWindow, whose nested schedule, durationHours, and startTime are required by the exact schema."
+            },
+            {
+              "source_id": "body:102",
+              "label": "maintenanceWindow",
+              "path": "/properties/maintenanceWindow",
+              "expression": "    maintenanceWindow: {",
+              "analysis": "body:102: Bicep source JSON Pointer /properties/maintenanceWindow (expression 'maintenanceWindow: {'); Maps to MaintenanceConfigurationProperties.maintenanceWindow; the object includes all required fields schedule, durationHours, and startTime."
+            },
+            {
+              "source_id": "body:125",
+              "label": "durationHours",
+              "path": "/properties/maintenanceWindow/durationHours",
+              "expression": "      durationHours: 4",
+              "analysis": "body:125: Bicep source JSON Pointer /properties/maintenanceWindow/durationHours (expression 'durationHours: 4'); Maps to required MaintenanceWindow.durationHours, integer range 4–24; literal 4 is valid."
+            },
+            {
+              "source_id": "body:143",
+              "label": "schedule",
+              "path": "/properties/maintenanceWindow/schedule",
+              "expression": "      schedule: {",
+              "analysis": "body:143: Bicep source JSON Pointer /properties/maintenanceWindow/schedule (expression 'schedule: {'); Maps to required MaintenanceWindow.schedule; the weekly recurrence variant is supplied."
+            },
+            {
+              "source_id": "body:161",
+              "label": "weekly",
+              "path": "/properties/maintenanceWindow/schedule/weekly",
+              "expression": "        weekly: {",
+              "analysis": "body:161: Bicep source JSON Pointer /properties/maintenanceWindow/schedule/weekly (expression 'weekly: {'); Maps to Schedule.weekly; both required fields dayOfWeek and intervalWeeks are supplied."
+            },
+            {
+              "source_id": "body:184",
+              "label": "dayOfWeek",
+              "path": "/properties/maintenanceWindow/schedule/weekly/dayOfWeek",
+              "expression": "          dayOfWeek: 'Wednesday'",
+              "analysis": "body:184: Bicep source JSON Pointer /properties/maintenanceWindow/schedule/weekly/dayOfWeek (expression \"dayOfWeek: 'Wednesday'\"); Maps to required WeeklySchedule.dayOfWeek; 'Wednesday' is an exact allowed weekday enum value."
+            },
+            {
+              "source_id": "body:221",
+              "label": "intervalWeeks",
+              "path": "/properties/maintenanceWindow/schedule/weekly/intervalWeeks",
+              "expression": "          intervalWeeks: 1",
+              "analysis": "body:221: Bicep source JSON Pointer /properties/maintenanceWindow/schedule/weekly/intervalWeeks (expression 'intervalWeeks: 1'); Maps to required WeeklySchedule.intervalWeeks, integer range 1–4; literal 1 is valid."
+            },
+            {
+              "source_id": "body:258",
+              "label": "startDate",
+              "path": "/properties/maintenanceWindow/startDate",
+              "expression": "      startDate: '2025-04-01'",
+              "analysis": "body:258: Bicep source JSON Pointer /properties/maintenanceWindow/startDate (expression \"startDate: '2025-04-01'\"); Maps to optional MaintenanceWindow.startDate with date format; '2025-04-01' is a valid ISO date. The exact candidate schema retains this field."
+            },
+            {
+              "source_id": "body:288",
+              "label": "startTime",
+              "path": "/properties/maintenanceWindow/startTime",
+              "expression": "      startTime: '00:00'",
+              "analysis": "body:288: Bicep source JSON Pointer /properties/maintenanceWindow/startTime (expression \"startTime: '00:00'\"); Maps to required MaintenanceWindow.startTime with pattern ^\\d{2}:\\d{2}$ and documented range 00:00–23:59; '00:00' is valid."
+            },
+            {
+              "source_id": "body:313",
+              "label": "utcOffset",
+              "path": "/properties/maintenanceWindow/utcOffset",
+              "expression": "      utcOffset: '+09:00'",
+              "analysis": "body:313: Bicep source JSON Pointer /properties/maintenanceWindow/utcOffset (expression \"utcOffset: '+09:00'\"); Maps to optional MaintenanceWindow.utcOffset with pattern ^(-|\\+)[0-9]{2}:[0-9]{2}$; '+09:00' is valid."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2026-07-01' = ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource aksMaintenanceNodeConf 'Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2026-07-01' =\"); Bicep declaration header identifies the current API version; it is not a request-body attribute."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-07-01",
+          "analysis": "Learn current-version page and pinned stable 2026-07-01 managedClusters.json confirm current contract. Schemas helper expanded MaintenanceConfiguration, MaintenanceWindow and Schedule/WeeklySchedule. Required schedule/durationHours/startTime and weekly dayOfWeek/intervalWeeks are present; exact bounds, enum, format and patterns match source. The PUT operation confirms the supported configName values.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-07-01/managedclusters/maintenanceconfigurations",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-07-01/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-07-01/managedclusters/maintenanceconfigurations": "315ae7f056d5d7103535d13fdd4525537a49b9eab61440db4bb0163c6cb94050",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md": "764addd0ef8d8c34f26bb92f23146522072e8eba5db00b265361c75ea2db3544",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-07-01/managedClusters.json": "ba660fe43eeae6d35dea5e4330d055979e23c2bcbde71a8448f053d17a5698c6",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json": "5bdcf9b5ed1ea563367452e265e7ad60b411b1fbbbc20b8ba3ab7854d1ca624f"
+          }
+        },
+        "ga": {
+          "version": "2026-08-01",
+          "analysis": "Learn version selector lists 2026-08-01 as latest stable GA and 2026-08-02-preview as newer preview. Pinned README maps stable and preview tags to their exact files. Exact candidate stable schema was checked against the current schema; every used property and constraint matches.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-07-01/managedclusters/maintenanceconfigurations",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters/maintenanceconfigurations",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-07-01/managedclusters/maintenanceconfigurations": "315ae7f056d5d7103535d13fdd4525537a49b9eab61440db4bb0163c6cb94050",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters/maintenanceconfigurations": "839247646c0fa187ca19a818131f80107e9914704a458c13e5b02b2b77249336",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md": "764addd0ef8d8c34f26bb92f23146522072e8eba5db00b265361c75ea2db3544",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json": "769625cd957b9d236f5a8af0af93e131ed53b5bd9d7022aeb5e8b88495f5e47d",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json": "d7b16b79864d62ef0937942bd38de1cd3c654e519cb82947dfea35c5164220c3",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json": "5bdcf9b5ed1ea563367452e265e7ad60b411b1fbbbc20b8ba3ab7854d1ca624f"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log reports that 2026-08-01 removes MaintenanceConfigurationProperties.maintenanceWindowId. Neither current 2026-07-01 nor candidate 2026-08-01 exact schema includes that field, and this source does not use it. The used maintenanceWindow and nested schedule fields remain present with identical constraints in both specs.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters/maintenanceconfigurations",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-07-01/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters/maintenanceconfigurations": "3659e8078c3a3a4a7f953dfb8ce9d278b2a568b3920c76c8732c508c2987f742",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-07-01/managedClusters.json": "ba660fe43eeae6d35dea5e4330d055979e23c2bcbde71a8448f053d17a5698c6",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json": "769625cd957b9d236f5a8af0af93e131ed53b5bd9d7022aeb5e8b88495f5e47d",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json": "d7b16b79864d62ef0937942bd38de1cd3c654e519cb82947dfea35c5164220c3",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json": "5bdcf9b5ed1ea563367452e265e7ad60b411b1fbbbc20b8ba3ab7854d1ca624f"
+          }
+        }
+      }
     },
     "Microsoft.ContainerService/managedClusters@2026-05-02-preview": {
       "stage": "pending",

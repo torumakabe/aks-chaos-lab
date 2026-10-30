@@ -511,5 +511,68 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-07-01/managedclusters/maintenanceconfigurations",
+    "attempt": 1,
+    "started_monotonic": 2865.559258143,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters/maintenanceconfigurations",
+    "attempt": 1,
+    "started_monotonic": 2868.559375824,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8777884619998986
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters/maintenanceconfigurations",
+    "attempt": 1,
+    "started_monotonic": 2871.559500591,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.9233426990003863
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-07-01/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 2871.620475818,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 2871.873215124,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 2872.094466855,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md",
+    "attempt": 1,
+    "started_monotonic": 2872.344231576,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
