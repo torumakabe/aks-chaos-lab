@@ -1,555 +1,1018 @@
 {
-  "pair": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01",
+  "pair": "Microsoft.Network/privateEndpoints@2025-09-01",
   "results": [
     {
       "file": "infra/modules/acr.bicep",
-      "name": "containerRegistryPrivateDnsZoneGroup",
-      "line": 75,
-      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-      "version": "2026-03-01",
+      "name": "containerRegistryPrivateEndpoint",
+      "line": 55,
+      "type": "Microsoft.Network/privateEndpoints",
+      "version": "2025-09-01",
       "existing": false,
-      "start": 2007,
-      "end": 2406,
-      "header": "resource containerRegistryPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-      "body": "{\n  parent: containerRegistryPrivateEndpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }\n    ]\n  }\n  dependsOn: [\n    containerRegistryPrivateDnsZoneLink\n  ]\n}",
+      "start": 1513,
+      "end": 2005,
+      "header": "resource containerRegistryPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+      "body": "{\n  name: 'pe-${registryName}'\n  location: location\n  tags: tags\n  properties: {\n    subnet: { id: privateEndpointSubnetId }\n    #disable-next-line BCP037\n    ipVersionType: 'IPv4'\n    privateLinkServiceConnections: [\n      {\n        name: 'plsc-${registryName}'\n        properties: {\n          privateLinkServiceId: containerRegistry.id\n          groupIds: ['registry']\n        }\n      }\n    ]\n  }\n}",
       "status": "verified",
-      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
-      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
-      "findings": [],
+      "reason": "Compared exact current 2025-09-01 and latest GA 2026-03-01 PrivateEndpoint models from pinned REST specs. All used schema paths, literal IPv4 enum, resource-ID strings and provider-specific groupIds string values are compatible; existing BCP037 suppression on ipVersionType is supported by both REST schemas.",
+      "migration": "GA移行可能。candidate 2026-03-01 contains all current used fields with matching types/enums; Learn change log reports no changes in 2026-03-01 and usage is retained. ipVersionType was added in earlier 2025-03-01 version and exists in both current/candidate.",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "Latest GA 2026-03-01 is newer than current 2025-09-01. Exact REST schemas preserve all used properties; ipVersionType remains enum IPv4/IPv6/DualStack, and the change log reports no additions/removals/updates between 2025-09-01 and 2026-03-01."
+        }
+      ],
       "usage": [
         {
-          "source_id": "body:10",
-          "label": "parent",
-          "path": "/parent",
-          "expression": "  parent: containerRegistryPrivateEndpoint",
-          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: containerRegistryPrivateEndpoint。"
-        },
-        {
-          "source_id": "body:51",
+          "source_id": "body:8",
           "label": "name",
           "path": "/name",
-          "expression": "  name: 'default'",
-          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
+          "expression": "  name: 'pe-${registryName}'",
+          "analysis": "JSON Pointer /name is the REST resource identity string. Bicep expression name: 'pe-${registryName}' is built from literal and string parameters/resource.name values; REST model name is string/readOnly response identity, while Bicep name selects the PUT resource path."
         },
         {
-          "source_id": "body:75",
+          "source_id": "body:41",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "JSON Pointer /location maps to REST PrivateEndpoint.location:string. The referenced location parameter is declared string and the schemas define no enum or narrower constraint."
+        },
+        {
+          "source_id": "body:58",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "JSON Pointer /tags maps to REST tags object with additionalProperties:string. Module tags object is supplied from common string-valued tags map or {} default; REST current/candidate both retain string values."
+        },
+        {
+          "source_id": "body:77",
           "label": "properties",
           "path": "/properties",
           "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
+          "analysis": "JSON Pointer /properties maps to PrivateEndpointProperties object. Nested schema attributes are individually checked below."
+        },
+        {
+          "source_id": "body:91",
+          "label": "subnet",
+          "path": "/properties/subnet",
+          "expression": "    subnet: { id: privateEndpointSubnetId }",
+          "analysis": "JSON Pointer /properties/subnet maps to REST Subnet reference object; id:string is present and checked separately."
+        },
+        {
+          "source_id": "body:97",
+          "label": "id",
+          "path": "/properties/subnet/id",
+          "expression": "    subnet: { id: privateEndpointSubnetId }",
+          "analysis": "JSON Pointer /properties/subnet/id maps to REST subnet resource ID string. privateEndpointSubnetId is declared param string in the module; current and candidate both define id:string."
+        },
+        {
+          "source_id": "body:172",
+          "label": "ipVersionType",
+          "path": "/properties/ipVersionType",
+          "expression": "    ipVersionType: 'IPv4'",
+          "analysis": "JSON Pointer /properties/ipVersionType maps to REST string enum [IPv4, IPv6, DualStack]. Literal 'IPv4' is accepted by Schemas.literal in both exact schemas; the nearby existing BCP037 suppression does not alter payload and REST explicitly defines this field."
+        },
+        {
+          "source_id": "body:214",
+          "label": "privateLinkServiceConnections",
+          "path": "/properties/privateLinkServiceConnections",
+          "expression": "    privateLinkServiceConnections: [",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections maps to REST PrivateLinkServiceConnection[]; both schemas define an array."
+        },
+        {
+          "source_id": "body:238",
+          "label": "name",
+          "path": "/properties/privateLinkServiceConnections/[]/name",
+          "expression": "        name: 'plsc-${registryName}'",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/name maps to PrivateLinkServiceConnection.name:string; expression name: 'plsc-${registryName}' is a string interpolation/literal and conforms."
+        },
+        {
+          "source_id": "body:281",
+          "label": "properties",
+          "path": "/properties/privateLinkServiceConnections/[]/properties",
+          "expression": "        properties: {",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties maps to PrivateLinkServiceConnectionProperties object; privateLinkServiceId and groupIds are checked individually."
+        },
+        {
+          "source_id": "body:315",
+          "label": "privateLinkServiceId",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId",
+          "expression": "          privateLinkServiceId: containerRegistry.id",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId maps to REST privateLinkServiceId:string. privateLinkServiceId: containerRegistry.id is .id of the target resource and therefore a resource-ID string in both schemas."
+        },
+        {
+          "source_id": "body:356",
+          "label": "groupIds",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/groupIds",
+          "expression": "          groupIds: ['registry']",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/groupIds maps to REST string[] groupIds; source literal is 'registry'. OpenAPI defines string items without an enum, so no additional network-schema enum restriction applies."
+        },
+        {
+          "source_id": "body:line:125",
+          "label": "$expression",
+          "path": "/properties/subnet/$expression-line/6",
+          "expression": "    #disable-next-line BCP037",
+          "analysis": "JSON Pointer /properties/subnet/$expression-line/6 maps to source comment #disable-next-line BCP037, not an ARM/REST payload property. It suppresses Bicep type diagnostics for following ipVersionType, which is present and enum-validated in current and candidate REST schemas."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource containerRegistryPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is the Bicep resource header, not REST payload. Resource type/version is Microsoft.Network/privateEndpoints@2025-09-01; Learn latest stable candidate is 2026-03-01."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/0",
+          "expression": "@description('Private Endpoint subnet resource ID')",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/0 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:52",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/1",
+          "expression": "param privateEndpointSubnetId string",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/1 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:registryName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/registryName/$expression-line/0",
+          "expression": "@description('Registry name')",
+          "analysis": "JSON Pointer /$symbol/registryName/$expression-line/0 is registryName param string used in resource and connection name interpolations; REST identity/connection name fields are strings."
+        },
+        {
+          "source_id": "symbol:registryName:line:30",
+          "label": "$expression",
+          "path": "/$symbol/registryName/$expression-line/1",
+          "expression": "param registryName string",
+          "analysis": "JSON Pointer /$symbol/registryName/$expression-line/1 is registryName param string used in resource and connection name interpolations; REST identity/connection name fields are strings."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags object')",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
+        },
+        {
+          "source_id": "symbol:tags:line:28",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/functions/external-sli-publisher.bicep",
+      "name": "storageBlobPrivateEndpoint",
+      "line": 135,
+      "type": "Microsoft.Network/privateEndpoints",
+      "version": "2025-09-01",
+      "existing": false,
+      "start": 4742,
+      "end": 5245,
+      "header": "resource storageBlobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+      "body": "{\n  name: 'pe-blob-${storageAccount.name}'\n  location: location\n  tags: tags\n  properties: {\n    subnet: { id: privateEndpointSubnetId }\n    #disable-next-line BCP037\n    ipVersionType: 'IPv4'\n    privateLinkServiceConnections: [\n      {\n        name: 'plsc-blob-${storageAccount.name}'\n        properties: {\n          privateLinkServiceId: storageAccount.id\n          groupIds: ['blob']\n        }\n      }\n    ]\n  }\n}",
+      "status": "verified",
+      "reason": "Compared exact current 2025-09-01 and latest GA 2026-03-01 PrivateEndpoint models from pinned REST specs. All used schema paths, literal IPv4 enum, resource-ID strings and provider-specific groupIds string values are compatible; existing BCP037 suppression on ipVersionType is supported by both REST schemas.",
+      "migration": "GA移行可能。candidate 2026-03-01 contains all current used fields with matching types/enums; Learn change log reports no changes in 2026-03-01 and usage is retained. ipVersionType was added in earlier 2025-03-01 version and exists in both current/candidate.",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "Latest GA 2026-03-01 is newer than current 2025-09-01. Exact REST schemas preserve all used properties; ipVersionType remains enum IPv4/IPv6/DualStack, and the change log reports no additions/removals/updates between 2025-09-01 and 2026-03-01."
+        }
+      ],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'pe-blob-${storageAccount.name}'",
+          "analysis": "JSON Pointer /name is the REST resource identity string. Bicep expression name: 'pe-blob-${storageAccount.name}' is built from literal and string parameters/resource.name values; REST model name is string/readOnly response identity, while Bicep name selects the PUT resource path."
+        },
+        {
+          "source_id": "body:53",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "JSON Pointer /location maps to REST PrivateEndpoint.location:string. The referenced location parameter is declared string and the schemas define no enum or narrower constraint."
+        },
+        {
+          "source_id": "body:70",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "JSON Pointer /tags maps to REST tags object with additionalProperties:string. Module tags object is supplied from common string-valued tags map or {} default; REST current/candidate both retain string values."
+        },
+        {
+          "source_id": "body:89",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties maps to PrivateEndpointProperties object. Nested schema attributes are individually checked below."
+        },
+        {
+          "source_id": "body:103",
+          "label": "subnet",
+          "path": "/properties/subnet",
+          "expression": "    subnet: { id: privateEndpointSubnetId }",
+          "analysis": "JSON Pointer /properties/subnet maps to REST Subnet reference object; id:string is present and checked separately."
+        },
+        {
+          "source_id": "body:109",
+          "label": "id",
+          "path": "/properties/subnet/id",
+          "expression": "    subnet: { id: privateEndpointSubnetId }",
+          "analysis": "JSON Pointer /properties/subnet/id maps to REST subnet resource ID string. privateEndpointSubnetId is declared param string in the module; current and candidate both define id:string."
+        },
+        {
+          "source_id": "body:184",
+          "label": "ipVersionType",
+          "path": "/properties/ipVersionType",
+          "expression": "    ipVersionType: 'IPv4'",
+          "analysis": "JSON Pointer /properties/ipVersionType maps to REST string enum [IPv4, IPv6, DualStack]. Literal 'IPv4' is accepted by Schemas.literal in both exact schemas; the nearby existing BCP037 suppression does not alter payload and REST explicitly defines this field."
+        },
+        {
+          "source_id": "body:226",
+          "label": "privateLinkServiceConnections",
+          "path": "/properties/privateLinkServiceConnections",
+          "expression": "    privateLinkServiceConnections: [",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections maps to REST PrivateLinkServiceConnection[]; both schemas define an array."
+        },
+        {
+          "source_id": "body:250",
+          "label": "name",
+          "path": "/properties/privateLinkServiceConnections/[]/name",
+          "expression": "        name: 'plsc-blob-${storageAccount.name}'",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/name maps to PrivateLinkServiceConnection.name:string; expression name: 'plsc-blob-${storageAccount.name}' is a string interpolation/literal and conforms."
+        },
+        {
+          "source_id": "body:305",
+          "label": "properties",
+          "path": "/properties/privateLinkServiceConnections/[]/properties",
+          "expression": "        properties: {",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties maps to PrivateLinkServiceConnectionProperties object; privateLinkServiceId and groupIds are checked individually."
+        },
+        {
+          "source_id": "body:339",
+          "label": "privateLinkServiceId",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId",
+          "expression": "          privateLinkServiceId: storageAccount.id",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId maps to REST privateLinkServiceId:string. privateLinkServiceId: storageAccount.id is .id of the target resource and therefore a resource-ID string in both schemas."
+        },
+        {
+          "source_id": "body:377",
+          "label": "groupIds",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/groupIds",
+          "expression": "          groupIds: ['blob']",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/groupIds maps to REST string[] groupIds; source literal is 'blob'. OpenAPI defines string items without an enum, so no additional network-schema enum restriction applies."
+        },
+        {
+          "source_id": "body:line:137",
+          "label": "$expression",
+          "path": "/properties/subnet/$expression-line/6",
+          "expression": "    #disable-next-line BCP037",
+          "analysis": "JSON Pointer /properties/subnet/$expression-line/6 maps to source comment #disable-next-line BCP037, not an ARM/REST payload property. It suppresses Bicep type diagnostics for following ipVersionType, which is present and enum-validated in current and candidate REST schemas."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource storageBlobPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is the Bicep resource header, not REST payload. Resource type/version is Microsoft.Network/privateEndpoints@2025-09-01; Learn latest stable candidate is 2026-03-01."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/0",
+          "expression": "@description('Private Endpoint subnet resource ID for publisher storage')",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/0 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:74",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/1",
+          "expression": "param privateEndpointSubnetId string",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/1 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags applied to all resources')",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
+        },
+        {
+          "source_id": "symbol:tags:line:46",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/functions/external-sli-publisher.bicep",
+      "name": "storageQueuePrivateEndpoint",
+      "line": 184,
+      "type": "Microsoft.Network/privateEndpoints",
+      "version": "2025-09-01",
+      "existing": false,
+      "start": 6089,
+      "end": 6596,
+      "header": "resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+      "body": "{\n  name: 'pe-queue-${storageAccount.name}'\n  location: location\n  tags: tags\n  properties: {\n    subnet: { id: privateEndpointSubnetId }\n    #disable-next-line BCP037\n    ipVersionType: 'IPv4'\n    privateLinkServiceConnections: [\n      {\n        name: 'plsc-queue-${storageAccount.name}'\n        properties: {\n          privateLinkServiceId: storageAccount.id\n          groupIds: ['queue']\n        }\n      }\n    ]\n  }\n}",
+      "status": "verified",
+      "reason": "Compared exact current 2025-09-01 and latest GA 2026-03-01 PrivateEndpoint models from pinned REST specs. All used schema paths, literal IPv4 enum, resource-ID strings and provider-specific groupIds string values are compatible; existing BCP037 suppression on ipVersionType is supported by both REST schemas.",
+      "migration": "GA移行可能。candidate 2026-03-01 contains all current used fields with matching types/enums; Learn change log reports no changes in 2026-03-01 and usage is retained. ipVersionType was added in earlier 2025-03-01 version and exists in both current/candidate.",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "Latest GA 2026-03-01 is newer than current 2025-09-01. Exact REST schemas preserve all used properties; ipVersionType remains enum IPv4/IPv6/DualStack, and the change log reports no additions/removals/updates between 2025-09-01 and 2026-03-01."
+        }
+      ],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'pe-queue-${storageAccount.name}'",
+          "analysis": "JSON Pointer /name is the REST resource identity string. Bicep expression name: 'pe-queue-${storageAccount.name}' is built from literal and string parameters/resource.name values; REST model name is string/readOnly response identity, while Bicep name selects the PUT resource path."
+        },
+        {
+          "source_id": "body:54",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "JSON Pointer /location maps to REST PrivateEndpoint.location:string. The referenced location parameter is declared string and the schemas define no enum or narrower constraint."
+        },
+        {
+          "source_id": "body:71",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "JSON Pointer /tags maps to REST tags object with additionalProperties:string. Module tags object is supplied from common string-valued tags map or {} default; REST current/candidate both retain string values."
+        },
+        {
+          "source_id": "body:90",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties maps to PrivateEndpointProperties object. Nested schema attributes are individually checked below."
         },
         {
           "source_id": "body:104",
-          "label": "privateDnsZoneConfigs",
-          "path": "/properties/privateDnsZoneConfigs",
-          "expression": "    privateDnsZoneConfigs: [",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
+          "label": "subnet",
+          "path": "/properties/subnet",
+          "expression": "    subnet: { id: privateEndpointSubnetId }",
+          "analysis": "JSON Pointer /properties/subnet maps to REST Subnet reference object; id:string is present and checked separately."
         },
         {
-          "source_id": "body:120",
+          "source_id": "body:110",
+          "label": "id",
+          "path": "/properties/subnet/id",
+          "expression": "    subnet: { id: privateEndpointSubnetId }",
+          "analysis": "JSON Pointer /properties/subnet/id maps to REST subnet resource ID string. privateEndpointSubnetId is declared param string in the module; current and candidate both define id:string."
+        },
+        {
+          "source_id": "body:185",
+          "label": "ipVersionType",
+          "path": "/properties/ipVersionType",
+          "expression": "    ipVersionType: 'IPv4'",
+          "analysis": "JSON Pointer /properties/ipVersionType maps to REST string enum [IPv4, IPv6, DualStack]. Literal 'IPv4' is accepted by Schemas.literal in both exact schemas; the nearby existing BCP037 suppression does not alter payload and REST explicitly defines this field."
+        },
+        {
+          "source_id": "body:227",
+          "label": "privateLinkServiceConnections",
+          "path": "/properties/privateLinkServiceConnections",
+          "expression": "    privateLinkServiceConnections: [",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections maps to REST PrivateLinkServiceConnection[]; both schemas define an array."
+        },
+        {
+          "source_id": "body:251",
           "label": "name",
-          "path": "/properties/privateDnsZoneConfigs/[]/name",
-          "expression": "      { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalは{ name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }で、Schemas.literalによりstring型を確認。"
+          "path": "/properties/privateLinkServiceConnections/[]/name",
+          "expression": "        name: 'plsc-queue-${storageAccount.name}'",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/name maps to PrivateLinkServiceConnection.name:string; expression name: 'plsc-queue-${storageAccount.name}' is a string interpolation/literal and conforms."
         },
         {
-          "source_id": "body:151",
+          "source_id": "body:307",
           "label": "properties",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties",
-          "expression": "      { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
+          "path": "/properties/privateLinkServiceConnections/[]/properties",
+          "expression": "        properties: {",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties maps to PrivateLinkServiceConnectionProperties object; privateLinkServiceId and groupIds are checked individually."
         },
         {
-          "source_id": "body:171",
-          "label": "privateDnsZoneId",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
-          "expression": "      { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }は先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
+          "source_id": "body:341",
+          "label": "privateLinkServiceId",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId",
+          "expression": "          privateLinkServiceId: storageAccount.id",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId maps to REST privateLinkServiceId:string. privateLinkServiceId: storageAccount.id is .id of the target resource and therefore a resource-ID string in both schemas."
         },
         {
-          "source_id": "body:233",
-          "label": "dependsOn",
-          "path": "/dependsOn",
-          "expression": "  dependsOn: [",
-          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
+          "source_id": "body:379",
+          "label": "groupIds",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/groupIds",
+          "expression": "          groupIds: ['queue']",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/groupIds maps to REST string[] groupIds; source literal is 'queue'. OpenAPI defines string items without an enum, so no additional network-schema enum restriction applies."
         },
         {
-          "source_id": "body:line:237",
+          "source_id": "body:line:138",
           "label": "$expression",
-          "path": "/dependsOn/[]/$expression-line/9",
-          "expression": "    containerRegistryPrivateDnsZoneLink",
-          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/9 はBicep dependsOn item containerRegistryPrivateDnsZoneLinkでresource orderingを指定し、REST payloadへ送信されない。"
+          "path": "/properties/subnet/$expression-line/6",
+          "expression": "    #disable-next-line BCP037",
+          "analysis": "JSON Pointer /properties/subnet/$expression-line/6 maps to source comment #disable-next-line BCP037, not an ARM/REST payload property. It suppresses Bicep type diagnostics for following ipVersionType, which is present and enum-validated in current and candidate REST schemas."
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource containerRegistryPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
+          "expression": "resource storageQueuePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is the Bicep resource header, not REST payload. Resource type/version is Microsoft.Network/privateEndpoints@2025-09-01; Learn latest stable candidate is 2026-03-01."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/0",
+          "expression": "@description('Private Endpoint subnet resource ID for publisher storage')",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/0 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:74",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/1",
+          "expression": "param privateEndpointSubnetId string",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/1 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags applied to all resources')",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
+        },
+        {
+          "source_id": "symbol:tags:line:46",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
         }
       ]
     },
     {
       "file": "infra/modules/functions/external-sli-publisher.bicep",
-      "name": "storageBlobPrivateDnsZoneGroup",
-      "line": 155,
-      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-      "version": "2026-03-01",
+      "name": "storageTablePrivateEndpoint",
+      "line": 233,
+      "type": "Microsoft.Network/privateEndpoints",
+      "version": "2025-09-01",
       "existing": false,
-      "start": 5247,
-      "end": 5618,
-      "header": "resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-      "body": "{\n  parent: storageBlobPrivateEndpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      { name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }\n    ]\n  }\n  dependsOn: [\n    storageBlobPrivateDnsZoneLink\n  ]\n}",
+      "start": 7445,
+      "end": 7952,
+      "header": "resource storageTablePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+      "body": "{\n  name: 'pe-table-${storageAccount.name}'\n  location: location\n  tags: tags\n  properties: {\n    subnet: { id: privateEndpointSubnetId }\n    #disable-next-line BCP037\n    ipVersionType: 'IPv4'\n    privateLinkServiceConnections: [\n      {\n        name: 'plsc-table-${storageAccount.name}'\n        properties: {\n          privateLinkServiceId: storageAccount.id\n          groupIds: ['table']\n        }\n      }\n    ]\n  }\n}",
       "status": "verified",
-      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
-      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
-      "findings": [],
-      "usage": [
+      "reason": "Compared exact current 2025-09-01 and latest GA 2026-03-01 PrivateEndpoint models from pinned REST specs. All used schema paths, literal IPv4 enum, resource-ID strings and provider-specific groupIds string values are compatible; existing BCP037 suppression on ipVersionType is supported by both REST schemas.",
+      "migration": "GA移行可能。candidate 2026-03-01 contains all current used fields with matching types/enums; Learn change log reports no changes in 2026-03-01 and usage is retained. ipVersionType was added in earlier 2025-03-01 version and exists in both current/candidate.",
+      "findings": [
         {
-          "source_id": "body:10",
-          "label": "parent",
-          "path": "/parent",
-          "expression": "  parent: storageBlobPrivateEndpoint",
-          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: storageBlobPrivateEndpoint。"
-        },
-        {
-          "source_id": "body:45",
-          "label": "name",
-          "path": "/name",
-          "expression": "  name: 'default'",
-          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
-        },
-        {
-          "source_id": "body:69",
-          "label": "properties",
-          "path": "/properties",
-          "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
-        },
-        {
-          "source_id": "body:98",
-          "label": "privateDnsZoneConfigs",
-          "path": "/properties/privateDnsZoneConfigs",
-          "expression": "    privateDnsZoneConfigs: [",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
-        },
-        {
-          "source_id": "body:114",
-          "label": "name",
-          "path": "/properties/privateDnsZoneConfigs/[]/name",
-          "expression": "      { name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalは{ name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }で、Schemas.literalによりstring型を確認。"
-        },
-        {
-          "source_id": "body:141",
-          "label": "properties",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties",
-          "expression": "      { name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
-        },
-        {
-          "source_id": "body:161",
-          "label": "privateDnsZoneId",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
-          "expression": "      { name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression { name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }は先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
-        },
-        {
-          "source_id": "body:217",
-          "label": "dependsOn",
-          "path": "/dependsOn",
-          "expression": "  dependsOn: [",
-          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
-        },
-        {
-          "source_id": "body:line:221",
-          "label": "$expression",
-          "path": "/dependsOn/[]/$expression-line/9",
-          "expression": "    storageBlobPrivateDnsZoneLink",
-          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/9 はBicep dependsOn item storageBlobPrivateDnsZoneLinkでresource orderingを指定し、REST payloadへ送信されない。"
-        },
-        {
-          "source_id": "header:line:0",
-          "label": "$expression",
-          "path": "/$expression-line/0",
-          "expression": "resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
+          "kind": "update",
+          "detail": "Latest GA 2026-03-01 is newer than current 2025-09-01. Exact REST schemas preserve all used properties; ipVersionType remains enum IPv4/IPv6/DualStack, and the change log reports no additions/removals/updates between 2025-09-01 and 2026-03-01."
         }
-      ]
-    },
-    {
-      "file": "infra/modules/functions/external-sli-publisher.bicep",
-      "name": "storageQueuePrivateDnsZoneGroup",
-      "line": 204,
-      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-      "version": "2026-03-01",
-      "existing": false,
-      "start": 6598,
-      "end": 6974,
-      "header": "resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-      "body": "{\n  parent: storageQueuePrivateEndpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      { name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }\n    ]\n  }\n  dependsOn: [\n    storageQueuePrivateDnsZoneLink\n  ]\n}",
-      "status": "verified",
-      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
-      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
-      "findings": [],
+      ],
       "usage": [
         {
-          "source_id": "body:10",
-          "label": "parent",
-          "path": "/parent",
-          "expression": "  parent: storageQueuePrivateEndpoint",
-          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: storageQueuePrivateEndpoint。"
-        },
-        {
-          "source_id": "body:46",
+          "source_id": "body:8",
           "label": "name",
           "path": "/name",
-          "expression": "  name: 'default'",
-          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
+          "expression": "  name: 'pe-table-${storageAccount.name}'",
+          "analysis": "JSON Pointer /name is the REST resource identity string. Bicep expression name: 'pe-table-${storageAccount.name}' is built from literal and string parameters/resource.name values; REST model name is string/readOnly response identity, while Bicep name selects the PUT resource path."
         },
         {
-          "source_id": "body:70",
+          "source_id": "body:54",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "JSON Pointer /location maps to REST PrivateEndpoint.location:string. The referenced location parameter is declared string and the schemas define no enum or narrower constraint."
+        },
+        {
+          "source_id": "body:71",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "JSON Pointer /tags maps to REST tags object with additionalProperties:string. Module tags object is supplied from common string-valued tags map or {} default; REST current/candidate both retain string values."
+        },
+        {
+          "source_id": "body:90",
           "label": "properties",
           "path": "/properties",
           "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
+          "analysis": "JSON Pointer /properties maps to PrivateEndpointProperties object. Nested schema attributes are individually checked below."
         },
         {
-          "source_id": "body:99",
-          "label": "privateDnsZoneConfigs",
-          "path": "/properties/privateDnsZoneConfigs",
-          "expression": "    privateDnsZoneConfigs: [",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
+          "source_id": "body:104",
+          "label": "subnet",
+          "path": "/properties/subnet",
+          "expression": "    subnet: { id: privateEndpointSubnetId }",
+          "analysis": "JSON Pointer /properties/subnet maps to REST Subnet reference object; id:string is present and checked separately."
         },
         {
-          "source_id": "body:115",
+          "source_id": "body:110",
+          "label": "id",
+          "path": "/properties/subnet/id",
+          "expression": "    subnet: { id: privateEndpointSubnetId }",
+          "analysis": "JSON Pointer /properties/subnet/id maps to REST subnet resource ID string. privateEndpointSubnetId is declared param string in the module; current and candidate both define id:string."
+        },
+        {
+          "source_id": "body:185",
+          "label": "ipVersionType",
+          "path": "/properties/ipVersionType",
+          "expression": "    ipVersionType: 'IPv4'",
+          "analysis": "JSON Pointer /properties/ipVersionType maps to REST string enum [IPv4, IPv6, DualStack]. Literal 'IPv4' is accepted by Schemas.literal in both exact schemas; the nearby existing BCP037 suppression does not alter payload and REST explicitly defines this field."
+        },
+        {
+          "source_id": "body:227",
+          "label": "privateLinkServiceConnections",
+          "path": "/properties/privateLinkServiceConnections",
+          "expression": "    privateLinkServiceConnections: [",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections maps to REST PrivateLinkServiceConnection[]; both schemas define an array."
+        },
+        {
+          "source_id": "body:251",
           "label": "name",
-          "path": "/properties/privateDnsZoneConfigs/[]/name",
-          "expression": "      { name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalは{ name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }で、Schemas.literalによりstring型を確認。"
+          "path": "/properties/privateLinkServiceConnections/[]/name",
+          "expression": "        name: 'plsc-table-${storageAccount.name}'",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/name maps to PrivateLinkServiceConnection.name:string; expression name: 'plsc-table-${storageAccount.name}' is a string interpolation/literal and conforms."
         },
         {
-          "source_id": "body:143",
+          "source_id": "body:307",
           "label": "properties",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties",
-          "expression": "      { name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
+          "path": "/properties/privateLinkServiceConnections/[]/properties",
+          "expression": "        properties: {",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties maps to PrivateLinkServiceConnectionProperties object; privateLinkServiceId and groupIds are checked individually."
         },
         {
-          "source_id": "body:163",
-          "label": "privateDnsZoneId",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
-          "expression": "      { name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression { name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }は先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
+          "source_id": "body:341",
+          "label": "privateLinkServiceId",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId",
+          "expression": "          privateLinkServiceId: storageAccount.id",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId maps to REST privateLinkServiceId:string. privateLinkServiceId: storageAccount.id is .id of the target resource and therefore a resource-ID string in both schemas."
         },
         {
-          "source_id": "body:220",
-          "label": "dependsOn",
-          "path": "/dependsOn",
-          "expression": "  dependsOn: [",
-          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
+          "source_id": "body:379",
+          "label": "groupIds",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/groupIds",
+          "expression": "          groupIds: ['table']",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/groupIds maps to REST string[] groupIds; source literal is 'table'. OpenAPI defines string items without an enum, so no additional network-schema enum restriction applies."
         },
         {
-          "source_id": "body:line:224",
+          "source_id": "body:line:138",
           "label": "$expression",
-          "path": "/dependsOn/[]/$expression-line/9",
-          "expression": "    storageQueuePrivateDnsZoneLink",
-          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/9 はBicep dependsOn item storageQueuePrivateDnsZoneLinkでresource orderingを指定し、REST payloadへ送信されない。"
+          "path": "/properties/subnet/$expression-line/6",
+          "expression": "    #disable-next-line BCP037",
+          "analysis": "JSON Pointer /properties/subnet/$expression-line/6 maps to source comment #disable-next-line BCP037, not an ARM/REST payload property. It suppresses Bicep type diagnostics for following ipVersionType, which is present and enum-validated in current and candidate REST schemas."
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
-        }
-      ]
-    },
-    {
-      "file": "infra/modules/functions/external-sli-publisher.bicep",
-      "name": "storageTablePrivateDnsZoneGroup",
-      "line": 253,
-      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-      "version": "2026-03-01",
-      "existing": false,
-      "start": 7954,
-      "end": 8330,
-      "header": "resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-      "body": "{\n  parent: storageTablePrivateEndpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      { name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }\n    ]\n  }\n  dependsOn: [\n    storageTablePrivateDnsZoneLink\n  ]\n}",
-      "status": "verified",
-      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
-      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
-      "findings": [],
-      "usage": [
-        {
-          "source_id": "body:10",
-          "label": "parent",
-          "path": "/parent",
-          "expression": "  parent: storageTablePrivateEndpoint",
-          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: storageTablePrivateEndpoint。"
+          "expression": "resource storageTablePrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is the Bicep resource header, not REST payload. Resource type/version is Microsoft.Network/privateEndpoints@2025-09-01; Learn latest stable candidate is 2026-03-01."
         },
         {
-          "source_id": "body:46",
-          "label": "name",
-          "path": "/name",
-          "expression": "  name: 'default'",
-          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
-        },
-        {
-          "source_id": "body:70",
-          "label": "properties",
-          "path": "/properties",
-          "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
-        },
-        {
-          "source_id": "body:99",
-          "label": "privateDnsZoneConfigs",
-          "path": "/properties/privateDnsZoneConfigs",
-          "expression": "    privateDnsZoneConfigs: [",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
-        },
-        {
-          "source_id": "body:115",
-          "label": "name",
-          "path": "/properties/privateDnsZoneConfigs/[]/name",
-          "expression": "      { name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalは{ name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }で、Schemas.literalによりstring型を確認。"
-        },
-        {
-          "source_id": "body:143",
-          "label": "properties",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties",
-          "expression": "      { name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
-        },
-        {
-          "source_id": "body:163",
-          "label": "privateDnsZoneId",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
-          "expression": "      { name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression { name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }は先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
-        },
-        {
-          "source_id": "body:220",
-          "label": "dependsOn",
-          "path": "/dependsOn",
-          "expression": "  dependsOn: [",
-          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
-        },
-        {
-          "source_id": "body:line:224",
+          "source_id": "symbol:location:line:0",
           "label": "$expression",
-          "path": "/dependsOn/[]/$expression-line/9",
-          "expression": "    storageTablePrivateDnsZoneLink",
-          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/9 はBicep dependsOn item storageTablePrivateDnsZoneLinkでresource orderingを指定し、REST payloadへ送信されない。"
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is location parameter annotation/declaration; param location string supplies REST /location:string."
         },
         {
-          "source_id": "header:line:0",
+          "source_id": "symbol:location:line:36",
           "label": "$expression",
-          "path": "/$expression-line/0",
-          "expression": "resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/0",
+          "expression": "@description('Private Endpoint subnet resource ID for publisher storage')",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/0 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:74",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/1",
+          "expression": "param privateEndpointSubnetId string",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/1 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags applied to all resources')",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
+        },
+        {
+          "source_id": "symbol:tags:line:46",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
         }
       ]
     },
     {
       "file": "infra/modules/redis.bicep",
-      "name": "redisPrivateDnsZoneGroup",
-      "line": 78,
-      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-      "version": "2026-03-01",
+      "name": "redisPrivateEndpoint",
+      "line": 58,
+      "type": "Microsoft.Network/privateEndpoints",
+      "version": "2025-09-01",
       "existing": false,
-      "start": 2035,
-      "end": 2383,
-      "header": "resource redisPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-      "body": "{\n  parent: redisPrivateEndpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }\n    ]\n  }\n  dependsOn: [\n    redisPrivateDnsZoneLink\n  ]\n}",
+      "start": 1554,
+      "end": 2033,
+      "header": "resource redisPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+      "body": "{\n  name: 'pe-${redisName}'\n  location: location\n  tags: tags\n  properties: {\n    subnet: { id: privateEndpointSubnetId }\n    #disable-next-line BCP037\n    ipVersionType: 'IPv4'\n    privateLinkServiceConnections: [\n      {\n        name: 'plsc-${redisName}'\n        properties: {\n          privateLinkServiceId: redisEnterprise.id\n          groupIds: ['redisEnterprise']\n        }\n      }\n    ]\n  }\n}",
       "status": "verified",
-      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
-      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
-      "findings": [],
+      "reason": "Compared exact current 2025-09-01 and latest GA 2026-03-01 PrivateEndpoint models from pinned REST specs. All used schema paths, literal IPv4 enum, resource-ID strings and provider-specific groupIds string values are compatible; existing BCP037 suppression on ipVersionType is supported by both REST schemas.",
+      "migration": "GA移行可能。candidate 2026-03-01 contains all current used fields with matching types/enums; Learn change log reports no changes in 2026-03-01 and usage is retained. ipVersionType was added in earlier 2025-03-01 version and exists in both current/candidate.",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "Latest GA 2026-03-01 is newer than current 2025-09-01. Exact REST schemas preserve all used properties; ipVersionType remains enum IPv4/IPv6/DualStack, and the change log reports no additions/removals/updates between 2025-09-01 and 2026-03-01."
+        }
+      ],
       "usage": [
         {
-          "source_id": "body:10",
-          "label": "parent",
-          "path": "/parent",
-          "expression": "  parent: redisPrivateEndpoint",
-          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: redisPrivateEndpoint。"
-        },
-        {
-          "source_id": "body:39",
+          "source_id": "body:8",
           "label": "name",
           "path": "/name",
-          "expression": "  name: 'default'",
-          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
+          "expression": "  name: 'pe-${redisName}'",
+          "analysis": "JSON Pointer /name is the REST resource identity string. Bicep expression name: 'pe-${redisName}' is built from literal and string parameters/resource.name values; REST model name is string/readOnly response identity, while Bicep name selects the PUT resource path."
         },
         {
-          "source_id": "body:63",
+          "source_id": "body:38",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "JSON Pointer /location maps to REST PrivateEndpoint.location:string. The referenced location parameter is declared string and the schemas define no enum or narrower constraint."
+        },
+        {
+          "source_id": "body:55",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "JSON Pointer /tags maps to REST tags object with additionalProperties:string. Module tags object is supplied from common string-valued tags map or {} default; REST current/candidate both retain string values."
+        },
+        {
+          "source_id": "body:74",
           "label": "properties",
           "path": "/properties",
           "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
+          "analysis": "JSON Pointer /properties maps to PrivateEndpointProperties object. Nested schema attributes are individually checked below."
         },
         {
-          "source_id": "body:92",
-          "label": "privateDnsZoneConfigs",
-          "path": "/properties/privateDnsZoneConfigs",
-          "expression": "    privateDnsZoneConfigs: [",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
+          "source_id": "body:88",
+          "label": "subnet",
+          "path": "/properties/subnet",
+          "expression": "    subnet: { id: privateEndpointSubnetId }",
+          "analysis": "JSON Pointer /properties/subnet maps to REST Subnet reference object; id:string is present and checked separately."
         },
         {
-          "source_id": "body:108",
+          "source_id": "body:94",
+          "label": "id",
+          "path": "/properties/subnet/id",
+          "expression": "    subnet: { id: privateEndpointSubnetId }",
+          "analysis": "JSON Pointer /properties/subnet/id maps to REST subnet resource ID string. privateEndpointSubnetId is declared param string in the module; current and candidate both define id:string."
+        },
+        {
+          "source_id": "body:169",
+          "label": "ipVersionType",
+          "path": "/properties/ipVersionType",
+          "expression": "    ipVersionType: 'IPv4'",
+          "analysis": "JSON Pointer /properties/ipVersionType maps to REST string enum [IPv4, IPv6, DualStack]. Literal 'IPv4' is accepted by Schemas.literal in both exact schemas; the nearby existing BCP037 suppression does not alter payload and REST explicitly defines this field."
+        },
+        {
+          "source_id": "body:211",
+          "label": "privateLinkServiceConnections",
+          "path": "/properties/privateLinkServiceConnections",
+          "expression": "    privateLinkServiceConnections: [",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections maps to REST PrivateLinkServiceConnection[]; both schemas define an array."
+        },
+        {
+          "source_id": "body:235",
           "label": "name",
-          "path": "/properties/privateDnsZoneConfigs/[]/name",
-          "expression": "      { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalは{ name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }で、Schemas.literalによりstring型を確認。"
+          "path": "/properties/privateLinkServiceConnections/[]/name",
+          "expression": "        name: 'plsc-${redisName}'",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/name maps to PrivateLinkServiceConnection.name:string; expression name: 'plsc-${redisName}' is a string interpolation/literal and conforms."
         },
         {
-          "source_id": "body:136",
+          "source_id": "body:275",
           "label": "properties",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties",
-          "expression": "      { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
+          "path": "/properties/privateLinkServiceConnections/[]/properties",
+          "expression": "        properties: {",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties maps to PrivateLinkServiceConnectionProperties object; privateLinkServiceId and groupIds are checked individually."
         },
         {
-          "source_id": "body:156",
-          "label": "privateDnsZoneId",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
-          "expression": "      { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }は先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
+          "source_id": "body:309",
+          "label": "privateLinkServiceId",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId",
+          "expression": "          privateLinkServiceId: redisEnterprise.id",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId maps to REST privateLinkServiceId:string. privateLinkServiceId: redisEnterprise.id is .id of the target resource and therefore a resource-ID string in both schemas."
         },
         {
-          "source_id": "body:206",
-          "label": "dependsOn",
-          "path": "/dependsOn",
-          "expression": "  dependsOn: [",
-          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
+          "source_id": "body:348",
+          "label": "groupIds",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/groupIds",
+          "expression": "          groupIds: ['redisEnterprise']",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/groupIds maps to REST string[] groupIds; source literal is 'redisEnterprise'. OpenAPI defines string items without an enum, so no additional network-schema enum restriction applies."
         },
         {
-          "source_id": "body:line:210",
+          "source_id": "body:line:122",
           "label": "$expression",
-          "path": "/dependsOn/[]/$expression-line/9",
-          "expression": "    redisPrivateDnsZoneLink",
-          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/9 はBicep dependsOn item redisPrivateDnsZoneLinkでresource orderingを指定し、REST payloadへ送信されない。"
+          "path": "/properties/subnet/$expression-line/6",
+          "expression": "    #disable-next-line BCP037",
+          "analysis": "JSON Pointer /properties/subnet/$expression-line/6 maps to source comment #disable-next-line BCP037, not an ARM/REST payload property. It suppresses Bicep type diagnostics for following ipVersionType, which is present and enum-validated in current and candidate REST schemas."
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource redisPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
+          "expression": "resource redisPrivateEndpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is the Bicep resource header, not REST payload. Resource type/version is Microsoft.Network/privateEndpoints@2025-09-01; Learn latest stable candidate is 2026-03-01."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/0",
+          "expression": "@description('Private Endpoint subnet id')",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/0 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:43",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/1",
+          "expression": "param privateEndpointSubnetId string",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/1 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:redisName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/redisName/$expression-line/0",
+          "expression": "@description('Azure Managed Redis name')",
+          "analysis": "JSON Pointer /$symbol/redisName/$expression-line/0 is redisName param string used in REST resource/connection name expressions."
+        },
+        {
+          "source_id": "symbol:redisName:line:41",
+          "label": "$expression",
+          "path": "/$symbol/redisName/$expression-line/1",
+          "expression": "param redisName string",
+          "analysis": "JSON Pointer /$symbol/redisName/$expression-line/1 is redisName param string used in REST resource/connection name expressions."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags object')",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
+        },
+        {
+          "source_id": "symbol:tags:line:28",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
         }
       ]
     },
     {
       "file": "infra/modules/sre-agent-vault.bicep",
-      "name": "dnsGroup",
-      "line": 69,
-      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-      "version": "2026-03-01",
+      "name": "endpoint",
+      "line": 49,
+      "type": "Microsoft.Network/privateEndpoints",
+      "version": "2025-09-01",
       "existing": false,
-      "start": 1463,
-      "end": 1773,
-      "header": "resource dnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-      "body": "{\n  parent: endpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      {\n        name: 'vault'\n        properties: {\n          privateDnsZoneId: zone.id\n        }\n      }\n    ]\n  }\n  dependsOn: [link]\n}",
+      "start": 1072,
+      "end": 1461,
+      "header": "resource endpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+      "body": "{\n  name: 'pe-${vaultName}'\n  location: location\n  tags: tags\n  properties: {\n    subnet: {\n      id: privateEndpointSubnetId\n    }\n    privateLinkServiceConnections: [\n      {\n        name: 'vault'\n        properties: {\n          privateLinkServiceId: vault.id\n          groupIds: ['vault']\n        }\n      }\n    ]\n  }\n}",
       "status": "verified",
-      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
-      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
-      "findings": [],
+      "reason": "Compared exact current 2025-09-01 and latest GA 2026-03-01 PrivateEndpoint models from pinned REST specs. All used schema paths, literal IPv4 enum, resource-ID strings and provider-specific groupIds string values are compatible; existing BCP037 suppression on ipVersionType is supported by both REST schemas.",
+      "migration": "GA移行可能。candidate 2026-03-01 contains all current used fields with matching types/enums; Learn change log reports no changes in 2026-03-01 and usage is retained. ipVersionType was added in earlier 2025-03-01 version and exists in both current/candidate.",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "Latest GA 2026-03-01 is newer than current 2025-09-01. Exact REST schemas preserve all used properties; ipVersionType remains enum IPv4/IPv6/DualStack, and the change log reports no additions/removals/updates between 2025-09-01 and 2026-03-01."
+        }
+      ],
       "usage": [
         {
-          "source_id": "body:10",
-          "label": "parent",
-          "path": "/parent",
-          "expression": "  parent: endpoint",
-          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: endpoint。"
-        },
-        {
-          "source_id": "body:27",
+          "source_id": "body:8",
           "label": "name",
           "path": "/name",
-          "expression": "  name: 'default'",
-          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
+          "expression": "  name: 'pe-${vaultName}'",
+          "analysis": "JSON Pointer /name is the REST resource identity string. Bicep expression name: 'pe-${vaultName}' is built from literal and string parameters/resource.name values; REST model name is string/readOnly response identity, while Bicep name selects the PUT resource path."
         },
         {
-          "source_id": "body:51",
+          "source_id": "body:38",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "JSON Pointer /location maps to REST PrivateEndpoint.location:string. The referenced location parameter is declared string and the schemas define no enum or narrower constraint."
+        },
+        {
+          "source_id": "body:55",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "JSON Pointer /tags maps to REST tags object with additionalProperties:string. Module tags object is supplied from common string-valued tags map or {} default; REST current/candidate both retain string values."
+        },
+        {
+          "source_id": "body:74",
           "label": "properties",
           "path": "/properties",
           "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
+          "analysis": "JSON Pointer /properties maps to PrivateEndpointProperties object. Nested schema attributes are individually checked below."
         },
         {
-          "source_id": "body:80",
-          "label": "privateDnsZoneConfigs",
-          "path": "/properties/privateDnsZoneConfigs",
-          "expression": "    privateDnsZoneConfigs: [",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
+          "source_id": "body:88",
+          "label": "subnet",
+          "path": "/properties/subnet",
+          "expression": "    subnet: {",
+          "analysis": "JSON Pointer /properties/subnet maps to REST Subnet reference object; id:string is present and checked separately."
         },
         {
-          "source_id": "body:104",
+          "source_id": "body:100",
+          "label": "id",
+          "path": "/properties/subnet/id",
+          "expression": "      id: privateEndpointSubnetId",
+          "analysis": "JSON Pointer /properties/subnet/id maps to REST subnet resource ID string. privateEndpointSubnetId is declared param string in the module; current and candidate both define id:string."
+        },
+        {
+          "source_id": "body:165",
+          "label": "privateLinkServiceConnections",
+          "path": "/properties/privateLinkServiceConnections",
+          "expression": "    privateLinkServiceConnections: [",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections maps to REST PrivateLinkServiceConnection[]; both schemas define an array."
+        },
+        {
+          "source_id": "body:189",
           "label": "name",
-          "path": "/properties/privateDnsZoneConfigs/[]/name",
+          "path": "/properties/privateLinkServiceConnections/[]/name",
           "expression": "        name: 'vault'",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalはname: 'vault'で、Schemas.literalによりstring型を確認。"
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/name maps to PrivateLinkServiceConnection.name:string; expression name: 'vault' is a string interpolation/literal and conforms."
         },
         {
-          "source_id": "body:132",
+          "source_id": "body:217",
           "label": "properties",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties",
+          "path": "/properties/privateLinkServiceConnections/[]/properties",
           "expression": "        properties: {",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties maps to PrivateLinkServiceConnectionProperties object; privateLinkServiceId and groupIds are checked individually."
         },
         {
-          "source_id": "body:162",
-          "label": "privateDnsZoneId",
-          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
-          "expression": "          privateDnsZoneId: zone.id",
-          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression privateDnsZoneId: zone.idは先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
+          "source_id": "body:251",
+          "label": "privateLinkServiceId",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId",
+          "expression": "          privateLinkServiceId: vault.id",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/privateLinkServiceId maps to REST privateLinkServiceId:string. privateLinkServiceId: vault.id is .id of the target resource and therefore a resource-ID string in both schemas."
         },
         {
-          "source_id": "body:211",
-          "label": "dependsOn",
-          "path": "/dependsOn",
-          "expression": "  dependsOn: [link]",
-          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
+          "source_id": "body:280",
+          "label": "groupIds",
+          "path": "/properties/privateLinkServiceConnections/[]/properties/groupIds",
+          "expression": "          groupIds: ['vault']",
+          "analysis": "JSON Pointer /properties/privateLinkServiceConnections/[]/properties/groupIds maps to REST string[] groupIds; source literal is 'vault'. OpenAPI defines string items without an enum, so no additional network-schema enum restriction applies."
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource dnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
+          "expression": "resource endpoint 'Microsoft.Network/privateEndpoints@2025-09-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is the Bicep resource header, not REST payload. Resource type/version is Microsoft.Network/privateEndpoints@2025-09-01; Learn latest stable candidate is 2026-03-01."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location (same region as the VNet and Agent)')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:location:line:72",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is location parameter annotation/declaration; param location string supplies REST /location:string."
+        },
+        {
+          "source_id": "symbol:privateEndpointSubnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/privateEndpointSubnetId/$expression-line/0",
+          "expression": "param privateEndpointSubnetId string",
+          "analysis": "JSON Pointer /$symbol/privateEndpointSubnetId/$expression-line/0 is privateEndpointSubnetId parameter source, declared string and used for REST /properties/subnet/id:string."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "param tags object",
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is tags parameter source, object with {} default or main string-valued tags object; REST tags additionalProperties:string."
+        },
+        {
+          "source_id": "symbol:vaultName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/vaultName/$expression-line/0",
+          "expression": "param vaultName string",
+          "analysis": "JSON Pointer /$symbol/vaultName/$expression-line/0 is vaultName param string used in REST resource name interpolation."
         }
       ]
     }
   ],
   "evidence": {
     "current": {
-      "version": "2026-03-01",
-      "analysis": "Learn selector lists 2026-03-01 as Latest. Pinned Network README package-2026-03-01 includes virtualNetwork.json/common.json; Schemas resolves PrivateDnsZoneGroup, PrivateDnsZoneGroupPropertiesFormat, PrivateDnsZoneConfig and privateDnsZoneId:string.",
+      "version": "2025-09-01",
+      "analysis": "Learn exact current page identifies 2025-09-01. Pinned Network README includes stable/2025-09-01/virtualNetwork.json and common.json; Schemas resolves PrivateEndpoint, Subnet, PrivateLinkServiceConnection and its properties. ipVersionType enum is [IPv4, IPv6, DualStack].",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privateendpoints/privatednszonegroups",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/privateendpoints/privatednszonegroups",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2025-09-01/privateendpoints",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2025-09-01/virtualNetwork.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2025-09-01/common.json"
       ]
     },
     "ga": {
       "version": "2026-03-01",
-      "analysis": "Latest GA from Learn selector equals current 2026-03-01. Exact candidate schema is the same versioned REST definitions in virtualNetwork.json with common references.",
+      "analysis": "Learn selector lists 2026-03-01 as latest stable API. Pinned Network README includes exact candidate virtualNetwork.json/common.json. Schemas confirms all used properties/types and ipVersionType enum are unchanged from current.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privateendpoints/privatednszonegroups",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/privateendpoints/privatednszonegroups",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privateendpoints",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/privateendpoints",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
       ]
     },
     "breaking": {
-      "analysis": "Learn change log states 2026-03-01 has no properties added, updated or removed. No used property migration delta.",
+      "analysis": "Learn change log: 2025-09-01 and 2026-03-01 report no properties added, updated or removed. Earlier 2025-07-01 added billingSku, and 2025-03-01 added ipVersionType; ipVersionType is explicitly present and valid in current 2025-09 and candidate 2026-03 schemas.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/privateendpoints/privatednszonegroups"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/privateendpoints"
       ]
     }
   }

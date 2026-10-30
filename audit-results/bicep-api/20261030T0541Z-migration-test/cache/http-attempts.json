@@ -196,5 +196,59 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privateendpoints",
+    "attempt": 1,
+    "started_monotonic": 1266.749595607,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2025-09-01/privateendpoints",
+    "attempt": 1,
+    "started_monotonic": 1269.749724362,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.767823830999987
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/privateendpoints",
+    "attempt": 1,
+    "started_monotonic": 1272.749855126,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8378634489999968
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/privateendpoints",
+    "attempt": 1,
+    "started_monotonic": 1275.750006888,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7799390390000553
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2025-09-01/virtualNetwork.json",
+    "attempt": 1,
+    "started_monotonic": 1276.356587214,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2025-09-01/common.json",
+    "attempt": 1,
+    "started_monotonic": 1276.753091708,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
