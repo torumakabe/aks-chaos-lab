@@ -646,5 +646,23 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.9154916580000645
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 3716.871758387,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-06-01/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 3717.042432176,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

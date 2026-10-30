@@ -45463,9 +45463,107 @@
       }
     },
     "Microsoft.ContainerService/managedClusters@2026-06-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/azmonitor/aks-diagnostics.bicep",
+          "name": "aksCluster",
+          "line": 11,
+          "type": "Microsoft.ContainerService/managedClusters",
+          "version": "2026-06-01",
+          "existing": true,
+          "start": 371,
+          "end": 484,
+          "header": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-06-01' existing = ",
+          "body": "{\n  name: aksClusterName\n}",
+          "status": "verified",
+          "reason": "Learn identifies 2026-08-01 as latest stable GA. This declaration is existing and consumes only the managed-cluster resource name as a route reference; it does not submit a create/update body, so creation-required fields are not applicable. Current and candidate exact GET path parameters have identical 1–63 length and name-pattern constraints.",
+          "migration": "Current 2026-06-01 is older than latest GA 2026-08-01. Exact existing-reference usage is compatible with the candidate; update is noted only, no source changes.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "Current 2026-06-01; latest GA 2026-08-01. This existing declaration uses only resourceName and the current/candidate GET path schemas have identical 1–63 length and regex constraints. The 2026-08-01 breaking-change entry removes unrelated body properties; none are used by this reference."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: aksClusterName",
+              "analysis": "body:8: Bicep source JSON Pointer /name (original expression 'name: aksClusterName'); Bicep existing-resource name maps to the managedClusters resourceName URL path parameter, not a request-body field. Parent main.bicep passes aksCluster.outputs.aksNameOut, which is the deployed AKS resource name produced by aksCluster.name."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-06-01' existing = ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (original expression \"resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-06-01' existing =\"); Bicep declaration identifies managedClusters@2026-06-01 existing. It performs resource lookup/reference only and emits no create/update payload."
+            },
+            {
+              "source_id": "symbol:aksClusterName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterName/$expression-line/0",
+              "expression": "@description('Name of the AKS cluster (extracted from resource ID in parent)')",
+              "analysis": "symbol:aksClusterName:line:0: Bicep source JSON Pointer /$symbol/aksClusterName/$expression-line/0 (original expression \"@description('Name of the AKS cluster (extracted from resource ID in parent)')\"); Parameter description only; its value is passed from the parent AKS module output and checked against the exact route constraints."
+            },
+            {
+              "source_id": "symbol:aksClusterName:line:79",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterName/$expression-line/1",
+              "expression": "param aksClusterName string",
+              "analysis": "symbol:aksClusterName:line:79: Bicep source JSON Pointer /$symbol/aksClusterName/$expression-line/1 (original expression 'param aksClusterName string'); String module parameter passed from aksCluster.outputs.aksNameOut. Current and candidate GET schemas both require a 1–63 character resourceName matching ^[a-zA-Z0-9]$|^[a-zA-Z0-9][-_a-zA-Z0-9]{0,61}[a-zA-Z0-9]$; the resource name is produced by the AKS resource declaration."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-06-01",
+          "analysis": "Learn current page and exact pinned stable managedClusters.json confirm current version. This is an existing reference, so only the GET route resourceName is used; current OpenAPI defines 1–63 characters with the stated regex. No creation payload or required create fields are applicable.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/managedclusters",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-06-01/managedClusters.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/managedclusters": "15aa4f77a0af8a7b5aecc47d83c92d1d32c9b5e238f82cac99679ed7d62e6fc0",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md": "764addd0ef8d8c34f26bb92f23146522072e8eba5db00b265361c75ea2db3544",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-06-01/managedClusters.json": "4425c3bc42e937c09d7db9ee0daa03604a805b40aa1589bcfcdf4769dca50405"
+          }
+        },
+        "ga": {
+          "version": "2026-08-01",
+          "analysis": "Learn lists 2026-08-01 as latest stable GA and 2026-08-02-preview as newer preview. Exact candidate stable and latest preview bodies were fetched; candidate GET resourceName constraints are identical to current. Existing-reference usage is compatible with GA candidate.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/managedclusters",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/managedclusters": "15aa4f77a0af8a7b5aecc47d83c92d1d32c9b5e238f82cac99679ed7d62e6fc0",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters": "764c9eb5da3bf64aebc5b710c475d8436bc6ac04e4767da1ab15f9a5572ecbdb",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md": "764addd0ef8d8c34f26bb92f23146522072e8eba5db00b265361c75ea2db3544",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json": "769625cd957b9d236f5a8af0af93e131ed53b5bd9d7022aeb5e8b88495f5e47d",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json": "d7b16b79864d62ef0937942bd38de1cd3c654e519cb82947dfea35c5164220c3"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn 2026-08-01 change log removes several ManagedCluster body properties, including fields not consumed by this existing reference. Exact current/candidate GET route parameter remains identical; name/scope-only reference has no affected body attributes.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-06-01/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters": "324b9e106215a73ce375b6d13919dc59a1f8ecc27c28480080dc7439e878e656",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-06-01/managedClusters.json": "4425c3bc42e937c09d7db9ee0daa03604a805b40aa1589bcfcdf4769dca50405",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json": "769625cd957b9d236f5a8af0af93e131ed53b5bd9d7022aeb5e8b88495f5e47d"
+          }
+        }
+      }
     },
     "Microsoft.ContainerService/managedClusters@2026-07-01": {
       "stage": "pending",
