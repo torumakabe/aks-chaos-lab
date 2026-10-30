@@ -48034,9 +48034,369 @@
       }
     },
     "Microsoft.Insights/diagnosticSettings@2021-05-01-preview": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/azmonitor/aks-diagnostics.bicep",
+          "name": "diagnosticSetting",
+          "line": 19,
+          "type": "Microsoft.Insights/diagnosticSettings",
+          "version": "2021-05-01-preview",
+          "existing": false,
+          "start": 621,
+          "end": 1740,
+          "header": "resource diagnosticSetting 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = ",
+          "body": "{\n  name: 'aks-control-plane-basic'\n  scope: aksCluster\n  properties: {\n    workspaceId: logAnalyticsWorkspaceId\n    logAnalyticsDestinationType: 'Dedicated'\n    logs: [\n      {\n        category: 'kube-audit-admin'\n        enabled: true\n      }\n      {\n        category: 'kube-apiserver'\n        enabled: true\n      }\n      {\n        category: 'kube-controller-manager'\n        enabled: true\n      }\n      {\n        category: 'kube-scheduler'\n        enabled: true\n      }\n      {\n        category: 'cluster-autoscaler'\n        enabled: true\n      }\n      {\n        category: 'karpenter-events'\n        enabled: true\n      }\n      {\n        category: 'cloud-controller-manager'\n        enabled: true\n      }\n      {\n        category: 'guard'\n        enabled: true\n      }\n      {\n        category: 'csi-azuredisk-controller'\n        enabled: true\n      }\n      {\n        category: 'csi-azurefile-controller'\n        enabled: true\n      }\n      {\n        category: 'csi-snapshot-controller'\n        enabled: true\n      }\n    ]\n  }\n}",
+          "status": "excluded",
+          "reason": "Current 2021-05-01-preview schema matches the declared fields. Latest GA 2016-09-01 cannot preserve this configuration: its REST route is the fixed /diagnosticSettings/service path, it has no logAnalyticsDestinationType property, and its inherited Resource requires location while the current 2021 preview removed location and this source omits it.",
+          "migration": "Not feasible without changing behavior or resource shape: current uses custom name aks-control-plane-basic and logAnalyticsDestinationType=Dedicated; GA 2016-09-01 has a fixed service route and no Dedicated destination property, and requires location.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'aks-control-plane-basic'",
+              "analysis": "Original Bicep /name maps to current preview route parameter {name}:string; literal aks-control-plane-basic is valid as a name string. GA candidate route is fixed to /diagnosticSettings/service and cannot preserve this custom name."
+            },
+            {
+              "source_id": "body:43",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: aksCluster",
+              "analysis": "Original Bicep /scope is Bicep extension-resource scope, not a JSON body field; AKS or vault resource ID maps to current required string route parameter {resourceUri}."
+            },
+            {
+              "source_id": "body:68",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "Original /properties maps to DiagnosticSettings. Current preview has workspaceId, logAnalyticsDestinationType, and logs fields; GA has only workspaceId/logs and other sink fields, lacking logAnalyticsDestinationType."
+            },
+            {
+              "source_id": "body:87",
+              "label": "workspaceId",
+              "path": "/properties/workspaceId",
+              "expression": "    workspaceId: logAnalyticsWorkspaceId",
+              "analysis": "REST properties.workspaceId is a string ARM resource ID in both current preview and GA; source string parameter supplies that value."
+            },
+            {
+              "source_id": "body:144",
+              "label": "logAnalyticsDestinationType",
+              "path": "/properties/logAnalyticsDestinationType",
+              "expression": "    logAnalyticsDestinationType: 'Dedicated'",
+              "analysis": "Current preview schema defines this as string, and Learn documents Dedicated as an allowed value; literal 'Dedicated' is valid. The 2016-09-01 GA model omits this property entirely, so the chosen dedicated-table behavior cannot migrate unchanged."
+            },
+            {
+              "source_id": "body:166",
+              "label": "logs",
+              "path": "/properties/logs",
+              "expression": "    logs: [",
+              "analysis": "REST properties.logs is an array of LogSettings in both schemas. Each item requires enabled:boolean; item fields are checked individually."
+            },
+            {
+              "source_id": "body:194",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'kube-audit-admin'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:230",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "body:269",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'kube-apiserver'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:303",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "body:342",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'kube-controller-manager'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:385",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "body:424",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'kube-scheduler'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:458",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "body:497",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'cluster-autoscaler'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:535",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "body:574",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'karpenter-events'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:610",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "body:649",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'cloud-controller-manager'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:693",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "body:732",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'guard'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:757",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "body:796",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'csi-azuredisk-controller'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:840",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "body:879",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'csi-azurefile-controller'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:923",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "body:962",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'csi-snapshot-controller'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:1005",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource diagnosticSetting 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = ",
+              "analysis": "Resource header uses Microsoft.Insights/diagnosticSettings@2021-05-01-preview. It is the latest Learn-listed preview; this declaration's custom resource name and Dedicated mode motivate retaining preview."
+            },
+            {
+              "source_id": "symbol:logAnalyticsWorkspaceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsWorkspaceId/$expression-line/0",
+              "expression": "@description('Log Analytics workspace resource ID')",
+              "analysis": "This source expression is a literal or value for the diagnostic setting; the source JSON Pointer is preserved and maps to the field contract described above."
+            },
+            {
+              "source_id": "symbol:logAnalyticsWorkspaceId:line:52",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsWorkspaceId/$expression-line/1",
+              "expression": "param logAnalyticsWorkspaceId string",
+              "analysis": "String parameter contains the Log Analytics workspace resource ID; it maps to REST properties.workspaceId:string."
+            }
+          ],
+          "exclusion_reason": "Retain the latest preview for this declaration because it explicitly configures Dedicated Log Analytics tables and a named diagnostic setting. The only published GA candidate cannot represent those choices and requires a location absent from the source; silently downgrading would not be equivalent."
+        },
+        {
+          "file": "infra/modules/sre-agent-vault.bicep",
+          "name": "audit",
+          "line": 98,
+          "type": "Microsoft.Insights/diagnosticSettings",
+          "version": "2021-05-01-preview",
+          "existing": false,
+          "start": 2165,
+          "end": 2473,
+          "header": "resource audit 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = ",
+          "body": "{\n  name: 'sre-github-vault-audit'\n  scope: vault\n  properties: {\n    workspaceId: workspaceId\n    logAnalyticsDestinationType: 'Dedicated'\n    logs: [\n      {\n        category: 'AuditEvent'\n        enabled: true\n      }\n    ]\n  }\n}",
+          "status": "excluded",
+          "reason": "Current 2021-05-01-preview schema matches the declared fields. Latest GA 2016-09-01 cannot preserve this configuration: its REST route is the fixed /diagnosticSettings/service path, it has no logAnalyticsDestinationType property, and its inherited Resource requires location while the current 2021 preview removed location and this source omits it.",
+          "migration": "Not feasible without changing behavior or resource shape: current uses custom name sre-github-vault-audit and logAnalyticsDestinationType=Dedicated; GA 2016-09-01 has a fixed service route and no Dedicated destination property, and requires location.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'sre-github-vault-audit'",
+              "analysis": "Original Bicep /name maps to current preview route parameter {name}:string; literal sre-github-vault-audit is valid as a name string. GA candidate route is fixed to /diagnosticSettings/service and cannot preserve this custom name."
+            },
+            {
+              "source_id": "body:42",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: vault",
+              "analysis": "Original Bicep /scope is Bicep extension-resource scope, not a JSON body field; AKS or vault resource ID maps to current required string route parameter {resourceUri}."
+            },
+            {
+              "source_id": "body:62",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "Original /properties maps to DiagnosticSettings. Current preview has workspaceId, logAnalyticsDestinationType, and logs fields; GA has only workspaceId/logs and other sink fields, lacking logAnalyticsDestinationType."
+            },
+            {
+              "source_id": "body:81",
+              "label": "workspaceId",
+              "path": "/properties/workspaceId",
+              "expression": "    workspaceId: workspaceId",
+              "analysis": "REST properties.workspaceId is a string ARM resource ID in both current preview and GA; source string parameter supplies that value."
+            },
+            {
+              "source_id": "body:126",
+              "label": "logAnalyticsDestinationType",
+              "path": "/properties/logAnalyticsDestinationType",
+              "expression": "    logAnalyticsDestinationType: 'Dedicated'",
+              "analysis": "Current preview schema defines this as string, and Learn documents Dedicated as an allowed value; literal 'Dedicated' is valid. The 2016-09-01 GA model omits this property entirely, so the chosen dedicated-table behavior cannot migrate unchanged."
+            },
+            {
+              "source_id": "body:148",
+              "label": "logs",
+              "path": "/properties/logs",
+              "expression": "    logs: [",
+              "analysis": "REST properties.logs is an array of LogSettings in both schemas. Each item requires enabled:boolean; item fields are checked individually."
+            },
+            {
+              "source_id": "body:176",
+              "label": "category",
+              "path": "/properties/logs/[]/category",
+              "expression": "        category: 'AuditEvent'",
+              "analysis": "REST LogSettings.category is string in current preview and GA; each source category literal is a string. Exact category availability for the target resource is provider/environment metadata and was not queried."
+            },
+            {
+              "source_id": "body:206",
+              "label": "enabled",
+              "path": "/properties/logs/[]/enabled",
+              "expression": "        enabled: true",
+              "analysis": "REST LogSettings.enabled is required boolean; source literal true satisfies the type in both current preview and GA."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource audit 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = ",
+              "analysis": "Resource header uses Microsoft.Insights/diagnosticSettings@2021-05-01-preview. It is the latest Learn-listed preview; this declaration's custom resource name and Dedicated mode motivate retaining preview."
+            },
+            {
+              "source_id": "symbol:workspaceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/workspaceId/$expression-line/0",
+              "expression": "param workspaceId string",
+              "analysis": "String parameter contains the Log Analytics workspace resource ID; it maps to REST properties.workspaceId:string."
+            }
+          ],
+          "exclusion_reason": "Retain the latest preview for this declaration because it explicitly configures Dedicated Log Analytics tables and a named diagnostic setting. The only published GA candidate cannot represent those choices and requires a location absent from the source; silently downgrading would not be equivalent."
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2021-05-01-preview",
+          "analysis": "Exact Learn current page and pinned preview diagnosticsSettings_API.json were read. PUT route includes /diagnosticSettings/{name}; DiagnosticSettings has workspaceId:string, logs array, and logAnalyticsDestinationType:string. Learn says Dedicated is an allowed value. LogSettings.category is string and enabled:boolean is required. Current source values match this schema.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2021-05-01-preview/diagnosticsettings",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/preview/2021-05-01-preview/diagnosticsSettings_API.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2021-05-01-preview/diagnosticsettings": "c19473b2e9d84be78ebd6ea7f78d3ebd625f84b8039524284b6eaeb704255031",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/preview/2021-05-01-preview/diagnosticsSettings_API.json": "6264ee5e33c35bf19cccafeb514cf2737ae1ccb28808066d2242850d425d2fea"
+          }
+        },
+        "ga": {
+          "version": "2016-09-01",
+          "analysis": "Learn selector shows latest stable GA 2016-09-01; fixed REST tree has stable serviceDiagnosticsSettings schemas at 2015-07-01 and 2016-09-01. Exact candidate route is fixed at /diagnosticSettings/service, ServiceDiagnosticSettings omits logAnalyticsDestinationType, and inherited Resource requires location. This source uses a custom name and Dedicated and omits location, so candidate is not behaviorally compatible.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2016-09-01/diagnosticsettings",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2016-09-01/serviceDiagnosticsSettings_API.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2016-09-01/diagnosticsettings": "5144589c144ab907c1434529a41734949a6eb373027a21d33e4a664703f6413a",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2016-09-01/serviceDiagnosticsSettings_API.json": "0f16834c9c54db1f8942b91a513b2e75e52871802779fda6ec0ca8ff714e5315"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log for 2021-05-01-preview says the preview resource removed location and added systemData; current source omits location as permitted by the preview schema. Comparing current preview with stable GA shows the older GA requires location, uses the fixed service route, and lacks logAnalyticsDestinationType. The preview-only dedicated-table behavior and custom name are retained; no implicit downgrade is made.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/diagnosticsettings"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/diagnosticsettings": "dc0ad9ae41944e8e86d541ac5e599546bcabd1d1adb56e9a4b66e337491e5e73"
+          }
+        }
+      }
     },
     "Microsoft.Insights/metricAlerts@2026-01-01": {
       "stage": "pending",

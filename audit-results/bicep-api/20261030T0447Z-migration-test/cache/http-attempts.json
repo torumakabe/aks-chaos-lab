@@ -223,5 +223,50 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2021-05-01-preview/diagnosticsettings",
+    "attempt": 1,
+    "started_monotonic": 3663.716889334,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2016-09-01/diagnosticsettings",
+    "attempt": 1,
+    "started_monotonic": 3666.716988834,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6573122340000737
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/diagnosticsettings",
+    "attempt": 1,
+    "started_monotonic": 3669.717090961,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.762567821000175
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/preview/2021-05-01-preview/diagnosticsSettings_API.json",
+    "attempt": 1,
+    "started_monotonic": 3669.892098925,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2016-09-01/serviceDiagnosticsSettings_API.json",
+    "attempt": 1,
+    "started_monotonic": 3670.057423807,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
