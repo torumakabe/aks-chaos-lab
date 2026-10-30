@@ -1,133 +1,70 @@
 {
-  "pair": "Microsoft.Network/publicIPAddresses@2026-03-01",
+  "pair": "Microsoft.Network/virtualNetworks/subnets@2026-03-01",
   "results": [
     {
-      "file": "infra/modules/network.bicep",
-      "name": "ingressPublicIP",
-      "line": 128,
-      "type": "Microsoft.Network/publicIPAddresses",
+      "file": "infra/modules/aks.bicep",
+      "name": "existingAksSubnet",
+      "line": 255,
+      "type": "Microsoft.Network/virtualNetworks/subnets",
       "version": "2026-03-01",
-      "existing": false,
-      "start": 3410,
-      "end": 3736,
-      "header": "resource ingressPublicIP 'Microsoft.Network/publicIPAddresses@2026-03-01' = ",
-      "body": "{\n  name: 'pip-ingress-${resourceToken}'\n  location: location\n  tags: tags\n  sku: {\n    name: 'Standard'\n  }\n  properties: {\n    publicIPAllocationMethod: 'Static'\n    dnsSettings: {\n      domainNameLabel: 'aks-chaos-lab-${resourceToken}'\n    }\n  }\n}",
+      "existing": true,
+      "start": 7940,
+      "end": 8088,
+      "header": "resource existingAksSubnet 'Microsoft.Network/virtualNetworks/subnets@2026-03-01' existing = ",
+      "body": "{\n  name: subnetName\n  parent: existingVirtualNetwork\n}",
       "status": "verified",
-      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定REST README/specのPublicIPAddress・PublicIPAddressSkuName・IPAllocationMethodをSchemasで照合。SKU Standardとallocation Staticのenum値、dns label:string、tags additionalProperties:stringが適合。",
-      "migration": "GA移行不要。現行2026-03-01が最新公開GAと一致し、change logは2026-03-01に追加・更新・削除なし。",
+      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定REST README/specのSubnet resource/name:stringとparent-child API routeを照合。existing宣言は参照のみであり、作成時properties/required属性の欠落として扱わない。",
+      "migration": "GA移行不要。現行2026-03-01が最新公開GAと一致し、change logは同versionに追加・更新・削除なし。",
       "findings": [],
       "usage": [
         {
           "source_id": "body:8",
           "label": "name",
           "path": "/name",
-          "expression": "  name: 'pip-ingress-${resourceToken}'",
-          "analysis": "JSON Pointer /name is resource identity string (readOnly in REST response model); Bicep uses it as PUT target name. name: 'pip-ingress-${resourceToken}' interpolates string resourceToken from main.bicep toLower(uniqueString(...))."
+          "expression": "  name: subnetName",
+          "analysis": "JSON Pointer /name is Bicep existing-resource identity; REST API path expects subnetName:string. subnetName=last(split(aksSubnetId, '/')) selects the final subnet ID segment."
         },
         {
-          "source_id": "body:51",
-          "label": "location",
-          "path": "/location",
-          "expression": "  location: location",
-          "analysis": "JSON Pointer /location maps to REST location:string. Module param location is string; main.bicep supplies location with default japaneast."
-        },
-        {
-          "source_id": "body:68",
-          "label": "tags",
-          "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags maps to REST object additionalProperties:string. Module param tags object receives the common map whose azd-env-name value is environment:string from main.bicep."
-        },
-        {
-          "source_id": "body:80",
-          "label": "sku",
-          "path": "/sku",
-          "expression": "  sku: {",
-          "analysis": "JSON Pointer /sku maps to REST PublicIP SKU object; child sku.name is present and individually enum-checked."
-        },
-        {
-          "source_id": "body:92",
-          "label": "name",
-          "path": "/sku/name",
-          "expression": "    name: 'Standard'",
-          "analysis": "JSON Pointer /sku/name maps to PublicIPAddressSkuName enum [Basic, Standard, StandardV2]. Literal 'Standard' passes Schemas.literal."
-        },
-        {
-          "source_id": "body:121",
-          "label": "properties",
-          "path": "/properties",
-          "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties maps to PublicIPAddressPropertiesFormat object; allocation method and dnsSettings are checked below."
-        },
-        {
-          "source_id": "body:153",
-          "label": "publicIPAllocationMethod",
-          "path": "/properties/publicIPAllocationMethod",
-          "expression": "    publicIPAllocationMethod: 'Static'",
-          "analysis": "JSON Pointer /properties/publicIPAllocationMethod maps to enum [Static, Dynamic]. Literal 'Static' passes Schemas.literal."
-        },
-        {
-          "source_id": "body:179",
-          "label": "dnsSettings",
-          "path": "/properties/dnsSettings",
-          "expression": "    dnsSettings: {",
-          "analysis": "JSON Pointer /properties/dnsSettings maps to PublicIPAddressDnsSettings object; its domainNameLabel is checked separately."
-        },
-        {
-          "source_id": "body:204",
-          "label": "domainNameLabel",
-          "path": "/properties/dnsSettings/domainNameLabel",
-          "expression": "      domainNameLabel: 'aks-chaos-lab-${resourceToken}'",
-          "analysis": "JSON Pointer /properties/dnsSettings/domainNameLabel maps to string. Expression 'aks-chaos-lab-${resourceToken}' is a string; resourceToken is a string param and main.bicep assigns toLower(uniqueString(...)). The pinned schema specifies no enum/pattern/length limit, and the actual resolved subscription-dependent suffix is not computed."
+          "source_id": "body:29",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: existingVirtualNetwork",
+          "analysis": "JSON Pointer /parent is Bicep parent relationship, not REST payload. existingVirtualNetwork name comes from aksSubnetId path segment 8 and provides the virtualNetworks/{virtualNetworkName} parent route."
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource ingressPublicIP 'Microsoft.Network/publicIPAddresses@2026-03-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 is the Bicep resource header/type-version selector, not REST payload. Type/version is Microsoft.Network/publicIPAddresses@2026-03-01."
+          "expression": "resource existingAksSubnet 'Microsoft.Network/virtualNetworks/subnets@2026-03-01' existing = ",
+          "analysis": "JSON Pointer /$expression-line/0 is the Bicep resource header/type-version selector, not REST payload. existing reference type is Microsoft.Network/virtualNetworks/subnets@2026-03-01."
         },
         {
-          "source_id": "symbol:location:line:0",
+          "source_id": "symbol:subnetName:line:0",
           "label": "$expression",
-          "path": "/$symbol/location/$expression-line/0",
-          "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is location parameter annotation/declaration; param string feeds REST /location:string."
+          "path": "/$symbol/subnetName/$expression-line/0",
+          "expression": "var subnetName = last(subnetIdParts)",
+          "analysis": "JSON Pointer /$symbol/subnetName/$expression-line/0 is subnetName source expression last(subnetIdParts), which selects the last segment of the passed AKS subnet resource ID; it maps to the REST subnetName route parameter:string."
         },
         {
-          "source_id": "symbol:location:line:36",
+          "source_id": "symbol:subnetIdParts:line:0",
           "label": "$expression",
-          "path": "/$symbol/location/$expression-line/1",
-          "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is location parameter annotation/declaration; param string feeds REST /location:string."
+          "path": "/$symbol/subnetIdParts/$expression-line/0",
+          "expression": "var subnetIdParts = split(aksSubnetId, '/')",
+          "analysis": "JSON Pointer /$symbol/subnetIdParts/$expression-line/0 is subnetIdParts=split(aksSubnetId, '/'); its segment derivation supplies both child subnet name and parent VNet name used in the REST route."
         },
         {
-          "source_id": "symbol:resourceToken:line:0",
+          "source_id": "symbol:aksSubnetId:line:0",
           "label": "$expression",
-          "path": "/$symbol/resourceToken/$expression-line/0",
-          "expression": "@description('Resource token for unique naming')",
-          "analysis": "JSON Pointer /$symbol/resourceToken/$expression-line/0 is resourceToken source. param string is supplied by main.bicep var resourceToken=toLower(uniqueString(subscription().id, appName, environment)); used in resource and DNS label string expressions."
+          "path": "/$symbol/aksSubnetId/$expression-line/0",
+          "expression": "@description('AKS subnet id')",
+          "analysis": "JSON Pointer /$symbol/aksSubnetId/$expression-line/0 is aksSubnetId param string. main.bicep passes network.outputs.aksSubnetId, and network.bicep constructs the exact virtualNetworks/{vnetName}/subnets/snet-aks resource ID."
         },
         {
-          "source_id": "symbol:resourceToken:line:49",
+          "source_id": "symbol:aksSubnetId:line:30",
           "label": "$expression",
-          "path": "/$symbol/resourceToken/$expression-line/1",
-          "expression": "param resourceToken string",
-          "analysis": "JSON Pointer /$symbol/resourceToken/$expression-line/1 is resourceToken source. param string is supplied by main.bicep var resourceToken=toLower(uniqueString(subscription().id, appName, environment)); used in resource and DNS label string expressions."
-        },
-        {
-          "source_id": "symbol:tags:line:0",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/0",
-          "expression": "@description('Tags object')",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is tags parameter source; common tags object has environment:string, matching REST tags.additionalProperties:string."
-        },
-        {
-          "source_id": "symbol:tags:line:28",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/1",
-          "expression": "param tags object",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 is tags parameter source; common tags object has environment:string, matching REST tags.additionalProperties:string."
+          "path": "/$symbol/aksSubnetId/$expression-line/1",
+          "expression": "param aksSubnetId string",
+          "analysis": "JSON Pointer /$symbol/aksSubnetId/$expression-line/1 is aksSubnetId param string. main.bicep passes network.outputs.aksSubnetId, and network.bicep constructs the exact virtualNetworks/{vnetName}/subnets/snet-aks resource ID."
         }
       ]
     }
@@ -135,10 +72,10 @@
   "evidence": {
     "current": {
       "version": "2026-03-01",
-      "analysis": "Learn selector lists 2026-03-01 as Latest. Pinned Network README package-2026-03-01 includes virtualNetwork.json/common.json. Schemas resolves PublicIPAddress, SKU and DNS settings; sku.name enum [Basic, Standard, StandardV2], allocation enum [Static, Dynamic], domainNameLabel:string, tags map<string>.",
+      "analysis": "Learn selector lists 2026-03-01 as Latest. Pinned Network README package-2026-03-01 includes virtualNetwork.json/common.json; Schemas resolves Subnet.name:string and REST paths expose virtualNetworks/{virtualNetworkName}/subnets/{subnetName}.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/publicipaddresses",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/publicipaddresses",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/virtualnetworks/subnets",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/virtualnetworks/subnets",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
@@ -146,19 +83,19 @@
     },
     "ga": {
       "version": "2026-03-01",
-      "analysis": "Latest stable GA from the Learn selector equals current 2026-03-01; exact candidate schema is the same pinned stable REST model.",
+      "analysis": "Latest stable GA from Learn equals current. Same exact pinned REST versioned schema and route shape apply; existing declaration is only a lookup reference.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/publicipaddresses",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/publicipaddresses",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/virtualnetworks/subnets",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/virtualnetworks/subnets",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
         "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
       ]
     },
     "breaking": {
-      "analysis": "Learn change log reports no properties added, updated or removed in 2026-03-01. Changes in older versions concern other properties (e.g. upgradedToV2, billing SKU); no used field changed at current.",
+      "analysis": "Learn change log says 2026-03-01 has no properties added, updated or removed. No payload properties are specified by this existing reference declaration.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/publicipaddresses"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/virtualnetworks/subnets"
       ]
     }
   }

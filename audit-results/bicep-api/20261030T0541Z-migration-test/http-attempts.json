@@ -277,5 +277,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.759453519999852
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/virtualnetworks/subnets",
+    "attempt": 1,
+    "started_monotonic": 1492.799640242,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/virtualnetworks/subnets",
+    "attempt": 1,
+    "started_monotonic": 1495.799772496,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8147173309998834
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/virtualnetworks/subnets",
+    "attempt": 1,
+    "started_monotonic": 1498.799894194,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7856905730000108
   }
 ]

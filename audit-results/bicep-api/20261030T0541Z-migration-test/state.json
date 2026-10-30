@@ -58045,9 +58045,123 @@
       }
     },
     "Microsoft.Network/virtualNetworks/subnets@2026-03-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/aks.bicep",
+          "name": "existingAksSubnet",
+          "line": 255,
+          "type": "Microsoft.Network/virtualNetworks/subnets",
+          "version": "2026-03-01",
+          "existing": true,
+          "start": 7940,
+          "end": 8088,
+          "header": "resource existingAksSubnet 'Microsoft.Network/virtualNetworks/subnets@2026-03-01' existing = ",
+          "body": "{\n  name: subnetName\n  parent: existingVirtualNetwork\n}",
+          "status": "verified",
+          "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定REST README/specのSubnet resource/name:stringとparent-child API routeを照合。existing宣言は参照のみであり、作成時properties/required属性の欠落として扱わない。",
+          "migration": "GA移行不要。現行2026-03-01が最新公開GAと一致し、change logは同versionに追加・更新・削除なし。",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: subnetName",
+              "analysis": "JSON Pointer /name is Bicep existing-resource identity; REST API path expects subnetName:string. subnetName=last(split(aksSubnetId, '/')) selects the final subnet ID segment."
+            },
+            {
+              "source_id": "body:29",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: existingVirtualNetwork",
+              "analysis": "JSON Pointer /parent is Bicep parent relationship, not REST payload. existingVirtualNetwork name comes from aksSubnetId path segment 8 and provides the virtualNetworks/{virtualNetworkName} parent route."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource existingAksSubnet 'Microsoft.Network/virtualNetworks/subnets@2026-03-01' existing = ",
+              "analysis": "JSON Pointer /$expression-line/0 is the Bicep resource header/type-version selector, not REST payload. existing reference type is Microsoft.Network/virtualNetworks/subnets@2026-03-01."
+            },
+            {
+              "source_id": "symbol:subnetName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/subnetName/$expression-line/0",
+              "expression": "var subnetName = last(subnetIdParts)",
+              "analysis": "JSON Pointer /$symbol/subnetName/$expression-line/0 is subnetName source expression last(subnetIdParts), which selects the last segment of the passed AKS subnet resource ID; it maps to the REST subnetName route parameter:string."
+            },
+            {
+              "source_id": "symbol:subnetIdParts:line:0",
+              "label": "$expression",
+              "path": "/$symbol/subnetIdParts/$expression-line/0",
+              "expression": "var subnetIdParts = split(aksSubnetId, '/')",
+              "analysis": "JSON Pointer /$symbol/subnetIdParts/$expression-line/0 is subnetIdParts=split(aksSubnetId, '/'); its segment derivation supplies both child subnet name and parent VNet name used in the REST route."
+            },
+            {
+              "source_id": "symbol:aksSubnetId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksSubnetId/$expression-line/0",
+              "expression": "@description('AKS subnet id')",
+              "analysis": "JSON Pointer /$symbol/aksSubnetId/$expression-line/0 is aksSubnetId param string. main.bicep passes network.outputs.aksSubnetId, and network.bicep constructs the exact virtualNetworks/{vnetName}/subnets/snet-aks resource ID."
+            },
+            {
+              "source_id": "symbol:aksSubnetId:line:30",
+              "label": "$expression",
+              "path": "/$symbol/aksSubnetId/$expression-line/1",
+              "expression": "param aksSubnetId string",
+              "analysis": "JSON Pointer /$symbol/aksSubnetId/$expression-line/1 is aksSubnetId param string. main.bicep passes network.outputs.aksSubnetId, and network.bicep constructs the exact virtualNetworks/{vnetName}/subnets/snet-aks resource ID."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-03-01",
+          "analysis": "Learn selector lists 2026-03-01 as Latest. Pinned Network README package-2026-03-01 includes virtualNetwork.json/common.json; Schemas resolves Subnet.name:string and REST paths expose virtualNetworks/{virtualNetworkName}/subnets/{subnetName}.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/virtualnetworks/subnets",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/virtualnetworks/subnets",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/virtualnetworks/subnets": "19549b890909fb8dcaccc0d2ca39973da8b6fee4aea97cee7995f3ba25d59f1f",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/virtualnetworks/subnets": "0c354cb7df84de1be1f8a69387e8c03120597a51c7797b8588fe8402b5bcf8da",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md": "2bfb2cec692f847efbdca885f4bbfd9259691489a1e1b6c69da43f6e4537c5be",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json": "0bfb316d7cbbecc06ae43c2cf57ed134d456e5b12607f9eab61c1a798d6452c5",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json": "af181cf1d801ad5a4b28f2805a419271849c44a81ad546159b397ee13cd87252"
+          }
+        },
+        "ga": {
+          "version": "2026-03-01",
+          "analysis": "Latest stable GA from Learn equals current. Same exact pinned REST versioned schema and route shape apply; existing declaration is only a lookup reference.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/virtualnetworks/subnets",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/virtualnetworks/subnets",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/virtualnetworks/subnets": "19549b890909fb8dcaccc0d2ca39973da8b6fee4aea97cee7995f3ba25d59f1f",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/virtualnetworks/subnets": "0c354cb7df84de1be1f8a69387e8c03120597a51c7797b8588fe8402b5bcf8da",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md": "2bfb2cec692f847efbdca885f4bbfd9259691489a1e1b6c69da43f6e4537c5be",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json": "0bfb316d7cbbecc06ae43c2cf57ed134d456e5b12607f9eab61c1a798d6452c5",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json": "af181cf1d801ad5a4b28f2805a419271849c44a81ad546159b397ee13cd87252"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log says 2026-03-01 has no properties added, updated or removed. No payload properties are specified by this existing reference declaration.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/virtualnetworks/subnets"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/virtualnetworks/subnets": "6ea1ef338570751b8b9c0b2e1d6f8b41791363366af78a6d2ac9d539cf025b05"
+          }
+        }
+      }
     },
     "Microsoft.Network/virtualNetworks@2026-03-01": {
       "stage": "pending",
