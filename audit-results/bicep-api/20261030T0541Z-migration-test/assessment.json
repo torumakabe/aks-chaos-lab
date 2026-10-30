@@ -1,219 +1,665 @@
 {
-  "pair": "Microsoft.Network/networkSecurityGroups@2026-03-01",
+  "pair": "Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01",
   "results": [
     {
-      "file": "infra/modules/network.bicep",
-      "name": "aksSubnetNetworkSecurityGroup",
-      "line": 102,
-      "type": "Microsoft.Network/networkSecurityGroups",
-      "version": "2026-03-01",
+      "file": "infra/modules/acr.bicep",
+      "name": "containerRegistryPrivateDnsZoneLink",
+      "line": 45,
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "version": "2024-06-01",
       "existing": false,
-      "start": 2818,
-      "end": 3408,
-      "header": "resource aksSubnetNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2026-03-01' = ",
-      "body": "{\n  name: 'nsg-${vnetName}-snet-aks'\n  location: location\n  tags: tags\n  properties: {\n    securityRules: [\n      {\n        name: 'Allow-HTTP-HTTPS'\n        properties: {\n          priority: 1000\n          direction: 'Inbound'\n          access: 'Allow'\n          protocol: 'Tcp'\n          sourcePortRange: '*'\n          destinationPortRanges: [\n            '80'\n            '443'\n          ]\n          sourceAddressPrefix: '*'\n          destinationAddressPrefix: '*'\n        }\n      }\n    ]\n  }\n}",
+      "start": 1210,
+      "end": 1511,
+      "header": "resource containerRegistryPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+      "body": "{\n  parent: containerRegistryPrivateDnsZone\n  name: 'vnetlink-${registryName}'\n  location: 'global'\n  properties: {\n    registrationEnabled: false\n    virtualNetwork: { id: vnetId }\n  }\n}",
       "status": "verified",
-      "reason": "LearnのAPI selectorで現行2026-03-01が最新の公開GA版と確認し、固定REST仕様の2026-03-01 NetworkSecurityGroupモデル・共通定義、および全source_idの属性値/型/enum/requiredを照合した。既存参照ではなく作成宣言で、SecurityRuleのrequired protocol/access/priority/directionは全て指定済み。",
-      "migration": "GA移行不要。現行2026-03-01がLearnに表示された最新GA 2026-03-01と一致し、previewではない。Learn change logは2026-03-01に追加・更新・削除されたpropertyなしと記載。",
+      "reason": "Learn selectorで2024-06-01が最新の公開GA版と確認し、固定REST README/specのVirtualNetworkLink、properties、SubResource/$refをSchemasで照合した。全6宣言のvirtualNetwork.idとregistrationEnabledは型に適合。parent/nameはBicepの親子resource ID/名前でREST payload属性として誤判定しない。",
+      "migration": "GA移行不要。現行2024-06-01が最新GA 2024-06-01と一致しpreviewではない。change logの2024-06-01追加・削除属性は本宣言が使うvirtualNetwork、registrationEnabled、locationに影響しない。",
       "findings": [],
       "usage": [
         {
-          "source_id": "body:8",
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: containerRegistryPrivateDnsZone",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipで、REST payload propertyではない。parent resource zoneとの階層からresource IDを構成し、APIパスの親zone部分を指定する。式は parent: containerRegistryPrivateDnsZone。"
+        },
+        {
+          "source_id": "body:50",
           "label": "name",
           "path": "/name",
-          "expression": "  name: 'nsg-${vnetName}-snet-aks'",
-          "analysis": "Bicep JSON Pointer /name はREST payload /name。式 'nsg-${vnetName}-snet-aks' はstringで、vnetNameはmodule param string。main.bicepのvirtualNetworkName由来のresource nameもstring。NetworkSecurityGroup->Resourceのname:stringに適合。"
+          "expression": "  name: 'vnetlink-${registryName}'",
+          "analysis": "JSON Pointer /name は子resource名。REST modelではname:string/readOnlyだが、Bicep nameはPUT target resource identity/path segmentであり、payloadで書換える属性ではない。式 name: 'vnetlink-${registryName}' はstring名。"
         },
         {
-          "source_id": "body:47",
+          "source_id": "body:89",
           "label": "location",
           "path": "/location",
-          "expression": "  location: location",
-          "analysis": "JSON Pointer /location はREST payload /location。値はparam location string。Resource.location:stringに適合。"
+          "expression": "  location: 'global'",
+          "analysis": "JSON Pointer /location はREST resource envelopeのlocation:string。'global' literalをSchemas.literalで確認し、Private DNS virtualNetwork linkのglobal locationを指定。"
         },
         {
-          "source_id": "body:64",
-          "label": "tags",
-          "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags はREST payload /tags。値はparam tags object。Network Resource.tagsはobject additionalProperties:string。呼出元main.bicep:172-174のtag値はenvironment param stringで、module call:200-214がtagsを渡すため値型はstring。"
-        },
-        {
-          "source_id": "body:83",
+          "source_id": "body:112",
           "label": "properties",
           "path": "/properties",
           "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties はREST payload /properties。NetworkSecurityGroup.propertiesはNetworkSecurityGroupPropertiesFormat objectへの$refであり、作成 payloadのobjectに適合。"
+          "analysis": "JSON Pointer /properties はREST VirtualNetworkLinkProperties objectへの属性。オブジェクト型が一致し、含まれるフィールドを下記で個別に照合。"
         },
         {
-          "source_id": "body:104",
-          "label": "securityRules",
-          "path": "/properties/securityRules",
-          "expression": "    securityRules: [",
-          "analysis": "JSON Pointer /properties/securityRules はREST payload /properties/securityRules。これはSecurityRule[]で、指定値はarray。"
+          "source_id": "body:139",
+          "label": "registrationEnabled",
+          "path": "/properties/registrationEnabled",
+          "expression": "    registrationEnabled: false",
+          "analysis": "JSON Pointer /properties/registrationEnabled はREST boolean。literal falseをSchemas.literalで確認。"
         },
         {
-          "source_id": "body:128",
-          "label": "name",
-          "path": "/properties/securityRules/[]/name",
-          "expression": "        name: 'Allow-HTTP-HTTPS'",
-          "analysis": "JSON Pointer /properties/securityRules/[]/name はREST payloadのSecurityRule item name。'Allow-HTTP-HTTPS'はstringでSubResourceModel.name:stringに適合。"
+          "source_id": "body:165",
+          "label": "virtualNetwork",
+          "path": "/properties/virtualNetwork",
+          "expression": "    virtualNetwork: { id: vnetId }",
+          "analysis": "JSON Pointer /properties/virtualNetwork はREST SubResource objectへの属性。id:stringを含み、resource payloadに指定済み。"
         },
         {
-          "source_id": "body:167",
-          "label": "properties",
-          "path": "/properties/securityRules/[]/properties",
-          "expression": "        properties: {",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties はREST payload SecurityRule.properties。SecurityRulePropertiesFormat objectへの$ref。必須protocol/access/priority/directionを下記で全て指定。"
-        },
-        {
-          "source_id": "body:189",
-          "label": "priority",
-          "path": "/properties/securityRules/[]/properties/priority",
-          "expression": "          priority: 1000",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties/priority はREST属性priority。1000はintegerで、仕様説明の範囲100..4096内。SecurityRulePropertiesFormatのrequiredに含まれる。"
-        },
-        {
-          "source_id": "body:215",
-          "label": "direction",
-          "path": "/properties/securityRules/[]/properties/direction",
-          "expression": "          direction: 'Inbound'",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties/direction はREST属性direction。'Inbound'はSecurityRuleDirection enum [Inbound, Outbound]に適合しrequired。"
-        },
-        {
-          "source_id": "body:243",
-          "label": "access",
-          "path": "/properties/securityRules/[]/properties/access",
-          "expression": "          access: 'Allow'",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties/access はREST属性access。'Allow'はSecurityRuleAccess enum [Allow, Deny]に適合しrequired。"
-        },
-        {
-          "source_id": "body:271",
-          "label": "protocol",
-          "path": "/properties/securityRules/[]/properties/protocol",
-          "expression": "          protocol: 'Tcp'",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties/protocol はREST属性protocol。'Tcp'はSecurityRuleProtocol enum [Tcp, Udp, Icmp, Esp, *, Ah]に適合しrequired。"
-        },
-        {
-          "source_id": "body:304",
-          "label": "sourcePortRange",
-          "path": "/properties/securityRules/[]/properties/sourcePortRange",
-          "expression": "          sourcePortRange: '*'",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties/sourcePortRange はREST属性sourcePortRange。'*'はstringで、全portを指定する仕様上許容値。"
-        },
-        {
-          "source_id": "body:341",
-          "label": "destinationPortRanges",
-          "path": "/properties/securityRules/[]/properties/destinationPortRanges",
-          "expression": "          destinationPortRanges: [",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties/destinationPortRanges はREST属性destinationPortRanges、items:stringのarray。各値を個別に照合。"
-        },
-        {
-          "source_id": "body:421",
-          "label": "sourceAddressPrefix",
-          "path": "/properties/securityRules/[]/properties/sourceAddressPrefix",
-          "expression": "          sourceAddressPrefix: '*'",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties/sourceAddressPrefix はREST属性sourceAddressPrefix。'*'はstringで全source IPを指定する許容値。"
-        },
-        {
-          "source_id": "body:461",
-          "label": "destinationAddressPrefix",
-          "path": "/properties/securityRules/[]/properties/destinationAddressPrefix",
-          "expression": "          destinationAddressPrefix: '*'",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties/destinationAddressPrefix はREST属性destinationAddressPrefix。'*'はstringで全destination IPを指定する許容値。"
-        },
-        {
-          "source_id": "body:line:345",
-          "label": "$expression",
-          "path": "/properties/securityRules/[]/properties/destinationPortRanges/[]/$expression-line/15",
-          "expression": "            '80'",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties/destinationPortRanges/[]/$expression-line/15 はsource file内のarray element expression。REST属性は /properties/securityRules/[]/properties/destinationPortRanges/[]。literal '80'はstringかつ0..65535内。"
-        },
-        {
-          "source_id": "body:line:362",
-          "label": "$expression",
-          "path": "/properties/securityRules/[]/properties/destinationPortRanges/[]/$expression-line/16",
-          "expression": "            '443'",
-          "analysis": "JSON Pointer /properties/securityRules/[]/properties/destinationPortRanges/[]/$expression-line/16 はsource file内のarray element expression。REST属性は /properties/securityRules/[]/properties/destinationPortRanges/[]。literal '443'はstringかつ0..65535内。"
+          "source_id": "body:171",
+          "label": "id",
+          "path": "/properties/virtualNetwork/id",
+          "expression": "    virtualNetwork: { id: vnetId }",
+          "analysis": "JSON Pointer /properties/virtualNetwork/id はREST属性 /properties/virtualNetwork/id:string。式 virtualNetwork: { id: vnetId } のvnetIdは各moduleでparam stringとして宣言され、resource ID文字列を渡す。"
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource aksSubnetNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2026-03-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はresource type/versionを宣言するBicep headerでpayload propertyではない。type/versionはMicrosoft.Network/networkSecurityGroups@2026-03-01でLearn/RESTの現行schemaと一致。"
+          "expression": "resource containerRegistryPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep type/version headerで、REST payload propertyではない。type/versionがMicrosoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01。"
         },
         {
           "source_id": "symbol:location:line:0",
           "label": "$expression",
           "path": "/$symbol/location/$expression-line/0",
           "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はlocation parameterのdescription annotationでpayload propertyではない。関連するREST /location の型確認はparam declarationとbody:47 analysisに記録。"
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
         },
         {
           "source_id": "symbol:location:line:36",
           "label": "$expression",
           "path": "/$symbol/location/$expression-line/1",
           "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はparam location string。REST payload /location:string を満たす変数定義。"
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
         },
         {
-          "source_id": "symbol:tags:line:0",
+          "source_id": "symbol:registryName:line:0",
           "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/0",
-          "expression": "@description('Tags object')",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 はtags parameterのdescription annotationでpayload propertyではない。REST /tags additionalProperties:stringとの照合はparameter/callerを含めbody:64に記録。"
+          "path": "/$symbol/registryName/$expression-line/0",
+          "expression": "@description('Registry name')",
+          "analysis": "JSON Pointer /$symbol/registryName/$expression-line/0 はregistryName param string。resource name interpolationで使い、REST resource identityの文字列名を生成。"
         },
         {
-          "source_id": "symbol:tags:line:28",
+          "source_id": "symbol:registryName:line:30",
           "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/1",
-          "expression": "param tags object",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 はparam tags object。REST payload /tagsはadditionalProperties:stringであり、main.bicep:172-174の実値はenvironment stringからなる。"
+          "path": "/$symbol/registryName/$expression-line/1",
+          "expression": "param registryName string",
+          "analysis": "JSON Pointer /$symbol/registryName/$expression-line/1 はregistryName param string。resource name interpolationで使い、REST resource identityの文字列名を生成。"
         },
         {
-          "source_id": "symbol:vnetName:line:0",
+          "source_id": "symbol:vnetId:line:0",
           "label": "$expression",
-          "path": "/$symbol/vnetName/$expression-line/0",
-          "expression": "@description('Virtual network name')",
-          "analysis": "JSON Pointer /$symbol/vnetName/$expression-line/0 はvnetName parameterのdescription annotationでpayload propertyではない。関連するREST /nameへのstring interpolationはbody:8 analysisに記録。"
+          "path": "/$symbol/vnetId/$expression-line/0",
+          "expression": "@description('VNet resource ID used for Private DNS link')",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/0 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
         },
         {
-          "source_id": "symbol:vnetName:line:37",
+          "source_id": "symbol:vnetId:line:59",
           "label": "$expression",
-          "path": "/$symbol/vnetName/$expression-line/1",
-          "expression": "param vnetName string",
-          "analysis": "JSON Pointer /$symbol/vnetName/$expression-line/1 はparam vnetName string。resource name式内の参照値であり、REST payload /name:stringに適合。"
+          "path": "/$symbol/vnetId/$expression-line/1",
+          "expression": "param vnetId string",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/1 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/functions/external-sli-publisher.bicep",
+      "name": "storageBlobPrivateDnsZoneLink",
+      "line": 125,
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "version": "2024-06-01",
+      "existing": false,
+      "start": 4439,
+      "end": 4740,
+      "header": "resource storageBlobPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+      "body": "{\n  parent: storageBlobPrivateDnsZone\n  name: 'vnetlink-blob-${storageAccount.name}'\n  location: 'global'\n  properties: {\n    registrationEnabled: false\n    virtualNetwork: { id: vnetId }\n  }\n}",
+      "status": "verified",
+      "reason": "Learn selectorで2024-06-01が最新の公開GA版と確認し、固定REST README/specのVirtualNetworkLink、properties、SubResource/$refをSchemasで照合した。全6宣言のvirtualNetwork.idとregistrationEnabledは型に適合。parent/nameはBicepの親子resource ID/名前でREST payload属性として誤判定しない。",
+      "migration": "GA移行不要。現行2024-06-01が最新GA 2024-06-01と一致しpreviewではない。change logの2024-06-01追加・削除属性は本宣言が使うvirtualNetwork、registrationEnabled、locationに影響しない。",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: storageBlobPrivateDnsZone",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipで、REST payload propertyではない。parent resource zoneとの階層からresource IDを構成し、APIパスの親zone部分を指定する。式は parent: storageBlobPrivateDnsZone。"
+        },
+        {
+          "source_id": "body:44",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'vnetlink-blob-${storageAccount.name}'",
+          "analysis": "JSON Pointer /name は子resource名。REST modelではname:string/readOnlyだが、Bicep nameはPUT target resource identity/path segmentであり、payloadで書換える属性ではない。式 name: 'vnetlink-blob-${storageAccount.name}' はstring名。"
+        },
+        {
+          "source_id": "body:95",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: 'global'",
+          "analysis": "JSON Pointer /location はREST resource envelopeのlocation:string。'global' literalをSchemas.literalで確認し、Private DNS virtualNetwork linkのglobal locationを指定。"
+        },
+        {
+          "source_id": "body:118",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST VirtualNetworkLinkProperties objectへの属性。オブジェクト型が一致し、含まれるフィールドを下記で個別に照合。"
+        },
+        {
+          "source_id": "body:145",
+          "label": "registrationEnabled",
+          "path": "/properties/registrationEnabled",
+          "expression": "    registrationEnabled: false",
+          "analysis": "JSON Pointer /properties/registrationEnabled はREST boolean。literal falseをSchemas.literalで確認。"
+        },
+        {
+          "source_id": "body:171",
+          "label": "virtualNetwork",
+          "path": "/properties/virtualNetwork",
+          "expression": "    virtualNetwork: { id: vnetId }",
+          "analysis": "JSON Pointer /properties/virtualNetwork はREST SubResource objectへの属性。id:stringを含み、resource payloadに指定済み。"
+        },
+        {
+          "source_id": "body:177",
+          "label": "id",
+          "path": "/properties/virtualNetwork/id",
+          "expression": "    virtualNetwork: { id: vnetId }",
+          "analysis": "JSON Pointer /properties/virtualNetwork/id はREST属性 /properties/virtualNetwork/id:string。式 virtualNetwork: { id: vnetId } のvnetIdは各moduleでparam stringとして宣言され、resource ID文字列を渡す。"
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource storageBlobPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep type/version headerで、REST payload propertyではない。type/versionがMicrosoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01。"
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
+        },
+        {
+          "source_id": "symbol:vnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/vnetId/$expression-line/0",
+          "expression": "@description('VNet resource ID used for private DNS links')",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/0 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
+        },
+        {
+          "source_id": "symbol:vnetId:line:60",
+          "label": "$expression",
+          "path": "/$symbol/vnetId/$expression-line/1",
+          "expression": "param vnetId string",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/1 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/functions/external-sli-publisher.bicep",
+      "name": "storageQueuePrivateDnsZoneLink",
+      "line": 174,
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "version": "2024-06-01",
+      "existing": false,
+      "start": 5783,
+      "end": 6087,
+      "header": "resource storageQueuePrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+      "body": "{\n  parent: storageQueuePrivateDnsZone\n  name: 'vnetlink-queue-${storageAccount.name}'\n  location: 'global'\n  properties: {\n    registrationEnabled: false\n    virtualNetwork: { id: vnetId }\n  }\n}",
+      "status": "verified",
+      "reason": "Learn selectorで2024-06-01が最新の公開GA版と確認し、固定REST README/specのVirtualNetworkLink、properties、SubResource/$refをSchemasで照合した。全6宣言のvirtualNetwork.idとregistrationEnabledは型に適合。parent/nameはBicepの親子resource ID/名前でREST payload属性として誤判定しない。",
+      "migration": "GA移行不要。現行2024-06-01が最新GA 2024-06-01と一致しpreviewではない。change logの2024-06-01追加・削除属性は本宣言が使うvirtualNetwork、registrationEnabled、locationに影響しない。",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: storageQueuePrivateDnsZone",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipで、REST payload propertyではない。parent resource zoneとの階層からresource IDを構成し、APIパスの親zone部分を指定する。式は parent: storageQueuePrivateDnsZone。"
+        },
+        {
+          "source_id": "body:45",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'vnetlink-queue-${storageAccount.name}'",
+          "analysis": "JSON Pointer /name は子resource名。REST modelではname:string/readOnlyだが、Bicep nameはPUT target resource identity/path segmentであり、payloadで書換える属性ではない。式 name: 'vnetlink-queue-${storageAccount.name}' はstring名。"
+        },
+        {
+          "source_id": "body:97",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: 'global'",
+          "analysis": "JSON Pointer /location はREST resource envelopeのlocation:string。'global' literalをSchemas.literalで確認し、Private DNS virtualNetwork linkのglobal locationを指定。"
+        },
+        {
+          "source_id": "body:120",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST VirtualNetworkLinkProperties objectへの属性。オブジェクト型が一致し、含まれるフィールドを下記で個別に照合。"
+        },
+        {
+          "source_id": "body:147",
+          "label": "registrationEnabled",
+          "path": "/properties/registrationEnabled",
+          "expression": "    registrationEnabled: false",
+          "analysis": "JSON Pointer /properties/registrationEnabled はREST boolean。literal falseをSchemas.literalで確認。"
+        },
+        {
+          "source_id": "body:173",
+          "label": "virtualNetwork",
+          "path": "/properties/virtualNetwork",
+          "expression": "    virtualNetwork: { id: vnetId }",
+          "analysis": "JSON Pointer /properties/virtualNetwork はREST SubResource objectへの属性。id:stringを含み、resource payloadに指定済み。"
+        },
+        {
+          "source_id": "body:179",
+          "label": "id",
+          "path": "/properties/virtualNetwork/id",
+          "expression": "    virtualNetwork: { id: vnetId }",
+          "analysis": "JSON Pointer /properties/virtualNetwork/id はREST属性 /properties/virtualNetwork/id:string。式 virtualNetwork: { id: vnetId } のvnetIdは各moduleでparam stringとして宣言され、resource ID文字列を渡す。"
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource storageQueuePrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep type/version headerで、REST payload propertyではない。type/versionがMicrosoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01。"
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
+        },
+        {
+          "source_id": "symbol:vnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/vnetId/$expression-line/0",
+          "expression": "@description('VNet resource ID used for private DNS links')",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/0 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
+        },
+        {
+          "source_id": "symbol:vnetId:line:60",
+          "label": "$expression",
+          "path": "/$symbol/vnetId/$expression-line/1",
+          "expression": "param vnetId string",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/1 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/functions/external-sli-publisher.bicep",
+      "name": "storageTablePrivateDnsZoneLink",
+      "line": 223,
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "version": "2024-06-01",
+      "existing": false,
+      "start": 7139,
+      "end": 7443,
+      "header": "resource storageTablePrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+      "body": "{\n  parent: storageTablePrivateDnsZone\n  name: 'vnetlink-table-${storageAccount.name}'\n  location: 'global'\n  properties: {\n    registrationEnabled: false\n    virtualNetwork: { id: vnetId }\n  }\n}",
+      "status": "verified",
+      "reason": "Learn selectorで2024-06-01が最新の公開GA版と確認し、固定REST README/specのVirtualNetworkLink、properties、SubResource/$refをSchemasで照合した。全6宣言のvirtualNetwork.idとregistrationEnabledは型に適合。parent/nameはBicepの親子resource ID/名前でREST payload属性として誤判定しない。",
+      "migration": "GA移行不要。現行2024-06-01が最新GA 2024-06-01と一致しpreviewではない。change logの2024-06-01追加・削除属性は本宣言が使うvirtualNetwork、registrationEnabled、locationに影響しない。",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: storageTablePrivateDnsZone",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipで、REST payload propertyではない。parent resource zoneとの階層からresource IDを構成し、APIパスの親zone部分を指定する。式は parent: storageTablePrivateDnsZone。"
+        },
+        {
+          "source_id": "body:45",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'vnetlink-table-${storageAccount.name}'",
+          "analysis": "JSON Pointer /name は子resource名。REST modelではname:string/readOnlyだが、Bicep nameはPUT target resource identity/path segmentであり、payloadで書換える属性ではない。式 name: 'vnetlink-table-${storageAccount.name}' はstring名。"
+        },
+        {
+          "source_id": "body:97",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: 'global'",
+          "analysis": "JSON Pointer /location はREST resource envelopeのlocation:string。'global' literalをSchemas.literalで確認し、Private DNS virtualNetwork linkのglobal locationを指定。"
+        },
+        {
+          "source_id": "body:120",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST VirtualNetworkLinkProperties objectへの属性。オブジェクト型が一致し、含まれるフィールドを下記で個別に照合。"
+        },
+        {
+          "source_id": "body:147",
+          "label": "registrationEnabled",
+          "path": "/properties/registrationEnabled",
+          "expression": "    registrationEnabled: false",
+          "analysis": "JSON Pointer /properties/registrationEnabled はREST boolean。literal falseをSchemas.literalで確認。"
+        },
+        {
+          "source_id": "body:173",
+          "label": "virtualNetwork",
+          "path": "/properties/virtualNetwork",
+          "expression": "    virtualNetwork: { id: vnetId }",
+          "analysis": "JSON Pointer /properties/virtualNetwork はREST SubResource objectへの属性。id:stringを含み、resource payloadに指定済み。"
+        },
+        {
+          "source_id": "body:179",
+          "label": "id",
+          "path": "/properties/virtualNetwork/id",
+          "expression": "    virtualNetwork: { id: vnetId }",
+          "analysis": "JSON Pointer /properties/virtualNetwork/id はREST属性 /properties/virtualNetwork/id:string。式 virtualNetwork: { id: vnetId } のvnetIdは各moduleでparam stringとして宣言され、resource ID文字列を渡す。"
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource storageTablePrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep type/version headerで、REST payload propertyではない。type/versionがMicrosoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01。"
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
+        },
+        {
+          "source_id": "symbol:vnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/vnetId/$expression-line/0",
+          "expression": "@description('VNet resource ID used for private DNS links')",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/0 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
+        },
+        {
+          "source_id": "symbol:vnetId:line:60",
+          "label": "$expression",
+          "path": "/$symbol/vnetId/$expression-line/1",
+          "expression": "param vnetId string",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/1 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/redis.bicep",
+      "name": "redisPrivateDnsZoneLink",
+      "line": 48,
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "version": "2024-06-01",
+      "existing": false,
+      "start": 1278,
+      "end": 1552,
+      "header": "resource redisPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+      "body": "{\n  parent: redisPrivateDnsZone\n  name: 'vnetlink-${redisName}'\n  location: 'global'\n  properties: {\n    registrationEnabled: false\n    virtualNetwork: { id: vnetId }\n  }\n}",
+      "status": "verified",
+      "reason": "Learn selectorで2024-06-01が最新の公開GA版と確認し、固定REST README/specのVirtualNetworkLink、properties、SubResource/$refをSchemasで照合した。全6宣言のvirtualNetwork.idとregistrationEnabledは型に適合。parent/nameはBicepの親子resource ID/名前でREST payload属性として誤判定しない。",
+      "migration": "GA移行不要。現行2024-06-01が最新GA 2024-06-01と一致しpreviewではない。change logの2024-06-01追加・削除属性は本宣言が使うvirtualNetwork、registrationEnabled、locationに影響しない。",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: redisPrivateDnsZone",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipで、REST payload propertyではない。parent resource zoneとの階層からresource IDを構成し、APIパスの親zone部分を指定する。式は parent: redisPrivateDnsZone。"
+        },
+        {
+          "source_id": "body:38",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'vnetlink-${redisName}'",
+          "analysis": "JSON Pointer /name は子resource名。REST modelではname:string/readOnlyだが、Bicep nameはPUT target resource identity/path segmentであり、payloadで書換える属性ではない。式 name: 'vnetlink-${redisName}' はstring名。"
+        },
+        {
+          "source_id": "body:74",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: 'global'",
+          "analysis": "JSON Pointer /location はREST resource envelopeのlocation:string。'global' literalをSchemas.literalで確認し、Private DNS virtualNetwork linkのglobal locationを指定。"
+        },
+        {
+          "source_id": "body:97",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST VirtualNetworkLinkProperties objectへの属性。オブジェクト型が一致し、含まれるフィールドを下記で個別に照合。"
+        },
+        {
+          "source_id": "body:124",
+          "label": "registrationEnabled",
+          "path": "/properties/registrationEnabled",
+          "expression": "    registrationEnabled: false",
+          "analysis": "JSON Pointer /properties/registrationEnabled はREST boolean。literal falseをSchemas.literalで確認。"
+        },
+        {
+          "source_id": "body:150",
+          "label": "virtualNetwork",
+          "path": "/properties/virtualNetwork",
+          "expression": "    virtualNetwork: { id: vnetId }",
+          "analysis": "JSON Pointer /properties/virtualNetwork はREST SubResource objectへの属性。id:stringを含み、resource payloadに指定済み。"
+        },
+        {
+          "source_id": "body:156",
+          "label": "id",
+          "path": "/properties/virtualNetwork/id",
+          "expression": "    virtualNetwork: { id: vnetId }",
+          "analysis": "JSON Pointer /properties/virtualNetwork/id はREST属性 /properties/virtualNetwork/id:string。式 virtualNetwork: { id: vnetId } のvnetIdは各moduleでparam stringとして宣言され、resource ID文字列を渡す。"
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource redisPrivateDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep type/version headerで、REST payload propertyではない。type/versionがMicrosoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01。"
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
+        },
+        {
+          "source_id": "symbol:redisName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/redisName/$expression-line/0",
+          "expression": "@description('Azure Managed Redis name')",
+          "analysis": "JSON Pointer /$symbol/redisName/$expression-line/0 はredisName param string。resource name interpolationで使い、REST resource identityの文字列名を生成。"
+        },
+        {
+          "source_id": "symbol:redisName:line:41",
+          "label": "$expression",
+          "path": "/$symbol/redisName/$expression-line/1",
+          "expression": "param redisName string",
+          "analysis": "JSON Pointer /$symbol/redisName/$expression-line/1 はredisName param string。resource name interpolationで使い、REST resource identityの文字列名を生成。"
+        },
+        {
+          "source_id": "symbol:vnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/vnetId/$expression-line/0",
+          "expression": "@description('VNet id')",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/0 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
+        },
+        {
+          "source_id": "symbol:vnetId:line:24",
+          "label": "$expression",
+          "path": "/$symbol/vnetId/$expression-line/1",
+          "expression": "param vnetId string",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/1 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/sre-agent-vault.bicep",
+      "name": "link",
+      "line": 37,
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "version": "2024-06-01",
+      "existing": false,
+      "start": 825,
+      "end": 1070,
+      "header": "resource link 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+      "body": "{\n  parent: zone\n  name: 'sre-github-vault'\n  location: 'global'\n  properties: {\n    registrationEnabled: false\n    virtualNetwork: {\n      id: vnetId\n    }\n  }\n}",
+      "status": "verified",
+      "reason": "Learn selectorで2024-06-01が最新の公開GA版と確認し、固定REST README/specのVirtualNetworkLink、properties、SubResource/$refをSchemasで照合した。全6宣言のvirtualNetwork.idとregistrationEnabledは型に適合。parent/nameはBicepの親子resource ID/名前でREST payload属性として誤判定しない。",
+      "migration": "GA移行不要。現行2024-06-01が最新GA 2024-06-01と一致しpreviewではない。change logの2024-06-01追加・削除属性は本宣言が使うvirtualNetwork、registrationEnabled、locationに影響しない。",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: zone",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipで、REST payload propertyではない。parent resource zoneとの階層からresource IDを構成し、APIパスの親zone部分を指定する。式は parent: zone。"
+        },
+        {
+          "source_id": "body:23",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'sre-github-vault'",
+          "analysis": "JSON Pointer /name は子resource名。REST modelではname:string/readOnlyだが、Bicep nameはPUT target resource identity/path segmentであり、payloadで書換える属性ではない。式 name: 'sre-github-vault' はstring名。"
+        },
+        {
+          "source_id": "body:54",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: 'global'",
+          "analysis": "JSON Pointer /location はREST resource envelopeのlocation:string。'global' literalをSchemas.literalで確認し、Private DNS virtualNetwork linkのglobal locationを指定。"
+        },
+        {
+          "source_id": "body:77",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST VirtualNetworkLinkProperties objectへの属性。オブジェクト型が一致し、含まれるフィールドを下記で個別に照合。"
+        },
+        {
+          "source_id": "body:104",
+          "label": "registrationEnabled",
+          "path": "/properties/registrationEnabled",
+          "expression": "    registrationEnabled: false",
+          "analysis": "JSON Pointer /properties/registrationEnabled はREST boolean。literal falseをSchemas.literalで確認。"
+        },
+        {
+          "source_id": "body:130",
+          "label": "virtualNetwork",
+          "path": "/properties/virtualNetwork",
+          "expression": "    virtualNetwork: {",
+          "analysis": "JSON Pointer /properties/virtualNetwork はREST SubResource objectへの属性。id:stringを含み、resource payloadに指定済み。"
+        },
+        {
+          "source_id": "body:142",
+          "label": "id",
+          "path": "/properties/virtualNetwork/id",
+          "expression": "      id: vnetId",
+          "analysis": "JSON Pointer /properties/virtualNetwork/id はREST属性 /properties/virtualNetwork/id:string。式 id: vnetId のvnetIdは各moduleでparam stringとして宣言され、resource ID文字列を渡す。"
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource link 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep type/version headerで、REST payload propertyではない。type/versionがMicrosoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01。"
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location (same region as the VNet and Agent)')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
+        },
+        {
+          "source_id": "symbol:location:line:72",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmoduleのlocation parameter記述/宣言。param locationはstringだが、このresource本文はliteral globalを使いこのparameterを参照しない。REST /locationはbodyの値で個別検証済み。"
+        },
+        {
+          "source_id": "symbol:vnetId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/vnetId/$expression-line/0",
+          "expression": "param vnetId string",
+          "analysis": "JSON Pointer /$symbol/vnetId/$expression-line/0 はvnetId source宣言。param stringなのでREST /properties/virtualNetwork/id:stringへ渡す参照値の型に一致。"
         }
       ]
     }
   ],
   "evidence": {
     "current": {
-      "version": "2026-03-01",
-      "analysis": "Learn version-specific page documents this exact API version. The pinned REST README identifies package-2026-03-01 and includes virtualNetwork.json/common.json; NetworkSecurityGroup and NetworkSecurityGroupPropertiesFormat are in virtualNetwork.json, with Resource, SubResourceModel and enums referenced from common.json. Schemas.expand/property/literal resolved allOf/$ref and validated actual property types, additionalProperties, required fields and literals.",
+      "version": "2024-06-01",
+      "analysis": "Learn version selector lists 2024-06-01 as Latest. Pinned REST PrivateDns README maps stable/2024-06-01/privatedns.json; Schemas resolves VirtualNetworkLink, allOf/$ref to Resource, its properties, SubResource.virtualNetwork.id:string, and registrationEnabled:boolean.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/networksecuritygroups",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privatednszones/virtualnetworklinks",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2024-06-01/privatednszones/virtualnetworklinks",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/privatedns/resource-manager/Microsoft.Network/PrivateDns/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/privatedns/resource-manager/Microsoft.Network/PrivateDns/stable/2024-06-01/privatedns.json"
       ]
     },
     "ga": {
-      "version": "2026-03-01",
-      "analysis": "The public Learn API selector lists 2026-03-01 as Latest and no later API version; this is the current stable GA schema. The same exact version-specific Learn page and pinned stable REST package schema were used for candidate comparison; current equals candidate, so there is no version delta.",
+      "version": "2024-06-01",
+      "analysis": "Latest GA from the Learn API selector is 2024-06-01, equal to current. Candidate schema is the same exact pinned stable/2024-06-01 document; no upgrade delta.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/networksecuritygroups",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/networksecuritygroups",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privatednszones/virtualnetworklinks",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2024-06-01/privatednszones/virtualnetworklinks",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/privatedns/resource-manager/Microsoft.Network/PrivateDns/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/privatedns/resource-manager/Microsoft.Network/PrivateDns/stable/2024-06-01/privatedns.json"
       ]
     },
     "breaking": {
-      "analysis": "The Network Security Groups change-log explicitly says for 2026-03-01: No properties added, updated or removed. Current and latest GA are the same version; no version migration changes apply.",
+      "analysis": "Learn change log for 2024-06-01 reports Added VirtualNetworkLinkTags, Removed TrackedResourceTags, and additions of systemData and resolutionPolicy. The six declarations do not use tags or those fields; their virtualNetwork, registrationEnabled and location fields exist in current schema.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/networksecuritygroups"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/privatednszones/virtualnetworklinks"
       ]
     }
   }

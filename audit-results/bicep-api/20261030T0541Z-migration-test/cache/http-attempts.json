@@ -79,5 +79,50 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privatednszones/virtualnetworklinks",
+    "attempt": 1,
+    "started_monotonic": 930.652326297,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2024-06-01/privatednszones/virtualnetworklinks",
+    "attempt": 1,
+    "started_monotonic": 933.652450447,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.5859335989999863
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/privatednszones/virtualnetworklinks",
+    "attempt": 1,
+    "started_monotonic": 936.652567231,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7417574789999435
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/privatedns/resource-manager/Microsoft.Network/PrivateDns/readme.md",
+    "attempt": 1,
+    "started_monotonic": 936.826050981,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/privatedns/resource-manager/Microsoft.Network/PrivateDns/stable/2024-06-01/privatedns.json",
+    "attempt": 1,
+    "started_monotonic": 936.980147632,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
