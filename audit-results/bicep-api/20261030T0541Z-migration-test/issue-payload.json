@@ -1,0 +1,4 @@
+{
+  "title": "[Bicep API Versions][Migration test] 2026-10-30 migration audit",
+  "body": "# Bicep API version check-only\n\n確認未完了。公開根拠不足の対象を含む。\n対象commit: `8be0dd8b802404f6bc557a211aea6d409d8c380c`\nREST commit: `fb9f2e6a38761232e8601419798654960aec703a`\n35 files / 179 declarations / 50 pairs\nverified=168, excluded=5, unverified=6\nissue=6, update=36\n[詳細JSON](https://github.com/torumakabe/aks-chaos-lab/blob/63e2a61407fa022ca3aa9622d98a6c7d1fa39f1a/audit-results/bicep-api/20261030T0541Z-migration-test/evidence.json)\nevidence SHA-256: `c96b80d03dcbd3e2c2514800125f41e0944c6773932b083c90bdefefe91e9abd`\n[人間向けレポート](https://github.com/torumakabe/aks-chaos-lab/blob/63e2a61407fa022ca3aa9622d98a6c7d1fa39f1a/audit-results/bicep-api/20261030T0541Z-migration-test/report.md)\nreport SHA-256: `4bdc002ae94c269ed040392d9ca891b7e38e5ab8b5c061f142dcd81ff12d2a52`\n\n無効の手動移行PoCの記録。ジョブ終了やHTTP成功だけでは仕様照合完了を示さない。"
+}
