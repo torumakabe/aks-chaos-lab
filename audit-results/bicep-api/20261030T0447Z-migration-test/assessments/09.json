@@ -1,0 +1,192 @@
+{
+  "pair": "Microsoft.KeyVault/vaults@2025-05-01",
+  "results": [
+    {
+      "file": "infra/modules/sre-agent-vault.bicep",
+      "name": "vault",
+      "line": 10,
+      "type": "Microsoft.KeyVault/vaults",
+      "version": "2025-05-01",
+      "existing": false,
+      "start": 248,
+      "end": 679,
+      "header": "resource vault 'Microsoft.KeyVault/vaults@2025-05-01' = ",
+      "body": "{\n  name: vaultName\n  location: location\n  tags: tags\n  properties: {\n    tenantId: subscription().tenantId\n    sku: {\n      family: 'A'\n      name: 'standard'\n    }\n    enableRbacAuthorization: true\n    enableSoftDelete: true\n    softDeleteRetentionInDays: 7\n    publicNetworkAccess: 'Disabled'\n    networkAcls: {\n      defaultAction: 'Deny'\n      bypass: 'None'\n    }\n  }\n}",
+      "status": "verified",
+      "reason": "The exact current 2025-05-01 and latest GA 2026-05-15 Learn/REST schemas were compared. Both require location/properties and tenantId/sku; all declared literal enums, types, UUID, tags, retention range, network ACL values, and booleans are compatible. The 2026-05-15 change log reports no property changes.",
+      "migration": "Possible: latest GA 2026-05-15 is newer than current 2025-05-01, and exact current/candidate schemas preserve every used attribute and accepted value.",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "Latest stable GA 2026-05-15 is newer than current 2025-05-01. Exact candidate schema retains all used fields and constraints; source literals A/standard, Deny/None, booleans, and retention 7 are compatible."
+        }
+      ],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: vaultName",
+          "analysis": "Original Bicep /name maps to required vaults/{vaultName} string path and inherited resource name; vaultName is a string parameter."
+        },
+        {
+          "source_id": "body:30",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "Original /location maps to required top-level location:string; supplied from string deployment-location parameter."
+        },
+        {
+          "source_id": "body:47",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "Original /tags maps to a tags object with additionalProperties:string in both schemas. The caller supplies the common string-valued tags map."
+        },
+        {
+          "source_id": "body:66",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "Original /properties maps to VaultProperties; tenantId and sku are both required and supplied; the remaining used fields are verified individually."
+        },
+        {
+          "source_id": "body:82",
+          "label": "tenantId",
+          "path": "/properties/tenantId",
+          "expression": "    tenantId: subscription().tenantId",
+          "analysis": "REST properties.tenantId is required string format uuid; subscription().tenantId supplies the subscription tenant UUID."
+        },
+        {
+          "source_id": "body:115",
+          "label": "sku",
+          "path": "/properties/sku",
+          "expression": "    sku: {",
+          "analysis": "REST properties.sku is required object; both required children family and name are supplied."
+        },
+        {
+          "source_id": "body:131",
+          "label": "family",
+          "path": "/properties/sku/family",
+          "expression": "      family: 'A'",
+          "analysis": "REST sku.family enum is ['A']; source literal A is allowed."
+        },
+        {
+          "source_id": "body:147",
+          "label": "name",
+          "path": "/properties/sku/name",
+          "expression": "      name: 'standard'",
+          "analysis": "REST sku.name enum is ['standard','premium']; source literal standard is allowed."
+        },
+        {
+          "source_id": "body:193",
+          "label": "enableRbacAuthorization",
+          "path": "/properties/enableRbacAuthorization",
+          "expression": "    enableRbacAuthorization: true",
+          "analysis": "REST properties.enableRbacAuthorization is boolean; literal true matches."
+        },
+        {
+          "source_id": "body:220",
+          "label": "enableSoftDelete",
+          "path": "/properties/enableSoftDelete",
+          "expression": "    enableSoftDelete: true",
+          "analysis": "REST properties.enableSoftDelete is boolean; literal true matches."
+        },
+        {
+          "source_id": "body:256",
+          "label": "softDeleteRetentionInDays",
+          "path": "/properties/softDeleteRetentionInDays",
+          "expression": "    softDeleteRetentionInDays: 7",
+          "analysis": "REST properties.softDeleteRetentionInDays is int32; Learn documents range 7–90, and source literal 7 is the valid lower boundary."
+        },
+        {
+          "source_id": "body:283",
+          "label": "publicNetworkAccess",
+          "path": "/properties/publicNetworkAccess",
+          "expression": "    publicNetworkAccess: 'Disabled'",
+          "analysis": "REST properties.publicNetworkAccess is string (no enum constraint); Learn documents 'disabled' as blocking public internet access. Source literal Disabled expresses the same setting and is a string."
+        },
+        {
+          "source_id": "body:311",
+          "label": "networkAcls",
+          "path": "/properties/networkAcls",
+          "expression": "    networkAcls: {",
+          "analysis": "REST properties.networkAcls resolves to NetworkRuleSet; source supplies defaultAction and bypass, while other ACL lists are optional."
+        },
+        {
+          "source_id": "body:334",
+          "label": "defaultAction",
+          "path": "/properties/networkAcls/defaultAction",
+          "expression": "      defaultAction: 'Deny'",
+          "analysis": "REST NetworkRuleSet.defaultAction enum is ['Allow','Deny']; source literal Deny is allowed."
+        },
+        {
+          "source_id": "body:355",
+          "label": "bypass",
+          "path": "/properties/networkAcls/bypass",
+          "expression": "      bypass: 'None'",
+          "analysis": "REST NetworkRuleSet.bypass enum is ['AzureServices','None']; source literal None is allowed."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource vault 'Microsoft.KeyVault/vaults@2025-05-01' = ",
+          "analysis": "Resource header selects Microsoft.KeyVault/vaults@2025-05-01, the current stable API version."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location (same region as the VNet and Agent)')",
+          "analysis": "String deployment-location parameter supplies required REST location:string."
+        },
+        {
+          "source_id": "symbol:location:line:72",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "String deployment-location parameter supplies required REST location:string."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "param tags object",
+          "analysis": "Tags object is forwarded to the API tags map whose additionalProperties is string."
+        },
+        {
+          "source_id": "symbol:vaultName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/vaultName/$expression-line/0",
+          "expression": "param vaultName string",
+          "analysis": "String vaultName parameter supplies the required vault-name path segment."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2025-05-01",
+      "analysis": "Exact current Learn reference and pinned openapi.json were read. VaultCreateOrUpdateParameters requires location and properties; VaultProperties requires tenantId (string/uuid) and sku. Sku requires family/name with enums A and standard/premium. NetworkRuleSet enum values, flags, retention int32, publicNetworkAccess string, and tags additionalProperties:string were checked against this declaration.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.keyvault/2025-05-01/vaults",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/keyvault/resource-manager/Microsoft.KeyVault/KeyVault/stable/2025-05-01/openapi.json"
+      ]
+    },
+    "ga": {
+      "version": "2026-05-15",
+      "analysis": "Learn version selector lists 2026-05-15 as latest stable before 2026-06-01-preview. Complete fixed-commit tree contains stable vault openapi versions 2025-05-01, 2026-02-01, and 2026-05-15; 2026-05-15 is latest GA. Exact candidate schema preserves the current fields and constraints, and all source literals pass.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.keyvault/2026-05-15/vaults",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/keyvault/resource-manager/Microsoft.KeyVault/KeyVault/stable/2026-05-15/openapi.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn change log entry 2026-05-15 explicitly reports no properties added, updated, or removed. Current and candidate schemas have matching constraints for all used properties; soft delete retention 7 remains within Learn documented 7–90 range.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.keyvault/change-log/vaults"
+      ]
+    }
+  }
+}

@@ -322,5 +322,50 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.keyvault/2025-05-01/vaults",
+    "attempt": 1,
+    "started_monotonic": 4127.845118564,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.keyvault/2026-05-15/vaults",
+    "attempt": 1,
+    "started_monotonic": 4130.845212888,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6655243360000895
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.keyvault/change-log/vaults",
+    "attempt": 1,
+    "started_monotonic": 4133.845317064,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.745011961000273
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/keyvault/resource-manager/Microsoft.KeyVault/KeyVault/stable/2025-05-01/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 4134.029943906,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/keyvault/resource-manager/Microsoft.KeyVault/KeyVault/stable/2026-05-15/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 4134.248200862,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
