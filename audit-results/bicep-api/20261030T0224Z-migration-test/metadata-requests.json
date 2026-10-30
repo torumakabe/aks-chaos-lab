@@ -1321,5 +1321,12 @@
       "Microsoft.Monitor:dir",
       "readme.md:file"
     ]
+  },
+  {
+    "url": "https://api.github.com/repos/Azure/azure-rest-api-specs/contents/specification/app/resource-manager/Microsoft.App/SreAgent/preview?ref=fb9f2e6a38761232e8601419798654960aec703a",
+    "method": "GET",
+    "status": 404,
+    "source": "helper.Fetcher",
+    "entries": []
   }
 ]
