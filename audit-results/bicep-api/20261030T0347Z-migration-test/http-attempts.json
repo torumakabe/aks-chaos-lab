@@ -1,0 +1,47 @@
+[
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.authorization/roleassignments",
+    "attempt": 1,
+    "started_monotonic": 1132.406580266,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.authorization/change-log/roleassignments",
+    "attempt": 1,
+    "started_monotonic": 1135.406686408,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.789513206000038
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/authorization/resource-manager/Microsoft.Authorization/Authorization/readme.md",
+    "attempt": 1,
+    "started_monotonic": 1135.536981226,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/authorization/resource-manager/Microsoft.Authorization/Authorization/stable/2022-04-01/authorization-RoleAssignmentsCalls.json",
+    "attempt": 1,
+    "started_monotonic": 1135.699612364,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.authorization/2022-04-01/roleassignments",
+    "attempt": 1,
+    "started_monotonic": 1245.719946602,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  }
+]
