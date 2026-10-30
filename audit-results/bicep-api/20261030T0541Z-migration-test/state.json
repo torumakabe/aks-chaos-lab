@@ -60429,9 +60429,212 @@
       }
     },
     "Microsoft.Web/serverfarms@2026-07-15": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/functions/external-sli-publisher.bicep",
+          "name": "appServicePlan",
+          "line": 287,
+          "type": "Microsoft.Web/serverfarms",
+          "version": "2026-07-15",
+          "existing": false,
+          "start": 8865,
+          "end": 9112,
+          "header": "resource appServicePlan 'Microsoft.Web/serverfarms@2026-07-15' = ",
+          "body": "{\n  name: appServicePlanName\n  location: location\n  tags: tags\n  kind: 'functionapp'\n  sku: {\n    name: 'FC1'\n    tier: 'FlexConsumption'\n  }\n  properties: {\n    reserved: true\n  }\n}",
+          "status": "verified",
+          "reason": "Learn latest linked version is 2025-03-01; REST stable inventory/README has newer stable 2026-07-15, equal to current. Exact REST schemas 2025-03-01, 2026-03-15, and 2026-07-15 agree on all used fields. Learn 2026-07-15 page is unavailable (404), so the explicit source-version discrepancy is retained; no newer REST GA exists.",
+          "migration": "現在値2026-07-15は固定REST repositoryの最新stableであり、更新候補なし。Learn selectorの最新linked version 2025-03-01はより古い。両REST schemaのused fieldsは同一。kind/sku name/tierはstring型でenumがないため、個別SKU提供可否はsubscription照会なしでは検証対象外。",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: appServicePlanName",
+              "analysis": "JSON Pointer /name is the required REST path parameter `name`, not request body. REST constrains it as string without a published pattern/length; appServicePlanName is truncated to at most 40 chars by the Bicep source."
+            },
+            {
+              "source_id": "body:39",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "JSON Pointer /location maps to REST location string. The module receives main location (default japaneast); schema imposes no enum or additional field constraint."
+            },
+            {
+              "source_id": "body:56",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "JSON Pointer /tags maps to an object with string additionalProperties. Main passes {'azd-env-name': environment}, so this is a string-valued map; module default {} also conforms."
+            },
+            {
+              "source_id": "body:69",
+              "label": "kind",
+              "path": "/kind",
+              "expression": "  kind: 'functionapp'",
+              "analysis": "JSON Pointer /kind maps to a REST string. Literal 'functionapp' is type-compatible; schema has no enum to constrain supported resource-kind values."
+            },
+            {
+              "source_id": "body:90",
+              "label": "sku",
+              "path": "/sku",
+              "expression": "  sku: {",
+              "analysis": "JSON Pointer /sku maps to the REST SkuDescription object; name and tier members are strings, with no required list or enum in the schema."
+            },
+            {
+              "source_id": "body:102",
+              "label": "name",
+              "path": "/sku/name",
+              "expression": "    name: 'FC1'",
+              "analysis": "JSON Pointer /sku/name maps to string with no schema enum. Literal 'FC1' is type-compatible; provider-specific offer availability is not checked by the public schema and no Azure query was performed."
+            },
+            {
+              "source_id": "body:118",
+              "label": "tier",
+              "path": "/sku/tier",
+              "expression": "    tier: 'FlexConsumption'",
+              "analysis": "JSON Pointer /sku/tier maps to string with no schema enum. Literal 'FlexConsumption' is type-compatible; provider-specific offer availability is not checked by the public schema and no Azure query was performed."
+            },
+            {
+              "source_id": "body:154",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to AppServicePlanProperties object; the supplied reserved member is checked below."
+            },
+            {
+              "source_id": "body:170",
+              "label": "reserved",
+              "path": "/properties/reserved",
+              "expression": "    reserved: true",
+              "analysis": "JSON Pointer /properties/reserved maps to boolean. Literal true matches the REST description for a Linux App Service plan."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource appServicePlan 'Microsoft.Web/serverfarms@2026-07-15' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is the Bicep API type/version header, not REST payload. The current version 2026-07-15 is the latest stable REST OpenAPI package in the pinned source tree."
+            },
+            {
+              "source_id": "symbol:appServicePlanName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/appServicePlanName/$expression-line/0",
+              "expression": "var appServicePlanName = substring(appServicePlanNameBase, 0, min(40, length(appServicePlanNameBase)))",
+              "analysis": "JSON Pointer /$symbol/appServicePlanName/$expression-line/0 points to appServicePlanName, derived by substring(appServicePlanNameBase, 0, min(40, length(...))); the REST path parameter is an unconstrained string."
+            },
+            {
+              "source_id": "symbol:appServicePlanNameBase:line:0",
+              "label": "$expression",
+              "path": "/$symbol/appServicePlanNameBase/$expression-line/0",
+              "expression": "var appServicePlanNameBase = 'aspflex-${appName}-external-sli-${environment}'",
+              "analysis": "JSON Pointer /$symbol/appServicePlanNameBase/$expression-line/0 points to the concatenated `aspflex-${appName}-external-sli-${environment}` name source; it is a string and is later truncated to 40 characters."
+            },
+            {
+              "source_id": "symbol:appName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/appName/$expression-line/0",
+              "expression": "@description('Workload/application name')",
+              "analysis": "JSON Pointer /$symbol/appName/$expression-line/0 points to appName (main default 'aks-chaos-lab', otherwise string parameter) used in plan-name construction."
+            },
+            {
+              "source_id": "symbol:appName:line:42",
+              "label": "$expression",
+              "path": "/$symbol/appName/$expression-line/1",
+              "expression": "param appName string",
+              "analysis": "JSON Pointer /$symbol/appName/$expression-line/1 points to appName (main default 'aks-chaos-lab', otherwise string parameter) used in plan-name construction."
+            },
+            {
+              "source_id": "symbol:environment:line:0",
+              "label": "$expression",
+              "path": "/$symbol/environment/$expression-line/0",
+              "expression": "@description('Environment name')",
+              "analysis": "JSON Pointer /$symbol/environment/$expression-line/0 points to environment (main default 'dev', otherwise string parameter) used in plan-name construction."
+            },
+            {
+              "source_id": "symbol:environment:line:33",
+              "label": "$expression",
+              "path": "/$symbol/environment/$expression-line/1",
+              "expression": "param environment string",
+              "analysis": "JSON Pointer /$symbol/environment/$expression-line/1 points to environment (main default 'dev', otherwise string parameter) used in plan-name construction."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "JSON Pointer /$symbol/location/$expression-line/0 points to the string deployment-location parameter; main default is 'japaneast' and passes through to required plan location."
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "JSON Pointer /$symbol/location/$expression-line/1 points to the string deployment-location parameter; main default is 'japaneast' and passes through to required plan location."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags applied to all resources')",
+              "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 points to module/main tags map; main creates azd-env-name with string value environment, matching REST string-valued map."
+            },
+            {
+              "source_id": "symbol:tags:line:46",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object = {}",
+              "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 points to module/main tags map; main creates azd-env-name with string value environment, matching REST string-valued map."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-07-15",
+          "analysis": "Pinned REST README tag package-2026-07 maps to stable/2026-07-15/openapi.json; the full stable path inventory has 2026-07-15 as its latest version. This exact current schema defines the AppServicePlan request model and every used field. The version-specific Learn page for 2026-07-15 returned 404; this absence is recorded, not treated as a schema failure because exact REST source is available.",
+          "urls": [
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json"
+          ],
+          "sha256": {
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/readme.md": "721d5c7d9e9133bd2250f039c1d756c3092ecbbc1096fd0317403f76af7ab8d9",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json": "e815aae0941df0c080aa2a0e5eb4731ca8a137ebfae953e649568b41308cbabd"
+          }
+        },
+        "ga": {
+          "version": "2026-07-15",
+          "analysis": "REST latest stable is 2026-07-15, same as current. Learn latest page links 2025-03-01; its exact version page and matching REST schema were also checked and have the same used-field contract. Learn and REST version listings differ; no timing explanation is inferred.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/serverfarms",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/2025-03-01/serverfarms",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2025-03-01/openapi.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/serverfarms": "799a51c6f0168479bd7c64622f81ecb4dbf3cdcc7e5ee911532b3102a42a069b",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/2025-03-01/serverfarms": "f59c2dbdc2a10262f64f05975dec02c54e05cf84aa4bf4bec2077994bd2fd170",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2025-03-01/openapi.json": "407a3115185530fd95bf3530c2162a2c4219a5be2f374acb733f48a1995f659b",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/readme.md": "721d5c7d9e9133bd2250f039c1d756c3092ecbbc1096fd0317403f76af7ab8d9",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json": "e815aae0941df0c080aa2a0e5eb4731ca8a137ebfae953e649568b41308cbabd"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log through 2025-03-01 adds plan identity/install-script/network-related properties; none of the used fields are changed. Current REST 2026-07-15 and preceding 2026-03-15 OpenAPI definitions for used fields are identical.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/change-log/serverfarms",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-03-15/openapi.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/change-log/serverfarms": "2d90972c4eec463b4713d0e32f72008c535a5e7832d8c06b25a27c5d277763e2",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-03-15/openapi.json": "eaf52e671b12c877385bfdbb6624f18721317ac16914ec741f19e563740c7fbb",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json": "e815aae0941df0c080aa2a0e5eb4731ca8a137ebfae953e649568b41308cbabd"
+          }
+        }
+      }
     },
     "Microsoft.Web/sites@2026-07-15": {
       "stage": "pending",

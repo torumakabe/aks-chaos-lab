@@ -673,5 +673,95 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.723993860000064
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/2026-07-15/serverfarms",
+    "attempt": 1,
+    "started_monotonic": 2490.135224389,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/serverfarms",
+    "attempt": 1,
+    "started_monotonic": 2493.135385506,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.772432500999912
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/change-log/serverfarms",
+    "attempt": 1,
+    "started_monotonic": 2496.135514564,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.5594305090003218
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 2496.31879942,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/readme.md",
+    "attempt": 1,
+    "started_monotonic": 2521.482948953,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2025-10-22/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 2521.721819668,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/2025-10-22/serverfarms",
+    "attempt": 1,
+    "started_monotonic": 2549.607343452,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-03-15/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 2565.007321075,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/2025-03-01/serverfarms",
+    "attempt": 1,
+    "started_monotonic": 2613.354418603,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2025-03-01/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 2613.581895852,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

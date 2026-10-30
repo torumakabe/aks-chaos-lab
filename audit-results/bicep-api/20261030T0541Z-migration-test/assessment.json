@@ -1,258 +1,191 @@
 {
-  "pair": "Microsoft.Storage/storageAccounts@2026-04-01",
+  "pair": "Microsoft.Web/serverfarms@2026-07-15",
   "results": [
     {
       "file": "infra/modules/functions/external-sli-publisher.bicep",
-      "name": "storageAccount",
-      "line": 97,
-      "type": "Microsoft.Storage/storageAccounts",
-      "version": "2026-04-01",
+      "name": "appServicePlan",
+      "line": 287,
+      "type": "Microsoft.Web/serverfarms",
+      "version": "2026-07-15",
       "existing": false,
-      "start": 3780,
-      "end": 4276,
-      "header": "resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = ",
-      "body": "{\n  name: storageAccountName\n  location: location\n  tags: tags\n  kind: 'StorageV2'\n  sku: {\n    name: 'Standard_LRS'\n  }\n  properties: {\n    allowBlobPublicAccess: false\n    allowSharedKeyAccess: false\n    minimumTlsVersion: 'TLS1_2'\n    networkAcls: {\n      bypass: 'None'\n      defaultAction: 'Deny'\n    }\n    publicNetworkAccess: 'Disabled'\n    supportsHttpsTrafficOnly: true\n    defaultToOAuthAuthentication: true\n  }\n}",
+      "start": 8865,
+      "end": 9112,
+      "header": "resource appServicePlan 'Microsoft.Web/serverfarms@2026-07-15' = ",
+      "body": "{\n  name: appServicePlanName\n  location: location\n  tags: tags\n  kind: 'functionapp'\n  sku: {\n    name: 'FC1'\n    tier: 'FlexConsumption'\n  }\n  properties: {\n    reserved: true\n  }\n}",
       "status": "verified",
-      "reason": "Learn selector/current page and pinned REST specifications establish current 2026-04-01 and latest GA 2026-09-01. Schemas confirms required location/sku/kind and networkAcls.defaultAction are supplied; all used literal enums/booleans and tags string-map contract match in both versions. Name route constraint is 3..24 lowercase alphanumeric; current defaults satisfy after normalization/truncation.",
-      "migration": "GA移行可能。使用する全属性の型・enum・required契約は2026-04-01と2026-09-01で同一。2026-06/09の変更は未使用のSAS delegation/turbo tier/data-collaboration fields等。name式はappName/environmentのoverrideに無効文字がないことが条件。",
-      "findings": [
-        {
-          "kind": "update",
-          "detail": "最新GA candidate 2026-09-01がcurrent 2026-04-01より新しい。全使用フィールドの契約は変わらず、追加/更新項目は今回未使用。"
-        }
-      ],
+      "reason": "Learn latest linked version is 2025-03-01; REST stable inventory/README has newer stable 2026-07-15, equal to current. Exact REST schemas 2025-03-01, 2026-03-15, and 2026-07-15 agree on all used fields. Learn 2026-07-15 page is unavailable (404), so the explicit source-version discrepancy is retained; no newer REST GA exists.",
+      "migration": "現在値2026-07-15は固定REST repositoryの最新stableであり、更新候補なし。Learn selectorの最新linked version 2025-03-01はより古い。両REST schemaのused fieldsは同一。kind/sku name/tierはstring型でenumがないため、個別SKU提供可否はsubscription照会なしでは検証対象外。",
+      "findings": [],
       "usage": [
         {
           "source_id": "body:8",
           "label": "name",
           "path": "/name",
-          "expression": "  name: storageAccountName",
-          "analysis": "JSON Pointer /name maps to the REST path parameter accountName, not request-body JSON. Pinned current/GA OpenAPI requires 3–24 chars matching ^[a-z0-9]+$. Source storageAccountName uses lowercase, strips hyphens, appends 000, then takes 24 chars. Main defaults appName=aks-chaos-lab and environment=dev; unconstrained overrides containing other punctuation can violate the REST pattern."
+          "expression": "  name: appServicePlanName",
+          "analysis": "JSON Pointer /name is the required REST path parameter `name`, not request body. REST constrains it as string without a published pattern/length; appServicePlanName is truncated to at most 40 chars by the Bicep source."
         },
         {
           "source_id": "body:39",
           "label": "location",
           "path": "/location",
           "expression": "  location: location",
-          "analysis": "JSON Pointer /location maps to required root request field location (string; supported registered geo-region). Module receives main location; root default is japaneast. Parameter overrides remain deployment input, not a payload-schema mismatch."
+          "analysis": "JSON Pointer /location maps to REST location string. The module receives main location (default japaneast); schema imposes no enum or additional field constraint."
         },
         {
           "source_id": "body:56",
           "label": "tags",
           "path": "/tags",
           "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags maps to an object whose additionalProperties are strings. Main supplies {'azd-env-name': environment}, so this source value is a string-valued map; module's {} default is also valid."
+          "analysis": "JSON Pointer /tags maps to an object with string additionalProperties. Main passes {'azd-env-name': environment}, so this is a string-valued map; module default {} also conforms."
         },
         {
           "source_id": "body:69",
           "label": "kind",
           "path": "/kind",
-          "expression": "  kind: 'StorageV2'",
-          "analysis": "JSON Pointer /kind maps to required root kind; literal 'StorageV2' is in current and candidate enum."
+          "expression": "  kind: 'functionapp'",
+          "analysis": "JSON Pointer /kind maps to a REST string. Literal 'functionapp' is type-compatible; schema has no enum to constrain supported resource-kind values."
         },
         {
-          "source_id": "body:88",
+          "source_id": "body:90",
           "label": "sku",
           "path": "/sku",
           "expression": "  sku: {",
-          "analysis": "JSON Pointer /sku maps to required root Sku object. REST requires sku.name, supplied by nested usage."
+          "analysis": "JSON Pointer /sku maps to the REST SkuDescription object; name and tier members are strings, with no required list or enum in the schema."
         },
         {
-          "source_id": "body:100",
+          "source_id": "body:102",
           "label": "name",
           "path": "/sku/name",
-          "expression": "    name: 'Standard_LRS'",
-          "analysis": "JSON Pointer /sku/name maps to required Sku.name; 'Standard_LRS' is in current and candidate enum."
+          "expression": "    name: 'FC1'",
+          "analysis": "JSON Pointer /sku/name maps to string with no schema enum. Literal 'FC1' is type-compatible; provider-specific offer availability is not checked by the public schema and no Azure query was performed."
         },
         {
-          "source_id": "body:133",
+          "source_id": "body:118",
+          "label": "tier",
+          "path": "/sku/tier",
+          "expression": "    tier: 'FlexConsumption'",
+          "analysis": "JSON Pointer /sku/tier maps to string with no schema enum. Literal 'FlexConsumption' is type-compatible; provider-specific offer availability is not checked by the public schema and no Azure query was performed."
+        },
+        {
+          "source_id": "body:154",
           "label": "properties",
           "path": "/properties",
           "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties maps to StorageAccountPropertiesCreateParameters; each set member is checked below. No separate required property at this level."
+          "analysis": "JSON Pointer /properties maps to AppServicePlanProperties object; the supplied reserved member is checked below."
         },
         {
-          "source_id": "body:162",
-          "label": "allowBlobPublicAccess",
-          "path": "/properties/allowBlobPublicAccess",
-          "expression": "    allowBlobPublicAccess: false",
-          "analysis": "JSON Pointer /properties/allowBlobPublicAccess maps to boolean; literal false is type-correct and explicitly disallows public blob/container access."
-        },
-        {
-          "source_id": "body:194",
-          "label": "allowSharedKeyAccess",
-          "path": "/properties/allowSharedKeyAccess",
-          "expression": "    allowSharedKeyAccess: false",
-          "analysis": "JSON Pointer /properties/allowSharedKeyAccess maps to boolean; literal false is type-correct and disables Shared Key authorization."
-        },
-        {
-          "source_id": "body:223",
-          "label": "minimumTlsVersion",
-          "path": "/properties/minimumTlsVersion",
-          "expression": "    minimumTlsVersion: 'TLS1_2'",
-          "analysis": "JSON Pointer /properties/minimumTlsVersion maps to enum [TLS1_0,TLS1_1,TLS1_2,TLS1_3]; 'TLS1_2' is supported. The spec notes TLS1_3 is not supported, and it is not used."
-        },
-        {
-          "source_id": "body:249",
-          "label": "networkAcls",
-          "path": "/properties/networkAcls",
-          "expression": "    networkAcls: {",
-          "analysis": "JSON Pointer /properties/networkAcls maps to NetworkRuleSet; REST requires defaultAction, supplied by its nested usage. bypass is optional."
-        },
-        {
-          "source_id": "body:265",
-          "label": "bypass",
-          "path": "/properties/networkAcls/bypass",
-          "expression": "      bypass: 'None'",
-          "analysis": "JSON Pointer /properties/networkAcls/bypass maps to enum [None,Logging,Metrics,AzureServices]; literal 'None' is valid and bypasses none."
-        },
-        {
-          "source_id": "body:293",
-          "label": "defaultAction",
-          "path": "/properties/networkAcls/defaultAction",
-          "expression": "      defaultAction: 'Deny'",
-          "analysis": "JSON Pointer /properties/networkAcls/defaultAction maps to required enum [Allow,Deny]; literal 'Deny' is valid and satisfies the nested required field."
-        },
-        {
-          "source_id": "body:331",
-          "label": "publicNetworkAccess",
-          "path": "/properties/publicNetworkAccess",
-          "expression": "    publicNetworkAccess: 'Disabled'",
-          "analysis": "JSON Pointer /properties/publicNetworkAccess maps to enum [Enabled,Disabled,SecuredByPerimeter]; literal 'Disabled' is supported."
-        },
-        {
-          "source_id": "body:372",
-          "label": "supportsHttpsTrafficOnly",
-          "path": "/properties/supportsHttpsTrafficOnly",
-          "expression": "    supportsHttpsTrafficOnly: true",
-          "analysis": "JSON Pointer /properties/supportsHttpsTrafficOnly maps to boolean; literal true is type-correct and permits HTTPS only."
-        },
-        {
-          "source_id": "body:411",
-          "label": "defaultToOAuthAuthentication",
-          "path": "/properties/defaultToOAuthAuthentication",
-          "expression": "    defaultToOAuthAuthentication: true",
-          "analysis": "JSON Pointer /properties/defaultToOAuthAuthentication maps to boolean; literal true is type-correct and selects OAuth as the default authentication."
+          "source_id": "body:170",
+          "label": "reserved",
+          "path": "/properties/reserved",
+          "expression": "    reserved: true",
+          "analysis": "JSON Pointer /properties/reserved maps to boolean. Literal true matches the REST description for a Linux App Service plan."
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource storageAccount 'Microsoft.Storage/storageAccounts@2026-04-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 is the Bicep API type/version header, not REST JSON. Learn selector lists latest GA 2026-09-01; current is 2026-04-01."
+          "expression": "resource appServicePlan 'Microsoft.Web/serverfarms@2026-07-15' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is the Bicep API type/version header, not REST payload. The current version 2026-07-15 is the latest stable REST OpenAPI package in the pinned source tree."
         },
         {
-          "source_id": "symbol:location:line:0",
+          "source_id": "symbol:appServicePlanName:line:0",
           "label": "$expression",
-          "path": "/$symbol/location/$expression-line/0",
-          "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 points to module/main location string parameter; main default japaneast is passed through to required REST location. The schema requires a supported region but no enum; no Azure query was performed."
+          "path": "/$symbol/appServicePlanName/$expression-line/0",
+          "expression": "var appServicePlanName = substring(appServicePlanNameBase, 0, min(40, length(appServicePlanNameBase)))",
+          "analysis": "JSON Pointer /$symbol/appServicePlanName/$expression-line/0 points to appServicePlanName, derived by substring(appServicePlanNameBase, 0, min(40, length(...))); the REST path parameter is an unconstrained string."
         },
         {
-          "source_id": "symbol:location:line:36",
+          "source_id": "symbol:appServicePlanNameBase:line:0",
           "label": "$expression",
-          "path": "/$symbol/location/$expression-line/1",
-          "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 points to module/main location string parameter; main default japaneast is passed through to required REST location. The schema requires a supported region but no enum; no Azure query was performed."
-        },
-        {
-          "source_id": "symbol:storageAccountName:line:0",
-          "label": "$expression",
-          "path": "/$symbol/storageAccountName/$expression-line/0",
-          "expression": "var storageAccountName = take('${normalizedStorageNameBase}000', 24)",
-          "analysis": "JSON Pointer /$symbol/storageAccountName/$expression-line/0 points to derived resource identity. The expression concatenates normalizedStorageNameBase and 000, then take(...,24); name length is bounded above and the suffix keeps the default above the 3-character minimum."
-        },
-        {
-          "source_id": "symbol:normalizedStorageNameBase:line:0",
-          "label": "$expression",
-          "path": "/$symbol/normalizedStorageNameBase/$expression-line/0",
-          "expression": "var normalizedStorageNameBase = toLower(replace('st${appName}${environment}${resourceToken}', '-', ''))",
-          "analysis": "JSON Pointer /$symbol/normalizedStorageNameBase/$expression-line/0 points to toLower(replace('st${appName}${environment}${resourceToken}', '-', '')). It lowercases and removes hyphens; appName/environment defaults are safe, but arbitrary overrides are not constrained to storage-name characters."
+          "path": "/$symbol/appServicePlanNameBase/$expression-line/0",
+          "expression": "var appServicePlanNameBase = 'aspflex-${appName}-external-sli-${environment}'",
+          "analysis": "JSON Pointer /$symbol/appServicePlanNameBase/$expression-line/0 points to the concatenated `aspflex-${appName}-external-sli-${environment}` name source; it is a string and is later truncated to 40 characters."
         },
         {
           "source_id": "symbol:appName:line:0",
           "label": "$expression",
           "path": "/$symbol/appName/$expression-line/0",
           "expression": "@description('Workload/application name')",
-          "analysis": "JSON Pointer /$symbol/appName/$expression-line/0 points to appName source (default 'aks-chaos-lab'; otherwise unconstrained string). It feeds the normalized storage account name; callers overriding it must avoid characters outside lowercase letters/digits/hyphens after normalization."
+          "analysis": "JSON Pointer /$symbol/appName/$expression-line/0 points to appName (main default 'aks-chaos-lab', otherwise string parameter) used in plan-name construction."
         },
         {
           "source_id": "symbol:appName:line:42",
           "label": "$expression",
           "path": "/$symbol/appName/$expression-line/1",
           "expression": "param appName string",
-          "analysis": "JSON Pointer /$symbol/appName/$expression-line/1 points to appName source (default 'aks-chaos-lab'; otherwise unconstrained string). It feeds the normalized storage account name; callers overriding it must avoid characters outside lowercase letters/digits/hyphens after normalization."
+          "analysis": "JSON Pointer /$symbol/appName/$expression-line/1 points to appName (main default 'aks-chaos-lab', otherwise string parameter) used in plan-name construction."
         },
         {
           "source_id": "symbol:environment:line:0",
           "label": "$expression",
           "path": "/$symbol/environment/$expression-line/0",
           "expression": "@description('Environment name')",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/0 points to environment source (default 'dev'; otherwise unconstrained string). It feeds the normalized storage account name; caller overrides must respect account-name character constraints."
+          "analysis": "JSON Pointer /$symbol/environment/$expression-line/0 points to environment (main default 'dev', otherwise string parameter) used in plan-name construction."
         },
         {
           "source_id": "symbol:environment:line:33",
           "label": "$expression",
           "path": "/$symbol/environment/$expression-line/1",
           "expression": "param environment string",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/1 points to environment source (default 'dev'; otherwise unconstrained string). It feeds the normalized storage account name; caller overrides must respect account-name character constraints."
+          "analysis": "JSON Pointer /$symbol/environment/$expression-line/1 points to environment (main default 'dev', otherwise string parameter) used in plan-name construction."
         },
         {
-          "source_id": "symbol:resourceToken:line:0",
+          "source_id": "symbol:location:line:0",
           "label": "$expression",
-          "path": "/$symbol/resourceToken/$expression-line/0",
-          "expression": "@description('Unique resource token from the base deployment')",
-          "analysis": "JSON Pointer /$symbol/resourceToken/$expression-line/0 points to uniqueString(subscription().id, appName, environment), passed to the name formula; uniqueString returns a 13-character string and toLower is applied by the derived-name formula."
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 points to the string deployment-location parameter; main default is 'japaneast' and passes through to required plan location."
         },
         {
-          "source_id": "symbol:resourceToken:line:63",
+          "source_id": "symbol:location:line:36",
           "label": "$expression",
-          "path": "/$symbol/resourceToken/$expression-line/1",
-          "expression": "param resourceToken string",
-          "analysis": "JSON Pointer /$symbol/resourceToken/$expression-line/1 points to uniqueString(subscription().id, appName, environment), passed to the name formula; uniqueString returns a 13-character string and toLower is applied by the derived-name formula."
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 points to the string deployment-location parameter; main default is 'japaneast' and passes through to required plan location."
         },
         {
           "source_id": "symbol:tags:line:0",
           "label": "$expression",
           "path": "/$symbol/tags/$expression-line/0",
           "expression": "@description('Tags applied to all resources')",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 points to module tags object or main tags map; main defines only azd-env-name with string value environment, satisfying REST additionalProperties:string."
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 points to module/main tags map; main creates azd-env-name with string value environment, matching REST string-valued map."
         },
         {
           "source_id": "symbol:tags:line:46",
           "label": "$expression",
           "path": "/$symbol/tags/$expression-line/1",
           "expression": "param tags object = {}",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 points to module tags object or main tags map; main defines only azd-env-name with string value environment, satisfying REST additionalProperties:string."
+          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 points to module/main tags map; main creates azd-env-name with string value environment, matching REST string-valued map."
         }
       ]
     }
   ],
   "evidence": {
     "current": {
-      "version": "2026-04-01",
-      "analysis": "Learn current API page and pinned REST stable/2026-04-01/openapi.json were checked. Create body requires sku, kind, location; networkAcls requires defaultAction. Exact route accountName parameter is 3..24 and ^[a-z0-9]+$. All used literals and nested fields were resolved through Schemas.",
+      "version": "2026-07-15",
+      "analysis": "Pinned REST README tag package-2026-07 maps to stable/2026-07-15/openapi.json; the full stable path inventory has 2026-07-15 as its latest version. This exact current schema defines the AppServicePlan request model and every used field. The version-specific Learn page for 2026-07-15 returned 404; this absence is recorded, not treated as a schema failure because exact REST source is available.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-04-01/storageaccounts",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-04-01/openapi.json"
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json"
       ]
     },
     "ga": {
-      "version": "2026-09-01",
-      "analysis": "Learn latest selector lists 2026-09-01. Pinned REST stable/2026-09-01/openapi.json has identical constraints for every used field, name parameter, and required fields.",
+      "version": "2026-07-15",
+      "analysis": "REST latest stable is 2026-07-15, same as current. Learn latest page links 2025-03-01; its exact version page and matching REST schema were also checked and have the same used-field contract. Learn and REST version listings differ; no timing explanation is inferred.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/storageaccounts",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-09-01/storageaccounts",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-09-01/openapi.json"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/serverfarms",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/2025-03-01/serverfarms",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2025-03-01/openapi.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json"
       ]
     },
     "breaking": {
-      "analysis": "Learn change log: 2026-09 adds TurboTier/UserAssignedIdentityAutoGenerated and allowBlobAccessPoints, removes UserAssignedIdentity; 2026-06 adds SAS delegation fields; 2026-04 has no changes. These are unused by this declaration. uniqueString naming reference records its 13-character return.",
+      "analysis": "Learn change log through 2025-03-01 adds plan identity/install-script/network-related properties; none of the used fields are changed. Current REST 2026-07-15 and preceding 2026-03-15 OpenAPI definitions for used fields are identical.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/change-log/storageaccounts",
-        "https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/template-functions-string#uniquestring"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.web/change-log/serverfarms",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-03-15/openapi.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/web/resource-manager/Microsoft.Web/AppService/stable/2026-07-15/openapi.json"
       ]
     }
   }
