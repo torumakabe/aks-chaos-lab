@@ -1,0 +1,749 @@
+{
+  "pair": "Microsoft.Monitor/accounts@2025-10-03",
+  "results": [
+    {
+      "file": "infra/modules/azmonitor/core.bicep",
+      "name": "appAzureMonitorWorkspace",
+      "line": 31,
+      "type": "Microsoft.Monitor/accounts",
+      "version": "2025-10-03",
+      "existing": false,
+      "start": 911,
+      "end": 1061,
+      "header": "resource appAzureMonitorWorkspace 'Microsoft.Monitor/accounts@2025-10-03' = ",
+      "body": "{\n  name: appAzureMonitorWorkspaceName\n  location: location\n  tags: tags\n}",
+      "status": "verified",
+      "reason": "Exact current and latest-GA 2025-10-03 Learn and pinned REST schemas were checked across all seven declarations. The root resource requires location:string; tags is an optional string-valued map; name is a resource-group path parameter with the exact documented regex. The sole create-time metrics flag is boolean true. Existing declarations are references and do not need create properties.",
+      "migration": "Current 2025-10-03 is already the latest GA. Learn lists only 2026-09-03-preview as newer; the pinned REST tree has stable accounts resource schemas through 2025-10-03. No newer GA migration candidate.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: appAzureMonitorWorkspaceName",
+          "analysis": "Original /name maps to required azureMonitorWorkspaceName path parameter. Root appAzureMonitorWorkspaceName is amw-app-${appName}-${environment}; its fixed prefix/default app name fit the exact API pattern, with environment supplied through AZURE_ENV_NAME."
+        },
+        {
+          "source_id": "body:49",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "REST root location is required string inherited from TrackedResource. The create module receives a string deployment location; no API-specific location constraints are declared."
+        },
+        {
+          "source_id": "body:66",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "REST tags is optional object with additionalProperties:string. Module receives the root common tag map, whose azd-env-name value is the string environment."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource appAzureMonitorWorkspace 'Microsoft.Monitor/accounts@2025-10-03' = ",
+          "analysis": "Declaration header selects Microsoft.Monitor/accounts@2025-10-03. Learn and pinned REST metadata establish 2025-10-03 as latest GA; later 2026-09-03 is preview only."
+        },
+        {
+          "source_id": "symbol:appAzureMonitorWorkspaceName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/appAzureMonitorWorkspaceName/$expression-line/0",
+          "expression": "@description('Azure Monitor Workspace name for app OTLP telemetry (separate from Prometheus AMW)')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:appAzureMonitorWorkspaceName:line:99",
+          "label": "$expression",
+          "path": "/$symbol/appAzureMonitorWorkspaceName/$expression-line/1",
+          "expression": "param appAzureMonitorWorkspaceName string",
+          "analysis": "String parameter receives root appAzureMonitorWorkspaceName = amw-app-${appName}-${environment}; the root appName is fixed and its environment input supplies the suffix."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "String location parameter supplies required REST location for this create declaration; the source has no API-specific location constraints."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags object')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:tags:line:28",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object",
+          "analysis": "Object tags parameter supplies the root tag map; all tag values are strings, matching REST additionalProperties:string."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/azmonitor/external-sli-publisher-rbac.bicep",
+      "name": "prometheusWorkspace",
+      "line": 22,
+      "type": "Microsoft.Monitor/accounts",
+      "version": "2025-10-03",
+      "existing": true,
+      "start": 751,
+      "end": 890,
+      "header": "resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = ",
+      "body": "{\n  name: last(split(prometheusWorkspaceResourceId, '/'))\n}",
+      "status": "verified",
+      "reason": "Exact current and latest-GA 2025-10-03 Learn and pinned REST schemas were checked across all seven declarations. The root resource requires location:string; tags is an optional string-valued map; name is a resource-group path parameter with the exact documented regex. The sole create-time metrics flag is boolean true. Existing declarations are references and do not need create properties.",
+      "migration": "Current 2025-10-03 is already the latest GA. Learn lists only 2026-09-03-preview as newer; the pinned REST tree has stable accounts resource schemas through 2025-10-03. No newer GA migration candidate.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: last(split(prometheusWorkspaceResourceId, '/'))",
+          "analysis": "Original /name maps to required Azure Monitor account name path segment, extracted as the last component of the supplied workspace resource ID; this existing declaration has no create payload."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = ",
+          "analysis": "Declaration header selects Microsoft.Monitor/accounts@2025-10-03. Learn and pinned REST metadata establish 2025-10-03 as latest GA; later 2026-09-03 is preview only."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/0",
+          "expression": "@description('Managed Prometheus Azure Monitor Workspace resource ID')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:71",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/1",
+          "expression": "param prometheusWorkspaceResourceId string",
+          "analysis": "String parameter receives the Managed Prometheus Azure Monitor Workspace resource ID from the root module output; this is used only to derive the existing resource name and ID."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/azmonitor/service-group-members.bicep",
+      "name": "prometheusWorkspace",
+      "line": 30,
+      "type": "Microsoft.Monitor/accounts",
+      "version": "2025-10-03",
+      "existing": true,
+      "start": 807,
+      "end": 922,
+      "header": "resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = ",
+      "body": "{\n  name: prometheusWorkspaceName\n}",
+      "status": "verified",
+      "reason": "Exact current and latest-GA 2025-10-03 Learn and pinned REST schemas were checked across all seven declarations. The root resource requires location:string; tags is an optional string-valued map; name is a resource-group path parameter with the exact documented regex. The sole create-time metrics flag is boolean true. Existing declarations are references and do not need create properties.",
+      "migration": "Current 2025-10-03 is already the latest GA. Learn lists only 2026-09-03-preview as newer; the pinned REST tree has stable accounts resource schemas through 2025-10-03. No newer GA migration candidate.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: prometheusWorkspaceName",
+          "analysis": "Original /name maps to required Azure Monitor account name path segment; the string parameter is supplied from root azureMonitorWorkspaceName or appAzureMonitorWorkspaceName. Existing reference only; no create properties are required."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = ",
+          "analysis": "Declaration header selects Microsoft.Monitor/accounts@2025-10-03. Learn and pinned REST metadata establish 2025-10-03 as latest GA; later 2026-09-03 is preview only."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceName/$expression-line/0",
+          "expression": "@description('Managed Prometheus Azure Monitor Workspace name')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceName:line:64",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceName/$expression-line/1",
+          "expression": "param prometheusWorkspaceName string",
+          "analysis": "String parameter receives root azureMonitorWorkspaceName, the name of the created Managed Prometheus Azure Monitor Workspace."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/azmonitor/service-group-members.bicep",
+      "name": "appAzureMonitorWorkspace",
+      "line": 34,
+      "type": "Microsoft.Monitor/accounts",
+      "version": "2025-10-03",
+      "existing": true,
+      "start": 924,
+      "end": 1049,
+      "header": "resource appAzureMonitorWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = ",
+      "body": "{\n  name: appAzureMonitorWorkspaceName\n}",
+      "status": "verified",
+      "reason": "Exact current and latest-GA 2025-10-03 Learn and pinned REST schemas were checked across all seven declarations. The root resource requires location:string; tags is an optional string-valued map; name is a resource-group path parameter with the exact documented regex. The sole create-time metrics flag is boolean true. Existing declarations are references and do not need create properties.",
+      "migration": "Current 2025-10-03 is already the latest GA. Learn lists only 2026-09-03-preview as newer; the pinned REST tree has stable accounts resource schemas through 2025-10-03. No newer GA migration candidate.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: appAzureMonitorWorkspaceName",
+          "analysis": "Original /name maps to required Azure Monitor account name path segment; the string parameter is supplied from root azureMonitorWorkspaceName or appAzureMonitorWorkspaceName. Existing reference only; no create properties are required."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource appAzureMonitorWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = ",
+          "analysis": "Declaration header selects Microsoft.Monitor/accounts@2025-10-03. Learn and pinned REST metadata establish 2025-10-03 as latest GA; later 2026-09-03 is preview only."
+        },
+        {
+          "source_id": "symbol:appAzureMonitorWorkspaceName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/appAzureMonitorWorkspaceName/$expression-line/0",
+          "expression": "@description('Application telemetry Azure Monitor Workspace name')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:appAzureMonitorWorkspaceName:line:67",
+          "label": "$expression",
+          "path": "/$symbol/appAzureMonitorWorkspaceName/$expression-line/1",
+          "expression": "param appAzureMonitorWorkspaceName string",
+          "analysis": "String parameter receives root appAzureMonitorWorkspaceName = amw-app-${appName}-${environment}; the root appName is fixed and its environment input supplies the suffix."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/azmonitor/sli-rbac.bicep",
+      "name": "prometheusWorkspace",
+      "line": 24,
+      "type": "Microsoft.Monitor/accounts",
+      "version": "2025-10-03",
+      "existing": true,
+      "start": 915,
+      "end": 1030,
+      "header": "resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = ",
+      "body": "{\n  name: prometheusWorkspaceName\n}",
+      "status": "verified",
+      "reason": "Exact current and latest-GA 2025-10-03 Learn and pinned REST schemas were checked across all seven declarations. The root resource requires location:string; tags is an optional string-valued map; name is a resource-group path parameter with the exact documented regex. The sole create-time metrics flag is boolean true. Existing declarations are references and do not need create properties.",
+      "migration": "Current 2025-10-03 is already the latest GA. Learn lists only 2026-09-03-preview as newer; the pinned REST tree has stable accounts resource schemas through 2025-10-03. No newer GA migration candidate.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: prometheusWorkspaceName",
+          "analysis": "Original /name maps to required Azure Monitor account name path segment; the string parameter is the root Managed Prometheus workspace name. Existing reference only."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = ",
+          "analysis": "Declaration header selects Microsoft.Monitor/accounts@2025-10-03. Learn and pinned REST metadata establish 2025-10-03 as latest GA; later 2026-09-03 is preview only."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceName/$expression-line/0",
+          "expression": "@description('Name of the Managed Prometheus Azure Monitor Workspace')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceName:line:71",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceName/$expression-line/1",
+          "expression": "param prometheusWorkspaceName string",
+          "analysis": "String parameter receives root azureMonitorWorkspaceName, the name of the Managed Prometheus Azure Monitor Workspace."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/prometheus/workspace.bicep",
+      "name": "azureMonitorWorkspace",
+      "line": 10,
+      "type": "Microsoft.Monitor/accounts",
+      "version": "2025-10-03",
+      "existing": false,
+      "start": 184,
+      "end": 406,
+      "header": "resource azureMonitorWorkspace 'Microsoft.Monitor/accounts@2025-10-03' = ",
+      "body": "{\n  name: workspaceName\n  location: location\n  tags: tags\n  properties: {\n    metrics: {\n      enableAccessUsingResourcePermissions: true\n    }\n  }\n}",
+      "status": "verified",
+      "reason": "Exact current and latest-GA 2025-10-03 Learn and pinned REST schemas were checked across all seven declarations. The root resource requires location:string; tags is an optional string-valued map; name is a resource-group path parameter with the exact documented regex. The sole create-time metrics flag is boolean true. Existing declarations are references and do not need create properties.",
+      "migration": "Current 2025-10-03 is already the latest GA. Learn lists only 2026-09-03-preview as newer; the pinned REST tree has stable accounts resource schemas through 2025-10-03. No newer GA migration candidate.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: workspaceName",
+          "analysis": "Original /name maps to required azureMonitorWorkspaceName path parameter. Root azureMonitorWorkspaceName is amw-${appName}-${environment}; fixed prefix/default app name fit the exact API pattern, with environment supplied through AZURE_ENV_NAME."
+        },
+        {
+          "source_id": "body:34",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "REST root location is required string inherited from TrackedResource. The create module receives a string deployment location; no API-specific location constraints are declared."
+        },
+        {
+          "source_id": "body:51",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "REST tags is optional object with additionalProperties:string. Module receives the root common tag map, whose azd-env-name value is the string environment."
+        },
+        {
+          "source_id": "body:70",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "REST properties is optional AzureMonitorWorkspace object. This declaration supplies metrics; the exact metrics child field is checked individually."
+        },
+        {
+          "source_id": "body:85",
+          "label": "metrics",
+          "path": "/properties/metrics",
+          "expression": "    metrics: {",
+          "analysis": "REST properties.metrics is AzureMonitorWorkspaceMetrics; source supplies enableAccessUsingResourcePermissions and no other metrics fields."
+        },
+        {
+          "source_id": "body:131",
+          "label": "enableAccessUsingResourcePermissions",
+          "path": "/properties/metrics/enableAccessUsingResourcePermissions",
+          "expression": "      enableAccessUsingResourcePermissions: true",
+          "analysis": "REST properties.metrics.enableAccessUsingResourcePermissions is boolean; source literal true matches the exact current/latest-GA schema."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource azureMonitorWorkspace 'Microsoft.Monitor/accounts@2025-10-03' = ",
+          "analysis": "Declaration header selects Microsoft.Monitor/accounts@2025-10-03. Learn and pinned REST metadata establish 2025-10-03 as latest GA; later 2026-09-03 is preview only."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "String location parameter supplies required REST location for this create declaration; the source has no API-specific location constraints."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags object')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:tags:line:28",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "Object tags parameter supplies the root tag map; all tag values are strings, matching REST additionalProperties:string."
+        },
+        {
+          "source_id": "symbol:workspaceName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/workspaceName/$expression-line/0",
+          "expression": "@description('Azure Monitor Workspace name')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:workspaceName:line:45",
+          "label": "$expression",
+          "path": "/$symbol/workspaceName/$expression-line/1",
+          "expression": "param workspaceName string",
+          "analysis": "String parameter receives root azureMonitorWorkspaceName = amw-${appName}-${environment}; the root appName is fixed and its environment input supplies the suffix."
+        }
+      ]
+    },
+    {
+      "file": "infra/sli/main.bicep",
+      "name": "prometheusWorkspace",
+      "line": 123,
+      "type": "Microsoft.Monitor/accounts",
+      "version": "2025-10-03",
+      "existing": true,
+      "start": 4466,
+      "end": 4703,
+      "header": "resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = if (canCreateSli && enableSliAlerts) ",
+      "body": "{\n  scope: resourceGroup(effectiveResourceGroupName)\n  name: last(split(normalizedPrometheusWorkspaceResourceId, '/'))\n}",
+      "status": "verified",
+      "reason": "Exact current and latest-GA 2025-10-03 Learn and pinned REST schemas were checked across all seven declarations. The root resource requires location:string; tags is an optional string-valued map; name is a resource-group path parameter with the exact documented regex. The sole create-time metrics flag is boolean true. Existing declarations are references and do not need create properties.",
+      "migration": "Current 2025-10-03 is already the latest GA. Learn lists only 2026-09-03-preview as newer; the pinned REST tree has stable accounts resource schemas through 2025-10-03. No newer GA migration candidate.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:9",
+          "label": "scope",
+          "path": "/scope",
+          "expression": "  scope: resourceGroup(effectiveResourceGroupName)",
+          "analysis": "Bicep scope resourceGroup(effectiveResourceGroupName) selects the ARM resource-group path; it is not REST JSON. Microsoft.Monitor/accounts is resource-group scoped."
+        },
+        {
+          "source_id": "body:59",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: last(split(normalizedPrometheusWorkspaceResourceId, '/'))",
+          "analysis": "Original /name maps to required azureMonitorWorkspaceName path parameter; source takes the final segment of normalizedPrometheusWorkspaceResourceId. The account name parameter has pattern ^(?!-)[a-zA-Z0-9-]+[^-]$; actual external ID is not queried."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource prometheusWorkspace 'Microsoft.Monitor/accounts@2025-10-03' existing = if (canCreateSli && enableSliAlerts) ",
+          "analysis": "Declaration header selects Microsoft.Monitor/accounts@2025-10-03. Learn and pinned REST metadata establish 2025-10-03 as latest GA; later 2026-09-03 is preview only."
+        },
+        {
+          "source_id": "symbol:canCreateSli:line:0",
+          "label": "$expression",
+          "path": "/$symbol/canCreateSli/$expression-line/0",
+          "expression": "var canCreateSli = enabled && hasServiceGroup && hasSliPipeline && hasSliNames",
+          "analysis": "Boolean condition controls whether the SLI layer creates this existing-resource reference; it does not contribute to the REST body."
+        },
+        {
+          "source_id": "symbol:effectiveResourceGroupName:105",
+          "label": "$expression",
+          "path": "/$symbol/effectiveResourceGroupName/$syntax/105",
+          "expression": "  : normalizedResourceGroupName",
+          "analysis": "Resource-group name for the explicit Bicep scope; uses the supplied string or fallback rg-${appName}-${environment}. This is deployment scope, not REST payload."
+        },
+        {
+          "source_id": "symbol:effectiveResourceGroupName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/effectiveResourceGroupName/$expression-line/0",
+          "expression": "var effectiveResourceGroupName = empty(normalizedResourceGroupName)",
+          "analysis": "Resource-group name for the explicit Bicep scope; uses the supplied string or fallback rg-${appName}-${environment}. This is deployment scope, not REST payload."
+        },
+        {
+          "source_id": "symbol:effectiveResourceGroupName:line:68",
+          "label": "$expression",
+          "path": "/$symbol/effectiveResourceGroupName/$expression-line/1",
+          "expression": "  ? 'rg-${appName}-${environment}'",
+          "analysis": "Resource-group name for the explicit Bicep scope; uses the supplied string or fallback rg-${appName}-${environment}. This is deployment scope, not REST payload."
+        },
+        {
+          "source_id": "symbol:appName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/appName/$expression-line/0",
+          "expression": "@description('Workload/application name')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:appName:line:42",
+          "label": "$expression",
+          "path": "/$symbol/appName/$expression-line/1",
+          "expression": "param appName string = 'aks-chaos-lab'",
+          "analysis": "String appName is fixed to aks-chaos-lab in the SLI layer parameters; it contributes only to the fallback resource-group name."
+        },
+        {
+          "source_id": "symbol:enableSliAlerts:line:0",
+          "label": "$expression",
+          "path": "/$symbol/enableSliAlerts/$expression-line/0",
+          "expression": "@description('Enable Azure Monitor SLI baseline / short-window / long-window metric alerts')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:enableSliAlerts:line:93",
+          "label": "$expression",
+          "path": "/$symbol/enableSliAlerts/$expression-line/1",
+          "expression": "param enableSliAlerts bool = true",
+          "analysis": "Boolean parameter default true gates the existing workspace reference with canCreateSli; it is not a REST field."
+        },
+        {
+          "source_id": "symbol:enabled:line:0",
+          "label": "$expression",
+          "path": "/$symbol/enabled/$expression-line/0",
+          "expression": "@description('Enable Azure Monitor SLI finalization layer')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:enabled:line:60",
+          "label": "$expression",
+          "path": "/$symbol/enabled/$expression-line/1",
+          "expression": "param enabled bool = true",
+          "analysis": "Boolean parameter default true contributes to canCreateSli; it controls whether this existing-resource reference is instantiated."
+        },
+        {
+          "source_id": "symbol:environment:line:0",
+          "label": "$expression",
+          "path": "/$symbol/environment/$expression-line/0",
+          "expression": "@description('Environment name')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:environment:line:33",
+          "label": "$expression",
+          "path": "/$symbol/environment/$expression-line/1",
+          "expression": "param environment string",
+          "analysis": "String deployment environment is supplied through AZURE_ENV_NAME; it contributes only to fallback resource-group naming and conditionally deployed alert scope."
+        },
+        {
+          "source_id": "symbol:hasServiceGroup:line:0",
+          "label": "$expression",
+          "path": "/$symbol/hasServiceGroup/$expression-line/0",
+          "expression": "var hasServiceGroup = !empty(effectiveServiceGroupName) && !empty(normalizedServiceGroupId)",
+          "analysis": "Boolean predicate verifies required SLI inputs are nonempty before this existing workspace reference is deployed; it does not contribute a REST property."
+        },
+        {
+          "source_id": "symbol:effectiveServiceGroupName:100",
+          "label": "$expression",
+          "path": "/$symbol/effectiveServiceGroupName/$syntax/100",
+          "expression": "  : (!empty(normalizedServiceGroupId) ? last(split(normalizedServiceGroupId, '/')) : '')",
+          "analysis": "The service-group input is normalized from the 'none' sentinel and used only in the hasServiceGroup deployment guard; it is not an Azure Monitor account property."
+        },
+        {
+          "source_id": "symbol:effectiveServiceGroupName:181",
+          "label": "$expression",
+          "path": "/$symbol/effectiveServiceGroupName/$syntax/181",
+          "expression": "  : (!empty(normalizedServiceGroupId) ? last(split(normalizedServiceGroupId, '/')) : '')",
+          "analysis": "The service-group input is normalized from the 'none' sentinel and used only in the hasServiceGroup deployment guard; it is not an Azure Monitor account property."
+        },
+        {
+          "source_id": "symbol:effectiveServiceGroupName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/effectiveServiceGroupName/$expression-line/0",
+          "expression": "var effectiveServiceGroupName = !empty(normalizedServiceGroupName)",
+          "analysis": "The service-group input is normalized from the 'none' sentinel and used only in the hasServiceGroup deployment guard; it is not an Azure Monitor account property."
+        },
+        {
+          "source_id": "symbol:effectiveServiceGroupName:line:67",
+          "label": "$expression",
+          "path": "/$symbol/effectiveServiceGroupName/$expression-line/1",
+          "expression": "  ? normalizedServiceGroupName",
+          "analysis": "The service-group input is normalized from the 'none' sentinel and used only in the hasServiceGroup deployment guard; it is not an Azure Monitor account property."
+        },
+        {
+          "source_id": "symbol:hasSliNames:line:0",
+          "label": "$expression",
+          "path": "/$symbol/hasSliNames/$expression-line/0",
+          "expression": "var hasSliNames = !empty(normalizedAvailabilitySliName) && !empty(normalizedLatencySliName)",
+          "analysis": "Boolean predicate verifies required SLI inputs are nonempty before this existing workspace reference is deployed; it does not contribute a REST property."
+        },
+        {
+          "source_id": "symbol:hasSliPipeline:line:0",
+          "label": "$expression",
+          "path": "/$symbol/hasSliPipeline/$expression-line/0",
+          "expression": "var hasSliPipeline = !empty(normalizedSliIdentityResourceId) && !empty(normalizedPrometheusWorkspaceResourceId)",
+          "analysis": "Boolean predicate verifies required SLI inputs are nonempty before this existing workspace reference is deployed; it does not contribute a REST property."
+        },
+        {
+          "source_id": "symbol:normalizedAvailabilitySliName:71",
+          "label": "$expression",
+          "path": "/$symbol/normalizedAvailabilitySliName/$syntax/71",
+          "expression": "var normalizedAvailabilitySliName = availabilitySliName == 'none' ? '' : availabilitySliName",
+          "analysis": "SLI names are normalized from the 'none' sentinel and used only by hasSliNames/canCreateSli; they do not map to the Azure Monitor account payload."
+        },
+        {
+          "source_id": "symbol:availabilitySliName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliName/$expression-line/0",
+          "expression": "@description('Availability SLI resource name')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:availabilitySliName:line:47",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliName/$expression-line/1",
+          "expression": "param availabilitySliName string = ''",
+          "analysis": "SLI names are normalized from the 'none' sentinel and used only by hasSliNames/canCreateSli; they do not map to the Azure Monitor account payload."
+        },
+        {
+          "source_id": "symbol:normalizedLatencySliName:61",
+          "label": "$expression",
+          "path": "/$symbol/normalizedLatencySliName/$syntax/61",
+          "expression": "var normalizedLatencySliName = latencySliName == 'none' ? '' : latencySliName",
+          "analysis": "SLI names are normalized from the 'none' sentinel and used only by hasSliNames/canCreateSli; they do not map to the Azure Monitor account payload."
+        },
+        {
+          "source_id": "symbol:latencySliName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencySliName/$expression-line/0",
+          "expression": "@description('Latency SLI resource name')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:latencySliName:line:42",
+          "label": "$expression",
+          "path": "/$symbol/latencySliName/$expression-line/1",
+          "expression": "param latencySliName string = ''",
+          "analysis": "SLI names are normalized from the 'none' sentinel and used only by hasSliNames/canCreateSli; they do not map to the Azure Monitor account payload."
+        },
+        {
+          "source_id": "symbol:normalizedPrometheusWorkspaceResourceId:95",
+          "label": "$expression",
+          "path": "/$symbol/normalizedPrometheusWorkspaceResourceId/$syntax/95",
+          "expression": "  : prometheusWorkspaceResourceId",
+          "analysis": "The workspace resource ID is normalized from the 'none' sentinel; its nonempty value supplies the account name's last path segment and participates in hasSliPipeline."
+        },
+        {
+          "source_id": "symbol:normalizedPrometheusWorkspaceResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/normalizedPrometheusWorkspaceResourceId/$expression-line/0",
+          "expression": "var normalizedPrometheusWorkspaceResourceId = prometheusWorkspaceResourceId == 'none'",
+          "analysis": "The workspace resource ID is normalized from the 'none' sentinel; its nonempty value supplies the account name's last path segment and participates in hasSliPipeline."
+        },
+        {
+          "source_id": "symbol:normalizedPrometheusWorkspaceResourceId:line:86",
+          "label": "$expression",
+          "path": "/$symbol/normalizedPrometheusWorkspaceResourceId/$expression-line/1",
+          "expression": "  ? ''",
+          "analysis": "The workspace resource ID is normalized from the 'none' sentinel; its nonempty value supplies the account name's last path segment and participates in hasSliPipeline."
+        },
+        {
+          "source_id": "symbol:normalizedResourceGroupName:67",
+          "label": "$expression",
+          "path": "/$symbol/normalizedResourceGroupName/$syntax/67",
+          "expression": "var normalizedResourceGroupName = resourceGroupName == 'none' ? '' : resourceGroupName",
+          "analysis": "The 'none' sentinel normalizes the optional resource group parameter; empty selects the fallback resourceGroupName for Bicep scope, not REST payload."
+        },
+        {
+          "source_id": "symbol:normalizedServiceGroupId:61",
+          "label": "$expression",
+          "path": "/$symbol/normalizedServiceGroupId/$syntax/61",
+          "expression": "var normalizedServiceGroupId = serviceGroupId == 'none' ? '' : serviceGroupId",
+          "analysis": "The service-group input is normalized from the 'none' sentinel and used only in the hasServiceGroup deployment guard; it is not an Azure Monitor account property."
+        },
+        {
+          "source_id": "symbol:normalizedServiceGroupName:65",
+          "label": "$expression",
+          "path": "/$symbol/normalizedServiceGroupName/$syntax/65",
+          "expression": "var normalizedServiceGroupName = serviceGroupName == 'none' ? '' : serviceGroupName",
+          "analysis": "The service-group input is normalized from the 'none' sentinel and used only in the hasServiceGroup deployment guard; it is not an Azure Monitor account property."
+        },
+        {
+          "source_id": "symbol:normalizedSliIdentityResourceId:75",
+          "label": "$expression",
+          "path": "/$symbol/normalizedSliIdentityResourceId/$syntax/75",
+          "expression": "var normalizedSliIdentityResourceId = sliIdentityResourceId == 'none' ? '' : sliIdentityResourceId",
+          "analysis": "The SLI identity resource ID is normalized from the 'none' sentinel and used only by hasSliPipeline; it does not map to this account resource."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/0",
+          "expression": "@description('Managed Prometheus Azure Monitor Workspace resource ID')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:71",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/1",
+          "expression": "param prometheusWorkspaceResourceId string = ''",
+          "analysis": "String workspace resource ID is supplied by the SLI layer parameter (parameter file maps AZURE_MONITOR_PROMETHEUS_WORKSPACE_ID); its last path segment becomes the existing account name."
+        },
+        {
+          "source_id": "symbol:resourceGroupName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/resourceGroupName/$expression-line/0",
+          "expression": "@description('Resource group name that receives SLI metric alert resources')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:resourceGroupName:line:77",
+          "label": "$expression",
+          "path": "/$symbol/resourceGroupName/$expression-line/1",
+          "expression": "param resourceGroupName string = ''",
+          "analysis": "Optional string resource-group parameter is normalized from none; empty selects rg-${appName}-${environment} for Bicep scope, not REST payload."
+        },
+        {
+          "source_id": "symbol:serviceGroupId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/serviceGroupId/$expression-line/0",
+          "expression": "@description('Azure Service Group resource ID used by Azure Monitor SLI')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:serviceGroupId:line:74",
+          "label": "$expression",
+          "path": "/$symbol/serviceGroupId/$expression-line/1",
+          "expression": "param serviceGroupId string = ''",
+          "analysis": "Service Group resource ID string only gates the SLI deployment and does not map to Microsoft.Monitor/accounts fields."
+        },
+        {
+          "source_id": "symbol:serviceGroupName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/serviceGroupName/$expression-line/0",
+          "expression": "@description('Azure Service Group name used by Azure Monitor SLI')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:serviceGroupName:line:67",
+          "label": "$expression",
+          "path": "/$symbol/serviceGroupName/$expression-line/1",
+          "expression": "param serviceGroupName string = ''",
+          "analysis": "Service Group name string only gates the SLI deployment and does not map to Microsoft.Monitor/accounts fields."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/0",
+          "expression": "@description('User-assigned managed identity resource ID used by Azure Monitor SLI')",
+          "analysis": "Parameter description is metadata, not request payload."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:85",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/1",
+          "expression": "param sliIdentityResourceId string = ''",
+          "analysis": "The SLI identity resource ID is normalized from the 'none' sentinel and used only by hasSliPipeline; it does not map to this account resource."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2025-10-03",
+      "analysis": "Fetched exact Learn resource page and pinned stable OpenAPI. AzureMonitorWorkspaceResource resolves through common TrackedResource: location:string is required and tags is an optional object with additionalProperties:string. The required path name is case-insensitive string matching ^(?!-)[a-zA-Z0-9-]+[^-]$. properties.metrics.enableAccessUsingResourcePermissions is boolean; source literal true is allowed. Existing resources are path references only.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/2025-10-03/accounts",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/stable/2025-10-03/azuremonitorworkspace.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/stable/2023-04-03/monitoringAccounts_API.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/examples/2025-10-03/AzureMonitorWorkspaces_CreateOrUpdate_MaximumSet_Gen.json"
+      ]
+    },
+    "ga": {
+      "version": "2025-10-03",
+      "analysis": "Learn selector has 2025-10-03 as latest stable; newer 2026-09-03-preview is not GA. The pinned REST tree has stable accounts resource schemas 2023-04-03 and 2025-10-03; 2025-10-03 is latest GA and is already current. The exact candidate schema preserves all used constraints.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/2025-10-03/accounts",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/stable/2025-10-03/azuremonitorworkspace.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/stable/2023-04-03/monitoringAccounts_API.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn change log for 2025-10-03 adds managed identity schemas and the root identity property; it does not change location, tags, account name, or metrics.enableAccessUsingResourcePermissions. The declaration set does not use identity.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/change-log/accounts",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/2025-10-03/accounts"
+      ]
+    }
+  }
+}

@@ -682,5 +682,59 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/2025-10-03/accounts",
+    "attempt": 1,
+    "started_monotonic": 5161.454745884,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/change-log/accounts",
+    "attempt": 1,
+    "started_monotonic": 5164.454841423,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.669780191999962
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/stable/2025-10-03/azuremonitorworkspace.json",
+    "attempt": 1,
+    "started_monotonic": 5212.306139381,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/stable/2023-04-03/monitoringAccounts_API.json",
+    "attempt": 1,
+    "started_monotonic": 5341.799831454,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/readme.md",
+    "attempt": 1,
+    "started_monotonic": 5368.582896538,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Accounts/examples/2025-10-03/AzureMonitorWorkspaces_CreateOrUpdate_MaximumSet_Gen.json",
+    "attempt": 1,
+    "started_monotonic": 5368.73740551,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
