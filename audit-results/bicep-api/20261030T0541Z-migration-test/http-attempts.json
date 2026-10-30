@@ -250,5 +250,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/publicipaddresses",
+    "attempt": 1,
+    "started_monotonic": 1394.262724929,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/publicipaddresses",
+    "attempt": 1,
+    "started_monotonic": 1397.262869362,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.74913507999986
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/publicipaddresses",
+    "attempt": 1,
+    "started_monotonic": 1400.262990899,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.759453519999852
   }
 ]
