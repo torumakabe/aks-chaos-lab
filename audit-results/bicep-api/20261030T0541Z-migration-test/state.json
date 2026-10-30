@@ -58889,9 +58889,288 @@
       }
     },
     "Microsoft.OperationalInsights/workspaces@2026-03-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/azmonitor/aks-diagnostics.bicep",
+          "name": "logAnalyticsWorkspace",
+          "line": 15,
+          "type": "Microsoft.OperationalInsights/workspaces",
+          "version": "2026-03-01",
+          "existing": true,
+          "start": 486,
+          "end": 619,
+          "header": "resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' existing = ",
+          "body": "{\n  name: logAnalyticsWorkspaceName\n}",
+          "status": "verified",
+          "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定OpenAPIのWorkspace/$ref/sku required・enum・数値・boolean・public access enumsを照合。existing宣言はname参照のみで作成用properties不足を誤判定しない。",
+          "migration": "GA移行不要。現行2026-03-01が最新GAと一致。change logのdataAuthorizationMode追加は本宣言が使わず、現在値との互換性に影響なし。",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: logAnalyticsWorkspaceName",
+              "analysis": "JSON Pointer /name is Bicep workspace resource identity string. name: logAnalyticsWorkspaceName is a string name/parameter; for existing rows it is only lookup identity, not a mutable payload field."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' existing = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not REST payload. Type/version is Microsoft.OperationalInsights/workspaces@2026-03-01."
+            },
+            {
+              "source_id": "symbol:logAnalyticsWorkspaceName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsWorkspaceName/$expression-line/0",
+              "expression": "@description('Log Analytics workspace name')",
+              "analysis": "JSON Pointer /$symbol/logAnalyticsWorkspaceName/$expression-line/0 is logAnalyticsWorkspaceName param string and supplies the workspace identity for existing lookup."
+            },
+            {
+              "source_id": "symbol:logAnalyticsWorkspaceName:line:45",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsWorkspaceName/$expression-line/1",
+              "expression": "param logAnalyticsWorkspaceName string",
+              "analysis": "JSON Pointer /$symbol/logAnalyticsWorkspaceName/$expression-line/1 is logAnalyticsWorkspaceName param string and supplies the workspace identity for existing lookup."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/core.bicep",
+          "name": "logAnalyticsWorkspace",
+          "line": 12,
+          "type": "Microsoft.OperationalInsights/workspaces",
+          "version": "2026-03-01",
+          "existing": false,
+          "start": 382,
+          "end": 784,
+          "header": "resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' = ",
+          "body": "{\n  name: logAnalyticsName\n  location: location\n  tags: tags\n  properties: {\n    sku: {\n      name: 'PerGB2018'\n    }\n    retentionInDays: 30\n    features: {\n      enableLogAccessUsingOnlyResourcePermissions: true\n    }\n    publicNetworkAccessForIngestion: 'Enabled'\n    publicNetworkAccessForQuery: 'Enabled'\n  }\n}",
+          "status": "verified",
+          "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定OpenAPIのWorkspace/$ref/sku required・enum・数値・boolean・public access enumsを照合。existing宣言はname参照のみで作成用properties不足を誤判定しない。",
+          "migration": "GA移行不要。現行2026-03-01が最新GAと一致。change logのdataAuthorizationMode追加は本宣言が使わず、現在値との互換性に影響なし。",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: logAnalyticsName",
+              "analysis": "JSON Pointer /name is Bicep workspace resource identity string. name: logAnalyticsName is a string name/parameter; for existing rows it is only lookup identity, not a mutable payload field."
+            },
+            {
+              "source_id": "body:37",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "JSON Pointer /location maps to REST Workspace.location:string; module parameter location is string."
+            },
+            {
+              "source_id": "body:54",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "JSON Pointer /tags maps to REST tags object with additionalProperties:string; input is common tags map with string-valued environment."
+            },
+            {
+              "source_id": "body:73",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to WorkspaceProperties object; used fields are individually checked."
+            },
+            {
+              "source_id": "body:84",
+              "label": "sku",
+              "path": "/properties/sku",
+              "expression": "    sku: {",
+              "analysis": "JSON Pointer /properties/sku maps to WorkspaceSku object, whose required name is supplied."
+            },
+            {
+              "source_id": "body:98",
+              "label": "name",
+              "path": "/properties/sku/name",
+              "expression": "      name: 'PerGB2018'",
+              "analysis": "JSON Pointer /properties/sku/name maps to enum including 'PerGB2018'; literal passes Schemas.literal and meets required name."
+            },
+            {
+              "source_id": "body:137",
+              "label": "retentionInDays",
+              "path": "/properties/retentionInDays",
+              "expression": "    retentionInDays: 30",
+              "analysis": "JSON Pointer /properties/retentionInDays maps to integer; literal 30 passes schema type/bounds checks (no minimum/maximum in pinned schema)."
+            },
+            {
+              "source_id": "body:154",
+              "label": "features",
+              "path": "/properties/features",
+              "expression": "    features: {",
+              "analysis": "JSON Pointer /properties/features maps to WorkspaceFeatures object; enableLogAccessUsingOnlyResourcePermissions is checked below."
+            },
+            {
+              "source_id": "body:207",
+              "label": "enableLogAccessUsingOnlyResourcePermissions",
+              "path": "/properties/features/enableLogAccessUsingOnlyResourcePermissions",
+              "expression": "      enableLogAccessUsingOnlyResourcePermissions: true",
+              "analysis": "JSON Pointer /properties/features/enableLogAccessUsingOnlyResourcePermissions maps to boolean; literal true passes Schemas.literal."
+            },
+            {
+              "source_id": "body:255",
+              "label": "publicNetworkAccessForIngestion",
+              "path": "/properties/publicNetworkAccessForIngestion",
+              "expression": "    publicNetworkAccessForIngestion: 'Enabled'",
+              "analysis": "JSON Pointer /properties/publicNetworkAccessForIngestion maps to enum [Enabled, Disabled, SecuredByPerimeter]; literal Enabled passes Schemas.literal."
+            },
+            {
+              "source_id": "body:298",
+              "label": "publicNetworkAccessForQuery",
+              "path": "/properties/publicNetworkAccessForQuery",
+              "expression": "    publicNetworkAccessForQuery: 'Enabled'",
+              "analysis": "JSON Pointer /properties/publicNetworkAccessForQuery maps to enum [Enabled, Disabled, SecuredByPerimeter]; literal Enabled passes Schemas.literal."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not REST payload. Type/version is Microsoft.OperationalInsights/workspaces@2026-03-01."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is location parameter annotation/declaration; param string supplies REST /location:string."
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is location parameter annotation/declaration; param string supplies REST /location:string."
+            },
+            {
+              "source_id": "symbol:logAnalyticsName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsName/$expression-line/0",
+              "expression": "@description('Log Analytics name')",
+              "analysis": "JSON Pointer /$symbol/logAnalyticsName/$expression-line/0 is logAnalyticsName param string and supplies REST resource name identity."
+            },
+            {
+              "source_id": "symbol:logAnalyticsName:line:35",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsName/$expression-line/1",
+              "expression": "param logAnalyticsName string",
+              "analysis": "JSON Pointer /$symbol/logAnalyticsName/$expression-line/1 is logAnalyticsName param string and supplies REST resource name identity."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags object')",
+              "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is tags parameter source, object with main common tags map; values are strings consistent with REST additionalProperties:string."
+            },
+            {
+              "source_id": "symbol:tags:line:28",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object",
+              "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 is tags parameter source, object with main common tags map; values are strings consistent with REST additionalProperties:string."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/service-group-members.bicep",
+          "name": "logAnalyticsWorkspace",
+          "line": 38,
+          "type": "Microsoft.OperationalInsights/workspaces",
+          "version": "2026-03-01",
+          "existing": true,
+          "start": 1051,
+          "end": 1184,
+          "header": "resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' existing = ",
+          "body": "{\n  name: logAnalyticsWorkspaceName\n}",
+          "status": "verified",
+          "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定OpenAPIのWorkspace/$ref/sku required・enum・数値・boolean・public access enumsを照合。existing宣言はname参照のみで作成用properties不足を誤判定しない。",
+          "migration": "GA移行不要。現行2026-03-01が最新GAと一致。change logのdataAuthorizationMode追加は本宣言が使わず、現在値との互換性に影響なし。",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: logAnalyticsWorkspaceName",
+              "analysis": "JSON Pointer /name is Bicep workspace resource identity string. name: logAnalyticsWorkspaceName is a string name/parameter; for existing rows it is only lookup identity, not a mutable payload field."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2026-03-01' existing = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not REST payload. Type/version is Microsoft.OperationalInsights/workspaces@2026-03-01."
+            },
+            {
+              "source_id": "symbol:logAnalyticsWorkspaceName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsWorkspaceName/$expression-line/0",
+              "expression": "@description('Log Analytics workspace name')",
+              "analysis": "JSON Pointer /$symbol/logAnalyticsWorkspaceName/$expression-line/0 is logAnalyticsWorkspaceName param string and supplies the workspace identity for existing lookup."
+            },
+            {
+              "source_id": "symbol:logAnalyticsWorkspaceName:line:45",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsWorkspaceName/$expression-line/1",
+              "expression": "param logAnalyticsWorkspaceName string",
+              "analysis": "JSON Pointer /$symbol/logAnalyticsWorkspaceName/$expression-line/1 is logAnalyticsWorkspaceName param string and supplies the workspace identity for existing lookup."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-03-01",
+          "analysis": "Learn selector lists 2026-03-01 as Latest. Fixed OperationalInsights README maps the version to openapi.json. Schemas resolves Workspace, WorkspaceSku.required name, PerGB2018, retention integer, feature boolean, public access enums, and common tags refs.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces": "2ef870ea30be74f190cb37e22466cfb68e3851f196217f2c7df325980d981f74",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces": "8f00e0f0494b1905292d7a7532c04ad05f26a352f7319752408d604ab2a8e612",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md": "b5d69a42074ad22a56593fa8c44efbb83855bd5f513c389a8e42024f89459d5c",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json": "cc91db8813094dcc71bba6d3014c1a6b89f1d4b6529b2f10e2d4bd6ce2978d7b"
+          }
+        },
+        "ga": {
+          "version": "2026-03-01",
+          "analysis": "Latest GA from Learn equals current; the same pinned exact 2026-03-01 OpenAPI is the candidate schema.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces": "2ef870ea30be74f190cb37e22466cfb68e3851f196217f2c7df325980d981f74",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces": "8f00e0f0494b1905292d7a7532c04ad05f26a352f7319752408d604ab2a8e612",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md": "b5d69a42074ad22a56593fa8c44efbb83855bd5f513c389a8e42024f89459d5c",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json": "cc91db8813094dcc71bba6d3014c1a6b89f1d4b6529b2f10e2d4bd6ce2978d7b"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log notes dataAuthorizationMode added in 2026-03-01; it is unused. Used sku, retention, feature, and public access values are all supported by exact schema.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/change-log/workspaces"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/change-log/workspaces": "2aec0a1763b3f604e21a7e7de552246221a0ac67ecd7bb7af5c119ae3a38654f"
+          }
+        }
+      }
     },
     "Microsoft.Relationships/serviceGroupMember@2023-09-01-preview": {
       "stage": "pending",

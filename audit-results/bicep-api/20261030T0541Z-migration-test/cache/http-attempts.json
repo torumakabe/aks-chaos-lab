@@ -376,5 +376,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces",
+    "attempt": 1,
+    "started_monotonic": 1747.950623145,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces",
+    "attempt": 1,
+    "started_monotonic": 1750.950770753,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6632471489999716
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/change-log/workspaces",
+    "attempt": 1,
+    "started_monotonic": 1753.950922495,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.5785709790000055
   }
 ]
