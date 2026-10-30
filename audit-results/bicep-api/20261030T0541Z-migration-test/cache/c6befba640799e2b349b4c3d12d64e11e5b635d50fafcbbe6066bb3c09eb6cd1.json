@@ -1,0 +1,32 @@
+{
+  "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/readme.md",
+  "final_url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/readme.md",
+  "status": 200,
+  "headers": {
+    "Content-Length": "1351",
+    "Accept-Ranges": "bytes",
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "max-age=300",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cross-Origin-Resource-Policy": "cross-origin",
+    "Date": "Fri, 30 Oct 2026 06:04:04 GMT",
+    "Etag": "\"4a7aa1707789eaa1f9a44ed5dd27ea491e4845de8df4640d10940a1e270439ff\"",
+    "Expires": "Fri, 30 Oct 2026 06:09:04 GMT",
+    "Source-Age": "0",
+    "Strict-Transport-Security": "max-age=31536000",
+    "Vary": "Authorization,Accept-Encoding",
+    "Via": "1.1 varnish",
+    "X-Cache": "MISS",
+    "X-Cache-Hits": "0",
+    "X-Content-Type-Options": "nosniff",
+    "X-Fastly-Request-Id": "2406761c936713560b55f13859bb727b1f735a0b",
+    "X-Frame-Options": "deny",
+    "X-Github-Edge-Region": "iad",
+    "X-Github-Request-Id": "9E76:2DFC1A:241D9:30B5A:6AE43351",
+    "X-Served-By": "cache-phx1710095-PHX",
+    "X-Timer": "S1793340245.721981,VS0,VE146",
+    "X-Xss-Protection": "1; mode=block"
+  },
+  "body": "# relationships\n\n> see https://aka.ms/autorest\n\nThis is the AutoRest configuration file for relationships.\n\n## Getting Started\n\nTo build the SDKs for My API, simply install AutoRest via `npm` (`npm install -g autorest`) and then run:\n\n> `autorest readme.md`\n\nTo see additional help and options, run:\n\n> `autorest --help`\n\nFor other options on installation see [Installing AutoRest](https://aka.ms/autorest/install) on the AutoRest github page.\n\n---\n\n## Configuration\n\n### Basic Information\n\nThese are the global settings for the relationships.\n\n```yaml\nopenapi-type: arm\nopenapi-subtype: providerHub\ntag: package-2026-08-01\n```\n\n### Tag: package-2026-08-01\n\nThese settings apply only when `--tag=package-2026-08-01` is specified on the command line.\n\n```yaml $(tag) == 'package-2026-08-01'\ninput-file:\n  - stable/2026-08-01/relationships.json\n```\n\n### Tag: package-2026-03-01-preview\n\nThese settings apply only when `--tag=package-2026-03-01-preview` is specified on the command line.\n\n```yaml $(tag) == 'package-2026-03-01-preview'\ninput-file:\n  - preview/2026-03-01-preview/relationships.json\n```\n\n### Tag: package-2023-09-01-preview\n\nThese settings apply only when `--tag=package-2023-09-01-preview` is specified on the command line.\n\n```yaml $(tag) == 'package-2023-09-01-preview'\ninput-file:\n  - preview/2023-09-01-preview/relationships.json\n```\n"
+}

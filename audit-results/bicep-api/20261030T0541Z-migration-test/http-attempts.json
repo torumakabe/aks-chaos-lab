@@ -403,5 +403,68 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.5785709790000055
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/servicegroupmember",
+    "attempt": 1,
+    "started_monotonic": 1819.261589456,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/2023-09-01-preview/servicegroupmember",
+    "attempt": 1,
+    "started_monotonic": 1822.26171522,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7517266469999413
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/2026-08-01/servicegroupmember",
+    "attempt": 1,
+    "started_monotonic": 1825.261840444,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6153268370001115
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/change-log/servicegroupmember",
+    "attempt": 1,
+    "started_monotonic": 1828.261975793,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8344926309998755
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/readme.md",
+    "attempt": 1,
+    "started_monotonic": 1828.445688679,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/preview/2023-09-01-preview/relationships.json",
+    "attempt": 1,
+    "started_monotonic": 1828.60723238,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/stable/2026-08-01/relationships.json",
+    "attempt": 1,
+    "started_monotonic": 1828.952934378,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

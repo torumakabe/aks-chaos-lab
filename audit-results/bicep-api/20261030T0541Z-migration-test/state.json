@@ -59173,9 +59173,556 @@
       }
     },
     "Microsoft.Relationships/serviceGroupMember@2023-09-01-preview": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/azmonitor/service-group-members.bicep",
+          "name": "aksMembership",
+          "line": 54,
+          "type": "Microsoft.Relationships/serviceGroupMember",
+          "version": "2023-09-01-preview",
+          "existing": false,
+          "start": 1535,
+          "end": 1757,
+          "header": "resource aksMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+          "body": "{\n  name: 'sgm-${uniqueString(serviceGroupId, aksCluster.id)}'\n  scope: aksCluster\n  properties: {\n    targetId: serviceGroupId\n  }\n}",
+          "status": "verified",
+          "reason": "Current preview schema 2023-09-01-preview accepts writable properties.targetId as a tenant-scoped Microsoft.Management/serviceGroups ARM ID, matching serviceGroupId; scope selects target member resource via resourceUri. The exact GA 2026-08-01 schema was also compared: sourceId is required/writable and targetId is read-only/server-derived.",
+          "migration": "GA移行は可能だが現状のままでは不可。candidate 2026-08-01ではserviceGroupIdをproperties.sourceIdへ移し、properties.targetIdを送らない。Bicep scopeは対象memberのまま。",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "最新GA 2026-08-01はrelationship方向を変更: sourceIdが必須のService Group resource ID、targetIdはscopeからserver-derived/readOnly。現在のpreview本文はtargetId=serviceGroupIdなので、GA移行時はproperties.sourceIdへ移しtargetIdを削除する必要がある。"
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'sgm-${uniqueString(serviceGroupId, aksCluster.id)}'",
+              "analysis": "JSON Pointer /name is Bicep relationship resource identity string. name: 'sgm-${uniqueString(serviceGroupId, aksCluster.id)}' uses uniqueString(serviceGroupId,target.id) to make a deterministic name."
+            },
+            {
+              "source_id": "body:70",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: aksCluster",
+              "analysis": "JSON Pointer /scope is Bicep extension-resource scope, not REST JSON. scope: aksCluster identifies the member resource; current/GA REST path is /{resourceUri}/providers/Microsoft.Relationships/serviceGroupMember/{name}."
+            },
+            {
+              "source_id": "body:95",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to current ServiceGroupMemberRelationshipProperties object and GA PropertiesV2 object; compare field directions below."
+            },
+            {
+              "source_id": "body:111",
+              "label": "targetId",
+              "path": "/properties/targetId",
+              "expression": "    targetId: serviceGroupId",
+              "analysis": "JSON Pointer /properties/targetId maps in current preview to writable arm-id for a tenant-scoped Microsoft.Management/serviceGroups resource, and serviceGroupId is that Service Group ID. In GA 2026-08-01 targetId is readOnly/server-derived, so this exact value must move to properties.sourceId; it cannot be retained as-is."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not payload. Current type/version is Microsoft.Relationships/serviceGroupMember@2023-09-01-preview; latest GA is 2026-08-01."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/0",
+              "expression": "@description('Resource ID of the Azure Service Group')",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/0 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:55",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/1",
+              "expression": "param serviceGroupId string",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/1 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/service-group-members.bicep",
+          "name": "prometheusWorkspaceMembership",
+          "line": 62,
+          "type": "Microsoft.Relationships/serviceGroupMember",
+          "version": "2023-09-01-preview",
+          "existing": false,
+          "start": 1759,
+          "end": 2015,
+          "header": "resource prometheusWorkspaceMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+          "body": "{\n  name: 'sgm-${uniqueString(serviceGroupId, prometheusWorkspace.id)}'\n  scope: prometheusWorkspace\n  properties: {\n    targetId: serviceGroupId\n  }\n}",
+          "status": "verified",
+          "reason": "Current preview schema 2023-09-01-preview accepts writable properties.targetId as a tenant-scoped Microsoft.Management/serviceGroups ARM ID, matching serviceGroupId; scope selects target member resource via resourceUri. The exact GA 2026-08-01 schema was also compared: sourceId is required/writable and targetId is read-only/server-derived.",
+          "migration": "GA移行は可能だが現状のままでは不可。candidate 2026-08-01ではserviceGroupIdをproperties.sourceIdへ移し、properties.targetIdを送らない。Bicep scopeは対象memberのまま。",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "最新GA 2026-08-01はrelationship方向を変更: sourceIdが必須のService Group resource ID、targetIdはscopeからserver-derived/readOnly。現在のpreview本文はtargetId=serviceGroupIdなので、GA移行時はproperties.sourceIdへ移しtargetIdを削除する必要がある。"
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'sgm-${uniqueString(serviceGroupId, prometheusWorkspace.id)}'",
+              "analysis": "JSON Pointer /name is Bicep relationship resource identity string. name: 'sgm-${uniqueString(serviceGroupId, prometheusWorkspace.id)}' uses uniqueString(serviceGroupId,target.id) to make a deterministic name."
+            },
+            {
+              "source_id": "body:79",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: prometheusWorkspace",
+              "analysis": "JSON Pointer /scope is Bicep extension-resource scope, not REST JSON. scope: prometheusWorkspace identifies the member resource; current/GA REST path is /{resourceUri}/providers/Microsoft.Relationships/serviceGroupMember/{name}."
+            },
+            {
+              "source_id": "body:113",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to current ServiceGroupMemberRelationshipProperties object and GA PropertiesV2 object; compare field directions below."
+            },
+            {
+              "source_id": "body:129",
+              "label": "targetId",
+              "path": "/properties/targetId",
+              "expression": "    targetId: serviceGroupId",
+              "analysis": "JSON Pointer /properties/targetId maps in current preview to writable arm-id for a tenant-scoped Microsoft.Management/serviceGroups resource, and serviceGroupId is that Service Group ID. In GA 2026-08-01 targetId is readOnly/server-derived, so this exact value must move to properties.sourceId; it cannot be retained as-is."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource prometheusWorkspaceMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not payload. Current type/version is Microsoft.Relationships/serviceGroupMember@2023-09-01-preview; latest GA is 2026-08-01."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/0",
+              "expression": "@description('Resource ID of the Azure Service Group')",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/0 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:55",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/1",
+              "expression": "param serviceGroupId string",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/1 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/service-group-members.bicep",
+          "name": "appAzureMonitorWorkspaceMembership",
+          "line": 70,
+          "type": "Microsoft.Relationships/serviceGroupMember",
+          "version": "2023-09-01-preview",
+          "existing": false,
+          "start": 2017,
+          "end": 2288,
+          "header": "resource appAzureMonitorWorkspaceMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+          "body": "{\n  name: 'sgm-${uniqueString(serviceGroupId, appAzureMonitorWorkspace.id)}'\n  scope: appAzureMonitorWorkspace\n  properties: {\n    targetId: serviceGroupId\n  }\n}",
+          "status": "verified",
+          "reason": "Current preview schema 2023-09-01-preview accepts writable properties.targetId as a tenant-scoped Microsoft.Management/serviceGroups ARM ID, matching serviceGroupId; scope selects target member resource via resourceUri. The exact GA 2026-08-01 schema was also compared: sourceId is required/writable and targetId is read-only/server-derived.",
+          "migration": "GA移行は可能だが現状のままでは不可。candidate 2026-08-01ではserviceGroupIdをproperties.sourceIdへ移し、properties.targetIdを送らない。Bicep scopeは対象memberのまま。",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "最新GA 2026-08-01はrelationship方向を変更: sourceIdが必須のService Group resource ID、targetIdはscopeからserver-derived/readOnly。現在のpreview本文はtargetId=serviceGroupIdなので、GA移行時はproperties.sourceIdへ移しtargetIdを削除する必要がある。"
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'sgm-${uniqueString(serviceGroupId, appAzureMonitorWorkspace.id)}'",
+              "analysis": "JSON Pointer /name is Bicep relationship resource identity string. name: 'sgm-${uniqueString(serviceGroupId, appAzureMonitorWorkspace.id)}' uses uniqueString(serviceGroupId,target.id) to make a deterministic name."
+            },
+            {
+              "source_id": "body:84",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: appAzureMonitorWorkspace",
+              "analysis": "JSON Pointer /scope is Bicep extension-resource scope, not REST JSON. scope: appAzureMonitorWorkspace identifies the member resource; current/GA REST path is /{resourceUri}/providers/Microsoft.Relationships/serviceGroupMember/{name}."
+            },
+            {
+              "source_id": "body:123",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to current ServiceGroupMemberRelationshipProperties object and GA PropertiesV2 object; compare field directions below."
+            },
+            {
+              "source_id": "body:139",
+              "label": "targetId",
+              "path": "/properties/targetId",
+              "expression": "    targetId: serviceGroupId",
+              "analysis": "JSON Pointer /properties/targetId maps in current preview to writable arm-id for a tenant-scoped Microsoft.Management/serviceGroups resource, and serviceGroupId is that Service Group ID. In GA 2026-08-01 targetId is readOnly/server-derived, so this exact value must move to properties.sourceId; it cannot be retained as-is."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource appAzureMonitorWorkspaceMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not payload. Current type/version is Microsoft.Relationships/serviceGroupMember@2023-09-01-preview; latest GA is 2026-08-01."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/0",
+              "expression": "@description('Resource ID of the Azure Service Group')",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/0 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:55",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/1",
+              "expression": "param serviceGroupId string",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/1 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/service-group-members.bicep",
+          "name": "logAnalyticsWorkspaceMembership",
+          "line": 78,
+          "type": "Microsoft.Relationships/serviceGroupMember",
+          "version": "2023-09-01-preview",
+          "existing": false,
+          "start": 2290,
+          "end": 2552,
+          "header": "resource logAnalyticsWorkspaceMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+          "body": "{\n  name: 'sgm-${uniqueString(serviceGroupId, logAnalyticsWorkspace.id)}'\n  scope: logAnalyticsWorkspace\n  properties: {\n    targetId: serviceGroupId\n  }\n}",
+          "status": "verified",
+          "reason": "Current preview schema 2023-09-01-preview accepts writable properties.targetId as a tenant-scoped Microsoft.Management/serviceGroups ARM ID, matching serviceGroupId; scope selects target member resource via resourceUri. The exact GA 2026-08-01 schema was also compared: sourceId is required/writable and targetId is read-only/server-derived.",
+          "migration": "GA移行は可能だが現状のままでは不可。candidate 2026-08-01ではserviceGroupIdをproperties.sourceIdへ移し、properties.targetIdを送らない。Bicep scopeは対象memberのまま。",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "最新GA 2026-08-01はrelationship方向を変更: sourceIdが必須のService Group resource ID、targetIdはscopeからserver-derived/readOnly。現在のpreview本文はtargetId=serviceGroupIdなので、GA移行時はproperties.sourceIdへ移しtargetIdを削除する必要がある。"
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'sgm-${uniqueString(serviceGroupId, logAnalyticsWorkspace.id)}'",
+              "analysis": "JSON Pointer /name is Bicep relationship resource identity string. name: 'sgm-${uniqueString(serviceGroupId, logAnalyticsWorkspace.id)}' uses uniqueString(serviceGroupId,target.id) to make a deterministic name."
+            },
+            {
+              "source_id": "body:81",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: logAnalyticsWorkspace",
+              "analysis": "JSON Pointer /scope is Bicep extension-resource scope, not REST JSON. scope: logAnalyticsWorkspace identifies the member resource; current/GA REST path is /{resourceUri}/providers/Microsoft.Relationships/serviceGroupMember/{name}."
+            },
+            {
+              "source_id": "body:117",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to current ServiceGroupMemberRelationshipProperties object and GA PropertiesV2 object; compare field directions below."
+            },
+            {
+              "source_id": "body:133",
+              "label": "targetId",
+              "path": "/properties/targetId",
+              "expression": "    targetId: serviceGroupId",
+              "analysis": "JSON Pointer /properties/targetId maps in current preview to writable arm-id for a tenant-scoped Microsoft.Management/serviceGroups resource, and serviceGroupId is that Service Group ID. In GA 2026-08-01 targetId is readOnly/server-derived, so this exact value must move to properties.sourceId; it cannot be retained as-is."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource logAnalyticsWorkspaceMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not payload. Current type/version is Microsoft.Relationships/serviceGroupMember@2023-09-01-preview; latest GA is 2026-08-01."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/0",
+              "expression": "@description('Resource ID of the Azure Service Group')",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/0 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:55",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/1",
+              "expression": "param serviceGroupId string",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/1 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/service-group-members.bicep",
+          "name": "applicationInsightsMembership",
+          "line": 86,
+          "type": "Microsoft.Relationships/serviceGroupMember",
+          "version": "2023-09-01-preview",
+          "existing": false,
+          "start": 2554,
+          "end": 2810,
+          "header": "resource applicationInsightsMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+          "body": "{\n  name: 'sgm-${uniqueString(serviceGroupId, applicationInsights.id)}'\n  scope: applicationInsights\n  properties: {\n    targetId: serviceGroupId\n  }\n}",
+          "status": "verified",
+          "reason": "Current preview schema 2023-09-01-preview accepts writable properties.targetId as a tenant-scoped Microsoft.Management/serviceGroups ARM ID, matching serviceGroupId; scope selects target member resource via resourceUri. The exact GA 2026-08-01 schema was also compared: sourceId is required/writable and targetId is read-only/server-derived.",
+          "migration": "GA移行は可能だが現状のままでは不可。candidate 2026-08-01ではserviceGroupIdをproperties.sourceIdへ移し、properties.targetIdを送らない。Bicep scopeは対象memberのまま。",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "最新GA 2026-08-01はrelationship方向を変更: sourceIdが必須のService Group resource ID、targetIdはscopeからserver-derived/readOnly。現在のpreview本文はtargetId=serviceGroupIdなので、GA移行時はproperties.sourceIdへ移しtargetIdを削除する必要がある。"
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'sgm-${uniqueString(serviceGroupId, applicationInsights.id)}'",
+              "analysis": "JSON Pointer /name is Bicep relationship resource identity string. name: 'sgm-${uniqueString(serviceGroupId, applicationInsights.id)}' uses uniqueString(serviceGroupId,target.id) to make a deterministic name."
+            },
+            {
+              "source_id": "body:79",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: applicationInsights",
+              "analysis": "JSON Pointer /scope is Bicep extension-resource scope, not REST JSON. scope: applicationInsights identifies the member resource; current/GA REST path is /{resourceUri}/providers/Microsoft.Relationships/serviceGroupMember/{name}."
+            },
+            {
+              "source_id": "body:113",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to current ServiceGroupMemberRelationshipProperties object and GA PropertiesV2 object; compare field directions below."
+            },
+            {
+              "source_id": "body:129",
+              "label": "targetId",
+              "path": "/properties/targetId",
+              "expression": "    targetId: serviceGroupId",
+              "analysis": "JSON Pointer /properties/targetId maps in current preview to writable arm-id for a tenant-scoped Microsoft.Management/serviceGroups resource, and serviceGroupId is that Service Group ID. In GA 2026-08-01 targetId is readOnly/server-derived, so this exact value must move to properties.sourceId; it cannot be retained as-is."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource applicationInsightsMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not payload. Current type/version is Microsoft.Relationships/serviceGroupMember@2023-09-01-preview; latest GA is 2026-08-01."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/0",
+              "expression": "@description('Resource ID of the Azure Service Group')",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/0 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:55",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/1",
+              "expression": "param serviceGroupId string",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/1 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/service-group-members.bicep",
+          "name": "redisMembership",
+          "line": 94,
+          "type": "Microsoft.Relationships/serviceGroupMember",
+          "version": "2023-09-01-preview",
+          "existing": false,
+          "start": 2812,
+          "end": 3046,
+          "header": "resource redisMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+          "body": "{\n  name: 'sgm-${uniqueString(serviceGroupId, redisEnterprise.id)}'\n  scope: redisEnterprise\n  properties: {\n    targetId: serviceGroupId\n  }\n}",
+          "status": "verified",
+          "reason": "Current preview schema 2023-09-01-preview accepts writable properties.targetId as a tenant-scoped Microsoft.Management/serviceGroups ARM ID, matching serviceGroupId; scope selects target member resource via resourceUri. The exact GA 2026-08-01 schema was also compared: sourceId is required/writable and targetId is read-only/server-derived.",
+          "migration": "GA移行は可能だが現状のままでは不可。candidate 2026-08-01ではserviceGroupIdをproperties.sourceIdへ移し、properties.targetIdを送らない。Bicep scopeは対象memberのまま。",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "最新GA 2026-08-01はrelationship方向を変更: sourceIdが必須のService Group resource ID、targetIdはscopeからserver-derived/readOnly。現在のpreview本文はtargetId=serviceGroupIdなので、GA移行時はproperties.sourceIdへ移しtargetIdを削除する必要がある。"
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'sgm-${uniqueString(serviceGroupId, redisEnterprise.id)}'",
+              "analysis": "JSON Pointer /name is Bicep relationship resource identity string. name: 'sgm-${uniqueString(serviceGroupId, redisEnterprise.id)}' uses uniqueString(serviceGroupId,target.id) to make a deterministic name."
+            },
+            {
+              "source_id": "body:75",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: redisEnterprise",
+              "analysis": "JSON Pointer /scope is Bicep extension-resource scope, not REST JSON. scope: redisEnterprise identifies the member resource; current/GA REST path is /{resourceUri}/providers/Microsoft.Relationships/serviceGroupMember/{name}."
+            },
+            {
+              "source_id": "body:105",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to current ServiceGroupMemberRelationshipProperties object and GA PropertiesV2 object; compare field directions below."
+            },
+            {
+              "source_id": "body:121",
+              "label": "targetId",
+              "path": "/properties/targetId",
+              "expression": "    targetId: serviceGroupId",
+              "analysis": "JSON Pointer /properties/targetId maps in current preview to writable arm-id for a tenant-scoped Microsoft.Management/serviceGroups resource, and serviceGroupId is that Service Group ID. In GA 2026-08-01 targetId is readOnly/server-derived, so this exact value must move to properties.sourceId; it cannot be retained as-is."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource redisMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not payload. Current type/version is Microsoft.Relationships/serviceGroupMember@2023-09-01-preview; latest GA is 2026-08-01."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/0",
+              "expression": "@description('Resource ID of the Azure Service Group')",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/0 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:55",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/1",
+              "expression": "param serviceGroupId string",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/1 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/service-group-members.bicep",
+          "name": "containerRegistryMembership",
+          "line": 102,
+          "type": "Microsoft.Relationships/serviceGroupMember",
+          "version": "2023-09-01-preview",
+          "existing": false,
+          "start": 3048,
+          "end": 3298,
+          "header": "resource containerRegistryMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+          "body": "{\n  name: 'sgm-${uniqueString(serviceGroupId, containerRegistry.id)}'\n  scope: containerRegistry\n  properties: {\n    targetId: serviceGroupId\n  }\n}",
+          "status": "verified",
+          "reason": "Current preview schema 2023-09-01-preview accepts writable properties.targetId as a tenant-scoped Microsoft.Management/serviceGroups ARM ID, matching serviceGroupId; scope selects target member resource via resourceUri. The exact GA 2026-08-01 schema was also compared: sourceId is required/writable and targetId is read-only/server-derived.",
+          "migration": "GA移行は可能だが現状のままでは不可。candidate 2026-08-01ではserviceGroupIdをproperties.sourceIdへ移し、properties.targetIdを送らない。Bicep scopeは対象memberのまま。",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "最新GA 2026-08-01はrelationship方向を変更: sourceIdが必須のService Group resource ID、targetIdはscopeからserver-derived/readOnly。現在のpreview本文はtargetId=serviceGroupIdなので、GA移行時はproperties.sourceIdへ移しtargetIdを削除する必要がある。"
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'sgm-${uniqueString(serviceGroupId, containerRegistry.id)}'",
+              "analysis": "JSON Pointer /name is Bicep relationship resource identity string. name: 'sgm-${uniqueString(serviceGroupId, containerRegistry.id)}' uses uniqueString(serviceGroupId,target.id) to make a deterministic name."
+            },
+            {
+              "source_id": "body:77",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: containerRegistry",
+              "analysis": "JSON Pointer /scope is Bicep extension-resource scope, not REST JSON. scope: containerRegistry identifies the member resource; current/GA REST path is /{resourceUri}/providers/Microsoft.Relationships/serviceGroupMember/{name}."
+            },
+            {
+              "source_id": "body:109",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to current ServiceGroupMemberRelationshipProperties object and GA PropertiesV2 object; compare field directions below."
+            },
+            {
+              "source_id": "body:125",
+              "label": "targetId",
+              "path": "/properties/targetId",
+              "expression": "    targetId: serviceGroupId",
+              "analysis": "JSON Pointer /properties/targetId maps in current preview to writable arm-id for a tenant-scoped Microsoft.Management/serviceGroups resource, and serviceGroupId is that Service Group ID. In GA 2026-08-01 targetId is readOnly/server-derived, so this exact value must move to properties.sourceId; it cannot be retained as-is."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource containerRegistryMembership 'Microsoft.Relationships/serviceGroupMember@2023-09-01-preview' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not payload. Current type/version is Microsoft.Relationships/serviceGroupMember@2023-09-01-preview; latest GA is 2026-08-01."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/0",
+              "expression": "@description('Resource ID of the Azure Service Group')",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/0 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            },
+            {
+              "source_id": "symbol:serviceGroupId:line:55",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupId/$expression-line/1",
+              "expression": "param serviceGroupId string",
+              "analysis": "JSON Pointer /$symbol/serviceGroupId/$expression-line/1 is serviceGroupId parameter source (string). main.bicep supplies either an existing Service Group resource ID or tenantResourceId(Microsoft.Management/serviceGroups, name); it matches current preview targetId constraints and GA sourceId description."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2023-09-01-preview",
+          "analysis": "Learn selector identifies current preview 2023-09-01-preview. Pinned Relationships README maps preview/2023-09-01-preview/relationships.json. Schemas resolves old Properties: targetId writable arm-id limited to tenant Service Groups; sourceId is read-only and derived from scoped member resource.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/servicegroupmember",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/2023-09-01-preview/servicegroupmember",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/preview/2023-09-01-preview/relationships.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/servicegroupmember": "4dd088506c499ff8a3c60fc92820b473ba8fadf07db62fc1a1f4c9deb6b10a86",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/2023-09-01-preview/servicegroupmember": "0ec3bbeb3873e78e4eed0a4651101d0a65398d33231056175950d64aee789333",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/readme.md": "c0fe420835b3eba08fbbef9d4924502112d6a238eb3f48f426f4095efca2bc85",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/preview/2023-09-01-preview/relationships.json": "74377d273bac94234592df5f3d872d78913c969c007a4bbba08685dcc141a6c6"
+          }
+        },
+        "ga": {
+          "version": "2026-08-01",
+          "analysis": "Learn selector lists 2026-08-01 as latest GA. Pinned README maps stable/2026-08-01/relationships.json. Exact GA PropertiesV2 requires writable sourceId (Service Group) and makes targetId read-only/server-derived from scope; current targetId value must be moved.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/servicegroupmember",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/2026-08-01/servicegroupmember",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/stable/2026-08-01/relationships.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/servicegroupmember": "4dd088506c499ff8a3c60fc92820b473ba8fadf07db62fc1a1f4c9deb6b10a86",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/2026-08-01/servicegroupmember": "13391273d37fd23e3a1b1e0f30a79f0cc82dab052f8176101b50512576d853c6",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/readme.md": "c0fe420835b3eba08fbbef9d4924502112d6a238eb3f48f426f4095efca2bc85",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/relationships/resource-manager/Microsoft.Relationships/Relationships/stable/2026-08-01/relationships.json": "d7be0be78fa2c99bf7727c97b216486ca2830bb19d0ee41ec87f917f87dfcfc3"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log: 2026-03-01-preview adds ServiceGroupMemberRelationshipPropertiesV2 and removes ServiceGroupMemberRelationshipProperties; GA 2026-08-01 has no further property changes. Direct schema comparison confirms the contract direction change between 2023 preview and GA.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/change-log/servicegroupmember"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.relationships/change-log/servicegroupmember": "14363f8c29e991e51628228254fc78b1020d7d69fa56bed35a717ae1edab4c3d"
+          }
+        }
+      }
     },
     "Microsoft.Resources/resourceGroups@2025-04-01": {
       "stage": "pending",
