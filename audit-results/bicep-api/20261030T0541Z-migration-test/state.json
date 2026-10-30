@@ -59725,9 +59725,168 @@
       }
     },
     "Microsoft.Resources/resourceGroups@2025-04-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/main.bicep",
+          "name": "resourceGroup",
+          "line": 176,
+          "type": "Microsoft.Resources/resourceGroups",
+          "version": "2025-04-01",
+          "existing": false,
+          "start": 6722,
+          "end": 6858,
+          "header": "resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = ",
+          "body": "{\n  name: resourceGroupName\n  location: location\n  tags: tags\n}",
+          "status": "verified",
+          "reason": "Learn selectorで2025-04-01が最新GAと確認し、固定REST resources.jsonのResourceGroup/TrackedResourceTags refsをSchemasで照合。name/location:string、tags additionalProperties:stringが一致し、location/name/tagsは全て指定。",
+          "migration": "GA移行不要。現行2025-04-01が最新公開GAと一致。change logのTrackedResourceTags追加・ResourceGroupTags削除後もschemaはtags object<string>を維持し、systemDataは自動管理field。",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: resourceGroupName",
+              "analysis": "JSON Pointer /name maps to ResourceGroup resource identity string. resourceGroupName is interpolated from abbreviations prefix, appName:string, and environment:string."
+            },
+            {
+              "source_id": "body:38",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "JSON Pointer /location maps to REST ResourceGroup.location:string. Param location is string with default 'japaneast'."
+            },
+            {
+              "source_id": "body:55",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "JSON Pointer /tags maps to REST object additionalProperties:string. The sole azd-env-name value is environment:string."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep resource type/version header, not payload. Type/version is Microsoft.Resources/resourceGroups@2025-04-01."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is location parameter annotation/declaration; string default japaneast supplies REST location:string."
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string = 'japaneast'",
+              "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is location parameter annotation/declaration; string default japaneast supplies REST location:string."
+            },
+            {
+              "source_id": "symbol:resourceGroupName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/resourceGroupName/$expression-line/0",
+              "expression": "var resourceGroupName = '${abbrs.resourcesResourceGroups}${appName}-${environment}'",
+              "analysis": "JSON Pointer /$symbol/resourceGroupName/$expression-line/0 is resourceGroupName interpolation source using abbreviation prefix, appName:string and environment:string; output is resource name:string."
+            },
+            {
+              "source_id": "symbol:abbrs:line:0",
+              "label": "$expression",
+              "path": "/$symbol/abbrs/$expression-line/0",
+              "expression": "var abbrs = loadJsonContent('./abbreviations.json')",
+              "analysis": "JSON Pointer /$symbol/abbrs/$expression-line/0 is abbreviations JSON loaded by loadJsonContent and supplies the resource-group name prefix; concatenated result is string."
+            },
+            {
+              "source_id": "symbol:appName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/appName/$expression-line/0",
+              "expression": "@description('Workload/application name (used for resource naming)')",
+              "analysis": "JSON Pointer /$symbol/appName/$expression-line/0 is appName param string (default aks-chaos-lab) used in resourceGroupName interpolation."
+            },
+            {
+              "source_id": "symbol:appName:line:69",
+              "label": "$expression",
+              "path": "/$symbol/appName/$expression-line/1",
+              "expression": "param appName string = 'aks-chaos-lab'",
+              "analysis": "JSON Pointer /$symbol/appName/$expression-line/1 is appName param string (default aks-chaos-lab) used in resourceGroupName interpolation."
+            },
+            {
+              "source_id": "symbol:environment:line:0",
+              "label": "$expression",
+              "path": "/$symbol/environment/$expression-line/0",
+              "expression": "@description('Environment name (e.g., dev, test, prod)')",
+              "analysis": "JSON Pointer /$symbol/environment/$expression-line/0 is environment param string (default dev), used in name and tags map."
+            },
+            {
+              "source_id": "symbol:environment:line:57",
+              "label": "$expression",
+              "path": "/$symbol/environment/$expression-line/1",
+              "expression": "param environment string = 'dev'",
+              "analysis": "JSON Pointer /$symbol/environment/$expression-line/1 is environment param string (default dev), used in name and tags map."
+            },
+            {
+              "source_id": "symbol:tags:29",
+              "label": "azd-env-name",
+              "path": "/$symbol/tags/azd-env-name",
+              "expression": "  'azd-env-name': environment",
+              "analysis": "JSON Pointer /$symbol/tags/azd-env-name is source map value environment:string. JSON Pointer is in Bicep source, not a REST path; it maps to REST tags[azd-env-name]:string."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "var tags = {",
+              "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is tags map variable definition; its entries are strings and match REST additionalProperties:string."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2025-04-01",
+          "analysis": "Learn selector lists 2025-04-01 as Latest. Pinned resources README maps stable/2025-04-01/resources.json, where Schemas resolves ResourceGroup, TrackedResourceTags, location:string, and tags object<string>.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/resourcegroups",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/2025-04-01/resourcegroups",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/resourcegroups": "d1c4104fea16c0594a784186ad85e930af56aafc218c9a2d106d60e626c9cebe",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/2025-04-01/resourcegroups": "50fd8c71ebaa0073a39491d4bb0e0276905f2d5c9e8198932688abda2a540878",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/readme.md": "c96f78a6a0376fd4c7f5591fbd49235df714f4a862a253fb0d64f72f208a4880",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json": "399d827f9a8e5f82b89922f2155c2f8c34017a5764c3e2c492f743ee9a23fe62"
+          }
+        },
+        "ga": {
+          "version": "2025-04-01",
+          "analysis": "Latest stable GA from Learn equals current. The exact candidate is the same pinned ResourceGroup schema.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/resourcegroups",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/2025-04-01/resourcegroups",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/resourcegroups": "d1c4104fea16c0594a784186ad85e930af56aafc218c9a2d106d60e626c9cebe",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/2025-04-01/resourcegroups": "50fd8c71ebaa0073a39491d4bb0e0276905f2d5c9e8198932688abda2a540878",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/readme.md": "c96f78a6a0376fd4c7f5591fbd49235df714f4a862a253fb0d64f72f208a4880",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json": "399d827f9a8e5f82b89922f2155c2f8c34017a5764c3e2c492f743ee9a23fe62"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log says 2025-04-01 adds TrackedResourceTags, removes ResourceGroupTags and adds systemData. Current schema continues tags as string-valued map; systemData is service-managed and not supplied.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/change-log/resourcegroups"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/change-log/resourcegroups": "de142fd1114c6508938cf2ade98ab727bf6b897090754ac239a7ade6fe25ad12"
+          }
+        }
+      }
     },
     "Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01": {
       "stage": "pending",

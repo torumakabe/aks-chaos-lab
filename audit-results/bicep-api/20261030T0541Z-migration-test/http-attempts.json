@@ -466,5 +466,50 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/resourcegroups",
+    "attempt": 1,
+    "started_monotonic": 1942.205548255,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/2025-04-01/resourcegroups",
+    "attempt": 1,
+    "started_monotonic": 1945.205680221,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.4950854300000174
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/change-log/resourcegroups",
+    "attempt": 1,
+    "started_monotonic": 1948.20583336,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.744734122999944
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/readme.md",
+    "attempt": 1,
+    "started_monotonic": 1948.457921475,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json",
+    "attempt": 1,
+    "started_monotonic": 1958.955493996,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
