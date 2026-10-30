@@ -430,5 +430,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/fleets/members",
+    "attempt": 1,
+    "started_monotonic": 2453.126948934,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/members",
+    "attempt": 1,
+    "started_monotonic": 2456.127053397,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.896549977000177
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/members",
+    "attempt": 1,
+    "started_monotonic": 2459.127156884,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.860733686000003
   }
 ]

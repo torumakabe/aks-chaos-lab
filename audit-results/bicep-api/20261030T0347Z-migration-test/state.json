@@ -43554,9 +43554,156 @@
       }
     },
     "Microsoft.ContainerService/fleets/members@2026-06-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/fleet.bicep",
+          "name": "fleetMember",
+          "line": 53,
+          "type": "Microsoft.ContainerService/fleets/members",
+          "version": "2026-06-01",
+          "existing": false,
+          "start": 1514,
+          "end": 1718,
+          "header": "resource fleetMember 'Microsoft.ContainerService/fleets/members@2026-06-01' = ",
+          "body": "{\n  name: fleetMemberName\n  parent: fleet\n  properties: {\n    clusterResourceId: aksClusterId\n    group: memberGroupName\n  }\n}",
+          "status": "verified",
+          "reason": "Learn identifies 2026-06-01 as latest stable GA. Exact FleetMemberProperties requires clusterResourceId, which is an ARM ID restricted to managedClusters; the source receives the AKS resource ID. group constraints are minLength 1, maxLength 50 and the exact regex; main.bicep passes base-cluster, which satisfies them.",
+          "migration": "Current 2026-06-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: fleetMemberName",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression 'name: fleetMemberName'); Bicep member name is the REST memberName path segment; main.bicep passes literal 'base-cluster'."
+            },
+            {
+              "source_id": "body:34",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: fleet",
+              "analysis": "body:34: Bicep source JSON Pointer /parent (expression 'parent: fleet'); Bicep parent fleet selects the fleetName route segment and is not part of the REST body."
+            },
+            {
+              "source_id": "body:54",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "body:54: Bicep source JSON Pointer /properties (expression 'properties: {'); Request properties maps to FleetMemberProperties; required clusterResourceId and the optional group field are both supplied."
+            },
+            {
+              "source_id": "body:79",
+              "label": "clusterResourceId",
+              "path": "/properties/clusterResourceId",
+              "expression": "    clusterResourceId: aksClusterId",
+              "analysis": "body:79: Bicep source JSON Pointer /properties/clusterResourceId (expression 'clusterResourceId: aksClusterId'); Maps to required clusterResourceId string/arm-id restricted to Microsoft.ContainerService/managedClusters; the source AKS resource ID output is a string ID for exactly that resource type."
+            },
+            {
+              "source_id": "body:103",
+              "label": "group",
+              "path": "/properties/group",
+              "expression": "    group: memberGroupName",
+              "analysis": "body:103: Bicep source JSON Pointer /properties/group (expression 'group: memberGroupName'); Maps to group string with minLength 1, maxLength 50 and pattern ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$. The actual caller supplies base-cluster, which matches."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource fleetMember 'Microsoft.ContainerService/fleets/members@2026-06-01' = ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource fleetMember 'Microsoft.ContainerService/fleets/members@2026-06-01' =\"); Bicep resource header identifies the current stable API version; it is not request data."
+            },
+            {
+              "source_id": "symbol:aksClusterId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterId/$expression-line/0",
+              "expression": "@description('AKS managed cluster resource ID to join to the fleet')",
+              "analysis": "symbol:aksClusterId:line:0: Bicep source JSON Pointer /$symbol/aksClusterId/$expression-line/0 (expression \"@description('AKS managed cluster resource ID to join to the fleet')\"); Parameter description only; actual source values and schema constraints are assessed separately."
+            },
+            {
+              "source_id": "symbol:aksClusterId:line:69",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterId/$expression-line/1",
+              "expression": "param aksClusterId string",
+              "analysis": "symbol:aksClusterId:line:69: Bicep source JSON Pointer /$symbol/aksClusterId/$expression-line/1 (expression 'param aksClusterId string'); String-typed Bicep parameter receives aksCluster.outputs.aksId; that output is declared string and comes from the managedClusters resource ID, satisfying clusterResourceId format and allowed resource type."
+            },
+            {
+              "source_id": "symbol:fleetMemberName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/fleetMemberName/$expression-line/0",
+              "expression": "@description('Fleet member name (use lowercase alphanumeric and hyphen)')",
+              "analysis": "symbol:fleetMemberName:line:0: Bicep source JSON Pointer /$symbol/fleetMemberName/$expression-line/0 (expression \"@description('Fleet member name (use lowercase alphanumeric and hyphen)')\"); Parameter description only; actual source values and schema constraints are assessed separately."
+            },
+            {
+              "source_id": "symbol:fleetMemberName:line:74",
+              "label": "$expression",
+              "path": "/$symbol/fleetMemberName/$expression-line/1",
+              "expression": "param fleetMemberName string = 'base-cluster'",
+              "analysis": "symbol:fleetMemberName:line:74: Bicep source JSON Pointer /$symbol/fleetMemberName/$expression-line/1 (expression \"param fleetMemberName string = 'base-cluster'\"); String parameter default and actual parent-module override are 'base-cluster'; both the memberName path and group value satisfy the REST group length/pattern constraint."
+            },
+            {
+              "source_id": "symbol:memberGroupName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/memberGroupName/$expression-line/0",
+              "expression": "var memberGroupName = fleetMemberName",
+              "analysis": "symbol:memberGroupName:line:0: Bicep source JSON Pointer /$symbol/memberGroupName/$expression-line/0 (expression 'var memberGroupName = fleetMemberName'); Bicep var memberGroupName aliases fleetMemberName; main.bicep supplies base-cluster, which matches the REST group pattern and length."
+            },
+            {
+              "source_id": "symbol:memberGroupName:line:39",
+              "label": "$expression",
+              "path": "/$symbol/memberGroupName/$expression-line/2",
+              "expression": "#disable-next-line BCP081",
+              "analysis": "symbol:memberGroupName:line:39: Bicep source JSON Pointer /$symbol/memberGroupName/$expression-line/2 (expression '#disable-next-line BCP081'); Bicep diagnostic suppression directive only; it is not an API attribute or a source value."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-06-01",
+          "analysis": "Learn selector and pinned Fleet stable OpenAPI identify 2026-06-01. Schemas helper expanded FleetMemberProperties and confirmed required clusterResourceId (string/arm-id limited to managedClusters) and group (string min/max/pattern). Exact caller values are AKS ID output and base-cluster; the latter passes the pattern.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/members",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/members": "d629850cac50989e2906aa521b649ecc38875ac2ef0161dfa8574c8eb1d526fe",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md": "dbb091949f52e5f30b1bc67a68c87b22cf57d09493c0d24f94010a4aa19b0641",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json": "c47dbd88b848187f664790e484ee9c21d55192be4a636e4ab1e8595bc16f4240",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1"
+          }
+        },
+        "ga": {
+          "version": "2026-06-01",
+          "analysis": "Learn lists 2026-06-01 as the latest stable GA and 2026-06-02-preview as a newer preview. Exact candidate schema is the same pinned stable fleets.json; preview is not treated as GA.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/members",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/members": "d629850cac50989e2906aa521b649ecc38875ac2ef0161dfa8574c8eb1d526fe",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json": "c47dbd88b848187f664790e484ee9c21d55192be4a636e4ab1e8595bc16f4240",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log: 2026-06-01 adds FleetMemberProperties.meshProperties; it is optional and unused. Required clusterResourceId and group constraints remain in the exact current schema.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/members",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/members": "e1e310bd7c348e2bfe7ccaf61e5908172ccf033393836ca76c37fac0cb402498",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json": "c47dbd88b848187f664790e484ee9c21d55192be4a636e4ab1e8595bc16f4240",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1"
+          }
+        }
+      }
     },
     "Microsoft.ContainerService/fleets/updateStrategies@2026-06-01": {
       "stage": "pending",
