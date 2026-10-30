@@ -79,13 +79,17 @@ uv run --no-project "${PWD}/scripts/tasks.py" check-renovate-config
 
 GitHub cloud Copilot Automationへの移行は検証中で、Automationは`enabled=false`のまま手動で試す。[bicep_api_audit.py](../scripts/bicep_api_audit.py)は標準ライブラリだけを使い、宣言別の確認状態と公開根拠を保存する。これは本番移行の完了やAPI仕様照合の完了を示すものではない。既存の週次workflowの説明と運用は変更しない。
 
+runnerにuvがあることを前提にせず、監査前にuvのversionと固定したhelperのimportを確認する。uvはルート`pyproject.toml`の`required-version`を満たす版を使う。未導入の場合は公式releaseのarchiveを公開されたSHA-256と照合し、実行用の一時ディレクトリへ展開する。helperは`uv run --no-project --no-config --no-python-downloads python`で実行し、workspaceの同期やpackage indexの変更を行わない。
+
+Automationで選択するツールは`github/get_file_contents`、`github/create_issue`、`report_progress`（commit/push）、`github/issue_read`（作成したIssueの読み戻し）。設定APIが文字列を受理しても、実行時に呼び出せることの証明にはならない。必要なツールの選択と実行専用ブランチへの保存を監査前に確認する。
+
 `init`で対象checkoutの完全なcommit SHAとREST仕様のcommit SHAを固定する。`next --state <state.json> --output <assessment.json>`は次のpairの宣言とusageを未処理の雛形へ複写し、大きなJSONの再入力を避ける。`record`はpair別の`results`と`evidence`を持つJSONを読み、公開根拠の取得、宣言の一致、全usageの`source_id`、`path`、`expression`、`analysis`を検査して状態を保存する。`Schemas`は外部参照と`allOf`を展開するが、互換性の判断自体は実行者が公開仕様と使用属性を照合して記録する。HTTP成功や状態JSONの形式検査だけで判断を代替しない。
 
 `prepare --state <state.json> --title <title> --directory <output>`は全pair、全宣言、使用属性、判断、根拠と完全なハッシュを`evidence.json`へ保存し、`report.md`も生成する。未処理pairがあれば生成を拒否する。公開根拠不足を`block`で記録した場合だけ`--allow-blocked`で未完了の報告を生成でき、その宣言は`unverified`として残る。この段階ではIssue用payloadを生成しない。
 
 `block`の入力JSONには、任意の`partial_results`と`partial_evidence`を追加できる。`partial_results`を渡す場合は、そのpairの全宣言の`file`、`line`、`name`と確認済みの`findings`を過不足なく記録する。`partial_evidence`は確認できた`current`、`ga`、`breaking`だけを持ち、各項目に`analysis`と公開根拠の`urls`、版の根拠には`version`も記録する。current schemaが不足していても既知のGA候補と指摘はJSON、レポート、Issueの件数に残るが、GAの根拠でcurrentの確認を代替せず、宣言は常に`unverified`とする。
 
-実行ごとの検証専用ブランチへ両ファイルをcommit/pushした後、同じ`prepare`に`--evidence-url`と`--report-url`を追加する。両URLは同じrepositoryと実在する完全なcommit SHAの`https://github.com/<owner>/<repo>/blob/<commit>/<path>`を指定する。スクリプトは`gh api`で両ファイルを再取得し、ローカル出力とバイト単位で一致する場合だけ短い`issue-payload.json`と本文のSHA-256を生成する。Issue本文は不変のファイルリンク、件数、未確認状態とハッシュに限定し、圧縮JSONを埋め込まない。
+実行ごとの検証専用ブランチへ両ファイルをcommit/pushした後、同じ`prepare`に`--evidence-url`と`--report-url`を追加する。両URLは同じrepositoryと実在する完全なcommit SHAの`https://github.com/<owner>/<repo>/blob/<commit>/<path>`を指定する。スクリプトは公開repositoryの同じowner、repository、commit、pathを指定した`raw.githubusercontent.com`から、標準ライブラリの`urllib`で両ファイルを認証なしで再取得し、ローカル出力とバイト単位で一致する場合だけ短い`issue-payload.json`と本文のSHA-256を生成する。GitHub CLIやtokenには依存せず、取得に失敗した場合は別の取得先へ切り替えずに停止する。Issue本文は不変のファイルリンク、件数、未確認状態とハッシュに限定し、圧縮JSONを埋め込まない。
 
 Issue作成は別途許可された操作で行う。作成後にGitHubから取得したtitleとbodyのJSONを`verify-issue --payload <issue-payload.json> --actual <actual.json>`へ渡し、保存済みpayloadとの一致を確認する。これらのコマンドはcommit、push、Issue作成、Azure照会、Automation設定変更を実行しない。
 

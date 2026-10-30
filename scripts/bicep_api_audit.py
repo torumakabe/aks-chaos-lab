@@ -1097,7 +1097,7 @@ def finalize_evidence(state, directory, allow_blocked=False):
 
 
 def published_file(url):
-    """ghの認証済みアカウントでcommit固定のGitHubファイルを読む。"""
+    """公開repositoryのcommit固定ファイルを認証なしで読む。"""
     parsed = urlsplit(url)
     parts = parsed.path.strip("/").split("/")
     require(
@@ -1129,20 +1129,30 @@ def published_file(url):
         ),
         "Publication needs a canonical immutable GitHub file URL",
     )
-    endpoint = (
-        f"repos/{owner}/{repository}/contents/{quote(path, safe='/')}?ref={commit}"
+    raw_url = (
+        f"https://raw.githubusercontent.com/{owner}/{repository}/{commit}/"
+        f"{quote(path, safe='/')}"
     )
-    data = subprocess.check_output(
-        [
-            executable("gh"),
-            "api",
-            "--method",
-            "GET",
-            "-H",
-            "Accept: application/vnd.github.raw+json",
-            endpoint,
-        ]
+    request = urllib.request.Request(
+        raw_url, headers={"User-Agent": "bicep-api-audit/1.0"}
     )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            require(
+                response.status == 200,
+                f"Published file HTTP {response.status}: {raw_url}",
+            )
+            require(
+                response.geturl() == raw_url,
+                "Published file redirected from pinned URL",
+            )
+            data = response.read()
+    except urllib.error.HTTPError as exc:
+        raise AuditError(f"Published file HTTP {exc.code}: {raw_url}") from None
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise AuditError(
+            f"Published file retrieval failed ({type(exc).__name__}): {raw_url}"
+        ) from None
     return (owner, repository, commit), data
 
 

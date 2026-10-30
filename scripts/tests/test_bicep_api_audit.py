@@ -1,9 +1,13 @@
 import copy
 import hashlib
+import io
 import json
+import os
 import sys
 import tempfile
 import unittest
+import urllib.error
+from email.message import Message
 from pathlib import Path
 from unittest.mock import patch
 
@@ -38,14 +42,30 @@ EVIDENCE_URL = f"https://github.com/example/lab/blob/{'b' * 40}/audit/evidence.j
 REPORT_URL = f"https://github.com/example/lab/blob/{'b' * 40}/audit/report.md"
 
 
+class PublishedResponse(io.BytesIO):
+    def __init__(self, data, url, status=200):
+        super().__init__(data)
+        self.url = url
+        self.status = status
+
+    def geturl(self):
+        return self.url
+
+
+def mock_published_files(*bodies):
+    responses = iter(bodies)
+
+    def open_request(request, timeout):
+        return PublishedResponse(next(responses), request.full_url)
+
+    return patch("bicep_api_audit.urllib.request.urlopen", side_effect=open_request)
+
+
 def published_payload(state, directory, title="fixture", allow_blocked=False):
     prepare_issue(state, title, directory, allow_blocked=allow_blocked)
-    with patch(
-        "bicep_api_audit.subprocess.check_output",
-        side_effect=[
-            (Path(directory) / "evidence.json").read_bytes(),
-            (Path(directory) / "report.md").read_bytes(),
-        ],
+    with mock_published_files(
+        (Path(directory) / "evidence.json").read_bytes(),
+        (Path(directory) / "report.md").read_bytes(),
     ):
         return prepare_issue(
             state,
@@ -343,6 +363,110 @@ class SchemaTests(unittest.TestCase):
 
         with self.assertRaisesRegex(AuditError, "Schema HTTP 404"):
             Schemas(Denied()).document(CURRENT)
+
+
+class PublishedFileTests(unittest.TestCase):
+    def test_raw_bytes_need_neither_tokens_nor_github_cli(self):
+        body = bytes(range(256)) + b"\x00\r\n"
+        for environment in ({}, {"GH_TOKEN": "unused", "GITHUB_TOKEN": "unused"}):
+            with (
+                self.subTest(environment=environment),
+                patch.dict(os.environ, environment, clear=True),
+                patch(
+                    "bicep_api_audit.subprocess.check_output",
+                    side_effect=AssertionError("No subprocess may be invoked"),
+                ),
+                patch(
+                    "bicep_api_audit.executable",
+                    side_effect=AssertionError("No executable may be looked up"),
+                ),
+                mock_published_files(body) as opener,
+            ):
+                identity, actual = published_file(EVIDENCE_URL)
+                self.assertEqual(identity, ("example", "lab", "b" * 40))
+                self.assertEqual(actual, body)
+                request = opener.call_args.args[0]
+                self.assertEqual(
+                    request.full_url,
+                    f"https://raw.githubusercontent.com/example/lab/{'b' * 40}/audit/evidence.json",
+                )
+                self.assertEqual(request.get_method(), "GET")
+                self.assertIsNone(request.get_header("Authorization"))
+                self.assertEqual(opener.call_args.kwargs, {"timeout": 30})
+                self.assertEqual(opener.call_count, 1)
+
+    def test_http_and_connection_failures_are_explicit_without_fallback(self):
+        raw_url = f"https://raw.githubusercontent.com/example/lab/{'b' * 40}/audit/evidence.json"
+        for error, message in (
+            (
+                urllib.error.HTTPError(raw_url, 404, "Not Found", Message(), None),
+                "HTTP 404",
+            ),
+            (
+                urllib.error.HTTPError(raw_url, 503, "Unavailable", Message(), None),
+                "HTTP 503",
+            ),
+            (urllib.error.URLError("offline"), "retrieval failed"),
+            (TimeoutError("timeout"), "retrieval failed"),
+        ):
+            with (
+                self.subTest(error=error),
+                patch(
+                    "bicep_api_audit.urllib.request.urlopen", side_effect=error
+                ) as opener,
+                patch(
+                    "bicep_api_audit.subprocess.check_output",
+                    side_effect=AssertionError("No CLI fallback"),
+                ),
+                self.assertRaisesRegex(AuditError, message),
+            ):
+                try:
+                    published_file(EVIDENCE_URL)
+                finally:
+                    self.assertEqual(opener.call_count, 1)
+
+    def test_non_success_status_and_redirected_response_are_rejected(self):
+        raw_url = f"https://raw.githubusercontent.com/example/lab/{'b' * 40}/audit/evidence.json"
+        for response, message in (
+            (PublishedResponse(b"rate limited", raw_url, status=429), "HTTP 429"),
+            (
+                PublishedResponse(b"other file", raw_url.replace("b" * 40, "main")),
+                "redirected",
+            ),
+        ):
+            with (
+                self.subTest(message=message),
+                patch(
+                    "bicep_api_audit.urllib.request.urlopen", return_value=response
+                ) as opener,
+                self.assertRaisesRegex(AuditError, message),
+            ):
+                try:
+                    published_file(EVIDENCE_URL)
+                finally:
+                    self.assertEqual(opener.call_count, 1)
+
+    def test_over_four_megabytes_remain_byte_exact_through_issue_preparation(self):
+        state, evidence, results = fixture()
+        for result in results:
+            result["usage"][0]["analysis"] = "雪" * 400_000
+        record_pair(state, next_pair(state)[0], results, evidence, FixtureFetcher())
+        with (
+            tempfile.TemporaryDirectory(dir=Path.cwd()) as directory,
+            patch.dict(os.environ, {}, clear=True),
+            patch(
+                "bicep_api_audit.subprocess.check_output",
+                side_effect=AssertionError("No CLI dependency"),
+            ),
+        ):
+            payload = published_payload(state, directory)
+            data = (Path(directory) / "evidence.json").read_bytes()
+            self.assertGreater(len(data), 4 * 1024 * 1024)
+            self.assertEqual(data, evidence_bytes(state))
+            self.assertEqual(json.loads(data)["state"], state)
+            self.assertIn(hashlib.sha256(data).hexdigest(), payload["body"])
+            self.assertLess(len(payload["body"].encode("utf-8")), 6000)
+            self.assertEqual(len(verify_issue(payload, dict(payload))), 64)
 
 
 class PartialBlockedTests(unittest.TestCase):
@@ -651,12 +775,9 @@ class FileEvidenceTests(unittest.TestCase):
         ).encode()
         with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
             with (
-                patch(
-                    "bicep_api_audit.subprocess.check_output",
-                    side_effect=[
-                        changed,
-                        render(state).encode(),
-                    ],
+                mock_published_files(
+                    changed,
+                    render(state).encode(),
                 ),
                 self.assertRaisesRegex(AuditError, "evidence differs"),
             ):
@@ -673,12 +794,9 @@ class FileEvidenceTests(unittest.TestCase):
         state = self.assessed()
         with (
             tempfile.TemporaryDirectory(dir=Path.cwd()) as directory,
-            patch(
-                "bicep_api_audit.subprocess.check_output",
-                side_effect=[
-                    evidence_bytes(state),
-                    b"changed",
-                ],
+            mock_published_files(
+                evidence_bytes(state),
+                b"changed",
             ),
             self.assertRaisesRegex(AuditError, "report differs"),
         ):
@@ -702,12 +820,9 @@ class FileEvidenceTests(unittest.TestCase):
         state = self.assessed()
         with (
             tempfile.TemporaryDirectory(dir=Path.cwd()) as directory,
-            patch(
-                "bicep_api_audit.subprocess.check_output",
-                side_effect=[
-                    evidence_bytes(state),
-                    render(state).encode(),
-                ],
+            mock_published_files(
+                evidence_bytes(state),
+                render(state).encode(),
             ),
             self.assertRaisesRegex(AuditError, "share repository and commit"),
         ):
@@ -725,10 +840,10 @@ class FileEvidenceTests(unittest.TestCase):
             published_payload(state, directory)
             with (
                 patch(
-                    "bicep_api_audit.subprocess.check_output",
+                    "bicep_api_audit.urllib.request.urlopen",
                     side_effect=OSError("offline"),
                 ),
-                self.assertRaises(OSError),
+                self.assertRaisesRegex(AuditError, "retrieval failed"),
             ):
                 prepare_issue(
                     state,
