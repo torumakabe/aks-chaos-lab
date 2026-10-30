@@ -54790,9 +54790,240 @@
       }
     },
     "Microsoft.Network/networkSecurityGroups@2026-03-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/network.bicep",
+          "name": "aksSubnetNetworkSecurityGroup",
+          "line": 102,
+          "type": "Microsoft.Network/networkSecurityGroups",
+          "version": "2026-03-01",
+          "existing": false,
+          "start": 2818,
+          "end": 3408,
+          "header": "resource aksSubnetNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2026-03-01' = ",
+          "body": "{\n  name: 'nsg-${vnetName}-snet-aks'\n  location: location\n  tags: tags\n  properties: {\n    securityRules: [\n      {\n        name: 'Allow-HTTP-HTTPS'\n        properties: {\n          priority: 1000\n          direction: 'Inbound'\n          access: 'Allow'\n          protocol: 'Tcp'\n          sourcePortRange: '*'\n          destinationPortRanges: [\n            '80'\n            '443'\n          ]\n          sourceAddressPrefix: '*'\n          destinationAddressPrefix: '*'\n        }\n      }\n    ]\n  }\n}",
+          "status": "verified",
+          "reason": "LearnのAPI selectorで現行2026-03-01が最新の公開GA版と確認し、固定REST仕様の2026-03-01 NetworkSecurityGroupモデル・共通定義、および全source_idの属性値/型/enum/requiredを照合した。既存参照ではなく作成宣言で、SecurityRuleのrequired protocol/access/priority/directionは全て指定済み。",
+          "migration": "GA移行不要。現行2026-03-01がLearnに表示された最新GA 2026-03-01と一致し、previewではない。Learn change logは2026-03-01に追加・更新・削除されたpropertyなしと記載。",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'nsg-${vnetName}-snet-aks'",
+              "analysis": "Bicep JSON Pointer /name はREST payload /name。式 'nsg-${vnetName}-snet-aks' はstringで、vnetNameはmodule param string。main.bicepのvirtualNetworkName由来のresource nameもstring。NetworkSecurityGroup->Resourceのname:stringに適合。"
+            },
+            {
+              "source_id": "body:47",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "JSON Pointer /location はREST payload /location。値はparam location string。Resource.location:stringに適合。"
+            },
+            {
+              "source_id": "body:64",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "JSON Pointer /tags はREST payload /tags。値はparam tags object。Network Resource.tagsはobject additionalProperties:string。呼出元main.bicep:172-174のtag値はenvironment param stringで、module call:200-214がtagsを渡すため値型はstring。"
+            },
+            {
+              "source_id": "body:83",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties はREST payload /properties。NetworkSecurityGroup.propertiesはNetworkSecurityGroupPropertiesFormat objectへの$refであり、作成 payloadのobjectに適合。"
+            },
+            {
+              "source_id": "body:104",
+              "label": "securityRules",
+              "path": "/properties/securityRules",
+              "expression": "    securityRules: [",
+              "analysis": "JSON Pointer /properties/securityRules はREST payload /properties/securityRules。これはSecurityRule[]で、指定値はarray。"
+            },
+            {
+              "source_id": "body:128",
+              "label": "name",
+              "path": "/properties/securityRules/[]/name",
+              "expression": "        name: 'Allow-HTTP-HTTPS'",
+              "analysis": "JSON Pointer /properties/securityRules/[]/name はREST payloadのSecurityRule item name。'Allow-HTTP-HTTPS'はstringでSubResourceModel.name:stringに適合。"
+            },
+            {
+              "source_id": "body:167",
+              "label": "properties",
+              "path": "/properties/securityRules/[]/properties",
+              "expression": "        properties: {",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties はREST payload SecurityRule.properties。SecurityRulePropertiesFormat objectへの$ref。必須protocol/access/priority/directionを下記で全て指定。"
+            },
+            {
+              "source_id": "body:189",
+              "label": "priority",
+              "path": "/properties/securityRules/[]/properties/priority",
+              "expression": "          priority: 1000",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties/priority はREST属性priority。1000はintegerで、仕様説明の範囲100..4096内。SecurityRulePropertiesFormatのrequiredに含まれる。"
+            },
+            {
+              "source_id": "body:215",
+              "label": "direction",
+              "path": "/properties/securityRules/[]/properties/direction",
+              "expression": "          direction: 'Inbound'",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties/direction はREST属性direction。'Inbound'はSecurityRuleDirection enum [Inbound, Outbound]に適合しrequired。"
+            },
+            {
+              "source_id": "body:243",
+              "label": "access",
+              "path": "/properties/securityRules/[]/properties/access",
+              "expression": "          access: 'Allow'",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties/access はREST属性access。'Allow'はSecurityRuleAccess enum [Allow, Deny]に適合しrequired。"
+            },
+            {
+              "source_id": "body:271",
+              "label": "protocol",
+              "path": "/properties/securityRules/[]/properties/protocol",
+              "expression": "          protocol: 'Tcp'",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties/protocol はREST属性protocol。'Tcp'はSecurityRuleProtocol enum [Tcp, Udp, Icmp, Esp, *, Ah]に適合しrequired。"
+            },
+            {
+              "source_id": "body:304",
+              "label": "sourcePortRange",
+              "path": "/properties/securityRules/[]/properties/sourcePortRange",
+              "expression": "          sourcePortRange: '*'",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties/sourcePortRange はREST属性sourcePortRange。'*'はstringで、全portを指定する仕様上許容値。"
+            },
+            {
+              "source_id": "body:341",
+              "label": "destinationPortRanges",
+              "path": "/properties/securityRules/[]/properties/destinationPortRanges",
+              "expression": "          destinationPortRanges: [",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties/destinationPortRanges はREST属性destinationPortRanges、items:stringのarray。各値を個別に照合。"
+            },
+            {
+              "source_id": "body:421",
+              "label": "sourceAddressPrefix",
+              "path": "/properties/securityRules/[]/properties/sourceAddressPrefix",
+              "expression": "          sourceAddressPrefix: '*'",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties/sourceAddressPrefix はREST属性sourceAddressPrefix。'*'はstringで全source IPを指定する許容値。"
+            },
+            {
+              "source_id": "body:461",
+              "label": "destinationAddressPrefix",
+              "path": "/properties/securityRules/[]/properties/destinationAddressPrefix",
+              "expression": "          destinationAddressPrefix: '*'",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties/destinationAddressPrefix はREST属性destinationAddressPrefix。'*'はstringで全destination IPを指定する許容値。"
+            },
+            {
+              "source_id": "body:line:345",
+              "label": "$expression",
+              "path": "/properties/securityRules/[]/properties/destinationPortRanges/[]/$expression-line/15",
+              "expression": "            '80'",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties/destinationPortRanges/[]/$expression-line/15 はsource file内のarray element expression。REST属性は /properties/securityRules/[]/properties/destinationPortRanges/[]。literal '80'はstringかつ0..65535内。"
+            },
+            {
+              "source_id": "body:line:362",
+              "label": "$expression",
+              "path": "/properties/securityRules/[]/properties/destinationPortRanges/[]/$expression-line/16",
+              "expression": "            '443'",
+              "analysis": "JSON Pointer /properties/securityRules/[]/properties/destinationPortRanges/[]/$expression-line/16 はsource file内のarray element expression。REST属性は /properties/securityRules/[]/properties/destinationPortRanges/[]。literal '443'はstringかつ0..65535内。"
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksSubnetNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2026-03-01' = ",
+              "analysis": "JSON Pointer /$expression-line/0 はresource type/versionを宣言するBicep headerでpayload propertyではない。type/versionはMicrosoft.Network/networkSecurityGroups@2026-03-01でLearn/RESTの現行schemaと一致。"
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はlocation parameterのdescription annotationでpayload propertyではない。関連するREST /location の型確認はparam declarationとbody:47 analysisに記録。"
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はparam location string。REST payload /location:string を満たす変数定義。"
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags object')",
+              "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 はtags parameterのdescription annotationでpayload propertyではない。REST /tags additionalProperties:stringとの照合はparameter/callerを含めbody:64に記録。"
+            },
+            {
+              "source_id": "symbol:tags:line:28",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object",
+              "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 はparam tags object。REST payload /tagsはadditionalProperties:stringであり、main.bicep:172-174の実値はenvironment stringからなる。"
+            },
+            {
+              "source_id": "symbol:vnetName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/vnetName/$expression-line/0",
+              "expression": "@description('Virtual network name')",
+              "analysis": "JSON Pointer /$symbol/vnetName/$expression-line/0 はvnetName parameterのdescription annotationでpayload propertyではない。関連するREST /nameへのstring interpolationはbody:8 analysisに記録。"
+            },
+            {
+              "source_id": "symbol:vnetName:line:37",
+              "label": "$expression",
+              "path": "/$symbol/vnetName/$expression-line/1",
+              "expression": "param vnetName string",
+              "analysis": "JSON Pointer /$symbol/vnetName/$expression-line/1 はparam vnetName string。resource name式内の参照値であり、REST payload /name:stringに適合。"
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-03-01",
+          "analysis": "Learn version-specific page documents this exact API version. The pinned REST README identifies package-2026-03-01 and includes virtualNetwork.json/common.json; NetworkSecurityGroup and NetworkSecurityGroupPropertiesFormat are in virtualNetwork.json, with Resource, SubResourceModel and enums referenced from common.json. Schemas.expand/property/literal resolved allOf/$ref and validated actual property types, additionalProperties, required fields and literals.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/networksecuritygroups",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/networksecuritygroups": "97a794b4d4dcf4c5eb78a98030578cfd082133aefd3b51196ce857dc267adcee",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md": "2bfb2cec692f847efbdca885f4bbfd9259691489a1e1b6c69da43f6e4537c5be",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json": "0bfb316d7cbbecc06ae43c2cf57ed134d456e5b12607f9eab61c1a798d6452c5",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json": "af181cf1d801ad5a4b28f2805a419271849c44a81ad546159b397ee13cd87252"
+          }
+        },
+        "ga": {
+          "version": "2026-03-01",
+          "analysis": "The public Learn API selector lists 2026-03-01 as Latest and no later API version; this is the current stable GA schema. The same exact version-specific Learn page and pinned stable REST package schema were used for candidate comparison; current equals candidate, so there is no version delta.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/networksecuritygroups",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/networksecuritygroups",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/networksecuritygroups": "849b428e747d3f59c00d5578b31ff4a32047aa9a43cb480b8c1128e2d57570f2",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/networksecuritygroups": "97a794b4d4dcf4c5eb78a98030578cfd082133aefd3b51196ce857dc267adcee",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md": "2bfb2cec692f847efbdca885f4bbfd9259691489a1e1b6c69da43f6e4537c5be",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json": "0bfb316d7cbbecc06ae43c2cf57ed134d456e5b12607f9eab61c1a798d6452c5",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json": "af181cf1d801ad5a4b28f2805a419271849c44a81ad546159b397ee13cd87252"
+          }
+        },
+        "breaking": {
+          "analysis": "The Network Security Groups change-log explicitly says for 2026-03-01: No properties added, updated or removed. Current and latest GA are the same version; no version migration changes apply.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/networksecuritygroups"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/networksecuritygroups": "fac1ea9457b814fad2a8e03b44f20576093b924ae2abcfe79ccbadfe53774a1d"
+          }
+        }
+      }
     },
     "Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01": {
       "stage": "pending",

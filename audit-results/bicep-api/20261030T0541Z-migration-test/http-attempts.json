@@ -1,0 +1,83 @@
+[
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/networksecuritygroups",
+    "attempt": 1,
+    "started_monotonic": 667.791171534,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/networksecuritygroups",
+    "attempt": 1,
+    "started_monotonic": 670.791309529,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6971718490000285
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/networkSecurityGroup.json",
+    "attempt": 1,
+    "started_monotonic": 671.137203678,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2025-03-01/networkSecurityGroup.json",
+    "attempt": 1,
+    "started_monotonic": 671.289957843,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
+    "attempt": 1,
+    "started_monotonic": 723.243310719,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json",
+    "attempt": 1,
+    "started_monotonic": 723.663060932,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/networksecuritygroups",
+    "attempt": 1,
+    "started_monotonic": 723.864171797,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
+    "attempt": 1,
+    "started_monotonic": 733.979568592,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2025-03-01/virtualNetwork.json",
+    "attempt": 1,
+    "started_monotonic": 734.420970069,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  }
+]

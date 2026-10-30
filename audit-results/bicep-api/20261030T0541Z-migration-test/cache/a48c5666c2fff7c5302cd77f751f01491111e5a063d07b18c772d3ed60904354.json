@@ -1,0 +1,30 @@
+{
+  "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/networkSecurityGroup.json",
+  "final_url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/networkSecurityGroup.json",
+  "status": 404,
+  "headers": {
+    "Content-Length": "14",
+    "Accept-Ranges": "bytes",
+    "Access-Control-Allow-Origin": "*",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cross-Origin-Resource-Policy": "cross-origin",
+    "Date": "Fri, 30 Oct 2026 05:44:47 GMT",
+    "Expires": "Fri, 30 Oct 2026 05:49:47 GMT",
+    "Source-Age": "0",
+    "Strict-Transport-Security": "max-age=31536000",
+    "Vary": "Authorization,Accept-Encoding",
+    "Via": "1.1 varnish",
+    "X-Cache": "MISS",
+    "X-Cache-Hits": "0",
+    "X-Content-Type-Options": "nosniff",
+    "X-Fastly-Request-Id": "85f265852113cf1a3cb16433b43ac0455d9ec4a9",
+    "X-Frame-Options": "deny",
+    "X-Github-Edge-Region": "iad",
+    "X-Github-Request-Id": "CB3A:88486:10182:1595D:6AE42ECB",
+    "X-Served-By": "cache-phx1710095-PHX",
+    "X-Timer": "S1793339087.413243,VS0,VE138",
+    "X-Xss-Protection": "1; mode=block"
+  },
+  "body": "404: Not Found"
+}
