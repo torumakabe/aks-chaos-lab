@@ -331,5 +331,50 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.802808614000014
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces/tables",
+    "attempt": 1,
+    "started_monotonic": 1670.599530475,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces/tables",
+    "attempt": 1,
+    "started_monotonic": 1673.599677802,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6309784899999613
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/change-log/workspaces/tables",
+    "attempt": 1,
+    "started_monotonic": 1676.599813135,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6565840140001455
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md",
+    "attempt": 1,
+    "started_monotonic": 1676.976667051,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 1677.591189258,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

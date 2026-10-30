@@ -58735,9 +58735,158 @@
       }
     },
     "Microsoft.OperationalInsights/workspaces/tables@2026-03-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/azmonitor/aks-diagnostics.bicep",
+          "name": "aksAuditAdminTable",
+          "line": 75,
+          "type": "Microsoft.OperationalInsights/workspaces/tables",
+          "version": "2026-03-01",
+          "existing": false,
+          "start": 1773,
+          "end": 1961,
+          "header": "resource aksAuditAdminTable 'Microsoft.OperationalInsights/workspaces/tables@2026-03-01' = ",
+          "body": "{\n  parent: logAnalyticsWorkspace\n  name: 'AKSAuditAdmin'\n  properties: {\n    plan: 'Basic'\n  }\n}",
+          "status": "verified",
+          "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定OperationalInsights README/openapiのTable・TableProperties・TablePlanEnumをSchemasで照合。Basicは[Basic, Analytics, Auxiliary] enumの有効値。",
+          "migration": "GA移行不要。現行2026-03-01が最新公開GAと一致。change logのprotectionLevel追加は本リソースが使用せず影響なし。",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:10",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: logAnalyticsWorkspace",
+              "analysis": "JSON Pointer /parent is Bicep parent relationship, not REST payload; it supplies the workspaces/{workspaceName} segment of the child table API route."
+            },
+            {
+              "source_id": "body:40",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'AKSAuditAdmin'",
+              "analysis": "JSON Pointer /name is Bicep resource identity and REST tableName:string route value. Literal name: 'AKSAuditAdmin' is a string; REST response model marks name readOnly because it is identity, not a mutable property."
+            },
+            {
+              "source_id": "body:70",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to TableProperties object; plan is checked separately."
+            },
+            {
+              "source_id": "body:82",
+              "label": "plan",
+              "path": "/properties/plan",
+              "expression": "    plan: 'Basic'",
+              "analysis": "JSON Pointer /properties/plan maps to TablePlanEnum [Basic, Analytics, Auxiliary]. Literal 'Basic' passes Schemas.literal."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksAuditAdminTable 'Microsoft.OperationalInsights/workspaces/tables@2026-03-01' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not REST payload. Type/version is Microsoft.OperationalInsights/workspaces/tables@2026-03-01."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/aks-diagnostics.bicep",
+          "name": "aksControlPlaneTable",
+          "line": 83,
+          "type": "Microsoft.OperationalInsights/workspaces/tables",
+          "version": "2026-03-01",
+          "existing": false,
+          "start": 1963,
+          "end": 2155,
+          "header": "resource aksControlPlaneTable 'Microsoft.OperationalInsights/workspaces/tables@2026-03-01' = ",
+          "body": "{\n  parent: logAnalyticsWorkspace\n  name: 'AKSControlPlane'\n  properties: {\n    plan: 'Basic'\n  }\n}",
+          "status": "verified",
+          "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定OperationalInsights README/openapiのTable・TableProperties・TablePlanEnumをSchemasで照合。Basicは[Basic, Analytics, Auxiliary] enumの有効値。",
+          "migration": "GA移行不要。現行2026-03-01が最新公開GAと一致。change logのprotectionLevel追加は本リソースが使用せず影響なし。",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:10",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: logAnalyticsWorkspace",
+              "analysis": "JSON Pointer /parent is Bicep parent relationship, not REST payload; it supplies the workspaces/{workspaceName} segment of the child table API route."
+            },
+            {
+              "source_id": "body:40",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'AKSControlPlane'",
+              "analysis": "JSON Pointer /name is Bicep resource identity and REST tableName:string route value. Literal name: 'AKSControlPlane' is a string; REST response model marks name readOnly because it is identity, not a mutable property."
+            },
+            {
+              "source_id": "body:72",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "JSON Pointer /properties maps to TableProperties object; plan is checked separately."
+            },
+            {
+              "source_id": "body:84",
+              "label": "plan",
+              "path": "/properties/plan",
+              "expression": "    plan: 'Basic'",
+              "analysis": "JSON Pointer /properties/plan maps to TablePlanEnum [Basic, Analytics, Auxiliary]. Literal 'Basic' passes Schemas.literal."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksControlPlaneTable 'Microsoft.OperationalInsights/workspaces/tables@2026-03-01' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not REST payload. Type/version is Microsoft.OperationalInsights/workspaces/tables@2026-03-01."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-03-01",
+          "analysis": "Learn selector lists 2026-03-01 as Latest. Pinned OperationalInsights README maps stable/2026-03-01/openapi.json; Schemas resolves Table, TableProperties, TablePlanEnum and the workspace/table route. Basic is an allowed enum value.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces/tables",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces/tables",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces/tables": "5d66d25385ed105a6b9c8b426d1afb46b230d00e5b0286511d07b1c8071e6d2f",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces/tables": "074476143811fba41861f85014e3a047d376fa4ae65bd0305e17ed965791036d",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md": "b5d69a42074ad22a56593fa8c44efbb83855bd5f513c389a8e42024f89459d5c",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json": "cc91db8813094dcc71bba6d3014c1a6b89f1d4b6529b2f10e2d4bd6ce2978d7b"
+          }
+        },
+        "ga": {
+          "version": "2026-03-01",
+          "analysis": "Latest stable GA from Learn equals current. Same exact pinned candidate schema; no newer GA delta.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces/tables",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces/tables",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces/tables": "5d66d25385ed105a6b9c8b426d1afb46b230d00e5b0286511d07b1c8071e6d2f",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces/tables": "074476143811fba41861f85014e3a047d376fa4ae65bd0305e17ed965791036d",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md": "b5d69a42074ad22a56593fa8c44efbb83855bd5f513c389a8e42024f89459d5c",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json": "cc91db8813094dcc71bba6d3014c1a6b89f1d4b6529b2f10e2d4bd6ce2978d7b"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log reports protectionLevel added in 2026-03-01. The two declarations do not set it; Basic plan remains supported by exact schema.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/change-log/workspaces/tables"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/change-log/workspaces/tables": "3b14fb9d1c448971720a30ff7f3036c9cfaa3a8cb3d182a08907497633cdeff3"
+          }
+        }
+      }
     },
     "Microsoft.OperationalInsights/workspaces@2026-03-01": {
       "stage": "pending",

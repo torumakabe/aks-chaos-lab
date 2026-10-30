@@ -1,522 +1,109 @@
 {
-  "pair": "Microsoft.Network/virtualNetworks@2026-03-01",
+  "pair": "Microsoft.OperationalInsights/workspaces/tables@2026-03-01",
   "results": [
     {
-      "file": "infra/modules/aks.bicep",
-      "name": "existingVirtualNetwork",
-      "line": 250,
-      "type": "Microsoft.Network/virtualNetworks",
+      "file": "infra/modules/azmonitor/aks-diagnostics.bicep",
+      "name": "aksAuditAdminTable",
+      "line": 75,
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
       "version": "2026-03-01",
-      "existing": true,
-      "start": 7758,
-      "end": 7878,
-      "header": "resource existingVirtualNetwork 'Microsoft.Network/virtualNetworks@2026-03-01' existing = ",
-      "body": "{\n  name: virtualNetworkName\n}",
+      "existing": false,
+      "start": 1773,
+      "end": 1961,
+      "header": "resource aksAuditAdminTable 'Microsoft.OperationalInsights/workspaces/tables@2026-03-01' = ",
+      "body": "{\n  parent: logAnalyticsWorkspace\n  name: 'AKSAuditAdmin'\n  properties: {\n    plan: 'Basic'\n  }\n}",
       "status": "verified",
-      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定REST schemaのVirtualNetwork.name:stringとresource routeを照合。existing参照は識別子だけを解決するため、作成用properties/required属性の欠落として扱わない。",
-      "migration": "GA移行不要。現行2026-03-01が最新公開GAと一致し、change logに同versionのproperty変更なし。",
+      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定OperationalInsights README/openapiのTable・TableProperties・TablePlanEnumをSchemasで照合。Basicは[Basic, Analytics, Auxiliary] enumの有効値。",
+      "migration": "GA移行不要。現行2026-03-01が最新公開GAと一致。change logのprotectionLevel追加は本リソースが使用せず影響なし。",
       "findings": [],
       "usage": [
         {
-          "source_id": "body:8",
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: logAnalyticsWorkspace",
+          "analysis": "JSON Pointer /parent is Bicep parent relationship, not REST payload; it supplies the workspaces/{workspaceName} segment of the child table API route."
+        },
+        {
+          "source_id": "body:40",
           "label": "name",
           "path": "/name",
-          "expression": "  name: virtualNetworkName",
-          "analysis": "JSON Pointer /name is Bicep existing resource identity. virtualNetworkName is segment 8 from aksSubnetId; REST VirtualNetwork name is a string path identity."
+          "expression": "  name: 'AKSAuditAdmin'",
+          "analysis": "JSON Pointer /name is Bicep resource identity and REST tableName:string route value. Literal name: 'AKSAuditAdmin' is a string; REST response model marks name readOnly because it is identity, not a mutable property."
+        },
+        {
+          "source_id": "body:70",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties maps to TableProperties object; plan is checked separately."
+        },
+        {
+          "source_id": "body:82",
+          "label": "plan",
+          "path": "/properties/plan",
+          "expression": "    plan: 'Basic'",
+          "analysis": "JSON Pointer /properties/plan maps to TablePlanEnum [Basic, Analytics, Auxiliary]. Literal 'Basic' passes Schemas.literal."
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource existingVirtualNetwork 'Microsoft.Network/virtualNetworks@2026-03-01' existing = ",
-          "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not REST payload. existing VNet reference uses Microsoft.Network/virtualNetworks@2026-03-01."
-        },
-        {
-          "source_id": "symbol:virtualNetworkName:line:0",
-          "label": "$expression",
-          "path": "/$symbol/virtualNetworkName/$expression-line/0",
-          "expression": "var virtualNetworkName = subnetIdParts[8]",
-          "analysis": "JSON Pointer /$symbol/virtualNetworkName/$expression-line/0 is virtualNetworkName=subnetIdParts[8], selecting the VNet name segment used by the REST parent resource path."
-        },
-        {
-          "source_id": "symbol:subnetIdParts:line:0",
-          "label": "$expression",
-          "path": "/$symbol/subnetIdParts/$expression-line/0",
-          "expression": "var subnetIdParts = split(aksSubnetId, '/')",
-          "analysis": "JSON Pointer /$symbol/subnetIdParts/$expression-line/0 is split(aksSubnetId, '/'); its path segments supply VNet/subnet names for existing resource references."
-        },
-        {
-          "source_id": "symbol:aksSubnetId:line:0",
-          "label": "$expression",
-          "path": "/$symbol/aksSubnetId/$expression-line/0",
-          "expression": "@description('AKS subnet id')",
-          "analysis": "JSON Pointer /$symbol/aksSubnetId/$expression-line/0 is aksSubnetId:string input from network.outputs.aksSubnetId; network.bicep builds the resource ID from Microsoft.Network/virtualNetworks/subnets, vnetName and snet-aks."
-        },
-        {
-          "source_id": "symbol:aksSubnetId:line:30",
-          "label": "$expression",
-          "path": "/$symbol/aksSubnetId/$expression-line/1",
-          "expression": "param aksSubnetId string",
-          "analysis": "JSON Pointer /$symbol/aksSubnetId/$expression-line/1 is aksSubnetId:string input from network.outputs.aksSubnetId; network.bicep builds the resource ID from Microsoft.Network/virtualNetworks/subnets, vnetName and snet-aks."
+          "expression": "resource aksAuditAdminTable 'Microsoft.OperationalInsights/workspaces/tables@2026-03-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not REST payload. Type/version is Microsoft.OperationalInsights/workspaces/tables@2026-03-01."
         }
       ]
     },
     {
-      "file": "infra/modules/network.bicep",
-      "name": "virtualNetwork",
-      "line": 22,
-      "type": "Microsoft.Network/virtualNetworks",
+      "file": "infra/modules/azmonitor/aks-diagnostics.bicep",
+      "name": "aksControlPlaneTable",
+      "line": 83,
+      "type": "Microsoft.OperationalInsights/workspaces/tables",
       "version": "2026-03-01",
       "existing": false,
-      "start": 716,
-      "end": 2762,
-      "header": "resource virtualNetwork 'Microsoft.Network/virtualNetworks@2026-03-01' = ",
-      "body": "{\n  name: vnetName\n  location: location\n  tags: tags\n  properties: {\n    addressSpace: {\n      addressPrefixes: [vnetAddressPrefix]\n    }\n    subnets: [\n      {\n        name: 'snet-aks'\n        properties: {\n          addressPrefix: aksSubnetPrefix\n          networkSecurityGroup: {\n            id: aksSubnetNetworkSecurityGroup.id\n          }\n          privateEndpointNetworkPolicies: 'Disabled'\n          defaultOutboundAccess: false\n        }\n      }\n      {\n        name: 'snet-pe'\n        properties: {\n          addressPrefix: peSubnetPrefix\n          privateEndpointNetworkPolicies: 'Disabled'\n          defaultOutboundAccess: false\n        }\n      }\n      {\n        name: 'snet-aks-api'\n        properties: {\n          addressPrefix: aksApiSubnetPrefix\n          privateEndpointNetworkPolicies: 'Disabled'\n          defaultOutboundAccess: false\n          delegations: [\n            {\n              name: 'Microsoft.ContainerService.managedClusters'\n              properties: {\n                serviceName: 'Microsoft.ContainerService/managedClusters'\n              }\n            }\n          ]\n        }\n      }\n      {\n        name: 'snet-func'\n        properties: {\n          addressPrefix: functionSubnetPrefix\n          defaultOutboundAccess: false\n          delegations: [\n            {\n              name: 'Microsoft.App.environments'\n              properties: {\n                serviceName: 'Microsoft.App/environments'\n              }\n            }\n          ]\n        }\n      }\n      // Keep the subnet when an existing Agent is disabled in incremental deployments.\n      {\n        name: 'snet-sre-agent'\n        properties: {\n          addressPrefix: sreAgentSubnetPrefix\n          defaultOutboundAccess: false\n          delegations: [\n            {\n              name: 'Microsoft.App.environments'\n              properties: {\n                serviceName: 'Microsoft.App/environments'\n              }\n            }\n          ]\n        }\n      }\n    ]\n  }\n}",
+      "start": 1963,
+      "end": 2155,
+      "header": "resource aksControlPlaneTable 'Microsoft.OperationalInsights/workspaces/tables@2026-03-01' = ",
+      "body": "{\n  parent: logAnalyticsWorkspace\n  name: 'AKSControlPlane'\n  properties: {\n    plan: 'Basic'\n  }\n}",
       "status": "verified",
-      "reason": "Learn selectorで2026-03-01が最新GAと確認。固定REST schemaでVirtualNetwork/AddressSpace/Subnet/Delegation/$refの全使用属性、Disabled enum、boolean、ID/string値を照合。既定CIDR値は有効でVNet内・相互非重複。",
-      "migration": "GA移行不要。現行2026-03-01が最新公開GAと一致。change logの最近の追加属性は本宣言が使わず、used fieldsの変更なし。",
+      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定OperationalInsights README/openapiのTable・TableProperties・TablePlanEnumをSchemasで照合。Basicは[Basic, Analytics, Auxiliary] enumの有効値。",
+      "migration": "GA移行不要。現行2026-03-01が最新公開GAと一致。change logのprotectionLevel追加は本リソースが使用せず影響なし。",
       "findings": [],
       "usage": [
         {
-          "source_id": "body:8",
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: logAnalyticsWorkspace",
+          "analysis": "JSON Pointer /parent is Bicep parent relationship, not REST payload; it supplies the workspaces/{workspaceName} segment of the child table API route."
+        },
+        {
+          "source_id": "body:40",
           "label": "name",
           "path": "/name",
-          "expression": "  name: vnetName",
-          "analysis": "JSON Pointer /name is REST resource identity string; Bicep vnetName param string sets the resource path name."
+          "expression": "  name: 'AKSControlPlane'",
+          "analysis": "JSON Pointer /name is Bicep resource identity and REST tableName:string route value. Literal name: 'AKSControlPlane' is a string; REST response model marks name readOnly because it is identity, not a mutable property."
         },
         {
-          "source_id": "body:29",
-          "label": "location",
-          "path": "/location",
-          "expression": "  location: location",
-          "analysis": "JSON Pointer /location maps to REST location:string; module parameter location is string."
-        },
-        {
-          "source_id": "body:46",
-          "label": "tags",
-          "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags maps to REST object with additionalProperties:string; the main.bicep common tags object has environment:string."
-        },
-        {
-          "source_id": "body:65",
+          "source_id": "body:72",
           "label": "properties",
           "path": "/properties",
           "expression": "  properties: {",
-          "analysis": "JSON Pointer /properties maps to VirtualNetworkPropertiesFormat object; nested fields are separately validated."
+          "analysis": "JSON Pointer /properties maps to TableProperties object; plan is checked separately."
         },
         {
-          "source_id": "body:85",
-          "label": "addressSpace",
-          "path": "/properties/addressSpace",
-          "expression": "    addressSpace: {",
-          "analysis": "JSON Pointer /properties/addressSpace maps to AddressSpace object."
-        },
-        {
-          "source_id": "body:110",
-          "label": "addressPrefixes",
-          "path": "/properties/addressSpace/addressPrefixes",
-          "expression": "      addressPrefixes: [vnetAddressPrefix]",
-          "analysis": "JSON Pointer /properties/addressSpace/addressPrefixes maps to string array; source contains vnetAddressPrefix param string."
-        },
-        {
-          "source_id": "body:149",
-          "label": "subnets",
-          "path": "/properties/subnets",
-          "expression": "    subnets: [",
-          "analysis": "JSON Pointer /properties/subnets maps to Subnet[]; all five subnet objects and their fields are checked individually."
-        },
-        {
-          "source_id": "body:173",
-          "label": "name",
-          "path": "/properties/subnets/[]/name",
-          "expression": "        name: 'snet-aks'",
-          "analysis": "JSON Pointer /properties/subnets/[]/name maps to Subnet.name:string. name: 'snet-aks' is one of five literal subnet names, each validated by Schemas.literal."
-        },
-        {
-          "source_id": "body:204",
-          "label": "properties",
-          "path": "/properties/subnets/[]/properties",
-          "expression": "        properties: {",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties maps to SubnetPropertiesFormat object; addressPrefix, NSG reference, policy, outbound flag, and delegations are separately checked."
-        },
-        {
-          "source_id": "body:231",
-          "label": "addressPrefix",
-          "path": "/properties/subnets/[]/properties/addressPrefix",
-          "expression": "          addressPrefix: aksSubnetPrefix",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/addressPrefix maps to REST string CIDR. Expression addressPrefix: aksSubnetPrefix is a string parameter; main defaults are valid CIDRs contained in 10.10.0.0/16 and non-overlapping. Schema itself types this as string."
-        },
-        {
-          "source_id": "body:279",
-          "label": "networkSecurityGroup",
-          "path": "/properties/subnets/[]/properties/networkSecurityGroup",
-          "expression": "          networkSecurityGroup: {",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/networkSecurityGroup maps to REST SubResource object; its id is an ARM resource ID string from the in-scope NSG resource."
-        },
-        {
-          "source_id": "body:297",
-          "label": "id",
-          "path": "/properties/subnets/[]/properties/networkSecurityGroup/id",
-          "expression": "            id: aksSubnetNetworkSecurityGroup.id",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/networkSecurityGroup/id maps to REST string resource ID; aksSubnetNetworkSecurityGroup.id has resource-ID string type."
-        },
-        {
-          "source_id": "body:384",
-          "label": "privateEndpointNetworkPolicies",
-          "path": "/properties/subnets/[]/properties/privateEndpointNetworkPolicies",
-          "expression": "          privateEndpointNetworkPolicies: 'Disabled'",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/privateEndpointNetworkPolicies maps to enum [Enabled, Disabled, NetworkSecurityGroupEnabled, RouteTableEnabled]; source literal 'Disabled' is accepted."
-        },
-        {
-          "source_id": "body:428",
-          "label": "defaultOutboundAccess",
-          "path": "/properties/subnets/[]/properties/defaultOutboundAccess",
-          "expression": "          defaultOutboundAccess: false",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/defaultOutboundAccess maps to boolean; literal false is accepted."
-        },
-        {
-          "source_id": "body:474",
-          "label": "name",
-          "path": "/properties/subnets/[]/name",
-          "expression": "        name: 'snet-pe'",
-          "analysis": "JSON Pointer /properties/subnets/[]/name maps to Subnet.name:string. name: 'snet-pe' is one of five literal subnet names, each validated by Schemas.literal."
-        },
-        {
-          "source_id": "body:504",
-          "label": "properties",
-          "path": "/properties/subnets/[]/properties",
-          "expression": "        properties: {",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties maps to SubnetPropertiesFormat object; addressPrefix, NSG reference, policy, outbound flag, and delegations are separately checked."
-        },
-        {
-          "source_id": "body:531",
-          "label": "addressPrefix",
-          "path": "/properties/subnets/[]/properties/addressPrefix",
-          "expression": "          addressPrefix: peSubnetPrefix",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/addressPrefix maps to REST string CIDR. Expression addressPrefix: peSubnetPrefix is a string parameter; main defaults are valid CIDRs contained in 10.10.0.0/16 and non-overlapping. Schema itself types this as string."
-        },
-        {
-          "source_id": "body:588",
-          "label": "privateEndpointNetworkPolicies",
-          "path": "/properties/subnets/[]/properties/privateEndpointNetworkPolicies",
-          "expression": "          privateEndpointNetworkPolicies: 'Disabled'",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/privateEndpointNetworkPolicies maps to enum [Enabled, Disabled, NetworkSecurityGroupEnabled, RouteTableEnabled]; source literal 'Disabled' is accepted."
-        },
-        {
-          "source_id": "body:632",
-          "label": "defaultOutboundAccess",
-          "path": "/properties/subnets/[]/properties/defaultOutboundAccess",
-          "expression": "          defaultOutboundAccess: false",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/defaultOutboundAccess maps to boolean; literal false is accepted."
-        },
-        {
-          "source_id": "body:678",
-          "label": "name",
-          "path": "/properties/subnets/[]/name",
-          "expression": "        name: 'snet-aks-api'",
-          "analysis": "JSON Pointer /properties/subnets/[]/name maps to Subnet.name:string. name: 'snet-aks-api' is one of five literal subnet names, each validated by Schemas.literal."
-        },
-        {
-          "source_id": "body:713",
-          "label": "properties",
-          "path": "/properties/subnets/[]/properties",
-          "expression": "        properties: {",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties maps to SubnetPropertiesFormat object; addressPrefix, NSG reference, policy, outbound flag, and delegations are separately checked."
-        },
-        {
-          "source_id": "body:740",
-          "label": "addressPrefix",
-          "path": "/properties/subnets/[]/properties/addressPrefix",
-          "expression": "          addressPrefix: aksApiSubnetPrefix",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/addressPrefix maps to REST string CIDR. Expression addressPrefix: aksApiSubnetPrefix is a string parameter; main defaults are valid CIDRs contained in 10.10.0.0/16 and non-overlapping. Schema itself types this as string."
-        },
-        {
-          "source_id": "body:801",
-          "label": "privateEndpointNetworkPolicies",
-          "path": "/properties/subnets/[]/properties/privateEndpointNetworkPolicies",
-          "expression": "          privateEndpointNetworkPolicies: 'Disabled'",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/privateEndpointNetworkPolicies maps to enum [Enabled, Disabled, NetworkSecurityGroupEnabled, RouteTableEnabled]; source literal 'Disabled' is accepted."
-        },
-        {
-          "source_id": "body:845",
-          "label": "defaultOutboundAccess",
-          "path": "/properties/subnets/[]/properties/defaultOutboundAccess",
-          "expression": "          defaultOutboundAccess: false",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/defaultOutboundAccess maps to boolean; literal false is accepted."
-        },
-        {
-          "source_id": "body:874",
-          "label": "delegations",
-          "path": "/properties/subnets/[]/properties/delegations",
-          "expression": "          delegations: [",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations maps to SubnetDelegation[]; entries are checked individually."
-        },
-        {
-          "source_id": "body:910",
-          "label": "name",
-          "path": "/properties/subnets/[]/properties/delegations/[]/name",
-          "expression": "              name: 'Microsoft.ContainerService.managedClusters'",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations/[]/name maps to delegation name:string; name: 'Microsoft.ContainerService.managedClusters' is a literal string."
-        },
-        {
-          "source_id": "body:981",
-          "label": "properties",
-          "path": "/properties/subnets/[]/properties/delegations/[]/properties",
-          "expression": "              properties: {",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations/[]/properties maps to SubnetDelegationPropertiesFormat object; serviceName is separately checked."
-        },
-        {
-          "source_id": "body:1012",
-          "label": "serviceName",
-          "path": "/properties/subnets/[]/properties/delegations/[]/properties/serviceName",
-          "expression": "                serviceName: 'Microsoft.ContainerService/managedClusters'",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations/[]/properties/serviceName maps to serviceName:string; serviceName: 'Microsoft.ContainerService/managedClusters' is a literal service identifier. Network schema supplies no enum for this property."
-        },
-        {
-          "source_id": "body:1139",
-          "label": "name",
-          "path": "/properties/subnets/[]/name",
-          "expression": "        name: 'snet-func'",
-          "analysis": "JSON Pointer /properties/subnets/[]/name maps to Subnet.name:string. name: 'snet-func' is one of five literal subnet names, each validated by Schemas.literal."
-        },
-        {
-          "source_id": "body:1171",
-          "label": "properties",
-          "path": "/properties/subnets/[]/properties",
-          "expression": "        properties: {",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties maps to SubnetPropertiesFormat object; addressPrefix, NSG reference, policy, outbound flag, and delegations are separately checked."
-        },
-        {
-          "source_id": "body:1198",
-          "label": "addressPrefix",
-          "path": "/properties/subnets/[]/properties/addressPrefix",
-          "expression": "          addressPrefix: functionSubnetPrefix",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/addressPrefix maps to REST string CIDR. Expression addressPrefix: functionSubnetPrefix is a string parameter; main defaults are valid CIDRs contained in 10.10.0.0/16 and non-overlapping. Schema itself types this as string."
-        },
-        {
-          "source_id": "body:1252",
-          "label": "defaultOutboundAccess",
-          "path": "/properties/subnets/[]/properties/defaultOutboundAccess",
-          "expression": "          defaultOutboundAccess: false",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/defaultOutboundAccess maps to boolean; literal false is accepted."
-        },
-        {
-          "source_id": "body:1281",
-          "label": "delegations",
-          "path": "/properties/subnets/[]/properties/delegations",
-          "expression": "          delegations: [",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations maps to SubnetDelegation[]; entries are checked individually."
-        },
-        {
-          "source_id": "body:1317",
-          "label": "name",
-          "path": "/properties/subnets/[]/properties/delegations/[]/name",
-          "expression": "              name: 'Microsoft.App.environments'",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations/[]/name maps to delegation name:string; name: 'Microsoft.App.environments' is a literal string."
-        },
-        {
-          "source_id": "body:1372",
-          "label": "properties",
-          "path": "/properties/subnets/[]/properties/delegations/[]/properties",
-          "expression": "              properties: {",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations/[]/properties maps to SubnetDelegationPropertiesFormat object; serviceName is separately checked."
-        },
-        {
-          "source_id": "body:1403",
-          "label": "serviceName",
-          "path": "/properties/subnets/[]/properties/delegations/[]/properties/serviceName",
-          "expression": "                serviceName: 'Microsoft.App/environments'",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations/[]/properties/serviceName maps to serviceName:string; serviceName: 'Microsoft.App/environments' is a literal service identifier. Network schema supplies no enum for this property."
-        },
-        {
-          "source_id": "body:1602",
-          "label": "name",
-          "path": "/properties/subnets/[]/name",
-          "expression": "        name: 'snet-sre-agent'",
-          "analysis": "JSON Pointer /properties/subnets/[]/name maps to Subnet.name:string. name: 'snet-sre-agent' is one of five literal subnet names, each validated by Schemas.literal."
-        },
-        {
-          "source_id": "body:1639",
-          "label": "properties",
-          "path": "/properties/subnets/[]/properties",
-          "expression": "        properties: {",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties maps to SubnetPropertiesFormat object; addressPrefix, NSG reference, policy, outbound flag, and delegations are separately checked."
-        },
-        {
-          "source_id": "body:1666",
-          "label": "addressPrefix",
-          "path": "/properties/subnets/[]/properties/addressPrefix",
-          "expression": "          addressPrefix: sreAgentSubnetPrefix",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/addressPrefix maps to REST string CIDR. Expression addressPrefix: sreAgentSubnetPrefix is a string parameter; main defaults are valid CIDRs contained in 10.10.0.0/16 and non-overlapping. Schema itself types this as string."
-        },
-        {
-          "source_id": "body:1720",
-          "label": "defaultOutboundAccess",
-          "path": "/properties/subnets/[]/properties/defaultOutboundAccess",
-          "expression": "          defaultOutboundAccess: false",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/defaultOutboundAccess maps to boolean; literal false is accepted."
-        },
-        {
-          "source_id": "body:1749",
-          "label": "delegations",
-          "path": "/properties/subnets/[]/properties/delegations",
-          "expression": "          delegations: [",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations maps to SubnetDelegation[]; entries are checked individually."
-        },
-        {
-          "source_id": "body:1785",
-          "label": "name",
-          "path": "/properties/subnets/[]/properties/delegations/[]/name",
-          "expression": "              name: 'Microsoft.App.environments'",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations/[]/name maps to delegation name:string; name: 'Microsoft.App.environments' is a literal string."
-        },
-        {
-          "source_id": "body:1840",
-          "label": "properties",
-          "path": "/properties/subnets/[]/properties/delegations/[]/properties",
-          "expression": "              properties: {",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations/[]/properties maps to SubnetDelegationPropertiesFormat object; serviceName is separately checked."
-        },
-        {
-          "source_id": "body:1871",
-          "label": "serviceName",
-          "path": "/properties/subnets/[]/properties/delegations/[]/properties/serviceName",
-          "expression": "                serviceName: 'Microsoft.App/environments'",
-          "analysis": "JSON Pointer /properties/subnets/[]/properties/delegations/[]/properties/serviceName maps to serviceName:string; serviceName: 'Microsoft.App/environments' is a literal service identifier. Network schema supplies no enum for this property."
+          "source_id": "body:84",
+          "label": "plan",
+          "path": "/properties/plan",
+          "expression": "    plan: 'Basic'",
+          "analysis": "JSON Pointer /properties/plan maps to TablePlanEnum [Basic, Analytics, Auxiliary]. Literal 'Basic' passes Schemas.literal."
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource virtualNetwork 'Microsoft.Network/virtualNetworks@2026-03-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not payload. Type/version is Microsoft.Network/virtualNetworks@2026-03-01."
-        },
-        {
-          "source_id": "symbol:aksApiSubnetPrefix:line:0",
-          "label": "$expression",
-          "path": "/$symbol/aksApiSubnetPrefix/$expression-line/0",
-          "expression": "@description('AKS API Server subnet prefix')",
-          "analysis": "JSON Pointer /$symbol/aksApiSubnetPrefix/$expression-line/0 is source symbol aksApiSubnetPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:aksApiSubnetPrefix:line:45",
-          "label": "$expression",
-          "path": "/$symbol/aksApiSubnetPrefix/$expression-line/1",
-          "expression": "param aksApiSubnetPrefix string",
-          "analysis": "JSON Pointer /$symbol/aksApiSubnetPrefix/$expression-line/1 is source symbol aksApiSubnetPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:aksSubnetPrefix:line:0",
-          "label": "$expression",
-          "path": "/$symbol/aksSubnetPrefix/$expression-line/0",
-          "expression": "@description('AKS subnet prefix')",
-          "analysis": "JSON Pointer /$symbol/aksSubnetPrefix/$expression-line/0 is source symbol aksSubnetPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:aksSubnetPrefix:line:34",
-          "label": "$expression",
-          "path": "/$symbol/aksSubnetPrefix/$expression-line/1",
-          "expression": "param aksSubnetPrefix string",
-          "analysis": "JSON Pointer /$symbol/aksSubnetPrefix/$expression-line/1 is source symbol aksSubnetPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:functionSubnetPrefix:line:0",
-          "label": "$expression",
-          "path": "/$symbol/functionSubnetPrefix/$expression-line/0",
-          "expression": "@description('Function App Flex Consumption subnet prefix')",
-          "analysis": "JSON Pointer /$symbol/functionSubnetPrefix/$expression-line/0 is source symbol functionSubnetPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:functionSubnetPrefix:line:60",
-          "label": "$expression",
-          "path": "/$symbol/functionSubnetPrefix/$expression-line/1",
-          "expression": "param functionSubnetPrefix string",
-          "analysis": "JSON Pointer /$symbol/functionSubnetPrefix/$expression-line/1 is source symbol functionSubnetPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:location:line:0",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/0",
-          "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is source symbol location; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:location:line:36",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/1",
-          "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is source symbol location; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:peSubnetPrefix:line:0",
-          "label": "$expression",
-          "path": "/$symbol/peSubnetPrefix/$expression-line/0",
-          "expression": "@description('Private Endpoint subnet prefix')",
-          "analysis": "JSON Pointer /$symbol/peSubnetPrefix/$expression-line/0 is source symbol peSubnetPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:peSubnetPrefix:line:47",
-          "label": "$expression",
-          "path": "/$symbol/peSubnetPrefix/$expression-line/1",
-          "expression": "param peSubnetPrefix string",
-          "analysis": "JSON Pointer /$symbol/peSubnetPrefix/$expression-line/1 is source symbol peSubnetPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:sreAgentSubnetPrefix:line:0",
-          "label": "$expression",
-          "path": "/$symbol/sreAgentSubnetPrefix/$expression-line/0",
-          "expression": "@description('Dedicated SRE Agent subnet prefix (/27 or larger)')",
-          "analysis": "JSON Pointer /$symbol/sreAgentSubnetPrefix/$expression-line/0 is source symbol sreAgentSubnetPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:sreAgentSubnetPrefix:line:66",
-          "label": "$expression",
-          "path": "/$symbol/sreAgentSubnetPrefix/$expression-line/1",
-          "expression": "param sreAgentSubnetPrefix string",
-          "analysis": "JSON Pointer /$symbol/sreAgentSubnetPrefix/$expression-line/1 is source symbol sreAgentSubnetPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:tags:line:0",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/0",
-          "expression": "@description('Tags object')",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is source symbol tags; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:tags:line:28",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/1",
-          "expression": "param tags object",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 is source symbol tags; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:vnetAddressPrefix:line:0",
-          "label": "$expression",
-          "path": "/$symbol/vnetAddressPrefix/$expression-line/0",
-          "expression": "@description('VNet address prefix')",
-          "analysis": "JSON Pointer /$symbol/vnetAddressPrefix/$expression-line/0 is source symbol vnetAddressPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:vnetAddressPrefix:line:36",
-          "label": "$expression",
-          "path": "/$symbol/vnetAddressPrefix/$expression-line/1",
-          "expression": "param vnetAddressPrefix string",
-          "analysis": "JSON Pointer /$symbol/vnetAddressPrefix/$expression-line/1 is source symbol vnetAddressPrefix; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:vnetName:line:0",
-          "label": "$expression",
-          "path": "/$symbol/vnetName/$expression-line/0",
-          "expression": "@description('Virtual network name')",
-          "analysis": "JSON Pointer /$symbol/vnetName/$expression-line/0 is source symbol vnetName; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
-        },
-        {
-          "source_id": "symbol:vnetName:line:37",
-          "label": "$expression",
-          "path": "/$symbol/vnetName/$expression-line/1",
-          "expression": "param vnetName string",
-          "analysis": "JSON Pointer /$symbol/vnetName/$expression-line/1 is source symbol vnetName; declared as the matching Bicep parameter type and used by the resource expression recorded above. main.bicep provides default CIDRs for subnet prefix params, and common string tags."
+          "expression": "resource aksControlPlaneTable 'Microsoft.OperationalInsights/workspaces/tables@2026-03-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is Bicep type/version header, not REST payload. Type/version is Microsoft.OperationalInsights/workspaces/tables@2026-03-01."
         }
       ]
     }
@@ -524,30 +111,28 @@
   "evidence": {
     "current": {
       "version": "2026-03-01",
-      "analysis": "Learn selector lists 2026-03-01 as Latest. Pinned Network README identifies the versioned virtualNetwork.json/common.json schema. Schemas resolves VirtualNetwork, AddressSpace, Subnet, SubnetDelegation and all nested references; field types/enums/literals were checked.",
+      "analysis": "Learn selector lists 2026-03-01 as Latest. Pinned OperationalInsights README maps stable/2026-03-01/openapi.json; Schemas resolves Table, TableProperties, TablePlanEnum and the workspace/table route. Basic is an allowed enum value.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/virtualnetworks",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/virtualnetworks",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces/tables",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces/tables",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json"
       ]
     },
     "ga": {
       "version": "2026-03-01",
-      "analysis": "Latest stable GA from Learn equals current. Exact candidate schema is the same pinned stable 2026-03-01 schema; no newer GA delta.",
+      "analysis": "Latest stable GA from Learn equals current. Same exact pinned candidate schema; no newer GA delta.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/virtualnetworks",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/virtualnetworks",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/workspaces/tables",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/2026-03-01/workspaces/tables",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/operationalinsights/resource-manager/Microsoft.OperationalInsights/OperationalInsights/stable/2026-03-01/openapi.json"
       ]
     },
     "breaking": {
-      "analysis": "Learn change log reports no additions/updates/removals in 2026-03-01. It identifies older additive summarizedGatewayPrefixes changes in 2025-07-01; no used field changed at current.",
+      "analysis": "Learn change log reports protectionLevel added in 2026-03-01. The two declarations do not set it; Basic plan remains supported by exact schema.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/virtualnetworks"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.operationalinsights/change-log/workspaces/tables"
       ]
     }
   }
