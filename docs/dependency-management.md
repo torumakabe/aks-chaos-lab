@@ -75,6 +75,18 @@ uv run --no-project "${PWD}/scripts/tasks.py" check-renovate-config
 
 [AKS Updates analyzer](../.github/workflows/aks-updates-analyzer.md)は、Azure Updates RSSの過去7日分と、GitHub AKS releasesの最新5件に含まれる過去14日分を週次Issueで分析する。各ソースの構造化JSONにある`status`、`reason_code`、`reason`、取得件数、解析失敗件数を同じIssueへ記載する。通信失敗、応答不正、項目の部分解析失敗は`unverified`とし、有効な`items`だけを分析する。結果が欠落したソースも未確認として扱い、0件で補わない。両ソースが`pass`で対象項目が空の場合だけ、取得範囲内で「更新なし」と報告する。理由コードと報告形式はworkflow本文を参照する。
 
+## Bicep確認の手動移行PoC
+
+GitHub cloud Copilot Automationへの移行は検証中で、Automationは`enabled=false`のまま手動で試す。[bicep_api_audit.py](../scripts/bicep_api_audit.py)は標準ライブラリだけを使い、宣言別の確認状態と公開根拠を保存する。これは本番移行の完了やAPI仕様照合の完了を示すものではない。既存の週次workflowの説明と運用は変更しない。
+
+`init`で対象checkoutの完全なcommit SHAとREST仕様のcommit SHAを固定する。`next --state <state.json> --output <assessment.json>`は次のpairの宣言とusageを未処理の雛形へ複写し、大きなJSONの再入力を避ける。`record`はpair別の`results`と`evidence`を持つJSONを読み、公開根拠の取得、宣言の一致、全usageの`source_id`、`path`、`expression`、`analysis`を検査して状態を保存する。`Schemas`は外部参照と`allOf`を展開するが、互換性の判断自体は実行者が公開仕様と使用属性を照合して記録する。HTTP成功や状態JSONの形式検査だけで判断を代替しない。
+
+`prepare --state <state.json> --title <title> --directory <output>`は全pair、全宣言、使用属性、判断、根拠と完全なハッシュを`evidence.json`へ保存し、`report.md`も生成する。未処理pairがあれば生成を拒否する。公開根拠不足を`block`で記録した場合だけ`--allow-blocked`で未完了の報告を生成でき、その宣言は`unverified`として残る。この段階ではIssue用payloadを生成しない。
+
+実行ごとの検証専用ブランチへ両ファイルをcommit/pushした後、同じ`prepare`に`--evidence-url`と`--report-url`を追加する。両URLは同じrepositoryと実在する完全なcommit SHAの`https://github.com/<owner>/<repo>/blob/<commit>/<path>`を指定する。スクリプトは`gh api`で両ファイルを再取得し、ローカル出力とバイト単位で一致する場合だけ短い`issue-payload.json`と本文のSHA-256を生成する。Issue本文は不変のファイルリンク、件数、未確認状態とハッシュに限定し、圧縮JSONを埋め込まない。
+
+Issue作成は別途許可された操作で行う。作成後にGitHubから取得したtitleとbodyのJSONを`verify-issue --payload <issue-payload.json> --actual <actual.json>`へ渡し、保存済みpayloadとの一致を確認する。これらのコマンドはcommit、push、Issue作成、Azure照会、Automation設定変更を実行しない。
+
 ## gh-awとLefthookをRenovateに含めない理由
 
 Bicep API versionの週次確認は特定のCopilot modelを固定せず、`GH_AW_MODEL_AGENT_COPILOT`、`GH_AW_DEFAULT_MODEL_COPILOT`の順でActions variableを参照し、未設定なら`auto`を使う。利用できないmodelが指定されるとagent開始時に失敗するため、variableを設定する場合は実行accountで利用可能なmodelを選ぶ。threat detectionはcompiler既定の`detection`を使う。
