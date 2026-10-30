@@ -286,5 +286,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/targets/capabilities",
+    "attempt": 1,
+    "started_monotonic": 2058.406682986,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/change-log/targets/capabilities",
+    "attempt": 1,
+    "started_monotonic": 2061.406810927,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8412700260000747
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/targets/capabilities",
+    "attempt": 1,
+    "started_monotonic": 2064.406921544,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8062198259999604
   }
 ]

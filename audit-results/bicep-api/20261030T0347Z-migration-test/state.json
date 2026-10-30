@@ -42487,9 +42487,478 @@
       }
     },
     "Microsoft.Chaos/targets/capabilities@2025-01-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/chaos/experiments.bicep",
+          "name": "chaosCapabilityPodChaos",
+          "line": 70,
+          "type": "Microsoft.Chaos/targets/capabilities",
+          "version": "2025-01-01",
+          "existing": false,
+          "start": 2411,
+          "end": 2564,
+          "header": "resource chaosCapabilityPodChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enablePodChaos) ",
+          "body": "{\n  name: 'podChaos-2.2'\n  parent: chaosTarget\n}",
+          "status": "verified",
+          "reason": "Learn version selector lists 2025-01-01 as the latest stable GA. The exact PUT body schema is Capability inheriting ProxyResource; it has no required create properties, while its optional CapabilityProperties are read-only metadata, so the name/parent-only declarations do not omit a writable required payload field.",
+          "migration": "Current 2025-01-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'podChaos-2.2'",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'podChaos-2.2'\"); Bicep capability name becomes the capabilityName REST path parameter; it is not request-body JSON, and the exact literal is preserved."
+            },
+            {
+              "source_id": "body:33",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: chaosTarget",
+              "analysis": "body:33: Bicep source JSON Pointer /parent (expression 'parent: chaosTarget'); Bicep parent chaosTarget selects the targetName path segment for the nested capability endpoint; parent is a Bicep route relationship, not a payload property."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource chaosCapabilityPodChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enablePodChaos) ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource chaosCapabilityPodChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enablePodChaos)\"); Bicep if-condition controls whether the capability resource request is emitted; the condition is not serialized into the API body."
+            },
+            {
+              "source_id": "symbol:enablePodChaos:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enablePodChaos/$expression-line/0",
+              "expression": "@description('Enable PodChaos experiment')",
+              "analysis": "symbol:enablePodChaos:line:0: Bicep source JSON Pointer /$symbol/enablePodChaos/$expression-line/0 (expression \"@description('Enable PodChaos experiment')\"); Parameter description only; it documents the Boolean capability-enable switch and is not an API attribute."
+            },
+            {
+              "source_id": "symbol:enablePodChaos:line:43",
+              "label": "$expression",
+              "path": "/$symbol/enablePodChaos/$expression-line/1",
+              "expression": "param enablePodChaos bool = true",
+              "analysis": "symbol:enablePodChaos:line:43: Bicep source JSON Pointer /$symbol/enablePodChaos/$expression-line/1 (expression 'param enablePodChaos bool = true'); The referenced parameter is bool-typed and controls conditional resource emission; it does not supply a request-body value."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/chaos/experiments.bicep",
+          "name": "chaosCapabilityNetworkChaos",
+          "line": 75,
+          "type": "Microsoft.Chaos/targets/capabilities",
+          "version": "2025-01-01",
+          "existing": false,
+          "start": 2566,
+          "end": 2731,
+          "header": "resource chaosCapabilityNetworkChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableNetworkChaos) ",
+          "body": "{\n  name: 'networkChaos-2.2'\n  parent: chaosTarget\n}",
+          "status": "verified",
+          "reason": "Learn version selector lists 2025-01-01 as the latest stable GA. The exact PUT body schema is Capability inheriting ProxyResource; it has no required create properties, while its optional CapabilityProperties are read-only metadata, so the name/parent-only declarations do not omit a writable required payload field.",
+          "migration": "Current 2025-01-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'networkChaos-2.2'",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'networkChaos-2.2'\"); Bicep capability name becomes the capabilityName REST path parameter; it is not request-body JSON, and the exact literal is preserved."
+            },
+            {
+              "source_id": "body:37",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: chaosTarget",
+              "analysis": "body:37: Bicep source JSON Pointer /parent (expression 'parent: chaosTarget'); Bicep parent chaosTarget selects the targetName path segment for the nested capability endpoint; parent is a Bicep route relationship, not a payload property."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource chaosCapabilityNetworkChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableNetworkChaos) ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource chaosCapabilityNetworkChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableNetworkChaos)\"); Bicep if-condition controls whether the capability resource request is emitted; the condition is not serialized into the API body."
+            },
+            {
+              "source_id": "symbol:enableNetworkChaos:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableNetworkChaos/$expression-line/0",
+              "expression": "@description('Enable NetworkChaos experiment')",
+              "analysis": "symbol:enableNetworkChaos:line:0: Bicep source JSON Pointer /$symbol/enableNetworkChaos/$expression-line/0 (expression \"@description('Enable NetworkChaos experiment')\"); Parameter description only; it documents the Boolean capability-enable switch and is not an API attribute."
+            },
+            {
+              "source_id": "symbol:enableNetworkChaos:line:47",
+              "label": "$expression",
+              "path": "/$symbol/enableNetworkChaos/$expression-line/1",
+              "expression": "param enableNetworkChaos bool = true",
+              "analysis": "symbol:enableNetworkChaos:line:47: Bicep source JSON Pointer /$symbol/enableNetworkChaos/$expression-line/1 (expression 'param enableNetworkChaos bool = true'); The referenced parameter is bool-typed and controls conditional resource emission; it does not supply a request-body value."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/chaos/experiments.bicep",
+          "name": "chaosCapabilityStressChaos",
+          "line": 80,
+          "type": "Microsoft.Chaos/targets/capabilities",
+          "version": "2025-01-01",
+          "existing": false,
+          "start": 2733,
+          "end": 2895,
+          "header": "resource chaosCapabilityStressChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableStressChaos) ",
+          "body": "{\n  name: 'stressChaos-2.2'\n  parent: chaosTarget\n}",
+          "status": "verified",
+          "reason": "Learn version selector lists 2025-01-01 as the latest stable GA. The exact PUT body schema is Capability inheriting ProxyResource; it has no required create properties, while its optional CapabilityProperties are read-only metadata, so the name/parent-only declarations do not omit a writable required payload field.",
+          "migration": "Current 2025-01-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'stressChaos-2.2'",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'stressChaos-2.2'\"); Bicep capability name becomes the capabilityName REST path parameter; it is not request-body JSON, and the exact literal is preserved."
+            },
+            {
+              "source_id": "body:36",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: chaosTarget",
+              "analysis": "body:36: Bicep source JSON Pointer /parent (expression 'parent: chaosTarget'); Bicep parent chaosTarget selects the targetName path segment for the nested capability endpoint; parent is a Bicep route relationship, not a payload property."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource chaosCapabilityStressChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableStressChaos) ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource chaosCapabilityStressChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableStressChaos)\"); Bicep if-condition controls whether the capability resource request is emitted; the condition is not serialized into the API body."
+            },
+            {
+              "source_id": "symbol:enableStressChaos:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableStressChaos/$expression-line/0",
+              "expression": "@description('Enable StressChaos experiment')",
+              "analysis": "symbol:enableStressChaos:line:0: Bicep source JSON Pointer /$symbol/enableStressChaos/$expression-line/0 (expression \"@description('Enable StressChaos experiment')\"); Parameter description only; it documents the Boolean capability-enable switch and is not an API attribute."
+            },
+            {
+              "source_id": "symbol:enableStressChaos:line:46",
+              "label": "$expression",
+              "path": "/$symbol/enableStressChaos/$expression-line/1",
+              "expression": "param enableStressChaos bool = true",
+              "analysis": "symbol:enableStressChaos:line:46: Bicep source JSON Pointer /$symbol/enableStressChaos/$expression-line/1 (expression 'param enableStressChaos bool = true'); The referenced parameter is bool-typed and controls conditional resource emission; it does not supply a request-body value."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/chaos/experiments.bicep",
+          "name": "chaosCapabilityIOChaos",
+          "line": 85,
+          "type": "Microsoft.Chaos/targets/capabilities",
+          "version": "2025-01-01",
+          "existing": false,
+          "start": 2897,
+          "end": 3047,
+          "header": "resource chaosCapabilityIOChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableIOChaos) ",
+          "body": "{\n  name: 'ioChaos-2.2'\n  parent: chaosTarget\n}",
+          "status": "verified",
+          "reason": "Learn version selector lists 2025-01-01 as the latest stable GA. The exact PUT body schema is Capability inheriting ProxyResource; it has no required create properties, while its optional CapabilityProperties are read-only metadata, so the name/parent-only declarations do not omit a writable required payload field.",
+          "migration": "Current 2025-01-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'ioChaos-2.2'",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'ioChaos-2.2'\"); Bicep capability name becomes the capabilityName REST path parameter; it is not request-body JSON, and the exact literal is preserved."
+            },
+            {
+              "source_id": "body:32",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: chaosTarget",
+              "analysis": "body:32: Bicep source JSON Pointer /parent (expression 'parent: chaosTarget'); Bicep parent chaosTarget selects the targetName path segment for the nested capability endpoint; parent is a Bicep route relationship, not a payload property."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource chaosCapabilityIOChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableIOChaos) ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource chaosCapabilityIOChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableIOChaos)\"); Bicep if-condition controls whether the capability resource request is emitted; the condition is not serialized into the API body."
+            },
+            {
+              "source_id": "symbol:enableIOChaos:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableIOChaos/$expression-line/0",
+              "expression": "@description('Enable IOChaos experiment')",
+              "analysis": "symbol:enableIOChaos:line:0: Bicep source JSON Pointer /$symbol/enableIOChaos/$expression-line/0 (expression \"@description('Enable IOChaos experiment')\"); Parameter description only; it documents the Boolean capability-enable switch and is not an API attribute."
+            },
+            {
+              "source_id": "symbol:enableIOChaos:line:42",
+              "label": "$expression",
+              "path": "/$symbol/enableIOChaos/$expression-line/1",
+              "expression": "param enableIOChaos bool = true",
+              "analysis": "symbol:enableIOChaos:line:42: Bicep source JSON Pointer /$symbol/enableIOChaos/$expression-line/1 (expression 'param enableIOChaos bool = true'); The referenced parameter is bool-typed and controls conditional resource emission; it does not supply a request-body value."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/chaos/experiments.bicep",
+          "name": "chaosCapabilityTimeChaos",
+          "line": 90,
+          "type": "Microsoft.Chaos/targets/capabilities",
+          "version": "2025-01-01",
+          "existing": false,
+          "start": 3049,
+          "end": 3205,
+          "header": "resource chaosCapabilityTimeChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableTimeChaos) ",
+          "body": "{\n  name: 'timeChaos-2.2'\n  parent: chaosTarget\n}",
+          "status": "verified",
+          "reason": "Learn version selector lists 2025-01-01 as the latest stable GA. The exact PUT body schema is Capability inheriting ProxyResource; it has no required create properties, while its optional CapabilityProperties are read-only metadata, so the name/parent-only declarations do not omit a writable required payload field.",
+          "migration": "Current 2025-01-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'timeChaos-2.2'",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'timeChaos-2.2'\"); Bicep capability name becomes the capabilityName REST path parameter; it is not request-body JSON, and the exact literal is preserved."
+            },
+            {
+              "source_id": "body:34",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: chaosTarget",
+              "analysis": "body:34: Bicep source JSON Pointer /parent (expression 'parent: chaosTarget'); Bicep parent chaosTarget selects the targetName path segment for the nested capability endpoint; parent is a Bicep route relationship, not a payload property."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource chaosCapabilityTimeChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableTimeChaos) ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource chaosCapabilityTimeChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableTimeChaos)\"); Bicep if-condition controls whether the capability resource request is emitted; the condition is not serialized into the API body."
+            },
+            {
+              "source_id": "symbol:enableTimeChaos:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableTimeChaos/$expression-line/0",
+              "expression": "@description('Enable TimeChaos experiment')",
+              "analysis": "symbol:enableTimeChaos:line:0: Bicep source JSON Pointer /$symbol/enableTimeChaos/$expression-line/0 (expression \"@description('Enable TimeChaos experiment')\"); Parameter description only; it documents the Boolean capability-enable switch and is not an API attribute."
+            },
+            {
+              "source_id": "symbol:enableTimeChaos:line:44",
+              "label": "$expression",
+              "path": "/$symbol/enableTimeChaos/$expression-line/1",
+              "expression": "param enableTimeChaos bool = true",
+              "analysis": "symbol:enableTimeChaos:line:44: Bicep source JSON Pointer /$symbol/enableTimeChaos/$expression-line/1 (expression 'param enableTimeChaos bool = true'); The referenced parameter is bool-typed and controls conditional resource emission; it does not supply a request-body value."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/chaos/experiments.bicep",
+          "name": "chaosCapabilityKernelChaos",
+          "line": 95,
+          "type": "Microsoft.Chaos/targets/capabilities",
+          "version": "2025-01-01",
+          "existing": false,
+          "start": 3207,
+          "end": 3369,
+          "header": "resource chaosCapabilityKernelChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableKernelChaos) ",
+          "body": "{\n  name: 'kernelChaos-2.2'\n  parent: chaosTarget\n}",
+          "status": "verified",
+          "reason": "Learn version selector lists 2025-01-01 as the latest stable GA. The exact PUT body schema is Capability inheriting ProxyResource; it has no required create properties, while its optional CapabilityProperties are read-only metadata, so the name/parent-only declarations do not omit a writable required payload field.",
+          "migration": "Current 2025-01-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'kernelChaos-2.2'",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'kernelChaos-2.2'\"); Bicep capability name becomes the capabilityName REST path parameter; it is not request-body JSON, and the exact literal is preserved."
+            },
+            {
+              "source_id": "body:36",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: chaosTarget",
+              "analysis": "body:36: Bicep source JSON Pointer /parent (expression 'parent: chaosTarget'); Bicep parent chaosTarget selects the targetName path segment for the nested capability endpoint; parent is a Bicep route relationship, not a payload property."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource chaosCapabilityKernelChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableKernelChaos) ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource chaosCapabilityKernelChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableKernelChaos)\"); Bicep if-condition controls whether the capability resource request is emitted; the condition is not serialized into the API body."
+            },
+            {
+              "source_id": "symbol:enableKernelChaos:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableKernelChaos/$expression-line/0",
+              "expression": "@description('Enable KernelChaos experiment')",
+              "analysis": "symbol:enableKernelChaos:line:0: Bicep source JSON Pointer /$symbol/enableKernelChaos/$expression-line/0 (expression \"@description('Enable KernelChaos experiment')\"); Parameter description only; it documents the Boolean capability-enable switch and is not an API attribute."
+            },
+            {
+              "source_id": "symbol:enableKernelChaos:line:46",
+              "label": "$expression",
+              "path": "/$symbol/enableKernelChaos/$expression-line/1",
+              "expression": "param enableKernelChaos bool = false",
+              "analysis": "symbol:enableKernelChaos:line:46: Bicep source JSON Pointer /$symbol/enableKernelChaos/$expression-line/1 (expression 'param enableKernelChaos bool = false'); The referenced parameter is bool-typed and controls conditional resource emission; it does not supply a request-body value."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/chaos/experiments.bicep",
+          "name": "chaosCapabilityHTTPChaos",
+          "line": 100,
+          "type": "Microsoft.Chaos/targets/capabilities",
+          "version": "2025-01-01",
+          "existing": false,
+          "start": 3371,
+          "end": 3527,
+          "header": "resource chaosCapabilityHTTPChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableHTTPChaos) ",
+          "body": "{\n  name: 'httpChaos-2.2'\n  parent: chaosTarget\n}",
+          "status": "verified",
+          "reason": "Learn version selector lists 2025-01-01 as the latest stable GA. The exact PUT body schema is Capability inheriting ProxyResource; it has no required create properties, while its optional CapabilityProperties are read-only metadata, so the name/parent-only declarations do not omit a writable required payload field.",
+          "migration": "Current 2025-01-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'httpChaos-2.2'",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'httpChaos-2.2'\"); Bicep capability name becomes the capabilityName REST path parameter; it is not request-body JSON, and the exact literal is preserved."
+            },
+            {
+              "source_id": "body:34",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: chaosTarget",
+              "analysis": "body:34: Bicep source JSON Pointer /parent (expression 'parent: chaosTarget'); Bicep parent chaosTarget selects the targetName path segment for the nested capability endpoint; parent is a Bicep route relationship, not a payload property."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource chaosCapabilityHTTPChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableHTTPChaos) ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource chaosCapabilityHTTPChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableHTTPChaos)\"); Bicep if-condition controls whether the capability resource request is emitted; the condition is not serialized into the API body."
+            },
+            {
+              "source_id": "symbol:enableHTTPChaos:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableHTTPChaos/$expression-line/0",
+              "expression": "@description('Enable HTTPChaos experiment')",
+              "analysis": "symbol:enableHTTPChaos:line:0: Bicep source JSON Pointer /$symbol/enableHTTPChaos/$expression-line/0 (expression \"@description('Enable HTTPChaos experiment')\"); Parameter description only; it documents the Boolean capability-enable switch and is not an API attribute."
+            },
+            {
+              "source_id": "symbol:enableHTTPChaos:line:44",
+              "label": "$expression",
+              "path": "/$symbol/enableHTTPChaos/$expression-line/1",
+              "expression": "param enableHTTPChaos bool = true",
+              "analysis": "symbol:enableHTTPChaos:line:44: Bicep source JSON Pointer /$symbol/enableHTTPChaos/$expression-line/1 (expression 'param enableHTTPChaos bool = true'); The referenced parameter is bool-typed and controls conditional resource emission; it does not supply a request-body value."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/chaos/experiments.bicep",
+          "name": "chaosCapabilityDNSChaos",
+          "line": 105,
+          "type": "Microsoft.Chaos/targets/capabilities",
+          "version": "2025-01-01",
+          "existing": false,
+          "start": 3529,
+          "end": 3682,
+          "header": "resource chaosCapabilityDNSChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableDNSChaos) ",
+          "body": "{\n  name: 'dnsChaos-2.2'\n  parent: chaosTarget\n}",
+          "status": "verified",
+          "reason": "Learn version selector lists 2025-01-01 as the latest stable GA. The exact PUT body schema is Capability inheriting ProxyResource; it has no required create properties, while its optional CapabilityProperties are read-only metadata, so the name/parent-only declarations do not omit a writable required payload field.",
+          "migration": "Current 2025-01-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'dnsChaos-2.2'",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'dnsChaos-2.2'\"); Bicep capability name becomes the capabilityName REST path parameter; it is not request-body JSON, and the exact literal is preserved."
+            },
+            {
+              "source_id": "body:33",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: chaosTarget",
+              "analysis": "body:33: Bicep source JSON Pointer /parent (expression 'parent: chaosTarget'); Bicep parent chaosTarget selects the targetName path segment for the nested capability endpoint; parent is a Bicep route relationship, not a payload property."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource chaosCapabilityDNSChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableDNSChaos) ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource chaosCapabilityDNSChaos 'Microsoft.Chaos/targets/capabilities@2025-01-01' = if (enableDNSChaos)\"); Bicep if-condition controls whether the capability resource request is emitted; the condition is not serialized into the API body."
+            },
+            {
+              "source_id": "symbol:enableDNSChaos:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableDNSChaos/$expression-line/0",
+              "expression": "@description('Enable DNSChaos experiment')",
+              "analysis": "symbol:enableDNSChaos:line:0: Bicep source JSON Pointer /$symbol/enableDNSChaos/$expression-line/0 (expression \"@description('Enable DNSChaos experiment')\"); Parameter description only; it documents the Boolean capability-enable switch and is not an API attribute."
+            },
+            {
+              "source_id": "symbol:enableDNSChaos:line:43",
+              "label": "$expression",
+              "path": "/$symbol/enableDNSChaos/$expression-line/1",
+              "expression": "param enableDNSChaos bool = true",
+              "analysis": "symbol:enableDNSChaos:line:43: Bicep source JSON Pointer /$symbol/enableDNSChaos/$expression-line/1 (expression 'param enableDNSChaos bool = true'); The referenced parameter is bool-typed and controls conditional resource emission; it does not supply a request-body value."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2025-01-01",
+          "analysis": "Learn selector and exact stable OpenAPI identify 2025-01-01. The target capability PUT body references Capability, whose Schemas-expanded ProxyResource model has no required create properties; CapabilityProperties contains only optional readOnly fields. Thus declarations containing only child name/parent correctly provide no create properties.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/targets/capabilities",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/targets/capabilities": "45a0424b7aab6b76bfd9d20cf35adae0ebc4d6c72038eebb13aa1943136f2a88",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/readme.md": "5cca0cfc51582a09beb54354aaabf7481a6dfc2f86fb802b1ed79ce70b12419b",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json": "eaa5c07d134ce0f40c6ba9b24bcb0617f1646eb7b9922ccf6a1bd7c15bab9510",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1"
+          }
+        },
+        "ga": {
+          "version": "2025-01-01",
+          "analysis": "Latest GA from the Learn version selector is 2025-01-01, identical to the current source version; later listed versions are preview. Exact candidate schema is the same pinned stable OpenAPI file.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/targets/capabilities",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/targets/capabilities": "45a0424b7aab6b76bfd9d20cf35adae0ebc4d6c72038eebb13aa1943136f2a88",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json": "eaa5c07d134ce0f40c6ba9b24bcb0617f1646eb7b9922ccf6a1bd7c15bab9510",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log: 2025-01-01 removed read-only CapabilityProperties.provisioningState. No declaration sends capability properties, so the change has no request impact; the exact current schema confirms the remaining metadata is readOnly and no create field is required.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/change-log/targets/capabilities",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/change-log/targets/capabilities": "70f98a635b47eb2c383db0968b49044535fe35e80b704f32c6de9698acdbfe84",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json": "eaa5c07d134ce0f40c6ba9b24bcb0617f1646eb7b9922ccf6a1bd7c15bab9510",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1"
+          }
+        }
+      }
     },
     "Microsoft.Chaos/targets@2025-01-01": {
       "stage": "pending",
