@@ -1,0 +1,380 @@
+{
+  "pair": "Microsoft.Insights/components@2020-02-02",
+  "results": [
+    {
+      "file": "infra/modules/azmonitor/core.bicep",
+      "name": "applicationInsights",
+      "line": 38,
+      "type": "Microsoft.Insights/components",
+      "version": "2020-02-02",
+      "existing": false,
+      "start": 1144,
+      "end": 1608,
+      "header": "resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = ",
+      "body": "{\n  name: applicationInsightsName\n  location: location\n  kind: 'web'\n  tags: tags\n  properties: {\n    Application_Type: 'web'\n    WorkspaceResourceId: logAnalyticsWorkspace.id\n    IngestionMode: 'LogAnalytics'\n    #disable-next-line BCP037\n    AzureMonitorWorkspaceIngestionMode: 'Enabled'\n    #disable-next-line BCP037\n    AzureMonitorWorkspaceResourceId: appAzureMonitorWorkspace.id\n  }\n}",
+      "status": "verified",
+      "reason": "Current exact schema and GA status were confirmed. Ordinary name/location/kind/tags and Application_Type, WorkspaceResourceId, and IngestionMode are checked against the contract. The two AzureMonitorWorkspace fields are absent from both published Learn and REST properties, so their support is not established; that documentation discrepancy is retained as an issue, not claimed compatible.",
+      "migration": "No migration: Learn lists 2020-02-02 as latest stable; fixed-commit REST tree contains stable components API documents only for 2015-05-01 and 2020-02-02, and the exact 2020-02-02 schema is current.",
+      "findings": [
+        {
+          "kind": "issue",
+          "detail": "The exact 2020-02-02 Learn and REST schemas do not define properties.AzureMonitorWorkspaceIngestionMode or properties.AzureMonitorWorkspaceResourceId, although the Bicep sets them and suppresses BCP037. Their service support/value constraints cannot be established from these public contracts; retain as an explicit specification mismatch/coverage issue."
+        }
+      ],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: applicationInsightsName",
+          "analysis": "Bicep source /name maps to the required string {resourceName} route parameter; exact API name field is string. For the existing declaration this is an identity lookup, not a create body."
+        },
+        {
+          "source_id": "body:44",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "Bicep source /location maps to REST location, schema type string; it is required on write resources and is supplied as a string parameter. Not applicable to the existing reference declaration."
+        },
+        {
+          "source_id": "body:61",
+          "label": "kind",
+          "path": "/kind",
+          "expression": "  kind: 'web'",
+          "analysis": "Bicep source /kind maps to REST kind, schema type string (required on write resources); literal web is a string and no enum restriction is declared."
+        },
+        {
+          "source_id": "body:75",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "Bicep source /tags maps to REST tags object with additionalProperties type string. Root infra/main.bicep and infra/sli/main.bicep define tags as a single 'azd-env-name' entry whose value is the string environment parameter; forwarded module parameter preserves that object."
+        },
+        {
+          "source_id": "body:94",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "Bicep source /properties maps to ApplicationInsightsComponentProperties object. Its nested required property is Application_Type; this declaration supplies it. Other fields are checked individually below."
+        },
+        {
+          "source_id": "body:118",
+          "label": "Application_Type",
+          "path": "/properties/Application_Type",
+          "expression": "    Application_Type: 'web'",
+          "analysis": "REST path properties.Application_Type is required string enum ['web','other']; literal 'web' is an exact allowed value."
+        },
+        {
+          "source_id": "body:149",
+          "label": "WorkspaceResourceId",
+          "path": "/properties/WorkspaceResourceId",
+          "expression": "    WorkspaceResourceId: logAnalyticsWorkspace.id",
+          "analysis": "REST path properties.WorkspaceResourceId is string. The expression is an ARM resource ID (logAnalyticsWorkspace.id or string resource-ID parameter), so its value is string-typed; the schema adds no enum or format constraint."
+        },
+        {
+          "source_id": "body:193",
+          "label": "IngestionMode",
+          "path": "/properties/IngestionMode",
+          "expression": "    IngestionMode: 'LogAnalytics'",
+          "analysis": "REST path properties.IngestionMode is string enum ['ApplicationInsights','ApplicationInsightsWithDiagnosticSettings','LogAnalytics']; literal 'LogAnalytics' is allowed."
+        },
+        {
+          "source_id": "body:278",
+          "label": "AzureMonitorWorkspaceIngestionMode",
+          "path": "/properties/AzureMonitorWorkspaceIngestionMode",
+          "expression": "    AzureMonitorWorkspaceIngestionMode: 'Enabled'",
+          "analysis": "The source sets literal 'Enabled', but neither exact Learn 2020-02-02 reference nor REST ApplicationInsightsComponentProperties declares this path; the published contract provides no type/enum constraint for it. It is not marked compatible."
+        },
+        {
+          "source_id": "body:355",
+          "label": "AzureMonitorWorkspaceResourceId",
+          "path": "/properties/AzureMonitorWorkspaceResourceId",
+          "expression": "    AzureMonitorWorkspaceResourceId: appAzureMonitorWorkspace.id",
+          "analysis": "The source supplies appAzureMonitorWorkspace.id (string resource ID), but neither exact Learn 2020-02-02 reference nor REST ApplicationInsightsComponentProperties declares this path; no public type/constraint is available."
+        },
+        {
+          "source_id": "body:line:210",
+          "label": "$expression",
+          "path": "/properties/IngestionMode/$expression-line/9",
+          "expression": "    #disable-next-line BCP037",
+          "analysis": "This source path is a Bicep diagnostic-suppression comment, not a payload value. It specifically flags the adjacent AzureMonitorWorkspace property as absent from the Bicep type; the REST/Learn contract was independently checked and also omits it."
+        },
+        {
+          "source_id": "body:line:290",
+          "label": "$expression",
+          "path": "/properties/AzureMonitorWorkspaceIngestionMode/$expression-line/11",
+          "expression": "    #disable-next-line BCP037",
+          "analysis": "This source path is a Bicep diagnostic-suppression comment, not a payload value. It specifically flags the adjacent AzureMonitorWorkspace property as absent from the Bicep type; the REST/Learn contract was independently checked and also omits it."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = ",
+          "analysis": "Resource header selects Microsoft.Insights/components@2020-02-02; existing is reference semantics where present. It is API identity/version metadata, not request-body content."
+        },
+        {
+          "source_id": "symbol:applicationInsightsName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/applicationInsightsName/$expression-line/0",
+          "expression": "@description('App Insights name')",
+          "analysis": "This source is a description annotation, not a runtime value; its corresponding parameter declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:applicationInsightsName:line:34",
+          "label": "$expression",
+          "path": "/$symbol/applicationInsightsName/$expression-line/1",
+          "expression": "param applicationInsightsName string",
+          "analysis": "This source supplies a string resource name (direct string parameter or interpolation of the agent-name string); it maps to required string route parameter {resourceName}."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "This source supplies the location value as a string parameter; REST location is string."
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "This source supplies the location value as a string parameter; REST location is string."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags object')",
+          "analysis": "This source is a description annotation, not a runtime value; its corresponding parameter declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:tags:line:28",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object",
+          "analysis": "This parameter is declared object; its concrete upstream value is the root tag map with one string-valued azd-env-name entry from the string environment parameter. This satisfies the REST tags map's string-valued entries."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/azmonitor/service-group-members.bicep",
+      "name": "applicationInsights",
+      "line": 42,
+      "type": "Microsoft.Insights/components",
+      "version": "2020-02-02",
+      "existing": true,
+      "start": 1186,
+      "end": 1304,
+      "header": "resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = ",
+      "body": "{\n  name: applicationInsightsName\n}",
+      "status": "verified",
+      "reason": "Current exact 2020-02-02 schema and latest GA were confirmed. This is an existing-resource reference with only its string name identifier; creation-only required location/kind/properties do not apply to the reference body.",
+      "migration": "No migration: Learn lists 2020-02-02 as latest stable; fixed-commit REST tree contains stable components API documents only for 2015-05-01 and 2020-02-02, and the exact 2020-02-02 schema is current.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: applicationInsightsName",
+          "analysis": "Bicep source /name maps to the required string {resourceName} route parameter; exact API name field is string. For the existing declaration this is an identity lookup, not a create body."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = ",
+          "analysis": "Resource header selects Microsoft.Insights/components@2020-02-02; existing is reference semantics where present. It is API identity/version metadata, not request-body content."
+        },
+        {
+          "source_id": "symbol:applicationInsightsName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/applicationInsightsName/$expression-line/0",
+          "expression": "@description('Application Insights component name')",
+          "analysis": "This source is a description annotation, not a runtime value; its corresponding parameter declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:applicationInsightsName:line:52",
+          "label": "$expression",
+          "path": "/$symbol/applicationInsightsName/$expression-line/1",
+          "expression": "param applicationInsightsName string",
+          "analysis": "This source supplies a string resource name (direct string parameter or interpolation of the agent-name string); it maps to required string route parameter {resourceName}."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/sre-agent.bicep",
+      "name": "agentTelemetry",
+      "line": 45,
+      "type": "Microsoft.Insights/components",
+      "version": "2020-02-02",
+      "existing": false,
+      "start": 1290,
+      "end": 1565,
+      "header": "resource agentTelemetry 'Microsoft.Insights/components@2020-02-02' = ",
+      "body": "{\n  name: agentTelemetryName\n  location: location\n  kind: 'web'\n  tags: tags\n  properties: {\n    Application_Type: 'web'\n    Request_Source: 'SreAgent'\n    WorkspaceResourceId: logAnalyticsWorkspaceId\n  }\n}",
+      "status": "verified",
+      "reason": "Current exact schema and latest GA were confirmed. The declared resource body matches ordinary field types and required Application_Type except Request_Source=SreAgent, while the exact REST enum permits only rest; the schema mismatch is recorded as an issue.",
+      "migration": "No migration: Learn lists 2020-02-02 as latest stable; fixed-commit REST tree contains stable components API documents only for 2015-05-01 and 2020-02-02, and the exact 2020-02-02 schema is current.",
+      "findings": [
+        {
+          "kind": "issue",
+          "detail": "Request_Source is constrained by the exact 2020-02-02 REST schema to enum ['rest']; this declaration sends 'SreAgent'. The current literal contradicts the published enum."
+        }
+      ],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: agentTelemetryName",
+          "analysis": "Bicep source /name maps to the required string {resourceName} route parameter; exact API name field is string. For the existing declaration this is an identity lookup, not a create body."
+        },
+        {
+          "source_id": "body:39",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "Bicep source /location maps to REST location, schema type string; it is required on write resources and is supplied as a string parameter. Not applicable to the existing reference declaration."
+        },
+        {
+          "source_id": "body:56",
+          "label": "kind",
+          "path": "/kind",
+          "expression": "  kind: 'web'",
+          "analysis": "Bicep source /kind maps to REST kind, schema type string (required on write resources); literal web is a string and no enum restriction is declared."
+        },
+        {
+          "source_id": "body:70",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "Bicep source /tags maps to REST tags object with additionalProperties type string. Root infra/main.bicep and infra/sli/main.bicep define tags as a single 'azd-env-name' entry whose value is the string environment parameter; forwarded module parameter preserves that object."
+        },
+        {
+          "source_id": "body:89",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "Bicep source /properties maps to ApplicationInsightsComponentProperties object. Its nested required property is Application_Type; this declaration supplies it. Other fields are checked individually below."
+        },
+        {
+          "source_id": "body:113",
+          "label": "Application_Type",
+          "path": "/properties/Application_Type",
+          "expression": "    Application_Type: 'web'",
+          "analysis": "REST path properties.Application_Type is required string enum ['web','other']; literal 'web' is an exact allowed value."
+        },
+        {
+          "source_id": "body:139",
+          "label": "Request_Source",
+          "path": "/properties/Request_Source",
+          "expression": "    Request_Source: 'SreAgent'",
+          "analysis": "REST path properties.Request_Source is string enum ['rest']; source literal 'SreAgent' is outside the enum and is a confirmed contract violation."
+        },
+        {
+          "source_id": "body:175",
+          "label": "WorkspaceResourceId",
+          "path": "/properties/WorkspaceResourceId",
+          "expression": "    WorkspaceResourceId: logAnalyticsWorkspaceId",
+          "analysis": "REST path properties.WorkspaceResourceId is string. The expression is an ARM resource ID (logAnalyticsWorkspace.id or string resource-ID parameter), so its value is string-typed; the schema adds no enum or format constraint."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource agentTelemetry 'Microsoft.Insights/components@2020-02-02' = ",
+          "analysis": "Resource header selects Microsoft.Insights/components@2020-02-02; existing is reference semantics where present. It is API identity/version metadata, not request-body content."
+        },
+        {
+          "source_id": "symbol:agentTelemetryName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/agentTelemetryName/$expression-line/0",
+          "expression": "var agentTelemetryName = 'appi-${agentName}'",
+          "analysis": "This source supplies a string resource name (direct string parameter or interpolation of the agent-name string); it maps to required string route parameter {resourceName}."
+        },
+        {
+          "source_id": "symbol:agentName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/agentName/$expression-line/0",
+          "expression": "@description('Azure SRE Agent name')",
+          "analysis": "This source is a description annotation, not a runtime value; its corresponding parameter declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:agentName:line:37",
+          "label": "$expression",
+          "path": "/$symbol/agentName/$expression-line/1",
+          "expression": "param agentName string",
+          "analysis": "This source is string agent-name parameter used to construct agentTelemetryName; resulting name maps to required string {resourceName}."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Azure SRE Agent region')",
+          "analysis": "This source is a description annotation, not a runtime value; its corresponding parameter declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:location:line:39",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "This source supplies the location value as a string parameter; REST location is string."
+        },
+        {
+          "source_id": "symbol:logAnalyticsWorkspaceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/logAnalyticsWorkspaceId/$expression-line/0",
+          "expression": "@description('Log Analytics workspace resource ID for SRE Agent telemetry')",
+          "analysis": "This source is a description annotation, not a runtime value; its corresponding parameter declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:logAnalyticsWorkspaceId:line:76",
+          "label": "$expression",
+          "path": "/$symbol/logAnalyticsWorkspaceId/$expression-line/1",
+          "expression": "param logAnalyticsWorkspaceId string",
+          "analysis": "This source is a string resource-ID parameter used as properties.WorkspaceResourceId; the REST property is string and has no enum/format constraint."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags object')",
+          "analysis": "This source is a description annotation, not a runtime value; its corresponding parameter declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:tags:line:28",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object",
+          "analysis": "This parameter is declared object; its concrete upstream value is the root tag map with one string-valued azd-env-name entry from the string environment parameter. This satisfies the REST tags map's string-valued entries."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2020-02-02",
+      "analysis": "Exact Microsoft Learn current reference and pinned REST components_API.json 2020-02-02 read. The resource PUT uses ApplicationInsightsComponent; required top-level fields are location and kind, nested ApplicationInsightsComponentProperties requires Application_Type. Tags are a string-valued map. Application_Type enum is web/other; IngestionMode enum includes LogAnalytics; WorkspaceResourceId is string; Request_Source enum is only rest. AzureMonitorWorkspaceIngestionMode/ResourceId are absent from the published current properties.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2020-02-02/components",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/applicationinsights/resource-manager/Microsoft.Insights/ApplicationInsights/stable/2020-02-02/components_API.json"
+      ]
+    },
+    "ga": {
+      "version": "2020-02-02",
+      "analysis": "Learn page selector says Latest 2020-02-02; the complete fixed-commit metadata path inventory contains stable components_API.json only for 2015-05-01 and 2020-02-02. Thus 2020-02-02 is latest stable GA and the exact current schema is also the candidate schema.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2020-02-02/components",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/applicationinsights/resource-manager/Microsoft.Insights/ApplicationInsights/stable/2020-02-02/components_API.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "The Learn components change log entry for 2020-02-02 explicitly says no properties added, updated, or removed. Current schema enum/value and absent-property discrepancies are recorded in declaration findings; the change log reports no version-transition breaking changes.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/components"
+      ]
+    }
+  }
+}
