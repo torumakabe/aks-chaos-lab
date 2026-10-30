@@ -38636,9 +38636,164 @@
       }
     },
     "Microsoft.Cache/redisEnterprise/databases@2025-07-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/redis.bicep",
+          "name": "redisEnterpriseDatabase",
+          "line": 28,
+          "type": "Microsoft.Cache/redisEnterprise/databases",
+          "version": "2025-07-01",
+          "existing": false,
+          "start": 717,
+          "end": 1121,
+          "header": "resource redisEnterpriseDatabase 'Microsoft.Cache/redisEnterprise/databases@2025-07-01' = ",
+          "body": "{\n  name: 'default'\n  parent: redisEnterprise\n  properties: {\n    clientProtocol: 'Encrypted'\n    port: 10000\n    clusteringPolicy: 'OSSCluster'\n    evictionPolicy: 'NoEviction'\n    persistence: { aofEnabled: false, rdbEnabled: false }\n    accessKeysAuthentication: 'Disabled'\n    deferUpgrade: 'NotDeferred'\n  }\n}",
+          "status": "verified",
+          "reason": "Learn version selector identifies 2026-09-01 as latest stable GA. Current and candidate create schemas support every supplied literal; required-field review, enum/type/literal checks, persistence constraint, and Bicep parent/name route semantics are complete.",
+          "migration": "2026-09-01 GA移行可能。全設定値の型・enum・literalが候補schemaと互換。",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "Current 2025-07-01; latest GA 2026-09-01. Exact current/candidate DatabaseCreateProperties models support the same used values. Candidate change log reports no changes in 2026-09-01; the 2026-02-01-preview notifyKeyspaceEvents addition is optional and unused."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'default'",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'default'\"); Bicep child name 'default' becomes the REST databaseName path parameter, not request-body JSON; it satisfies the path-name pattern."
+            },
+            {
+              "source_id": "body:28",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: redisEnterprise",
+              "analysis": "body:28: Bicep source JSON Pointer /parent (expression 'parent: redisEnterprise'); Bicep parent redisEnterprise selects the cluster route segment for the REST database endpoint; it is a path relationship, not a payload field."
+            },
+            {
+              "source_id": "body:58",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "body:58: Bicep source JSON Pointer /properties (expression 'properties: {'); Bicep properties object is the request-body envelope for DatabaseCreateProperties (which extends DatabaseProperties); it contains every value assessed individually below. No required create property is missing."
+            },
+            {
+              "source_id": "body:80",
+              "label": "clientProtocol",
+              "path": "/properties/clientProtocol",
+              "expression": "    clientProtocol: 'Encrypted'",
+              "analysis": "body:80: Bicep source JSON Pointer /properties/clientProtocol (expression \"clientProtocol: 'Encrypted'\"); Maps to DatabaseCreateProperties.clientProtocol; exact literal 'Encrypted' is in the current and GA candidate string enum."
+            },
+            {
+              "source_id": "body:102",
+              "label": "port",
+              "path": "/properties/port",
+              "expression": "    port: 10000",
+              "analysis": "body:102: Bicep source JSON Pointer /properties/port (expression 'port: 10000'); Maps to DatabaseCreateProperties.port; literal 10000 is an integer and the schema imposes no conflicting bound."
+            },
+            {
+              "source_id": "body:130",
+              "label": "clusteringPolicy",
+              "path": "/properties/clusteringPolicy",
+              "expression": "    clusteringPolicy: 'OSSCluster'",
+              "analysis": "body:130: Bicep source JSON Pointer /properties/clusteringPolicy (expression \"clusteringPolicy: 'OSSCluster'\"); Maps to DatabaseCreateProperties.clusteringPolicy; exact literal 'OSSCluster' is an allowed enum value."
+            },
+            {
+              "source_id": "body:163",
+              "label": "evictionPolicy",
+              "path": "/properties/evictionPolicy",
+              "expression": "    evictionPolicy: 'NoEviction'",
+              "analysis": "body:163: Bicep source JSON Pointer /properties/evictionPolicy (expression \"evictionPolicy: 'NoEviction'\"); Maps to DatabaseCreateProperties.evictionPolicy; exact literal 'NoEviction' is an allowed enum value."
+            },
+            {
+              "source_id": "body:193",
+              "label": "persistence",
+              "path": "/properties/persistence",
+              "expression": "    persistence: { aofEnabled: false, rdbEnabled: false }",
+              "analysis": "body:193: Bicep source JSON Pointer /properties/persistence (expression 'persistence: { aofEnabled: false, rdbEnabled: false }'); Maps to the persistence object; the exact nested aofEnabled and rdbEnabled booleans are both false, satisfying the schema note that at most one persistence mode may be enabled. The allOf model has a duplicate accessKeysAuthentication override; that field was separately checked in both branches, and this persistence path is unambiguous."
+            },
+            {
+              "source_id": "body:207",
+              "label": "aofEnabled",
+              "path": "/properties/persistence/aofEnabled",
+              "expression": "    persistence: { aofEnabled: false, rdbEnabled: false }",
+              "analysis": "body:207: Bicep source JSON Pointer /properties/persistence/aofEnabled (expression 'persistence: { aofEnabled: false, rdbEnabled: false }'); Maps to Persistence.aofEnabled, boolean; false is type-correct and leaves AOF disabled."
+            },
+            {
+              "source_id": "body:226",
+              "label": "rdbEnabled",
+              "path": "/properties/persistence/rdbEnabled",
+              "expression": "    persistence: { aofEnabled: false, rdbEnabled: false }",
+              "analysis": "body:226: Bicep source JSON Pointer /properties/persistence/rdbEnabled (expression 'persistence: { aofEnabled: false, rdbEnabled: false }'); Maps to Persistence.rdbEnabled, boolean; false is type-correct and leaves RDB disabled, so the mutually exclusive persistence modes are not both enabled."
+            },
+            {
+              "source_id": "body:264",
+              "label": "accessKeysAuthentication",
+              "path": "/properties/accessKeysAuthentication",
+              "expression": "    accessKeysAuthentication: 'Disabled'",
+              "analysis": "body:264: Bicep source JSON Pointer /properties/accessKeysAuthentication (expression \"accessKeysAuthentication: 'Disabled'\"); Maps to DatabaseCreateProperties.accessKeysAuthentication; direct create schema and inherited model both declare the string enum Disabled/Enabled, and the exact literal 'Disabled' is valid. Schemas expansion reports a duplicate inherited property, so the two source definitions were reviewed separately and the value validated against the direct property schema."
+            },
+            {
+              "source_id": "body:293",
+              "label": "deferUpgrade",
+              "path": "/properties/deferUpgrade",
+              "expression": "    deferUpgrade: 'NotDeferred'",
+              "analysis": "body:293: Bicep source JSON Pointer /properties/deferUpgrade (expression \"deferUpgrade: 'NotDeferred'\"); Maps to DatabaseCreateProperties.deferUpgrade; exact literal 'NotDeferred' is in the current and candidate enum."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource redisEnterpriseDatabase 'Microsoft.Cache/redisEnterprise/databases@2025-07-01' = ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource redisEnterpriseDatabase 'Microsoft.Cache/redisEnterprise/databases@2025-07-01' =\"); This is the resource declaration header, not a request property; it establishes the current API version being assessed and the resource is a create declaration, so the create request model applies."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2025-07-01",
+          "analysis": "Learn selector and exact stable spec identify 2025-07-01. The PUT body references Database; its create payload properties compose DatabaseCreateProperties with DatabaseProperties. Schemas helper checked clientProtocol, port, clusteringPolicy, evictionPolicy, persistence leaves, and deferUpgrade; the duplicate accessKeysAuthentication property in allOf was resolved by inspecting and validating both exact source definitions. All supplied values match.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2025-07-01/redisenterprise/databases",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2025-07-01/redisenterprise.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2025-07-01/redisenterprise/databases": "d2100432652285732cd12eca5d1c1bc3f0ce62929fd6af4e80adb64ce1da8134",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/readme.md": "83fe7b2f7da3e50ceb336332b34cdaf312394fb10a94d2a3da37e4db01b47440",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2025-07-01/redisenterprise.json": "2612b2d08997099cf076b3c83cb22fd0dadedf3c77663aaa484e4945abd8c4fe"
+          }
+        },
+        "ga": {
+          "version": "2026-09-01",
+          "analysis": "Learn selector lists 2026-09-01 as latest suffix-free GA and 2026-10-01-preview as newer preview. Exact 2026-09-01 REST request model retains each used enum/value/type; the only additional DatabaseProperties field relevant to the broader model is optional notifyKeyspaceEvents, which is not used.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2026-09-01/redisenterprise/databases",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2026-09-01/redisenterprise.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2026-09-01/redisenterprise/databases": "4ff539d1b6acc963de67285968ed807ffa470b737664383cecb34c712458b14e",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2026-09-01/redisenterprise.json": "896f3361c4009de0d9cbe90cf9b23066a20892ca49c4aa219212ddd0178f1a9e"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log: 2025-07-01 changed the create model name from DatabaseProperties to DatabaseCreateProperties; the source request remains compatible with its exact current create schema. The 2026-09-01 GA entry reports no properties added, updated, or removed. notifyKeyspaceEvents was introduced in 2026-02-01-preview and is not set by this deployment. The duplicate accessKeysAuthentication allOf override was separately checked in both schemas.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/change-log/redisenterprise/databases",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2025-07-01/redisenterprise.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2026-09-01/redisenterprise.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/change-log/redisenterprise/databases": "e8f0eb4a6fc7def4914270d1d4f99bbada50b601726ec2321761921bb694d505",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2025-07-01/redisenterprise.json": "2612b2d08997099cf076b3c83cb22fd0dadedf3c77663aaa484e4945abd8c4fe",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2026-09-01/redisenterprise.json": "896f3361c4009de0d9cbe90cf9b23066a20892ca49c4aa219212ddd0178f1a9e"
+          }
+        }
+      }
     },
     "Microsoft.Cache/redisEnterprise@2025-07-01": {
       "stage": "pending",

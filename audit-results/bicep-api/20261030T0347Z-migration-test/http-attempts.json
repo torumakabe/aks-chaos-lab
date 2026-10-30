@@ -115,5 +115,50 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.7954524079998464
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/redisenterprise/databases",
+    "attempt": 1,
+    "started_monotonic": 1529.642639096,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/change-log/redisenterprise/databases",
+    "attempt": 1,
+    "started_monotonic": 1532.642748623,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8683590289999756
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2025-07-01/redisenterprise/databases",
+    "attempt": 1,
+    "started_monotonic": 1535.642850872,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7735983079999187
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2026-09-01/redisenterprise/databases",
+    "attempt": 1,
+    "started_monotonic": 1538.642958342,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7414551419999498
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v3/types.json",
+    "attempt": 1,
+    "started_monotonic": 1558.281885379,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
