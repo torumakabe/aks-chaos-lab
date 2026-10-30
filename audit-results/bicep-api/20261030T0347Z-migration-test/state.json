@@ -44280,9 +44280,1187 @@
       }
     },
     "Microsoft.ContainerService/managedClusters@2026-05-02-preview": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/aks.bicep",
+          "name": "aksCluster",
+          "line": 222,
+          "type": "Microsoft.ContainerService/managedClusters",
+          "version": "2026-05-02-preview",
+          "existing": false,
+          "start": 6989,
+          "end": 7425,
+          "header": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-05-02-preview' = ",
+          "body": "{\n  name: aksName\n  location: location\n  tags: tags\n  // Enable Uptime SLA by switching AKS SKU tier\n  sku: {\n    name: skuName\n    tier: 'Standard'\n  }\n  identity: {\n    type: 'UserAssigned'\n    userAssignedIdentities: {\n      '${aksIdentity.id}': {}\n    }\n  }\n  properties: aksBaseProperties\n  dependsOn: [\n    aksSubnetNetworkContributorRole\n  ]\n}",
+          "status": "excluded",
+          "reason": "Preview retention is intentional under docs/workarounds.md C-2. The exact current preview schema contains addonAutoscaling, upgradeStrategy, and upgradeSettingsBlueGreen; the latest GA 2026-08-01 removes all three, so the documented GA-removal condition is not met. The source has a separate exact schema spelling mismatch: enableAzureRbac versus enableAzureRBAC, retained as an issue.",
+          "migration": "GA migration to 2026-08-01 is incompatible with preserving the current addonAutoscaling, BlueGreen upgradeStrategy, and upgradeSettingsBlueGreen settings. Keep the current preview under C-2; re-check when GA schema contains all three. No version/code change was made.",
+          "findings": [
+            {
+              "kind": "issue",
+              "detail": "infra/modules/aks.bicep uses aadProfile.enableAzureRbac at the Bicep source pointer /$symbol/aksBaseSpecificProperties/aadProfile/enableAzureRbac. The exact 2026-05-02-preview ManagedClusterAADProfile schema (and the 2026-08-01 GA schema) defines enableAzureRBAC instead; the source spelling does not match the REST schema key."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: aksName",
+              "analysis": "body:8: Bicep source JSON Pointer /name (original expression 'name: aksName'); Bicep resource name maps to the required managedClusters resourceName path parameter, not the REST body. main.bicep default produces aks-aks-chaos-lab-dev; it satisfies the exact 1–63 character regex."
+            },
+            {
+              "source_id": "body:28",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "body:28: Bicep source JSON Pointer /location (original expression 'location: location'); Maps to required TrackedResource.location string; root default japaneast is a string and both current/candidate schemas accept the field."
+            },
+            {
+              "source_id": "body:45",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "body:45: Bicep source JSON Pointer /tags (original expression 'tags: tags'); Maps to optional TrackedResource.tags; main.bicep passes azd-env-name with string value environment, matching additionalProperties:string."
+            },
+            {
+              "source_id": "body:106",
+              "label": "sku",
+              "path": "/sku",
+              "expression": "  sku: {",
+              "analysis": "body:106: Bicep source JSON Pointer /sku (original expression 'sku: {'); Maps to ManagedCluster.sku object. name=Base and tier=Standard are exact allowed enums in current preview and candidate GA."
+            },
+            {
+              "source_id": "body:118",
+              "label": "name",
+              "path": "/sku/name",
+              "expression": "    name: skuName",
+              "analysis": "body:118: Bicep source JSON Pointer /sku/name (original expression 'name: skuName'); Maps to ManagedClusterSKU.name; source skuName is constrained to Base and that exact enum value is accepted by both schemas."
+            },
+            {
+              "source_id": "body:136",
+              "label": "tier",
+              "path": "/sku/tier",
+              "expression": "    tier: 'Standard'",
+              "analysis": "body:136: Bicep source JSON Pointer /sku/tier (original expression \"tier: 'Standard'\"); Maps to ManagedClusterSKU.tier; literal Standard is in the current and candidate enum."
+            },
+            {
+              "source_id": "body:163",
+              "label": "identity",
+              "path": "/identity",
+              "expression": "  identity: {",
+              "analysis": "body:163: Bicep source JSON Pointer /identity (original expression 'identity: {'); Maps to ManagedCluster.identity; type and userAssignedIdentities are checked separately."
+            },
+            {
+              "source_id": "body:175",
+              "label": "type",
+              "path": "/identity/type",
+              "expression": "    type: 'UserAssigned'",
+              "analysis": "body:175: Bicep source JSON Pointer /identity/type (original expression \"type: 'UserAssigned'\"); Maps to required ManagedServiceIdentity.type; UserAssigned is allowed in both schemas."
+            },
+            {
+              "source_id": "body:218",
+              "label": "userAssignedIdentities",
+              "path": "/identity/userAssignedIdentities",
+              "expression": "    userAssignedIdentities: {",
+              "analysis": "body:218: Bicep source JSON Pointer /identity/userAssignedIdentities (original expression 'userAssignedIdentities: {'); Maps to ManagedServiceIdentity.userAssignedIdentities; exact schema is a map whose value has no required fields."
+            },
+            {
+              "source_id": "body:247",
+              "label": "${aksIdentity.id}",
+              "path": "/identity/userAssignedIdentities/${aksIdentity.id}",
+              "expression": "      '${aksIdentity.id}': {}",
+              "analysis": "body:247: Bicep source JSON Pointer /identity/userAssignedIdentities/${aksIdentity.id} (original expression \"'${aksIdentity.id}': {}\"); Maps the interpolated aksIdentity.id resource ID to the userAssignedIdentities map key, with an empty value object. The source aksIdentity resource is Microsoft.ManagedIdentity/userAssignedIdentities; map values have no required fields and clientId/principalId are read-only."
+            },
+            {
+              "source_id": "body:274",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: aksBaseProperties",
+              "analysis": "body:274: Bicep source JSON Pointer /properties (original expression 'properties: aksBaseProperties'); Maps to ManagedClusterProperties; the value is union(aksCommonProperties, aksBaseSpecificProperties). Every resulting field and nested value is assessed through its exact source pointer below."
+            },
+            {
+              "source_id": "body:305",
+              "label": "dependsOn",
+              "path": "/dependsOn",
+              "expression": "  dependsOn: [",
+              "analysis": "body:305: Bicep source JSON Pointer /dependsOn (original expression 'dependsOn: ['); Bicep deployment ordering only; not part of the REST request body."
+            },
+            {
+              "source_id": "body:line:309",
+              "label": "$expression",
+              "path": "/dependsOn/[]/$expression-line/17",
+              "expression": "    aksSubnetNetworkContributorRole",
+              "analysis": "body:line:309: Bicep source JSON Pointer /dependsOn/[]/$expression-line/17 (original expression 'aksSubnetNetworkContributorRole'); Bicep dependency on aksSubnetNetworkContributorRole orders role assignment before cluster deployment; not an API payload attribute."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-05-02-preview' = ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (original expression \"resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-05-02-preview' =\"); Bicep type/version declaration; current exact source is managedClusters@2026-05-02-preview, confirmed against the pinned preview OpenAPI document."
+            },
+            {
+              "source_id": "symbol:aksBaseProperties:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseProperties/$expression-line/0",
+              "expression": "var aksBaseProperties = union(aksCommonProperties, aksBaseSpecificProperties)",
+              "analysis": "symbol:aksBaseProperties:line:0: Bicep source JSON Pointer /$symbol/aksBaseProperties/$expression-line/0 (original expression 'var aksBaseProperties = union(aksCommonProperties, aksBaseSpecificProperties)'); The variable is union(aksCommonProperties, aksBaseSpecificProperties), the complete body properties object; it is not an individual REST field. Every member from both objects is mapped and checked separately."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:100",
+              "label": "kubernetesVersion",
+              "path": "/$symbol/aksBaseSpecificProperties/kubernetesVersion",
+              "expression": "  kubernetesVersion: kubernetesVersion",
+              "analysis": "symbol:aksBaseSpecificProperties:100: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/kubernetesVersion (original expression 'kubernetesVersion: kubernetesVersion'); Maps to ManagedClusterProperties.kubernetesVersion; current preview schema {'type': 'string'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string'}. Source expression/value: 'kubernetesVersion: kubernetesVersion'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:139",
+              "label": "oidcIssuerProfile",
+              "path": "/$symbol/aksBaseSpecificProperties/oidcIssuerProfile",
+              "expression": "  oidcIssuerProfile: { enabled: true }",
+              "analysis": "symbol:aksBaseSpecificProperties:139: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/oidcIssuerProfile (original expression 'oidcIssuerProfile: { enabled: true }'); Maps to ManagedClusterProperties.oidcIssuerProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'oidcIssuerProfile: { enabled: true }'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:150",
+              "label": "enabled",
+              "path": "/$symbol/aksBaseSpecificProperties/oidcIssuerProfile/enabled",
+              "expression": "  oidcIssuerProfile: { enabled: true }",
+              "analysis": "symbol:aksBaseSpecificProperties:150: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/oidcIssuerProfile/enabled (original expression 'oidcIssuerProfile: { enabled: true }'); Maps to ManagedClusterProperties.oidcIssuerProfile.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'oidcIssuerProfile: { enabled: true }'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:176",
+              "label": "securityProfile",
+              "path": "/$symbol/aksBaseSpecificProperties/securityProfile",
+              "expression": "  securityProfile: { workloadIdentity: { enabled: true } }",
+              "analysis": "symbol:aksBaseSpecificProperties:176: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/securityProfile (original expression 'securityProfile: { workloadIdentity: { enabled: true } }'); Maps to ManagedClusterProperties.securityProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'securityProfile: { workloadIdentity: { enabled: true } }'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:196",
+              "label": "workloadIdentity",
+              "path": "/$symbol/aksBaseSpecificProperties/securityProfile/workloadIdentity",
+              "expression": "  securityProfile: { workloadIdentity: { enabled: true } }",
+              "analysis": "symbol:aksBaseSpecificProperties:196: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/securityProfile/workloadIdentity (original expression 'securityProfile: { workloadIdentity: { enabled: true } }'); Maps to ManagedClusterProperties.securityProfile.workloadIdentity; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'securityProfile: { workloadIdentity: { enabled: true } }'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:207",
+              "label": "enabled",
+              "path": "/$symbol/aksBaseSpecificProperties/securityProfile/workloadIdentity/enabled",
+              "expression": "  securityProfile: { workloadIdentity: { enabled: true } }",
+              "analysis": "symbol:aksBaseSpecificProperties:207: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/securityProfile/workloadIdentity/enabled (original expression 'securityProfile: { workloadIdentity: { enabled: true } }'); Maps to ManagedClusterProperties.securityProfile.workloadIdentity.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'securityProfile: { workloadIdentity: { enabled: true } }'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:282",
+              "label": "aadProfile",
+              "path": "/$symbol/aksBaseSpecificProperties/aadProfile",
+              "expression": "  aadProfile: {",
+              "analysis": "symbol:aksBaseSpecificProperties:282: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/aadProfile (original expression 'aadProfile: {'); Maps to ManagedClusterProperties.aadProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'aadProfile: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:297",
+              "label": "managed",
+              "path": "/$symbol/aksBaseSpecificProperties/aadProfile/managed",
+              "expression": "    managed: true",
+              "analysis": "symbol:aksBaseSpecificProperties:297: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/aadProfile/managed (original expression 'managed: true'); Maps to ManagedClusterProperties.aadProfile.managed; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'managed: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:323",
+              "label": "enableAzureRbac",
+              "path": "/$symbol/aksBaseSpecificProperties/aadProfile/enableAzureRbac",
+              "expression": "    enableAzureRbac: true",
+              "analysis": "symbol:aksBaseSpecificProperties:323: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/aadProfile/enableAzureRbac (original expression 'enableAzureRbac: true'); Maps to ManagedClusterProperties.aadProfile.enableAzureRbac; MISMATCH: the source key enableAzureRbac is not present in the exact ManagedClusterAADProfile schema; the schema defines enableAzureRBAC (capital RBAC). This usage is retained as a schema issue, not normalized or assumed equivalent."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:433",
+              "label": "disableLocalAccounts",
+              "path": "/$symbol/aksBaseSpecificProperties/disableLocalAccounts",
+              "expression": "  disableLocalAccounts: true",
+              "analysis": "symbol:aksBaseSpecificProperties:433: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/disableLocalAccounts (original expression 'disableLocalAccounts: true'); Maps to ManagedClusterProperties.disableLocalAccounts; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'disableLocalAccounts: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:518",
+              "label": "apiServerAccessProfile",
+              "path": "/$symbol/aksBaseSpecificProperties/apiServerAccessProfile",
+              "expression": "  apiServerAccessProfile: {",
+              "analysis": "symbol:aksBaseSpecificProperties:518: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/apiServerAccessProfile (original expression 'apiServerAccessProfile: {'); Maps to ManagedClusterProperties.apiServerAccessProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'apiServerAccessProfile: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:547",
+              "label": "enableVnetIntegration",
+              "path": "/$symbol/aksBaseSpecificProperties/apiServerAccessProfile/enableVnetIntegration",
+              "expression": "    enableVnetIntegration: true",
+              "analysis": "symbol:aksBaseSpecificProperties:547: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/apiServerAccessProfile/enableVnetIntegration (original expression 'enableVnetIntegration: true'); Maps to ManagedClusterProperties.apiServerAccessProfile.enableVnetIntegration; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enableVnetIntegration: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:566",
+              "label": "subnetId",
+              "path": "/$symbol/aksBaseSpecificProperties/apiServerAccessProfile/subnetId",
+              "expression": "    subnetId: aksApiSubnetId",
+              "analysis": "symbol:aksBaseSpecificProperties:566: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/apiServerAccessProfile/subnetId (original expression 'subnetId: aksApiSubnetId'); Maps to ManagedClusterProperties.apiServerAccessProfile.subnetId; current preview schema {'type': 'string', 'format': 'arm-id'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'format': 'arm-id'}. Source expression/value: 'subnetId: aksApiSubnetId'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:672",
+              "label": "autoUpgradeProfile",
+              "path": "/$symbol/aksBaseSpecificProperties/autoUpgradeProfile",
+              "expression": "  autoUpgradeProfile: {",
+              "analysis": "symbol:aksBaseSpecificProperties:672: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/autoUpgradeProfile (original expression 'autoUpgradeProfile: {'); Maps to ManagedClusterProperties.autoUpgradeProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'autoUpgradeProfile: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:700",
+              "label": "nodeOSUpgradeChannel",
+              "path": "/$symbol/aksBaseSpecificProperties/autoUpgradeProfile/nodeOSUpgradeChannel",
+              "expression": "    nodeOSUpgradeChannel: 'NodeImage'",
+              "analysis": "symbol:aksBaseSpecificProperties:700: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/autoUpgradeProfile/nodeOSUpgradeChannel (original expression \"nodeOSUpgradeChannel: 'NodeImage'\"); Maps to ManagedClusterProperties.autoUpgradeProfile.nodeOSUpgradeChannel; current preview schema {'type': 'string', 'enum': ['None', 'Unmanaged', 'NodeImage', 'SecurityPatch']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['None', 'Unmanaged', 'NodeImage', 'SecurityPatch']}. Source expression/value: \"nodeOSUpgradeChannel: 'NodeImage'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:737",
+              "label": "autoScalerProfile",
+              "path": "/$symbol/aksBaseSpecificProperties/autoScalerProfile",
+              "expression": "  autoScalerProfile: enableNodeAutoProvisioning ? null : {",
+              "analysis": "symbol:aksBaseSpecificProperties:737: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/autoScalerProfile (original expression 'autoScalerProfile: enableNodeAutoProvisioning ? null : {'); Maps to ManagedClusterProperties.autoScalerProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'autoScalerProfile: enableNodeAutoProvisioning ? null : {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:773",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseSpecificProperties/$syntax/773",
+              "expression": "  autoScalerProfile: enableNodeAutoProvisioning ? null : {",
+              "analysis": "symbol:aksBaseSpecificProperties:773: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/$syntax/773 (original expression 'autoScalerProfile: enableNodeAutoProvisioning ? null : {'); Current preview lookup unresolved: AuditError: Property requires explicit additionalProperties review: $syntax.773; check exact source spelling against ManagedClusterProperties."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:820",
+              "label": "daemonset-eviction-for-occupied-nodes",
+              "path": "/$symbol/aksBaseSpecificProperties/autoScalerProfile/daemonset-eviction-for-occupied-nodes",
+              "expression": "    'daemonset-eviction-for-occupied-nodes': true",
+              "analysis": "symbol:aksBaseSpecificProperties:820: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/autoScalerProfile/daemonset-eviction-for-occupied-nodes (original expression \"'daemonset-eviction-for-occupied-nodes': true\"); Maps to ManagedClusterProperties.autoScalerProfile.daemonset-eviction-for-occupied-nodes; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: \"'daemonset-eviction-for-occupied-nodes': true\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:856",
+              "label": "max-node-provision-time",
+              "path": "/$symbol/aksBaseSpecificProperties/autoScalerProfile/max-node-provision-time",
+              "expression": "    'max-node-provision-time': '15m'",
+              "analysis": "symbol:aksBaseSpecificProperties:856: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/autoScalerProfile/max-node-provision-time (original expression \"'max-node-provision-time': '15m'\"); Maps to ManagedClusterProperties.autoScalerProfile.max-node-provision-time; current preview schema {'type': 'string'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string'}. Source expression/value: \"'max-node-provision-time': '15m'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:896",
+              "label": "scale-down-delay-after-add",
+              "path": "/$symbol/aksBaseSpecificProperties/autoScalerProfile/scale-down-delay-after-add",
+              "expression": "    'scale-down-delay-after-add': '10m'",
+              "analysis": "symbol:aksBaseSpecificProperties:896: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/autoScalerProfile/scale-down-delay-after-add (original expression \"'scale-down-delay-after-add': '10m'\"); Maps to ManagedClusterProperties.autoScalerProfile.scale-down-delay-after-add; current preview schema {'type': 'string'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string'}. Source expression/value: \"'scale-down-delay-after-add': '10m'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:933",
+              "label": "nodeProvisioningProfile",
+              "path": "/$symbol/aksBaseSpecificProperties/nodeProvisioningProfile",
+              "expression": "  nodeProvisioningProfile: enableNodeAutoProvisioning",
+              "analysis": "symbol:aksBaseSpecificProperties:933: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/nodeProvisioningProfile (original expression 'nodeProvisioningProfile: enableNodeAutoProvisioning'); Maps to ManagedClusterProperties.nodeProvisioningProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'nodeProvisioningProfile: enableNodeAutoProvisioning'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:982",
+              "label": "mode",
+              "path": "/$symbol/aksBaseSpecificProperties/nodeProvisioningProfile/mode",
+              "expression": "        mode: 'Auto'",
+              "analysis": "symbol:aksBaseSpecificProperties:982: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/nodeProvisioningProfile/mode (original expression \"mode: 'Auto'\"); Maps to ManagedClusterProperties.nodeProvisioningProfile.mode; current preview schema {'type': 'string', 'enum': ['Manual', 'Auto']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['Manual', 'Auto']}. Source expression/value: \"mode: 'Auto'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1015",
+              "label": "defaultNodePools",
+              "path": "/$symbol/aksBaseSpecificProperties/nodeProvisioningProfile/defaultNodePools",
+              "expression": "        defaultNodePools: 'None'",
+              "analysis": "symbol:aksBaseSpecificProperties:1015: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/nodeProvisioningProfile/defaultNodePools (original expression \"defaultNodePools: 'None'\"); Maps to ManagedClusterProperties.nodeProvisioningProfile.defaultNodePools; current preview schema {'type': 'string', 'enum': ['None', 'Auto']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['None', 'Auto']}. Source expression/value: \"defaultNodePools: 'None'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1036",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseSpecificProperties/$syntax/1036",
+              "expression": "    : {",
+              "analysis": "symbol:aksBaseSpecificProperties:1036: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/$syntax/1036 (original expression ': {'); Current preview lookup unresolved: AuditError: Property requires explicit additionalProperties review: $syntax.1036; check exact source spelling against ManagedClusterProperties."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1052",
+              "label": "mode",
+              "path": "/$symbol/aksBaseSpecificProperties/nodeProvisioningProfile/mode",
+              "expression": "        mode: 'Manual'",
+              "analysis": "symbol:aksBaseSpecificProperties:1052: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/nodeProvisioningProfile/mode (original expression \"mode: 'Manual'\"); Maps to ManagedClusterProperties.nodeProvisioningProfile.mode; current preview schema {'type': 'string', 'enum': ['Manual', 'Auto']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['Manual', 'Auto']}. Source expression/value: \"mode: 'Manual'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1087",
+              "label": "networkProfile",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile",
+              "expression": "  networkProfile: {",
+              "analysis": "symbol:aksBaseSpecificProperties:1087: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile (original expression 'networkProfile: {'); Maps to ManagedClusterProperties.networkProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'networkProfile: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1155",
+              "label": "networkPlugin",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/networkPlugin",
+              "expression": "    networkPlugin: 'azure'",
+              "analysis": "symbol:aksBaseSpecificProperties:1155: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/networkPlugin (original expression \"networkPlugin: 'azure'\"); Maps to ManagedClusterProperties.networkProfile.networkPlugin; current preview schema {'type': 'string', 'enum': ['azure', 'kubenet', 'none']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['azure', 'kubenet', 'none']}. Source expression/value: \"networkPlugin: 'azure'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1186",
+              "label": "networkPluginMode",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/networkPluginMode",
+              "expression": "    networkPluginMode: 'overlay'",
+              "analysis": "symbol:aksBaseSpecificProperties:1186: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/networkPluginMode (original expression \"networkPluginMode: 'overlay'\"); Maps to ManagedClusterProperties.networkProfile.networkPluginMode; current preview schema {'type': 'string', 'enum': ['overlay']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['overlay']}. Source expression/value: \"networkPluginMode: 'overlay'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1218",
+              "label": "networkDataplane",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/networkDataplane",
+              "expression": "    networkDataplane: 'cilium'",
+              "analysis": "symbol:aksBaseSpecificProperties:1218: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/networkDataplane (original expression \"networkDataplane: 'cilium'\"); Maps to ManagedClusterProperties.networkProfile.networkDataplane; current preview schema {'type': 'string', 'enum': ['azure', 'cilium']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['azure', 'cilium']}. Source expression/value: \"networkDataplane: 'cilium'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1246",
+              "label": "networkPolicy",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/networkPolicy",
+              "expression": "    networkPolicy: 'cilium'",
+              "analysis": "symbol:aksBaseSpecificProperties:1246: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/networkPolicy (original expression \"networkPolicy: 'cilium'\"); Maps to ManagedClusterProperties.networkProfile.networkPolicy; current preview schema {'type': 'string', 'enum': ['none', 'calico', 'azure', 'cilium']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['none', 'calico', 'azure', 'cilium']}. Source expression/value: \"networkPolicy: 'cilium'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1279",
+              "label": "advancedNetworking",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking",
+              "expression": "    advancedNetworking: {",
+              "analysis": "symbol:aksBaseSpecificProperties:1279: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking (original expression 'advancedNetworking: {'); Maps to ManagedClusterProperties.networkProfile.advancedNetworking; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'advancedNetworking: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1296",
+              "label": "enabled",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/enabled",
+              "expression": "      enabled: true",
+              "analysis": "symbol:aksBaseSpecificProperties:1296: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.networkProfile.advancedNetworking.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1322",
+              "label": "observability",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/observability",
+              "expression": "      observability: {",
+              "analysis": "symbol:aksBaseSpecificProperties:1322: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/observability (original expression 'observability: {'); Maps to ManagedClusterProperties.networkProfile.advancedNetworking.observability; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'observability: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1341",
+              "label": "enabled",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/observability/enabled",
+              "expression": "        enabled: true",
+              "analysis": "symbol:aksBaseSpecificProperties:1341: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/observability/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.networkProfile.advancedNetworking.observability.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1370",
+              "label": "security",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/security",
+              "expression": "      security: {",
+              "analysis": "symbol:aksBaseSpecificProperties:1370: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/security (original expression 'security: {'); Maps to ManagedClusterProperties.networkProfile.advancedNetworking.security; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'security: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1389",
+              "label": "enabled",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/security/enabled",
+              "expression": "        enabled: true",
+              "analysis": "symbol:aksBaseSpecificProperties:1389: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/security/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.networkProfile.advancedNetworking.security.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1427",
+              "label": "advancedNetworkPolicies",
+              "path": "/$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/security/advancedNetworkPolicies",
+              "expression": "        advancedNetworkPolicies: 'L7'",
+              "analysis": "symbol:aksBaseSpecificProperties:1427: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/networkProfile/advancedNetworking/security/advancedNetworkPolicies (original expression \"advancedNetworkPolicies: 'L7'\"); Maps to ManagedClusterProperties.networkProfile.advancedNetworking.security.advancedNetworkPolicies; current preview schema {'type': 'string', 'enum': ['L7', 'FQDN', 'None']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['L7', 'FQDN', 'None']}. Source expression/value: \"advancedNetworkPolicies: 'L7'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1471",
+              "label": "agentPoolProfiles",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles",
+              "expression": "  agentPoolProfiles: [",
+              "analysis": "symbol:aksBaseSpecificProperties:1471: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles (original expression 'agentPoolProfiles: ['); Maps to ManagedClusterProperties.agentPoolProfiles; current preview schema {'type': 'array'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'array'}. Source expression/value: 'agentPoolProfiles: ['; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1491",
+              "label": "name",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/name",
+              "expression": "      name: 'default'",
+              "analysis": "symbol:aksBaseSpecificProperties:1491: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/name (original expression \"name: 'default'\"); Maps to ManagedClusterProperties.agentPoolProfiles.[].name; current preview schema {'type': 'string', 'pattern': '^[a-z][a-z0-9]{0,11}$'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'pattern': '^[a-z][a-z0-9]{0,11}$'}. Source expression/value: \"name: 'default'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1515",
+              "label": "vmSize",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/vmSize",
+              "expression": "      vmSize: nodeVmSize",
+              "analysis": "symbol:aksBaseSpecificProperties:1515: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/vmSize (original expression 'vmSize: nodeVmSize'); Maps to ManagedClusterProperties.agentPoolProfiles.[].vmSize; current preview schema {'type': 'string'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string'}. Source expression/value: 'vmSize: nodeVmSize'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1538",
+              "label": "mode",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/mode",
+              "expression": "      mode: 'System'",
+              "analysis": "symbol:aksBaseSpecificProperties:1538: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/mode (original expression \"mode: 'System'\"); Maps to ManagedClusterProperties.agentPoolProfiles.[].mode; current preview schema {'type': 'string', 'enum': ['System', 'User', 'Gateway', 'ManagedSystem', 'Machines']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['System', 'User', 'Gateway']}. Source expression/value: \"mode: 'System'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1570",
+              "label": "localDNSProfile",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/localDNSProfile",
+              "expression": "      localDNSProfile: localDnsProfile",
+              "analysis": "symbol:aksBaseSpecificProperties:1570: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/localDNSProfile (original expression 'localDNSProfile: localDnsProfile'); Maps to ManagedClusterProperties.agentPoolProfiles[].localDNSProfile; the object is loaded from infra/modules/templates/aks-localdns.json, with mode overlaid from localDnsMode. Both exact schemas define mode and vnetDNSOverrides/kubeDNSOverrides maps; every map entry and enum/integer field in the JSON file was separately checked."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1679",
+              "label": "osSKU",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/osSKU",
+              "expression": "      osSKU: 'Ubuntu2404'",
+              "analysis": "symbol:aksBaseSpecificProperties:1679: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/osSKU (original expression \"osSKU: 'Ubuntu2404'\"); Maps to ManagedClusterProperties.agentPoolProfiles.[].osSKU; current preview schema {'type': 'string', 'enum': ['Ubuntu', 'AzureLinux', 'AzureLinux3', 'Mariner', 'Flatcar', 'CBLMariner', 'Windows2019', 'Windows2022', 'Ubuntu2204', 'Windows2025', 'WindowsAnnual', 'Ubuntu2404', 'AzureContainerLinux']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['Ubuntu', 'AzureLinux', 'AzureLinux3', 'CBLMariner', 'Windows2019', 'Windows2022', 'Ubuntu2204', 'Windows2025', 'Ubuntu2404', 'AzureContainerLinux']}. Source expression/value: \"osSKU: 'Ubuntu2404'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1796",
+              "label": "availabilityZones",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/availabilityZones",
+              "expression": "      availabilityZones: [",
+              "analysis": "symbol:aksBaseSpecificProperties:1796: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/availabilityZones (original expression 'availabilityZones: ['); Maps to ManagedClusterProperties.agentPoolProfiles.[].availabilityZones; current preview schema {'type': 'array'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'array'}. Source expression/value: 'availabilityZones: ['; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1862",
+              "label": "vnetSubnetID",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/vnetSubnetID",
+              "expression": "      vnetSubnetID: aksSubnetId",
+              "analysis": "symbol:aksBaseSpecificProperties:1862: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/vnetSubnetID (original expression 'vnetSubnetID: aksSubnetId'); Maps to ManagedClusterProperties.agentPoolProfiles.[].vnetSubnetID; current preview schema {'type': 'string', 'format': 'arm-id'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'format': 'arm-id'}. Source expression/value: 'vnetSubnetID: aksSubnetId'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1901",
+              "label": "orchestratorVersion",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/orchestratorVersion",
+              "expression": "      orchestratorVersion: kubernetesVersion",
+              "analysis": "symbol:aksBaseSpecificProperties:1901: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/orchestratorVersion (original expression 'orchestratorVersion: kubernetesVersion'); Maps to ManagedClusterProperties.agentPoolProfiles.[].orchestratorVersion; current preview schema {'type': 'string'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string'}. Source expression/value: 'orchestratorVersion: kubernetesVersion'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1944",
+              "label": "enableAutoScaling",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/enableAutoScaling",
+              "expression": "      enableAutoScaling: !enableNodeAutoProvisioning",
+              "analysis": "symbol:aksBaseSpecificProperties:1944: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/enableAutoScaling (original expression 'enableAutoScaling: !enableNodeAutoProvisioning'); Maps to ManagedClusterProperties.agentPoolProfiles.[].enableAutoScaling; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enableAutoScaling: !enableNodeAutoProvisioning'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:1985",
+              "label": "count",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/count",
+              "expression": "      count: enableNodeAutoProvisioning ? 2 : null",
+              "analysis": "symbol:aksBaseSpecificProperties:1985: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/count (original expression 'count: enableNodeAutoProvisioning ? 2 : null'); Maps to ManagedClusterProperties.agentPoolProfiles.[].count; current preview schema {'type': 'integer', 'format': 'int32'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'integer', 'format': 'int32'}. Source expression/value: 'count: enableNodeAutoProvisioning ? 2 : null'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2018",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/$syntax/2018",
+              "expression": "      count: enableNodeAutoProvisioning ? 2 : null",
+              "analysis": "symbol:aksBaseSpecificProperties:2018: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/$syntax/2018 (original expression 'count: enableNodeAutoProvisioning ? 2 : null'); Bicep conditional/object syntax for ManagedClusterProperties.agentPoolProfiles/[], not a separate REST field. Current preview lookup unresolved: AuditError: Property requires explicit additionalProperties review: agentPoolProfiles/[]; check exact source spelling against ManagedClusterProperties."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2039",
+              "label": "minCount",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/minCount",
+              "expression": "      minCount: enableNodeAutoProvisioning ? null : 1",
+              "analysis": "symbol:aksBaseSpecificProperties:2039: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/minCount (original expression 'minCount: enableNodeAutoProvisioning ? null : 1'); Maps to ManagedClusterProperties.agentPoolProfiles.[].minCount; current preview schema {'type': 'integer', 'format': 'int32'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'integer', 'format': 'int32'}. Source expression/value: 'minCount: enableNodeAutoProvisioning ? null : 1'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2075",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/$syntax/2075",
+              "expression": "      minCount: enableNodeAutoProvisioning ? null : 1",
+              "analysis": "symbol:aksBaseSpecificProperties:2075: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/$syntax/2075 (original expression 'minCount: enableNodeAutoProvisioning ? null : 1'); Bicep conditional/object syntax for ManagedClusterProperties.agentPoolProfiles/[], not a separate REST field. Current preview lookup unresolved: AuditError: Property requires explicit additionalProperties review: agentPoolProfiles/[]; check exact source spelling against ManagedClusterProperties."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2093",
+              "label": "maxCount",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/maxCount",
+              "expression": "      maxCount: enableNodeAutoProvisioning ? null : 3",
+              "analysis": "symbol:aksBaseSpecificProperties:2093: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/maxCount (original expression 'maxCount: enableNodeAutoProvisioning ? null : 3'); Maps to ManagedClusterProperties.agentPoolProfiles.[].maxCount; current preview schema {'type': 'integer', 'format': 'int32'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'integer', 'format': 'int32'}. Source expression/value: 'maxCount: enableNodeAutoProvisioning ? null : 3'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2129",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/$syntax/2129",
+              "expression": "      maxCount: enableNodeAutoProvisioning ? null : 3",
+              "analysis": "symbol:aksBaseSpecificProperties:2129: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/$syntax/2129 (original expression 'maxCount: enableNodeAutoProvisioning ? null : 3'); Bicep conditional/object syntax for ManagedClusterProperties.agentPoolProfiles/[], not a separate REST field. Current preview lookup unresolved: AuditError: Property requires explicit additionalProperties review: agentPoolProfiles/[]; check exact source spelling against ManagedClusterProperties."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2224",
+              "label": "upgradeStrategy",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeStrategy",
+              "expression": "      upgradeStrategy: 'BlueGreen'",
+              "analysis": "symbol:aksBaseSpecificProperties:2224: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeStrategy (original expression \"upgradeStrategy: 'BlueGreen'\"); Current preview schema path ManagedClusterProperties.agentPoolProfiles.[].upgradeStrategy supports this source usage ({'type': 'string', 'enum': ['Rolling', 'BlueGreen']}); exact 2026-08-01 GA schema omits the property. Learn change log confirms removal in 2026-08-01; it is one of the documented reasons the preview is retained."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2268",
+              "label": "upgradeSettingsBlueGreen",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeSettingsBlueGreen",
+              "expression": "      upgradeSettingsBlueGreen: {",
+              "analysis": "symbol:aksBaseSpecificProperties:2268: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeSettingsBlueGreen (original expression 'upgradeSettingsBlueGreen: {'); Current preview schema path ManagedClusterProperties.agentPoolProfiles.[].upgradeSettingsBlueGreen supports this source usage ({'type': 'object'}); exact 2026-08-01 GA schema omits the property. Learn change log confirms removal in 2026-08-01; it is one of the documented reasons the preview is retained."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2294",
+              "label": "drainBatchSize",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeSettingsBlueGreen/drainBatchSize",
+              "expression": "        drainBatchSize: '50%'",
+              "analysis": "symbol:aksBaseSpecificProperties:2294: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeSettingsBlueGreen/drainBatchSize (original expression \"drainBatchSize: '50%'\"); Current preview schema path ManagedClusterProperties.agentPoolProfiles.[].upgradeSettingsBlueGreen.drainBatchSize supports this source usage ({'type': 'string'}); exact 2026-08-01 GA schema omits the property. Learn change log confirms removal in 2026-08-01; it is one of the documented reasons the preview is retained."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2331",
+              "label": "drainTimeoutInMinutes",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeSettingsBlueGreen/drainTimeoutInMinutes",
+              "expression": "        drainTimeoutInMinutes: 30",
+              "analysis": "symbol:aksBaseSpecificProperties:2331: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeSettingsBlueGreen/drainTimeoutInMinutes (original expression 'drainTimeoutInMinutes: 30'); Current preview schema path ManagedClusterProperties.agentPoolProfiles.[].upgradeSettingsBlueGreen.drainTimeoutInMinutes supports this source usage ({'type': 'integer', 'minimum': 1, 'maximum': 1440, 'format': 'int32'}); exact 2026-08-01 GA schema omits the property. Learn change log confirms removal in 2026-08-01; it is one of the documented reasons the preview is retained."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2370",
+              "label": "batchSoakDurationInMinutes",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeSettingsBlueGreen/batchSoakDurationInMinutes",
+              "expression": "        batchSoakDurationInMinutes: 15",
+              "analysis": "symbol:aksBaseSpecificProperties:2370: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeSettingsBlueGreen/batchSoakDurationInMinutes (original expression 'batchSoakDurationInMinutes: 15'); Current preview schema path ManagedClusterProperties.agentPoolProfiles.[].upgradeSettingsBlueGreen.batchSoakDurationInMinutes supports this source usage ({'type': 'integer', 'minimum': 0, 'maximum': 1440, 'format': 'int32'}); exact 2026-08-01 GA schema omits the property. Learn change log confirms removal in 2026-08-01; it is one of the documented reasons the preview is retained."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:2409",
+              "label": "finalSoakDurationInMinutes",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeSettingsBlueGreen/finalSoakDurationInMinutes",
+              "expression": "        finalSoakDurationInMinutes: 60",
+              "analysis": "symbol:aksBaseSpecificProperties:2409: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/upgradeSettingsBlueGreen/finalSoakDurationInMinutes (original expression 'finalSoakDurationInMinutes: 60'); Current preview schema path ManagedClusterProperties.agentPoolProfiles.[].upgradeSettingsBlueGreen.finalSoakDurationInMinutes supports this source usage ({'type': 'integer', 'minimum': 0, 'maximum': 10080, 'format': 'int32'}); exact 2026-08-01 GA schema omits the property. Learn change log confirms removal in 2026-08-01; it is one of the documented reasons the preview is retained."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseSpecificProperties/$expression-line/0",
+              "expression": "var aksBaseSpecificProperties = {",
+              "analysis": "symbol:aksBaseSpecificProperties:line:0: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/$expression-line/0 (original expression 'var aksBaseSpecificProperties = {'); Declares the aksBaseSpecificProperties Bicep object; it is not itself a REST property. Its descendants are mapped individually to ManagedClusterProperties and unioned by aksBaseProperties."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:line:962",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseSpecificProperties/nodeProvisioningProfile/$expression-line/27",
+              "expression": "    ? {",
+              "analysis": "symbol:aksBaseSpecificProperties:line:962: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/nodeProvisioningProfile/$expression-line/27 (original expression '? {'); Bicep source expression/array literal for ManagedClusterProperties.nodeProvisioningProfile; Maps to ManagedClusterProperties.nodeProvisioningProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: '? {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:line:1800",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/availabilityZones/[]/$expression-line/61",
+              "expression": "        '1'",
+              "analysis": "symbol:aksBaseSpecificProperties:line:1800: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/availabilityZones/[]/$expression-line/61 (original expression \"'1'\"); Bicep source expression/array literal for ManagedClusterProperties.agentPoolProfiles/[]/availabilityZones/[]; Current preview lookup unresolved: AuditError: Property requires explicit additionalProperties review: agentPoolProfiles/[]/availabilityZones/[]; check exact source spelling against ManagedClusterProperties."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:line:1812",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/availabilityZones/[]/$expression-line/62",
+              "expression": "        '2'",
+              "analysis": "symbol:aksBaseSpecificProperties:line:1812: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/availabilityZones/[]/$expression-line/62 (original expression \"'2'\"); Bicep source expression/array literal for ManagedClusterProperties.agentPoolProfiles/[]/availabilityZones/[]; Current preview lookup unresolved: AuditError: Property requires explicit additionalProperties review: agentPoolProfiles/[]/availabilityZones/[]; check exact source spelling against ManagedClusterProperties."
+            },
+            {
+              "source_id": "symbol:aksBaseSpecificProperties:line:1824",
+              "label": "$expression",
+              "path": "/$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/availabilityZones/[]/$expression-line/63",
+              "expression": "        '3'",
+              "analysis": "symbol:aksBaseSpecificProperties:line:1824: Bicep source JSON Pointer /$symbol/aksBaseSpecificProperties/agentPoolProfiles/[]/availabilityZones/[]/$expression-line/63 (original expression \"'3'\"); Bicep source expression/array literal for ManagedClusterProperties.agentPoolProfiles/[]/availabilityZones/[]; Current preview lookup unresolved: AuditError: Property requires explicit additionalProperties review: agentPoolProfiles/[]/availabilityZones/[]; check exact source spelling against ManagedClusterProperties."
+            },
+            {
+              "source_id": "symbol:aksApiSubnetId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksApiSubnetId/$expression-line/0",
+              "expression": "@description('AKS API Server subnet id')",
+              "analysis": "symbol:aksApiSubnetId:line:0: Bicep source JSON Pointer /$symbol/aksApiSubnetId/$expression-line/0 (original expression \"@description('AKS API Server subnet id')\"); Documentation for aksApiSubnetId; value mapping and API constraints: ManagedClusterProperties.apiServerAccessProfile.subnetId (string/arm-id); main.bicep passes network.outputs.aksApiSubnetId, the API-server subnet resource ID. The module empty default is overridden at this caller."
+            },
+            {
+              "source_id": "symbol:aksApiSubnetId:line:41",
+              "label": "$expression",
+              "path": "/$symbol/aksApiSubnetId/$expression-line/1",
+              "expression": "param aksApiSubnetId string = ''",
+              "analysis": "symbol:aksApiSubnetId:line:41: Bicep source JSON Pointer /$symbol/aksApiSubnetId/$expression-line/1 (original expression \"param aksApiSubnetId string = ''\"); ManagedClusterProperties.apiServerAccessProfile.subnetId (string/arm-id); main.bicep passes network.outputs.aksApiSubnetId, the API-server subnet resource ID. The module empty default is overridden at this caller."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:47",
+              "label": "nodeResourceGroup",
+              "path": "/$symbol/aksCommonProperties/nodeResourceGroup",
+              "expression": "  nodeResourceGroup: nodeResourceGroupName",
+              "analysis": "symbol:aksCommonProperties:47: Bicep source JSON Pointer /$symbol/aksCommonProperties/nodeResourceGroup (original expression 'nodeResourceGroup: nodeResourceGroupName'); Maps to ManagedClusterProperties.nodeResourceGroup; current preview schema {'type': 'string'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string'}. Source expression/value: 'nodeResourceGroup: nodeResourceGroupName'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:82",
+              "label": "dnsPrefix",
+              "path": "/$symbol/aksCommonProperties/dnsPrefix",
+              "expression": "  dnsPrefix: 'dns${substring(resourceGroupSuffix, 0, 8)}'",
+              "analysis": "symbol:aksCommonProperties:82: Bicep source JSON Pointer /$symbol/aksCommonProperties/dnsPrefix (original expression \"dnsPrefix: 'dns${substring(resourceGroupSuffix, 0, 8)}'\"); Maps to ManagedClusterProperties.dnsPrefix; current preview schema {'type': 'string'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string'}. Source expression/value: \"dnsPrefix: 'dns${substring(resourceGroupSuffix, 0, 8)}'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:145",
+              "label": "metricsProfile",
+              "path": "/$symbol/aksCommonProperties/metricsProfile",
+              "expression": "  metricsProfile: {",
+              "analysis": "symbol:aksCommonProperties:145: Bicep source JSON Pointer /$symbol/aksCommonProperties/metricsProfile (original expression 'metricsProfile: {'); Maps to ManagedClusterProperties.metricsProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'metricsProfile: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:165",
+              "label": "costAnalysis",
+              "path": "/$symbol/aksCommonProperties/metricsProfile/costAnalysis",
+              "expression": "    costAnalysis: { enabled: true }",
+              "analysis": "symbol:aksCommonProperties:165: Bicep source JSON Pointer /$symbol/aksCommonProperties/metricsProfile/costAnalysis (original expression 'costAnalysis: { enabled: true }'); Maps to ManagedClusterProperties.metricsProfile.costAnalysis; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'costAnalysis: { enabled: true }'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:176",
+              "label": "enabled",
+              "path": "/$symbol/aksCommonProperties/metricsProfile/costAnalysis/enabled",
+              "expression": "    costAnalysis: { enabled: true }",
+              "analysis": "symbol:aksCommonProperties:176: Bicep source JSON Pointer /$symbol/aksCommonProperties/metricsProfile/costAnalysis/enabled (original expression 'costAnalysis: { enabled: true }'); Maps to ManagedClusterProperties.metricsProfile.costAnalysis.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'costAnalysis: { enabled: true }'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:216",
+              "label": "workloadAutoScalerProfile",
+              "path": "/$symbol/aksCommonProperties/workloadAutoScalerProfile",
+              "expression": "  workloadAutoScalerProfile: {",
+              "analysis": "symbol:aksCommonProperties:216: Bicep source JSON Pointer /$symbol/aksCommonProperties/workloadAutoScalerProfile (original expression 'workloadAutoScalerProfile: {'); Maps to ManagedClusterProperties.workloadAutoScalerProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'workloadAutoScalerProfile: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:245",
+              "label": "verticalPodAutoscaler",
+              "path": "/$symbol/aksCommonProperties/workloadAutoScalerProfile/verticalPodAutoscaler",
+              "expression": "    verticalPodAutoscaler: {",
+              "analysis": "symbol:aksCommonProperties:245: Bicep source JSON Pointer /$symbol/aksCommonProperties/workloadAutoScalerProfile/verticalPodAutoscaler (original expression 'verticalPodAutoscaler: {'); Maps to ManagedClusterProperties.workloadAutoScalerProfile.verticalPodAutoscaler; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'verticalPodAutoscaler: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:262",
+              "label": "enabled",
+              "path": "/$symbol/aksCommonProperties/workloadAutoScalerProfile/verticalPodAutoscaler/enabled",
+              "expression": "      enabled: true",
+              "analysis": "symbol:aksCommonProperties:262: Bicep source JSON Pointer /$symbol/aksCommonProperties/workloadAutoScalerProfile/verticalPodAutoscaler/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.workloadAutoScalerProfile.verticalPodAutoscaler.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:291",
+              "label": "addonAutoscaling",
+              "path": "/$symbol/aksCommonProperties/workloadAutoScalerProfile/verticalPodAutoscaler/addonAutoscaling",
+              "expression": "      addonAutoscaling: 'Enabled'",
+              "analysis": "symbol:aksCommonProperties:291: Bicep source JSON Pointer /$symbol/aksCommonProperties/workloadAutoScalerProfile/verticalPodAutoscaler/addonAutoscaling (original expression \"addonAutoscaling: 'Enabled'\"); Current preview schema path ManagedClusterProperties.workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling supports this source usage ({'type': 'string', 'enum': ['Enabled', 'Disabled']}); exact 2026-08-01 GA schema omits the property. Learn change log confirms removal in 2026-08-01; it is one of the documented reasons the preview is retained."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:412",
+              "label": "azureMonitorProfile",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile",
+              "expression": "  azureMonitorProfile: {",
+              "analysis": "symbol:aksCommonProperties:412: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile (original expression 'azureMonitorProfile: {'); Maps to ManagedClusterProperties.azureMonitorProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'azureMonitorProfile: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:437",
+              "label": "containerInsights",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/containerInsights",
+              "expression": "    containerInsights: {",
+              "analysis": "symbol:aksCommonProperties:437: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/containerInsights (original expression 'containerInsights: {'); Maps to ManagedClusterProperties.azureMonitorProfile.containerInsights; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'containerInsights: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:454",
+              "label": "enabled",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/containerInsights/enabled",
+              "expression": "      enabled: true",
+              "analysis": "symbol:aksCommonProperties:454: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/containerInsights/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.azureMonitorProfile.containerInsights.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:498",
+              "label": "logAnalyticsWorkspaceResourceId",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/containerInsights/logAnalyticsWorkspaceResourceId",
+              "expression": "      logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceId",
+              "analysis": "symbol:aksCommonProperties:498: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/containerInsights/logAnalyticsWorkspaceResourceId (original expression 'logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceId'); Maps to ManagedClusterProperties.azureMonitorProfile.containerInsights.logAnalyticsWorkspaceResourceId; current preview schema {'type': 'string', 'format': 'arm-id'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'format': 'arm-id'}. Source expression/value: 'logAnalyticsWorkspaceResourceId: logAnalyticsWorkspaceId'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:582",
+              "label": "containerNetworkLogs",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/containerInsights/containerNetworkLogs",
+              "expression": "      containerNetworkLogs: enableContainerNetworkLogs ? 'Enabled' : null",
+              "analysis": "symbol:aksCommonProperties:582: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/containerInsights/containerNetworkLogs (original expression \"containerNetworkLogs: enableContainerNetworkLogs ? 'Enabled' : null\"); Maps to ManagedClusterProperties.azureMonitorProfile.containerInsights.containerNetworkLogs, current/candidate schema string enum Disabled|Enabled. Maps to ManagedClusterProperties.azureMonitorProfile.containerInsights.containerNetworkLogs; current preview schema {'type': 'string', 'enum': ['Disabled', 'Enabled']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['Disabled', 'Enabled']}. Source expression/value: \"containerNetworkLogs: enableContainerNetworkLogs ? 'Enabled' : null\"; required fields, literal enums/types, and both conditional branches were checked against the exact models. The expression yields Enabled with the root default true; false yields null (the source uses null as the optional-field no-value branch, not the Disabled enum)."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:623",
+              "label": "$expression",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/containerInsights/$syntax/623",
+              "expression": "      containerNetworkLogs: enableContainerNetworkLogs ? 'Enabled' : null",
+              "analysis": "symbol:aksCommonProperties:623: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/containerInsights/$syntax/623 (original expression \"containerNetworkLogs: enableContainerNetworkLogs ? 'Enabled' : null\"); Bicep conditional/object syntax for ManagedClusterProperties.azureMonitorProfile/containerInsights, not a separate REST field. Current preview lookup unresolved: AuditError: Property requires explicit additionalProperties review: azureMonitorProfile/containerInsights; check exact source spelling against ManagedClusterProperties."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:647",
+              "label": "metrics",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/metrics",
+              "expression": "    metrics: {",
+              "analysis": "symbol:aksCommonProperties:647: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/metrics (original expression 'metrics: {'); Maps to ManagedClusterProperties.azureMonitorProfile.metrics; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'metrics: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:664",
+              "label": "enabled",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/metrics/enabled",
+              "expression": "      enabled: true",
+              "analysis": "symbol:aksCommonProperties:664: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/metrics/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.azureMonitorProfile.metrics.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:689",
+              "label": "controlPlane",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/metrics/controlPlane",
+              "expression": "      controlPlane: {",
+              "analysis": "symbol:aksCommonProperties:689: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/metrics/controlPlane (original expression 'controlPlane: {'); Maps to ManagedClusterProperties.azureMonitorProfile.metrics.controlPlane; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'controlPlane: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:708",
+              "label": "enabled",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/metrics/controlPlane/enabled",
+              "expression": "        enabled: true",
+              "analysis": "symbol:aksCommonProperties:708: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/metrics/controlPlane/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.azureMonitorProfile.metrics.controlPlane.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:745",
+              "label": "kubeStateMetrics",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/metrics/kubeStateMetrics",
+              "expression": "      kubeStateMetrics: {",
+              "analysis": "symbol:aksCommonProperties:745: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/metrics/kubeStateMetrics (original expression 'kubeStateMetrics: {'); Maps to ManagedClusterProperties.azureMonitorProfile.metrics.kubeStateMetrics; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'kubeStateMetrics: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:783",
+              "label": "metricAnnotationsAllowList",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/metrics/kubeStateMetrics/metricAnnotationsAllowList",
+              "expression": "        metricAnnotationsAllowList: ''",
+              "analysis": "symbol:aksCommonProperties:783: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/metrics/kubeStateMetrics/metricAnnotationsAllowList (original expression \"metricAnnotationsAllowList: ''\"); Maps to ManagedClusterProperties.azureMonitorProfile.metrics.kubeStateMetrics.metricAnnotationsAllowList; current preview schema {'type': 'string'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string'}. Source expression/value: \"metricAnnotationsAllowList: ''\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:817",
+              "label": "metricLabelsAllowlist",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/metrics/kubeStateMetrics/metricLabelsAllowlist",
+              "expression": "        metricLabelsAllowlist: ''",
+              "analysis": "symbol:aksCommonProperties:817: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/metrics/kubeStateMetrics/metricLabelsAllowlist (original expression \"metricLabelsAllowlist: ''\"); Maps to ManagedClusterProperties.azureMonitorProfile.metrics.kubeStateMetrics.metricLabelsAllowlist; current preview schema {'type': 'string'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string'}. Source expression/value: \"metricLabelsAllowlist: ''\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:853",
+              "label": "appMonitoring",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring",
+              "expression": "    appMonitoring: {",
+              "analysis": "symbol:aksCommonProperties:853: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring (original expression 'appMonitoring: {'); Maps to ManagedClusterProperties.azureMonitorProfile.appMonitoring; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'appMonitoring: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1312",
+              "label": "autoInstrumentation",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/autoInstrumentation",
+              "expression": "      autoInstrumentation: {",
+              "analysis": "symbol:aksCommonProperties:1312: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/autoInstrumentation (original expression 'autoInstrumentation: {'); Maps to ManagedClusterProperties.azureMonitorProfile.appMonitoring.autoInstrumentation; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'autoInstrumentation: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1331",
+              "label": "enabled",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/autoInstrumentation/enabled",
+              "expression": "        enabled: true",
+              "analysis": "symbol:aksCommonProperties:1331: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/autoInstrumentation/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.azureMonitorProfile.appMonitoring.autoInstrumentation.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1378",
+              "label": "openTelemetryLogsAndTraces",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/openTelemetryLogsAndTraces",
+              "expression": "      openTelemetryLogsAndTraces: {",
+              "analysis": "symbol:aksCommonProperties:1378: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/openTelemetryLogsAndTraces (original expression 'openTelemetryLogsAndTraces: {'); Maps to ManagedClusterProperties.azureMonitorProfile.appMonitoring.openTelemetryLogsAndTraces; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'openTelemetryLogsAndTraces: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1397",
+              "label": "enabled",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/openTelemetryLogsAndTraces/enabled",
+              "expression": "        enabled: true",
+              "analysis": "symbol:aksCommonProperties:1397: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/openTelemetryLogsAndTraces/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.azureMonitorProfile.appMonitoring.openTelemetryLogsAndTraces.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1438",
+              "label": "openTelemetryMetrics",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/openTelemetryMetrics",
+              "expression": "      openTelemetryMetrics: {",
+              "analysis": "symbol:aksCommonProperties:1438: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/openTelemetryMetrics (original expression 'openTelemetryMetrics: {'); Maps to ManagedClusterProperties.azureMonitorProfile.appMonitoring.openTelemetryMetrics; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'openTelemetryMetrics: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1457",
+              "label": "enabled",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/openTelemetryMetrics/enabled",
+              "expression": "        enabled: true",
+              "analysis": "symbol:aksCommonProperties:1457: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/appMonitoring/openTelemetryMetrics/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.azureMonitorProfile.appMonitoring.openTelemetryMetrics.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1608",
+              "label": "ingressProfile",
+              "path": "/$symbol/aksCommonProperties/ingressProfile",
+              "expression": "  ingressProfile: {",
+              "analysis": "symbol:aksCommonProperties:1608: Bicep source JSON Pointer /$symbol/aksCommonProperties/ingressProfile (original expression 'ingressProfile: {'); Maps to ManagedClusterProperties.ingressProfile; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'ingressProfile: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1626",
+              "label": "gatewayAPI",
+              "path": "/$symbol/aksCommonProperties/ingressProfile/gatewayAPI",
+              "expression": "    gatewayAPI: {",
+              "analysis": "symbol:aksCommonProperties:1626: Bicep source JSON Pointer /$symbol/aksCommonProperties/ingressProfile/gatewayAPI (original expression 'gatewayAPI: {'); Maps to ManagedClusterProperties.ingressProfile.gatewayAPI; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'gatewayAPI: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1648",
+              "label": "installation",
+              "path": "/$symbol/aksCommonProperties/ingressProfile/gatewayAPI/installation",
+              "expression": "      installation: 'Standard'",
+              "analysis": "symbol:aksCommonProperties:1648: Bicep source JSON Pointer /$symbol/aksCommonProperties/ingressProfile/gatewayAPI/installation (original expression \"installation: 'Standard'\"); Maps to ManagedClusterProperties.ingressProfile.gatewayAPI.installation; current preview schema {'type': 'string', 'enum': ['Disabled', 'Standard']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['Disabled', 'Standard']}. Source expression/value: \"installation: 'Standard'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1684",
+              "label": "webAppRouting",
+              "path": "/$symbol/aksCommonProperties/ingressProfile/webAppRouting",
+              "expression": "    webAppRouting: {",
+              "analysis": "symbol:aksCommonProperties:1684: Bicep source JSON Pointer /$symbol/aksCommonProperties/ingressProfile/webAppRouting (original expression 'webAppRouting: {'); Maps to ManagedClusterProperties.ingressProfile.webAppRouting; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'webAppRouting: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1701",
+              "label": "enabled",
+              "path": "/$symbol/aksCommonProperties/ingressProfile/webAppRouting/enabled",
+              "expression": "      enabled: true",
+              "analysis": "symbol:aksCommonProperties:1701: Bicep source JSON Pointer /$symbol/aksCommonProperties/ingressProfile/webAppRouting/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.ingressProfile.webAppRouting.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1719",
+              "label": "nginx",
+              "path": "/$symbol/aksCommonProperties/ingressProfile/webAppRouting/nginx",
+              "expression": "      nginx: {",
+              "analysis": "symbol:aksCommonProperties:1719: Bicep source JSON Pointer /$symbol/aksCommonProperties/ingressProfile/webAppRouting/nginx (original expression 'nginx: {'); Maps to ManagedClusterProperties.ingressProfile.webAppRouting.nginx; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'nginx: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1759",
+              "label": "defaultIngressControllerType",
+              "path": "/$symbol/aksCommonProperties/ingressProfile/webAppRouting/nginx/defaultIngressControllerType",
+              "expression": "        defaultIngressControllerType: 'None'",
+              "analysis": "symbol:aksCommonProperties:1759: Bicep source JSON Pointer /$symbol/aksCommonProperties/ingressProfile/webAppRouting/nginx/defaultIngressControllerType (original expression \"defaultIngressControllerType: 'None'\"); Maps to ManagedClusterProperties.ingressProfile.webAppRouting.nginx.defaultIngressControllerType; current preview schema {'type': 'string', 'enum': ['AnnotationControlled', 'External', 'Internal', 'None']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['AnnotationControlled', 'External', 'Internal', 'None']}. Source expression/value: \"defaultIngressControllerType: 'None'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1807",
+              "label": "gatewayAPIImplementations",
+              "path": "/$symbol/aksCommonProperties/ingressProfile/webAppRouting/gatewayAPIImplementations",
+              "expression": "      gatewayAPIImplementations: {",
+              "analysis": "symbol:aksCommonProperties:1807: Bicep source JSON Pointer /$symbol/aksCommonProperties/ingressProfile/webAppRouting/gatewayAPIImplementations (original expression 'gatewayAPIImplementations: {'); Maps to ManagedClusterProperties.ingressProfile.webAppRouting.gatewayAPIImplementations; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'gatewayAPIImplementations: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1834",
+              "label": "appRoutingIstio",
+              "path": "/$symbol/aksCommonProperties/ingressProfile/webAppRouting/gatewayAPIImplementations/appRoutingIstio",
+              "expression": "        appRoutingIstio: {",
+              "analysis": "symbol:aksCommonProperties:1834: Bicep source JSON Pointer /$symbol/aksCommonProperties/ingressProfile/webAppRouting/gatewayAPIImplementations/appRoutingIstio (original expression 'appRoutingIstio: {'); Maps to ManagedClusterProperties.ingressProfile.webAppRouting.gatewayAPIImplementations.appRoutingIstio; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'appRoutingIstio: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:1852",
+              "label": "mode",
+              "path": "/$symbol/aksCommonProperties/ingressProfile/webAppRouting/gatewayAPIImplementations/appRoutingIstio/mode",
+              "expression": "          mode: 'Enabled'",
+              "analysis": "symbol:aksCommonProperties:1852: Bicep source JSON Pointer /$symbol/aksCommonProperties/ingressProfile/webAppRouting/gatewayAPIImplementations/appRoutingIstio/mode (original expression \"mode: 'Enabled'\"); Maps to ManagedClusterProperties.ingressProfile.webAppRouting.gatewayAPIImplementations.appRoutingIstio.mode; current preview schema {'type': 'string', 'enum': ['Enabled', 'Disabled']}. Candidate 2026-08-01 GA retains the path with schema {'type': 'string', 'enum': ['Enabled', 'Disabled']}. Source expression/value: \"mode: 'Enabled'\"; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:2255",
+              "label": "addonProfiles",
+              "path": "/$symbol/aksCommonProperties/addonProfiles",
+              "expression": "  addonProfiles: {",
+              "analysis": "symbol:aksCommonProperties:2255: Bicep source JSON Pointer /$symbol/aksCommonProperties/addonProfiles (original expression 'addonProfiles: {'); Maps to ManagedClusterProperties.addonProfiles; current preview schema {'type': 'object', 'additionalProperties': {'$ref': '#/definitions/ManagedClusterAddonProfile', '_base': 'https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json'}}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object', 'additionalProperties': {'$ref': '#/definitions/ManagedClusterAddonProfile', '_base': 'https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json'}}. Source expression/value: 'addonProfiles: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:2274",
+              "label": "azurepolicy",
+              "path": "/$symbol/aksCommonProperties/addonProfiles/azurepolicy",
+              "expression": "    azurepolicy: {",
+              "analysis": "symbol:aksCommonProperties:2274: Bicep source JSON Pointer /$symbol/aksCommonProperties/addonProfiles/azurepolicy (original expression 'azurepolicy: {'); Maps to ManagedClusterProperties.addonProfiles.azurepolicy; current preview schema {'type': 'object'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'object'}. Source expression/value: 'azurepolicy: {'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:2291",
+              "label": "enabled",
+              "path": "/$symbol/aksCommonProperties/addonProfiles/azurepolicy/enabled",
+              "expression": "      enabled: true",
+              "analysis": "symbol:aksCommonProperties:2291: Bicep source JSON Pointer /$symbol/aksCommonProperties/addonProfiles/azurepolicy/enabled (original expression 'enabled: true'); Maps to ManagedClusterProperties.addonProfiles.azurepolicy.enabled; current preview schema {'type': 'boolean'}. Candidate 2026-08-01 GA retains the path with schema {'type': 'boolean'}. Source expression/value: 'enabled: true'; required fields, literal enums/types, and both conditional branches were checked against the exact models."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksCommonProperties/$expression-line/0",
+              "expression": "var aksCommonProperties = {",
+              "analysis": "symbol:aksCommonProperties:line:0: Bicep source JSON Pointer /$symbol/aksCommonProperties/$expression-line/0 (original expression 'var aksCommonProperties = {'); Declares the aksCommonProperties Bicep object; it is not itself a REST property. Its descendants are mapped individually to ManagedClusterProperties and unioned by aksBaseProperties."
+            },
+            {
+              "source_id": "symbol:aksCommonProperties:line:524",
+              "label": "$expression",
+              "path": "/$symbol/aksCommonProperties/azureMonitorProfile/containerInsights/logAnalyticsWorkspaceResourceId/$expression-line/17",
+              "expression": "      #disable-next-line BCP081",
+              "analysis": "symbol:aksCommonProperties:line:524: Bicep source JSON Pointer /$symbol/aksCommonProperties/azureMonitorProfile/containerInsights/logAnalyticsWorkspaceResourceId/$expression-line/17 (original expression '#disable-next-line BCP081'); Bicep #disable-next-line BCP081 directive immediately before containerNetworkLogs; the helper source pointer is not a REST JSON path and this directive is not sent to Azure."
+            },
+            {
+              "source_id": "symbol:aksName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksName/$expression-line/0",
+              "expression": "@description('AKS name')",
+              "analysis": "symbol:aksName:line:0: Bicep source JSON Pointer /$symbol/aksName/$expression-line/0 (original expression \"@description('AKS name')\"); Documentation for aksName; value mapping and API constraints: AKS resourceName route parameter: main.bicep passes aksClusterName = aks-${appName}-${environment}; defaults yield aks-aks-chaos-lab-dev, satisfying the 1–63 character route regex. appName/environment overrides must continue to satisfy that exact constraint."
+            },
+            {
+              "source_id": "symbol:aksName:line:25",
+              "label": "$expression",
+              "path": "/$symbol/aksName/$expression-line/1",
+              "expression": "param aksName string",
+              "analysis": "symbol:aksName:line:25: Bicep source JSON Pointer /$symbol/aksName/$expression-line/1 (original expression 'param aksName string'); AKS resourceName route parameter: main.bicep passes aksClusterName = aks-${appName}-${environment}; defaults yield aks-aks-chaos-lab-dev, satisfying the 1–63 character route regex. appName/environment overrides must continue to satisfy that exact constraint."
+            },
+            {
+              "source_id": "symbol:aksSubnetId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksSubnetId/$expression-line/0",
+              "expression": "@description('AKS subnet id')",
+              "analysis": "symbol:aksSubnetId:line:0: Bicep source JSON Pointer /$symbol/aksSubnetId/$expression-line/0 (original expression \"@description('AKS subnet id')\"); Documentation for aksSubnetId; value mapping and API constraints: ManagedClusterProperties.agentPoolProfiles[].vnetSubnetID (string/arm-id); main.bicep passes network.outputs.aksSubnetId, the VNet subnet resource ID."
+            },
+            {
+              "source_id": "symbol:aksSubnetId:line:30",
+              "label": "$expression",
+              "path": "/$symbol/aksSubnetId/$expression-line/1",
+              "expression": "param aksSubnetId string",
+              "analysis": "symbol:aksSubnetId:line:30: Bicep source JSON Pointer /$symbol/aksSubnetId/$expression-line/1 (original expression 'param aksSubnetId string'); ManagedClusterProperties.agentPoolProfiles[].vnetSubnetID (string/arm-id); main.bicep passes network.outputs.aksSubnetId, the VNet subnet resource ID."
+            },
+            {
+              "source_id": "symbol:enableContainerNetworkLogs:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableContainerNetworkLogs/$expression-line/0",
+              "expression": "@description('Enable container network logs collection (ACNS + Cilium required)')",
+              "analysis": "symbol:enableContainerNetworkLogs:line:0: Bicep source JSON Pointer /$symbol/enableContainerNetworkLogs/$expression-line/0 (original expression \"@description('Enable container network logs collection (ACNS + Cilium required)')\"); Documentation for enableContainerNetworkLogs; value mapping and API constraints: Boolean parameter default true; controls optional containerNetworkLogs. Enabled is the exact allowed enum for true; false selects null rather than Disabled. That conditional no-value branch is recorded as source behavior and not misrepresented as a REST enum literal."
+            },
+            {
+              "source_id": "symbol:enableContainerNetworkLogs:line:82",
+              "label": "$expression",
+              "path": "/$symbol/enableContainerNetworkLogs/$expression-line/1",
+              "expression": "param enableContainerNetworkLogs bool = true",
+              "analysis": "symbol:enableContainerNetworkLogs:line:82: Bicep source JSON Pointer /$symbol/enableContainerNetworkLogs/$expression-line/1 (original expression 'param enableContainerNetworkLogs bool = true'); Boolean parameter default true; controls optional containerNetworkLogs. Enabled is the exact allowed enum for true; false selects null rather than Disabled. That conditional no-value branch is recorded as source behavior and not misrepresented as a REST enum literal."
+            },
+            {
+              "source_id": "symbol:enableNodeAutoProvisioning:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableNodeAutoProvisioning/$expression-line/0",
+              "expression": "@description('Enable AKS Node Auto Provisioning for user workload capacity')",
+              "analysis": "symbol:enableNodeAutoProvisioning:line:0: Bicep source JSON Pointer /$symbol/enableNodeAutoProvisioning/$expression-line/0 (original expression \"@description('Enable AKS Node Auto Provisioning for user workload capacity')\"); Documentation for enableNodeAutoProvisioning; value mapping and API constraints: Boolean parameter default true, passed from main.bicep. Both branches were checked: Auto + defaultNodePools None and count 2 when true; Manual + autoscaler settings and min/max 1/3 when false. Conditional nulls are absent optional settings, not enum values."
+            },
+            {
+              "source_id": "symbol:enableNodeAutoProvisioning:line:77",
+              "label": "$expression",
+              "path": "/$symbol/enableNodeAutoProvisioning/$expression-line/1",
+              "expression": "param enableNodeAutoProvisioning bool = true",
+              "analysis": "symbol:enableNodeAutoProvisioning:line:77: Bicep source JSON Pointer /$symbol/enableNodeAutoProvisioning/$expression-line/1 (original expression 'param enableNodeAutoProvisioning bool = true'); Boolean parameter default true, passed from main.bicep. Both branches were checked: Auto + defaultNodePools None and count 2 when true; Manual + autoscaler settings and min/max 1/3 when false. Conditional nulls are absent optional settings, not enum values."
+            },
+            {
+              "source_id": "symbol:kubernetesVersion:line:0",
+              "label": "$expression",
+              "path": "/$symbol/kubernetesVersion/$expression-line/0",
+              "expression": "@description('Kubernetes version (x.y or x.y.z).')",
+              "analysis": "symbol:kubernetesVersion:line:0: Bicep source JSON Pointer /$symbol/kubernetesVersion/$expression-line/0 (original expression \"@description('Kubernetes version (x.y or x.y.z).')\"); Documentation for kubernetesVersion; value mapping and API constraints: Maps to ManagedClusterProperties.kubernetesVersion and agentPoolProfiles[].orchestratorVersion, both strings. main.bicep default '1.35' is passed to both; public schema imposes no enum/pattern."
+            },
+            {
+              "source_id": "symbol:kubernetesVersion:line:51",
+              "label": "$expression",
+              "path": "/$symbol/kubernetesVersion/$expression-line/1",
+              "expression": "param kubernetesVersion string = '1.35'",
+              "analysis": "symbol:kubernetesVersion:line:51: Bicep source JSON Pointer /$symbol/kubernetesVersion/$expression-line/1 (original expression \"param kubernetesVersion string = '1.35'\"); Maps to ManagedClusterProperties.kubernetesVersion and agentPoolProfiles[].orchestratorVersion, both strings. main.bicep default '1.35' is passed to both; public schema imposes no enum/pattern."
+            },
+            {
+              "source_id": "symbol:localDnsProfile:84",
+              "label": "mode",
+              "path": "/$symbol/localDnsProfile/mode",
+              "expression": "  mode: localDnsMode",
+              "analysis": "symbol:localDnsProfile:84: Bicep source JSON Pointer /$symbol/localDnsProfile/mode (original expression 'mode: localDnsMode'); Maps to ManagedClusterProperties.agentPoolProfiles[].localDNSProfile.mode. The Bicep mode overlays the source JSON file; localDnsMode defaults Required and permits Disabled/Required, both allowed by the exact preview and GA enum. The JSON override maps (vnetDNSOverrides/kubeDNSOverrides) were read from infra/modules/templates/aks-localdns.json and every field/value was validated against LocalDNSOverride."
+            },
+            {
+              "source_id": "symbol:localDnsProfile:line:0",
+              "label": "$expression",
+              "path": "/$symbol/localDnsProfile/$expression-line/0",
+              "expression": "var localDnsProfile = union(loadJsonContent('templates/aks-localdns.json'), {",
+              "analysis": "symbol:localDnsProfile:line:0: Bicep source JSON Pointer /$symbol/localDnsProfile/$expression-line/0 (original expression \"var localDnsProfile = union(loadJsonContent('templates/aks-localdns.json'), {\"); Constructs the localDNSProfile object from infra/modules/templates/aks-localdns.json; its four domain maps, all 32 override values, and mode were checked against the exact current and candidate LocalDNSProfile/LocalDNSOverride schemas."
+            },
+            {
+              "source_id": "symbol:localDnsMode:line:0",
+              "label": "$expression",
+              "path": "/$symbol/localDnsMode/$expression-line/0",
+              "expression": "@description('Local DNS mode for the System node pool')",
+              "analysis": "symbol:localDnsMode:line:0: Bicep source JSON Pointer /$symbol/localDnsMode/$expression-line/0 (original expression \"@description('Local DNS mode for the System node pool')\"); Documentation for localDnsMode; value mapping and API constraints: Parameter permits Disabled or Required (default Required); both are accepted LocalDNSProfile.mode enum values in the exact current preview and candidate GA schemas."
+            },
+            {
+              "source_id": "symbol:localDnsMode:line:56",
+              "label": "$expression",
+              "path": "/$symbol/localDnsMode/$expression-line/1",
+              "expression": "@allowed([",
+              "analysis": "symbol:localDnsMode:line:56: Bicep source JSON Pointer /$symbol/localDnsMode/$expression-line/1 (original expression '@allowed(['); Bicep parameter constraint for localDnsMode; Parameter permits Disabled or Required (default Required); both are accepted LocalDNSProfile.mode enum values in the exact current preview and candidate GA schemas."
+            },
+            {
+              "source_id": "symbol:localDnsMode:line:67",
+              "label": "$expression",
+              "path": "/$symbol/localDnsMode/[]/$expression-line/2",
+              "expression": "  'Disabled'",
+              "analysis": "symbol:localDnsMode:line:67: Bicep source JSON Pointer /$symbol/localDnsMode/[]/$expression-line/2 (original expression \"'Disabled'\"); Allowed/default literal for localDnsMode; Parameter permits Disabled or Required (default Required); both are accepted LocalDNSProfile.mode enum values in the exact current preview and candidate GA schemas."
+            },
+            {
+              "source_id": "symbol:localDnsMode:line:80",
+              "label": "$expression",
+              "path": "/$symbol/localDnsMode/[]/$expression-line/3",
+              "expression": "  'Required'",
+              "analysis": "symbol:localDnsMode:line:80: Bicep source JSON Pointer /$symbol/localDnsMode/[]/$expression-line/3 (original expression \"'Required'\"); Allowed/default literal for localDnsMode; Parameter permits Disabled or Required (default Required); both are accepted LocalDNSProfile.mode enum values in the exact current preview and candidate GA schemas."
+            },
+            {
+              "source_id": "symbol:localDnsMode:line:96",
+              "label": "$expression",
+              "path": "/$symbol/localDnsMode/$expression-line/5",
+              "expression": "param localDnsMode string = 'Required'",
+              "analysis": "symbol:localDnsMode:line:96: Bicep source JSON Pointer /$symbol/localDnsMode/$expression-line/5 (original expression \"param localDnsMode string = 'Required'\"); Parameter permits Disabled or Required (default Required); both are accepted LocalDNSProfile.mode enum values in the exact current preview and candidate GA schemas."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "symbol:location:line:0: Bicep source JSON Pointer /$symbol/location/$expression-line/0 (original expression \"@description('Deployment location')\"); Documentation for location; value mapping and API constraints: ManagedCluster location string. main.bicep defaults to japaneast; the current/candidate resource schema imposes string type without an enum/pattern."
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "symbol:location:line:36: Bicep source JSON Pointer /$symbol/location/$expression-line/1 (original expression 'param location string'); ManagedCluster location string. main.bicep defaults to japaneast; the current/candidate resource schema imposes string type without an enum/pattern."
+            },
+            {
+              "source_id": "symbol:logAnalyticsWorkspaceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsWorkspaceId/$expression-line/0",
+              "expression": "@description('Log Analytics workspace resource ID for Container Insights')",
+              "analysis": "symbol:logAnalyticsWorkspaceId:line:0: Bicep source JSON Pointer /$symbol/logAnalyticsWorkspaceId/$expression-line/0 (original expression \"@description('Log Analytics workspace resource ID for Container Insights')\"); Documentation for logAnalyticsWorkspaceId; value mapping and API constraints: ManagedClusterProperties.azureMonitorProfile.containerInsights.logAnalyticsWorkspaceResourceId (string/arm-id); main.bicep passes the Log Analytics workspace resource ID output."
+            },
+            {
+              "source_id": "symbol:logAnalyticsWorkspaceId:line:75",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsWorkspaceId/$expression-line/1",
+              "expression": "param logAnalyticsWorkspaceId string",
+              "analysis": "symbol:logAnalyticsWorkspaceId:line:75: Bicep source JSON Pointer /$symbol/logAnalyticsWorkspaceId/$expression-line/1 (original expression 'param logAnalyticsWorkspaceId string'); ManagedClusterProperties.azureMonitorProfile.containerInsights.logAnalyticsWorkspaceResourceId (string/arm-id); main.bicep passes the Log Analytics workspace resource ID output."
+            },
+            {
+              "source_id": "symbol:nodeResourceGroupName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/nodeResourceGroupName/$expression-line/0",
+              "expression": "@description('Node resource group name for AKS managed resources')",
+              "analysis": "symbol:nodeResourceGroupName:line:0: Bicep source JSON Pointer /$symbol/nodeResourceGroupName/$expression-line/0 (original expression \"@description('Node resource group name for AKS managed resources')\"); Documentation for nodeResourceGroupName; value mapping and API constraints: ManagedClusterProperties.nodeResourceGroup string; main.bicep derives it as resourceGroupName-node. The exact REST schema defines a string and no further pattern/bound."
+            },
+            {
+              "source_id": "symbol:nodeResourceGroupName:line:67",
+              "label": "$expression",
+              "path": "/$symbol/nodeResourceGroupName/$expression-line/1",
+              "expression": "param nodeResourceGroupName string",
+              "analysis": "symbol:nodeResourceGroupName:line:67: Bicep source JSON Pointer /$symbol/nodeResourceGroupName/$expression-line/1 (original expression 'param nodeResourceGroupName string'); ManagedClusterProperties.nodeResourceGroup string; main.bicep derives it as resourceGroupName-node. The exact REST schema defines a string and no further pattern/bound."
+            },
+            {
+              "source_id": "symbol:nodeVmSize:line:0",
+              "label": "$expression",
+              "path": "/$symbol/nodeVmSize/$expression-line/0",
+              "expression": "@description('Node VM size')",
+              "analysis": "symbol:nodeVmSize:line:0: Bicep source JSON Pointer /$symbol/nodeVmSize/$expression-line/0 (original expression \"@description('Node VM size')\"); Documentation for nodeVmSize; value mapping and API constraints: ManagedClusterProperties.agentPoolProfiles[].vmSize string; main.bicep default Standard_D4pds_v6 is a string and the exact REST schema has no enum/pattern."
+            },
+            {
+              "source_id": "symbol:nodeVmSize:line:29",
+              "label": "$expression",
+              "path": "/$symbol/nodeVmSize/$expression-line/1",
+              "expression": "param nodeVmSize string",
+              "analysis": "symbol:nodeVmSize:line:29: Bicep source JSON Pointer /$symbol/nodeVmSize/$expression-line/1 (original expression 'param nodeVmSize string'); ManagedClusterProperties.agentPoolProfiles[].vmSize string; main.bicep default Standard_D4pds_v6 is a string and the exact REST schema has no enum/pattern."
+            },
+            {
+              "source_id": "symbol:resourceGroupSuffix:line:0",
+              "label": "$expression",
+              "path": "/$symbol/resourceGroupSuffix/$expression-line/0",
+              "expression": "var resourceGroupSuffix = uniqueString(resourceGroup().id)",
+              "analysis": "symbol:resourceGroupSuffix:line:0: Bicep source JSON Pointer /$symbol/resourceGroupSuffix/$expression-line/0 (original expression 'var resourceGroupSuffix = uniqueString(resourceGroup().id)'); Bicep uniqueString(resourceGroup().id), used only to build dnsPrefix; exact REST field is a string. It is an expression input, not a separate property."
+            },
+            {
+              "source_id": "symbol:skuName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/skuName/$expression-line/0",
+              "expression": "@description('AKS SKU mode. Only \"Base\" is supported (see ADR-010).')",
+              "analysis": "symbol:skuName:line:0: Bicep source JSON Pointer /$symbol/skuName/$expression-line/0 (original expression '@description(\\'AKS SKU mode. Only \"Base\" is supported (see ADR-010).\\')'); Documentation for skuName; value mapping and API constraints: ManagedCluster.sku.name; module @allowed restricts the value to Base and current/candidate ManagedClusterSKU.name enums include Base. The sibling tier literal Standard is separately validated."
+            },
+            {
+              "source_id": "symbol:skuName:line:70",
+              "label": "$expression",
+              "path": "/$symbol/skuName/$expression-line/1",
+              "expression": "@allowed([",
+              "analysis": "symbol:skuName:line:70: Bicep source JSON Pointer /$symbol/skuName/$expression-line/1 (original expression '@allowed(['); Bicep parameter constraint for skuName; ManagedCluster.sku.name; module @allowed restricts the value to Base and current/candidate ManagedClusterSKU.name enums include Base. The sibling tier literal Standard is separately validated."
+            },
+            {
+              "source_id": "symbol:skuName:line:81",
+              "label": "$expression",
+              "path": "/$symbol/skuName/[]/$expression-line/2",
+              "expression": "  'Base'",
+              "analysis": "symbol:skuName:line:81: Bicep source JSON Pointer /$symbol/skuName/[]/$expression-line/2 (original expression \"'Base'\"); Allowed/default literal for skuName; ManagedCluster.sku.name; module @allowed restricts the value to Base and current/candidate ManagedClusterSKU.name enums include Base. The sibling tier literal Standard is separately validated."
+            },
+            {
+              "source_id": "symbol:skuName:line:93",
+              "label": "$expression",
+              "path": "/$symbol/skuName/$expression-line/4",
+              "expression": "param skuName string = 'Base'",
+              "analysis": "symbol:skuName:line:93: Bicep source JSON Pointer /$symbol/skuName/$expression-line/4 (original expression \"param skuName string = 'Base'\"); ManagedCluster.sku.name; module @allowed restricts the value to Base and current/candidate ManagedClusterSKU.name enums include Base. The sibling tier literal Standard is separately validated."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags object')",
+              "analysis": "symbol:tags:line:0: Bicep source JSON Pointer /$symbol/tags/$expression-line/0 (original expression \"@description('Tags object')\"); Documentation for tags; value mapping and API constraints: ManagedCluster tags object; main.bicep supplies azd-env-name with a string environment value. Exact common-types schema uses additionalProperties:string."
+            },
+            {
+              "source_id": "symbol:tags:line:28",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object = {}",
+              "analysis": "symbol:tags:line:28: Bicep source JSON Pointer /$symbol/tags/$expression-line/1 (original expression 'param tags object = {}'); ManagedCluster tags object; main.bicep supplies azd-env-name with a string environment value. Exact common-types schema uses additionalProperties:string."
+            }
+          ],
+          "exclusion_reason": "Keep 2026-05-02-preview under the existing docs/workarounds.md C-2 condition: exact current schema supports addonAutoscaling, upgradeStrategy, and upgradeSettingsBlueGreen, while the latest GA 2026-08-01 removes all three; no GA schema preserves the current desired settings."
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-05-02-preview",
+          "analysis": "Learn current page selector and exact pinned preview managedClusters.json confirm current version. Schemas helper checked the ManagedCluster body, inherited common types, exact SKU/identity/route constraints, every source property from the common/base-specific union, and localDNSProfile plus all four domain overrides in aks-localdns.json. 56 static literals and 32 LocalDNSOverride values passed the exact current preview schema. Required agentPoolProfiles.name and VPA enabled are present. The source spelling mismatch enableAzureRbac vs schema enableAzureRBAC is preserved as an issue.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-05-02-preview/managedclusters",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-05-02-preview/managedclusters": "071c22f09c8e6f9f9e503fc70d19cc3f3f9184fecf109af435ea4451a1e87c9b",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md": "764addd0ef8d8c34f26bb92f23146522072e8eba5db00b265361c75ea2db3544",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json": "a7146729d5f157beac9b2253ae2298138614b3e543456161f4ba34609de30f49",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json": "5bdcf9b5ed1ea563367452e265e7ad60b411b1fbbbc20b8ba3ab7854d1ca624f"
+          }
+        },
+        "ga": {
+          "version": "2026-08-01",
+          "analysis": "Learn lists 2026-08-01 as latest stable GA and 2026-08-02-preview as a newer preview. Exact candidate stable managedClusters.json was inspected alongside current preview and latest preview bodies. Most used schema paths and source values remain compatible, but candidate GA omits workloadAutoScalerProfile.verticalPodAutoscaler.addonAutoscaling, agentPoolProfiles[].upgradeStrategy, and agentPoolProfiles[].upgradeSettingsBlueGreen. The preview remains intentionally excluded under the documented C-2 rule until GA supports all three.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-05-02-preview/managedclusters",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-05-02-preview/managedclusters": "071c22f09c8e6f9f9e503fc70d19cc3f3f9184fecf109af435ea4451a1e87c9b",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters": "764c9eb5da3bf64aebc5b710c475d8436bc6ac04e4767da1ab15f9a5572ecbdb",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/readme.md": "764addd0ef8d8c34f26bb92f23146522072e8eba5db00b265361c75ea2db3544",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json": "769625cd957b9d236f5a8af0af93e131ed53b5bd9d7022aeb5e8b88495f5e47d",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json": "d7b16b79864d62ef0937942bd38de1cd3c654e519cb82947dfea35c5164220c3",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json": "a7146729d5f157beac9b2253ae2298138614b3e543456161f4ba34609de30f49",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json": "5bdcf9b5ed1ea563367452e265e7ad60b411b1fbbbc20b8ba3ab7854d1ca624f"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log for 2026-08-01 explicitly removes ManagedClusterWorkloadAutoScalerProfileVerticalPodAutoscaler.addonAutoscaling and ManagedClusterAgentPoolProfile.upgradeStrategy / upgradeSettingsBlueGreen. The pinned current preview 2026-05-02-preview adds all three. This exact candidate change means GA migration would lose the configured VPA addon autoscaling and BlueGreen rollout settings; C-2 removal criteria are not met. Other source-used literals were checked against both schemas.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters": "324b9e106215a73ce375b6d13919dc59a1f8ecc27c28480080dc7439e878e656",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json": "a7146729d5f157beac9b2253ae2298138614b3e543456161f4ba34609de30f49",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json": "769625cd957b9d236f5a8af0af93e131ed53b5bd9d7022aeb5e8b88495f5e47d",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-08-02-preview/managedClusters.json": "d7b16b79864d62ef0937942bd38de1cd3c654e519cb82947dfea35c5164220c3"
+          }
+        }
+      }
     },
     "Microsoft.ContainerService/managedClusters@2026-06-01": {
       "stage": "pending",

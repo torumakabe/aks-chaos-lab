@@ -574,5 +574,77 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-05-02-preview/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 3055.691712208,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 3058.69182225,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.5969403879998936
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 3061.691942156,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.735566228999687
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/preview/2026-05-02-preview/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 3061.921167681,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/data-types",
+    "attempt": 1,
+    "started_monotonic": 3344.867707218,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/search/?terms=Bicep%20null%20resource%20property",
+    "attempt": 1,
+    "started_monotonic": 3363.205557462,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/conditional-resource-deployment",
+    "attempt": 1,
+    "started_monotonic": 3415.560144342,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/nullable",
+    "attempt": 1,
+    "started_monotonic": 3418.560276303,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.9154916580000645
   }
 ]
