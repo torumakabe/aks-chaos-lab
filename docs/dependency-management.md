@@ -83,6 +83,8 @@ GitHub cloud Copilot Automationへの移行は検証中で、Automationは`enabl
 
 `prepare --state <state.json> --title <title> --directory <output>`は全pair、全宣言、使用属性、判断、根拠と完全なハッシュを`evidence.json`へ保存し、`report.md`も生成する。未処理pairがあれば生成を拒否する。公開根拠不足を`block`で記録した場合だけ`--allow-blocked`で未完了の報告を生成でき、その宣言は`unverified`として残る。この段階ではIssue用payloadを生成しない。
 
+`block`の入力JSONには、任意の`partial_results`と`partial_evidence`を追加できる。`partial_results`を渡す場合は、そのpairの全宣言の`file`、`line`、`name`と確認済みの`findings`を過不足なく記録する。`partial_evidence`は確認できた`current`、`ga`、`breaking`だけを持ち、各項目に`analysis`と公開根拠の`urls`、版の根拠には`version`も記録する。current schemaが不足していても既知のGA候補と指摘はJSON、レポート、Issueの件数に残るが、GAの根拠でcurrentの確認を代替せず、宣言は常に`unverified`とする。
+
 実行ごとの検証専用ブランチへ両ファイルをcommit/pushした後、同じ`prepare`に`--evidence-url`と`--report-url`を追加する。両URLは同じrepositoryと実在する完全なcommit SHAの`https://github.com/<owner>/<repo>/blob/<commit>/<path>`を指定する。スクリプトは`gh api`で両ファイルを再取得し、ローカル出力とバイト単位で一致する場合だけ短い`issue-payload.json`と本文のSHA-256を生成する。Issue本文は不変のファイルリンク、件数、未確認状態とハッシュに限定し、圧縮JSONを埋め込まない。
 
 Issue作成は別途許可された操作で行う。作成後にGitHubから取得したtitleとbodyのJSONを`verify-issue --payload <issue-payload.json> --actual <actual.json>`へ渡し、保存済みpayloadとの一致を確認する。これらのコマンドはcommit、push、Issue作成、Azure照会、Automation設定変更を実行しない。

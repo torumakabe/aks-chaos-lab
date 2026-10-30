@@ -345,6 +345,197 @@ class SchemaTests(unittest.TestCase):
             Schemas(Denied()).document(CURRENT)
 
 
+class PartialBlockedTests(unittest.TestCase):
+    def setUp(self):
+        state, evidence, _ = fixture()
+        rows = [
+            {**row, "version": "2026-01-01-preview"} for row in state["declarations"]
+        ]
+        self.state = new_state(
+            {
+                "files": state["files"],
+                "declarations": rows,
+                "sources": state["sources"],
+            },
+            SHA,
+            SHA,
+        )
+        self.key = next_pair(self.state)[0]
+        self.attempts = [
+            {
+                "url": BASE + "preview/2026-01-01-preview/api.json",
+                "finding": "Exact current schema unavailable",
+            },
+            {"url": CHANGE, "finding": "Current property coverage unresolved"},
+        ]
+        self.partial_results = [
+            {
+                "file": row["file"],
+                "line": row["line"],
+                "name": row["name"],
+                "findings": [{"kind": kind, "detail": detail}],
+            }
+            for row, kind, detail in zip(
+                rows,
+                ("update", "issue"),
+                (
+                    "GA 2026-01-01 exists; compatibility remains unresolved",
+                    "Separately confirmed configuration issue",
+                ),
+                strict=True,
+            )
+        ]
+        self.partial_evidence = {"ga": evidence["ga"]}
+
+    def block(self, state=None, **changes):
+        values = {
+            "partial_results": self.partial_results,
+            "partial_evidence": self.partial_evidence,
+            **changes,
+        }
+        block_pair(
+            self.state if state is None else state,
+            self.key,
+            self.attempts,
+            "Exact current schema missing",
+            **values,
+        )
+
+    def test_ga_and_findings_survive_without_current_schema_completion(self):
+        self.block()
+        with self.assertRaisesRegex(AuditError, "Missing public evidence"):
+            render(self.state)
+        report = render(self.state, allow_blocked=True)
+        self.assertIn("partial ga: 2026-01-01", report)
+        self.assertIn(GA, report)
+        self.assertIn("issue=1, update=1", report)
+        self.assertIn("verified=0, excluded=0, unverified=2", report)
+        with tempfile.TemporaryDirectory(dir=Path.cwd()) as directory:
+            payload = published_payload(self.state, directory, allow_blocked=True)
+            data = (Path(directory) / "evidence.json").read_bytes()
+            document = json.loads(data)
+            pair = document["state"]["pairs"][self.key]
+            self.assertEqual(pair["partial_evidence"], self.partial_evidence)
+            self.assertEqual(pair["partial_results"], self.partial_results)
+            self.assertNotIn("current", pair["partial_evidence"])
+            self.assertEqual(pair["stage"], "blocked")
+            self.assertFalse(document["summary"]["complete"])
+            self.assertEqual(document["summary"]["issue"], 1)
+            self.assertEqual(document["summary"]["update"], 1)
+            self.assertEqual(document["summary"]["unverified"], 2)
+            self.assertTrue(
+                all(row["status"] == "unverified" for row in document["results"])
+            )
+            self.assertEqual(
+                [row["findings"] for row in document["results"]],
+                [row["findings"] for row in self.partial_results],
+            )
+            self.assertEqual(data, evidence_bytes(self.state, allow_blocked=True))
+            self.assertIn("issue=1, update=1", payload["body"])
+            self.assertNotIn("確認完了。", payload["body"])
+
+    def test_partial_identity_coverage_must_be_exact(self):
+        for rows in (
+            [],
+            self.partial_results[:1],
+            [self.partial_results[0], self.partial_results[0]],
+            self.partial_results + [{**self.partial_results[0], "name": "extra"}],
+        ):
+            with self.subTest(rows=rows):
+                state = copy.deepcopy(self.state)
+                with self.assertRaisesRegex(AuditError, "partial declaration results"):
+                    self.block(state, partial_results=rows)
+                self.assertEqual(state["pairs"][self.key]["stage"], "pending")
+        rows = copy.deepcopy(self.partial_results)
+        del rows[0]["name"]
+        with self.assertRaisesRegex(AuditError, "Missing partial declaration identity"):
+            self.block(partial_results=rows)
+
+    def test_partial_findings_require_valid_kind_and_nonblank_detail(self):
+        for finding in (
+            {"kind": "other", "detail": "detail"},
+            {"kind": "update"},
+            {"kind": "issue", "detail": " \n"},
+            {"kind": "update", "detail": 3},
+        ):
+            with self.subTest(finding=finding):
+                rows = copy.deepcopy(self.partial_results)
+                rows[0]["findings"] = [finding]
+                with self.assertRaisesRegex(AuditError, "Invalid partial issue/update"):
+                    self.block(partial_results=rows)
+
+    def test_partial_evidence_requires_analysis_version_and_public_urls(self):
+        for source in (
+            {**self.partial_evidence["ga"], "analysis": " \n"},
+            {**self.partial_evidence["ga"], "urls": []},
+            {**self.partial_evidence["ga"], "version": ""},
+        ):
+            with self.subTest(source=source), self.assertRaises(AuditError):
+                self.block(partial_evidence={"ga": source})
+        for url in (
+            "http://learn.microsoft.com/version",
+            "https://example.com/schema.json",
+            "../schema.json",
+        ):
+            with self.subTest(url=url), self.assertRaises(AuditError):
+                self.block(
+                    partial_evidence={
+                        "ga": {**self.partial_evidence["ga"], "urls": [url]},
+                    }
+                )
+
+    def test_partial_ga_cannot_substitute_for_current_version(self):
+        with self.assertRaisesRegex(AuditError, "Wrong partial current version"):
+            self.block(partial_evidence={"current": self.partial_evidence["ga"]})
+        self.assertEqual(self.state["pairs"][self.key]["stage"], "pending")
+
+    def test_partial_rest_commit_and_optional_full_hash_are_checked(self):
+        for source, message in (
+            (
+                {**self.partial_evidence["ga"], "urls": [GA.replace(SHA, "main")]},
+                "not pinned",
+            ),
+            (
+                {**self.partial_evidence["ga"], "sha256": {GA: "short"}},
+                "Invalid partial evidence hash",
+            ),
+        ):
+            with (
+                self.subTest(source=source),
+                self.assertRaisesRegex(AuditError, message),
+            ):
+                self.block(partial_evidence={"ga": source})
+
+    def test_partial_cannot_claim_verified_or_findings_without_evidence(self):
+        rows = copy.deepcopy(self.partial_results)
+        rows[0]["status"] = "verified"
+        with self.assertRaisesRegex(AuditError, "must remain unverified"):
+            self.block(partial_results=rows)
+        with self.assertRaisesRegex(AuditError, "require source evidence"):
+            self.block(partial_evidence=None)
+        self.assertEqual(self.state["pairs"][self.key]["stage"], "pending")
+
+    def test_reloaded_partial_findings_and_evidence_are_revalidated(self):
+        self.block()
+        state = copy.deepcopy(self.state)
+        state["pairs"][self.key]["partial_results"][0]["findings"][0]["kind"] = "other"
+        with self.assertRaisesRegex(AuditError, "Invalid partial issue/update"):
+            evidence_bytes(state, allow_blocked=True)
+        state = copy.deepcopy(self.state)
+        state["pairs"][self.key]["partial_evidence"]["ga"]["analysis"] = ""
+        with self.assertRaisesRegex(AuditError, "Missing partial source analysis"):
+            render(state, allow_blocked=True)
+
+    def test_partial_evidence_only_is_preserved_and_input_aliases_are_frozen(self):
+        self.block(partial_results=None)
+        self.assertIn("partial ga: 2026-01-01", render(self.state, allow_blocked=True))
+        document = json.loads(evidence_bytes(self.state, allow_blocked=True))
+        self.assertEqual(document["summary"]["update"], 0)
+        self.assertEqual(document["summary"]["unverified"], 2)
+        self.partial_evidence["ga"]["analysis"] = "changed after block"
+        self.assertNotIn("changed after block", render(self.state, allow_blocked=True))
+
+
 class FileEvidenceTests(unittest.TestCase):
     def assessed(self):
         state, evidence, results = fixture()

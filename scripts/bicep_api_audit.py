@@ -801,7 +801,98 @@ def record_pair(state, key, results, evidence, fetcher):
     )
 
 
-def block_pair(state, key, attempts, reason):
+def validate_partial(state, key, partial_results, partial_evidence):
+    require(key in state["pairs"], f"Unknown pair: {key}")
+    expected = [
+        row for row in state["declarations"] if f"{row['type']}@{row['version']}" == key
+    ]
+    partial = {}
+    if partial_results is not None:
+        require(isinstance(partial_results, list), "Partial results must be a list")
+        require(
+            all(
+                isinstance(row, dict)
+                and all(field in row for field in ("file", "line", "name"))
+                for row in partial_results
+            ),
+            "Missing partial declaration identity",
+        )
+        require(
+            Counter(map(identity, expected)) == Counter(map(identity, partial_results)),
+            "Missing, extra, or duplicate partial declaration results",
+        )
+        for row in partial_results:
+            require(
+                row.get("status", "unverified") == "unverified",
+                "Partial results must remain unverified",
+            )
+            require(isinstance(row.get("findings"), list), "Missing partial findings")
+            for finding in row["findings"]:
+                require(
+                    isinstance(finding, dict)
+                    and finding.get("kind") in ("issue", "update")
+                    and isinstance(finding.get("detail"), str)
+                    and finding["detail"].strip(),
+                    "Invalid partial issue/update finding",
+                )
+            partial[identity(row)] = row
+    if partial_evidence is not None:
+        require(
+            isinstance(partial_evidence, dict)
+            and partial_evidence
+            and set(partial_evidence) <= {"current", "ga", "breaking"},
+            "Invalid partial evidence classes",
+        )
+        for label, source in partial_evidence.items():
+            require(
+                isinstance(source, dict)
+                and isinstance(source.get("analysis"), str)
+                and source["analysis"].strip()
+                and isinstance(source.get("urls"), list)
+                and source["urls"],
+                "Missing partial source analysis or URLs",
+            )
+            if label != "breaking":
+                require(
+                    isinstance(source.get("version"), str)
+                    and source["version"].strip(),
+                    "Missing exact partial version",
+                )
+            if label == "current":
+                require(
+                    source["version"] == key.rsplit("@", 1)[1],
+                    "Wrong partial current version",
+                )
+            for url in source["urls"]:
+                require(
+                    isinstance(url, str) and url.strip(), "Invalid partial evidence URL"
+                )
+                public_url(url)
+                require(
+                    urlsplit(url).hostname != "raw.githubusercontent.com"
+                    or urlsplit(url).path.startswith(
+                        f"/Azure/azure-rest-api-specs/{state['specs_commit']}/"
+                    ),
+                    "Partial REST evidence is not pinned to the reviewed commit",
+                )
+                if "sha256" in source:
+                    require(
+                        isinstance(source["sha256"], dict)
+                        and isinstance(source["sha256"].get(url), str)
+                        and re.fullmatch(r"[0-9a-f]{64}", source["sha256"][url]),
+                        "Invalid partial evidence hash",
+                    )
+    require(
+        not any(row["findings"] for row in partial.values()) or partial_evidence,
+        "Partial findings require source evidence",
+    )
+    return partial
+
+
+def block_pair(
+    state, key, attempts, reason, *, partial_results=None, partial_evidence=None
+):
+    require(key in state["pairs"], f"Unknown pair: {key}")
     require(state["pairs"][key]["stage"] == "pending", "Pair already processed")
     require(
         reason and len(attempts) >= 2, "Unavailability needs concrete source attempts"
@@ -809,7 +900,14 @@ def block_pair(state, key, attempts, reason):
     for attempt in attempts:
         public_url(attempt["url"])
         require(attempt.get("finding"), "Missing failed lookup finding")
+    validate_partial(state, key, partial_results, partial_evidence)
     state["pairs"][key].update(stage="blocked", attempts=attempts, reason=reason)
+    if partial_results is not None:
+        state["pairs"][key]["partial_results"] = json.loads(json.dumps(partial_results))
+    if partial_evidence is not None:
+        state["pairs"][key]["partial_evidence"] = json.loads(
+            json.dumps(partial_evidence)
+        )
 
 
 def finalized_records(state, allow_blocked=False):
@@ -865,6 +963,9 @@ def finalized_records(state, allow_blocked=False):
         for attempt in pair["attempts"]:
             public_url(attempt["url"])
             require(attempt.get("finding"), "Missing failed lookup finding")
+        partial = validate_partial(
+            state, key, pair.get("partial_results"), pair.get("partial_evidence")
+        )
         rows = [
             {
                 **row,
@@ -872,7 +973,7 @@ def finalized_records(state, allow_blocked=False):
                 "reason": pair["reason"],
                 "migration": "未確定",
                 "usage": [],
-                "findings": [],
+                "findings": partial.get(identity(row), {}).get("findings", []),
             }
             for row in state["declarations"]
             if f"{row['type']}@{row['version']}" == key
@@ -943,6 +1044,11 @@ def render(state, allow_blocked=False):
                 f"{attempt['url']}: {attempt['finding']}"
                 for attempt in pair["attempts"]
             )
+            for label, source in pair.get("partial_evidence", {}).items():
+                lines.append(
+                    f"partial {label}: {source.get('version', '')} {source['analysis']}"
+                )
+                lines.extend(source["urls"])
         for row in sorted(blocked_results.get(key, pair["results"]), key=identity):
             lines.append(
                 f"- `{row['file']}:{row['line']}` `{row['name']}` "
@@ -1175,7 +1281,14 @@ def main():
                 Fetcher(args.cache),
             )
         else:
-            block_pair(state, args.pair, assessment["attempts"], assessment["reason"])
+            block_pair(
+                state,
+                args.pair,
+                assessment["attempts"],
+                assessment["reason"],
+                partial_results=assessment.get("partial_results"),
+                partial_evidence=assessment.get("partial_evidence"),
+            )
         save_json(args.state, state)
     elif args.command == "prepare":
         result = prepare_issue(
