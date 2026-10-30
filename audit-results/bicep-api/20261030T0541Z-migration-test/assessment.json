@@ -1,148 +1,161 @@
 {
-  "pair": "Microsoft.Resources/resourceGroups@2025-04-01",
+  "pair": "Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01",
   "results": [
     {
-      "file": "infra/main.bicep",
-      "name": "resourceGroup",
-      "line": 176,
-      "type": "Microsoft.Resources/resourceGroups",
-      "version": "2025-04-01",
+      "file": "infra/modules/functions/external-sli-publisher.bicep",
+      "name": "stateContainer",
+      "line": 271,
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "version": "2026-04-01",
       "existing": false,
-      "start": 6722,
-      "end": 6858,
-      "header": "resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = ",
-      "body": "{\n  name: resourceGroupName\n  location: location\n  tags: tags\n}",
+      "start": 8463,
+      "end": 8657,
+      "header": "resource stateContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01' = ",
+      "body": "{\n  name: stateContainerName\n  parent: blobService\n  properties: {\n    publicAccess: 'None'\n  }\n}",
       "status": "verified",
-      "reason": "Learn selectorで2025-04-01が最新GAと確認し、固定REST resources.jsonのResourceGroup/TrackedResourceTags refsをSchemasで照合。name/location:string、tags additionalProperties:stringが一致し、location/name/tagsは全て指定。",
-      "migration": "GA移行不要。現行2025-04-01が最新公開GAと一致。change logのTrackedResourceTags追加・ResourceGroupTags削除後もschemaはtags object<string>を維持し、systemDataは自動管理field。",
-      "findings": [],
+      "reason": "Learn selectorで2026-09-01を最新GAと確認し、固定REST openapi.jsonのcurrent 2026-04-01とGA 2026-09-01 BlobContainer/ContainerPropertiesをSchemasで照合。publicAccess enumは両方でContainer/Blob/None、name制約3..63に実名が適合。",
+      "migration": "GA移行可能。2026-09-01のused properties.publicAccess/name/parent routeはcurrentと同じ。change logのblobAccessPointConfiguration追加は未使用のoptional field。",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "最新GA candidate 2026-09-01がcurrent 2026-04-01より新しい。両schemaでpublicAccess enumと使用属性に差はなく、追加されたblobAccessPointConfigurationは未使用。"
+        }
+      ],
       "usage": [
         {
           "source_id": "body:8",
           "label": "name",
           "path": "/name",
-          "expression": "  name: resourceGroupName",
-          "analysis": "JSON Pointer /name maps to ResourceGroup resource identity string. resourceGroupName is interpolated from abbreviations prefix, appName:string, and environment:string."
+          "expression": "  name: stateContainerName",
+          "analysis": "JSON Pointer /name is Bicep child resource identity and REST containerName route string. Literal 'external-sli-state' is lowercase/hyphen and length 18, within Learn documented 3..63. REST marks name readOnly as response identity, not mutable property."
         },
         {
-          "source_id": "body:38",
-          "label": "location",
-          "path": "/location",
-          "expression": "  location: location",
-          "analysis": "JSON Pointer /location maps to REST ResourceGroup.location:string. Param location is string with default 'japaneast'."
+          "source_id": "body:37",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: blobService",
+          "analysis": "JSON Pointer /parent is Bicep parent relationship, not REST JSON. BlobService parent scopes route storageAccounts/{accountName}/blobServices/default/containers/{containerName}."
         },
         {
-          "source_id": "body:55",
-          "label": "tags",
-          "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags maps to REST object additionalProperties:string. The sole azd-env-name value is environment:string."
+          "source_id": "body:63",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties maps to ContainerProperties object; publicAccess is checked individually."
+        },
+        {
+          "source_id": "body:83",
+          "label": "publicAccess",
+          "path": "/properties/publicAccess",
+          "expression": "    publicAccess: 'None'",
+          "analysis": "JSON Pointer /properties/publicAccess maps to PublicAccess enum [Container, Blob, None] in current REST 2026-04 and GA REST 2026-09. Literal 'None' passes Schemas.literal and disables public container access."
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 is Bicep resource type/version header, not payload. Type/version is Microsoft.Resources/resourceGroups@2025-04-01."
+          "expression": "resource stateContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is the Bicep type/version header, not REST payload. Current type/version is Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01; latest GA is 2026-09-01."
         },
         {
-          "source_id": "symbol:location:line:0",
+          "source_id": "symbol:stateContainerName:line:0",
           "label": "$expression",
-          "path": "/$symbol/location/$expression-line/0",
-          "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 is location parameter annotation/declaration; string default japaneast supplies REST location:string."
+          "path": "/$symbol/stateContainerName/$expression-line/0",
+          "expression": "var stateContainerName = 'external-sli-state'",
+          "analysis": "JSON Pointer /$symbol/stateContainerName/$expression-line/0 is source constant 'external-sli-state'; it is a string resource-name value meeting the 3..63 Learn constraint."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/functions/external-sli-publisher.bicep",
+      "name": "deploymentContainer",
+      "line": 279,
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "version": "2026-04-01",
+      "existing": false,
+      "start": 8659,
+      "end": 8863,
+      "header": "resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01' = ",
+      "body": "{\n  name: deploymentContainerName\n  parent: blobService\n  properties: {\n    publicAccess: 'None'\n  }\n}",
+      "status": "verified",
+      "reason": "Learn selectorで2026-09-01を最新GAと確認し、固定REST openapi.jsonのcurrent 2026-04-01とGA 2026-09-01 BlobContainer/ContainerPropertiesをSchemasで照合。publicAccess enumは両方でContainer/Blob/None、name制約3..63に実名が適合。",
+      "migration": "GA移行可能。2026-09-01のused properties.publicAccess/name/parent routeはcurrentと同じ。change logのblobAccessPointConfiguration追加は未使用のoptional field。",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "最新GA candidate 2026-09-01がcurrent 2026-04-01より新しい。両schemaでpublicAccess enumと使用属性に差はなく、追加されたblobAccessPointConfigurationは未使用。"
+        }
+      ],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: deploymentContainerName",
+          "analysis": "JSON Pointer /name is Bicep child resource identity and REST containerName route string. Literal 'external-sli-package' is lowercase/hyphen and length 20, within Learn documented 3..63. REST marks name readOnly as response identity, not mutable property."
         },
         {
-          "source_id": "symbol:location:line:36",
+          "source_id": "body:42",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: blobService",
+          "analysis": "JSON Pointer /parent is Bicep parent relationship, not REST JSON. BlobService parent scopes route storageAccounts/{accountName}/blobServices/default/containers/{containerName}."
+        },
+        {
+          "source_id": "body:68",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties maps to ContainerProperties object; publicAccess is checked individually."
+        },
+        {
+          "source_id": "body:88",
+          "label": "publicAccess",
+          "path": "/properties/publicAccess",
+          "expression": "    publicAccess: 'None'",
+          "analysis": "JSON Pointer /properties/publicAccess maps to PublicAccess enum [Container, Blob, None] in current REST 2026-04 and GA REST 2026-09. Literal 'None' passes Schemas.literal and disables public container access."
+        },
+        {
+          "source_id": "header:line:0",
           "label": "$expression",
-          "path": "/$symbol/location/$expression-line/1",
-          "expression": "param location string = 'japaneast'",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 is location parameter annotation/declaration; string default japaneast supplies REST location:string."
+          "path": "/$expression-line/0",
+          "expression": "resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 is the Bicep type/version header, not REST payload. Current type/version is Microsoft.Storage/storageAccounts/blobServices/containers@2026-04-01; latest GA is 2026-09-01."
         },
         {
-          "source_id": "symbol:resourceGroupName:line:0",
+          "source_id": "symbol:deploymentContainerName:line:0",
           "label": "$expression",
-          "path": "/$symbol/resourceGroupName/$expression-line/0",
-          "expression": "var resourceGroupName = '${abbrs.resourcesResourceGroups}${appName}-${environment}'",
-          "analysis": "JSON Pointer /$symbol/resourceGroupName/$expression-line/0 is resourceGroupName interpolation source using abbreviation prefix, appName:string and environment:string; output is resource name:string."
-        },
-        {
-          "source_id": "symbol:abbrs:line:0",
-          "label": "$expression",
-          "path": "/$symbol/abbrs/$expression-line/0",
-          "expression": "var abbrs = loadJsonContent('./abbreviations.json')",
-          "analysis": "JSON Pointer /$symbol/abbrs/$expression-line/0 is abbreviations JSON loaded by loadJsonContent and supplies the resource-group name prefix; concatenated result is string."
-        },
-        {
-          "source_id": "symbol:appName:line:0",
-          "label": "$expression",
-          "path": "/$symbol/appName/$expression-line/0",
-          "expression": "@description('Workload/application name (used for resource naming)')",
-          "analysis": "JSON Pointer /$symbol/appName/$expression-line/0 is appName param string (default aks-chaos-lab) used in resourceGroupName interpolation."
-        },
-        {
-          "source_id": "symbol:appName:line:69",
-          "label": "$expression",
-          "path": "/$symbol/appName/$expression-line/1",
-          "expression": "param appName string = 'aks-chaos-lab'",
-          "analysis": "JSON Pointer /$symbol/appName/$expression-line/1 is appName param string (default aks-chaos-lab) used in resourceGroupName interpolation."
-        },
-        {
-          "source_id": "symbol:environment:line:0",
-          "label": "$expression",
-          "path": "/$symbol/environment/$expression-line/0",
-          "expression": "@description('Environment name (e.g., dev, test, prod)')",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/0 is environment param string (default dev), used in name and tags map."
-        },
-        {
-          "source_id": "symbol:environment:line:57",
-          "label": "$expression",
-          "path": "/$symbol/environment/$expression-line/1",
-          "expression": "param environment string = 'dev'",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/1 is environment param string (default dev), used in name and tags map."
-        },
-        {
-          "source_id": "symbol:tags:29",
-          "label": "azd-env-name",
-          "path": "/$symbol/tags/azd-env-name",
-          "expression": "  'azd-env-name': environment",
-          "analysis": "JSON Pointer /$symbol/tags/azd-env-name is source map value environment:string. JSON Pointer is in Bicep source, not a REST path; it maps to REST tags[azd-env-name]:string."
-        },
-        {
-          "source_id": "symbol:tags:line:0",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/0",
-          "expression": "var tags = {",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 is tags map variable definition; its entries are strings and match REST additionalProperties:string."
+          "path": "/$symbol/deploymentContainerName/$expression-line/0",
+          "expression": "var deploymentContainerName = 'external-sli-package'",
+          "analysis": "JSON Pointer /$symbol/deploymentContainerName/$expression-line/0 is source constant 'external-sli-package'; it is a string resource-name value meeting the 3..63 Learn constraint."
         }
       ]
     }
   ],
   "evidence": {
     "current": {
-      "version": "2025-04-01",
-      "analysis": "Learn selector lists 2025-04-01 as Latest. Pinned resources README maps stable/2025-04-01/resources.json, where Schemas resolves ResourceGroup, TrackedResourceTags, location:string, and tags object<string>.",
+      "version": "2026-04-01",
+      "analysis": "Learn exact current page identifies 2026-04-01. Pinned REST README and stable/2026-04-01/openapi.json resolve BlobContainer/ContainerProperties and PublicAccess enum; the exact child route includes blobServices/default/containers/{containerName}.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/resourcegroups",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/2025-04-01/resourcegroups",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-04-01/storageaccounts/blobservices/containers",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-04-01/openapi.json"
       ]
     },
     "ga": {
-      "version": "2025-04-01",
-      "analysis": "Latest stable GA from Learn equals current. The exact candidate is the same pinned ResourceGroup schema.",
+      "version": "2026-09-01",
+      "analysis": "Learn selector lists 2026-09-01 as latest GA. Pinned REST stable/2026-09-01/openapi.json also contains the exact BlobContainer model; Schemas confirms publicAccess enum and used properties unchanged from current.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/resourcegroups",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/2025-04-01/resourcegroups",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/storageaccounts/blobservices/containers",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-09-01/storageaccounts/blobservices/containers",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-09-01/openapi.json"
       ]
     },
     "breaking": {
-      "analysis": "Learn change log says 2025-04-01 adds TrackedResourceTags, removes ResourceGroupTags and adds systemData. Current schema continues tags as string-valued map; systemData is service-managed and not supplied.",
+      "analysis": "Learn change log: 2026-04-01 and 2026-06-01 have no used-property changes; 2026-09-01 adds optional blobAccessPointConfiguration. Current and candidate enum for publicAccess is unchanged.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.resources/change-log/resourcegroups"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/change-log/storageaccounts/blobservices/containers"
       ]
     }
   }

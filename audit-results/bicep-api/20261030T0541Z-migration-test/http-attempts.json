@@ -511,5 +511,95 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/storageaccounts/blobservices/containers",
+    "attempt": 1,
+    "started_monotonic": 2044.985280746,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-04-01/storageaccounts/blobservices/containers",
+    "attempt": 1,
+    "started_monotonic": 2047.985441315,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.663192613999854
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/change-log/storageaccounts/blobservices/containers",
+    "attempt": 1,
+    "started_monotonic": 2050.985559406,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.706921398000077
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/readme.md",
+    "attempt": 1,
+    "started_monotonic": 2051.167028553,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-04-01/blob.json",
+    "attempt": 1,
+    "started_monotonic": 2051.333721952,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-04-01/blobServices.json",
+    "attempt": 1,
+    "started_monotonic": 2051.460700482,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2025-01-01/blob.json",
+    "attempt": 1,
+    "started_monotonic": 2051.772046937,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-04-01/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 2072.94373994,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-09-01/storageaccounts/blobservices/containers",
+    "attempt": 1,
+    "started_monotonic": 2073.252813448,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-09-01/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 2129.502420201,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
