@@ -295,5 +295,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2026-03-01/scheduledqueryrules",
+    "attempt": 1,
+    "started_monotonic": 4006.31679115,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/scheduledqueryrules",
+    "attempt": 1,
+    "started_monotonic": 4009.316888225,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.457919791999757
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-03-01/scheduledQueryRule_API.json",
+    "attempt": 1,
+    "started_monotonic": 4009.542932798,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

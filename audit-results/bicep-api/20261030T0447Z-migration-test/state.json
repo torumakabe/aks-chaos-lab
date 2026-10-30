@@ -50567,9 +50567,612 @@
       }
     },
     "Microsoft.Insights/scheduledQueryRules@2026-03-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/aks.bicep",
+          "name": "aksNodeOSAutoUpgradeAlertRule",
+          "line": 311,
+          "type": "Microsoft.Insights/scheduledQueryRules",
+          "version": "2026-03-01",
+          "existing": false,
+          "start": 9790,
+          "end": 10760,
+          "header": "resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = ",
+          "body": "{\n  name: 'aks-nodeos-autoupgrade'\n  location: location\n  tags: tags\n  kind: 'LogAlert'\n  identity: {\n    type: 'SystemAssigned'\n  }\n  properties: {\n    displayName: 'aks-nodeos-autoupgrade'\n    description: 'AKS Node OS auto-upgrade detected via ARG events'\n    enabled: true\n    scopes: [aksCluster.id]\n    evaluationFrequency: 'PT30M'\n    windowSize: 'PT60M'\n    severity: 3\n    autoMitigate: true\n    criteria: {\n      allOf: [\n        {\n          query: aksNodeOsAutoUpgradeKql\n          timeAggregation: 'Count'\n          operator: 'GreaterThan'\n          threshold: 0\n          metricMeasureColumn: ''\n          dimensions: [\n            {\n              name: 'status'\n              operator: 'Include'\n              values: ['*']\n            }\n          ]\n        }\n      ]\n    }\n    actions: {\n      actionGroups: actionGroupId != '' ? [actionGroupId] : []\n    }\n  }\n}",
+          "status": "verified",
+          "reason": "Exact current 2026-03-01 Learn and REST schema and latest stable GA were confirmed. Root required properties/location are supplied; kind, identity, Actions, criteria, conditions, dimensions, and string/number/enum constraints match. KQL is a string from the directly read template with the documented resource-ID substitution. Bicep dependsOn is language-only.",
+          "migration": "Current GA; Learn marks 2026-03-01 Latest and fixed-commit tree lists stable scheduledQueryRule APIs through 2026-03-01. No newer GA version.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'aks-nodeos-autoupgrade'",
+              "analysis": "Source JSON Pointer /name maps to required scheduledQueryRules/{ruleName} string and resource name string; literal is a string."
+            },
+            {
+              "source_id": "body:45",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "Source /location maps to required root location:string; supplied as the deployment-location parameter."
+            },
+            {
+              "source_id": "body:62",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "Source /tags maps to tags object with additionalProperties:string; module default is {} and upstream tag values are strings."
+            },
+            {
+              "source_id": "body:75",
+              "label": "kind",
+              "path": "/kind",
+              "expression": "  kind: 'LogAlert'",
+              "analysis": "Source /kind maps to kind enum ['LogAlert','SimpleLogAlert','LogToMetric']; LogAlert is allowed."
+            },
+            {
+              "source_id": "body:98",
+              "label": "identity",
+              "path": "/identity",
+              "expression": "  identity: {",
+              "analysis": "Source /identity maps to Identity; required type is supplied as SystemAssigned and optional assigned identity fields are not needed."
+            },
+            {
+              "source_id": "body:110",
+              "label": "type",
+              "path": "/identity/type",
+              "expression": "    type: 'SystemAssigned'",
+              "analysis": "Identity.type enum includes SystemAssigned; source literal matches."
+            },
+            {
+              "source_id": "body:145",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "Source /properties maps to ScheduledQueryRuleProperties; required enabled, criteria, and scopes are present. All source properties are checked individually."
+            },
+            {
+              "source_id": "body:164",
+              "label": "displayName",
+              "path": "/properties/displayName",
+              "expression": "    displayName: 'aks-nodeos-autoupgrade'",
+              "analysis": "REST properties.displayName is string; source literal matches the rule name."
+            },
+            {
+              "source_id": "body:206",
+              "label": "description",
+              "path": "/properties/description",
+              "expression": "    description: 'AKS Node OS auto-upgrade detected via ARG events'",
+              "analysis": "REST properties.description is string; each source literal is a string."
+            },
+            {
+              "source_id": "body:270",
+              "label": "enabled",
+              "path": "/properties/enabled",
+              "expression": "    enabled: true",
+              "analysis": "REST properties.enabled is boolean; literal true matches."
+            },
+            {
+              "source_id": "body:287",
+              "label": "scopes",
+              "path": "/properties/scopes",
+              "expression": "    scopes: [aksCluster.id]",
+              "analysis": "REST properties.scopes is array<string>; source supplies AKS or resource-group ARM resource ID as string."
+            },
+            {
+              "source_id": "body:328",
+              "label": "evaluationFrequency",
+              "path": "/properties/evaluationFrequency",
+              "expression": "    evaluationFrequency: 'PT30M'",
+              "analysis": "REST evaluationFrequency is ISO-8601 duration string; PT30M is valid."
+            },
+            {
+              "source_id": "body:352",
+              "label": "windowSize",
+              "path": "/properties/windowSize",
+              "expression": "    windowSize: 'PT60M'",
+              "analysis": "REST windowSize is ISO-8601 duration string; PT60M is valid."
+            },
+            {
+              "source_id": "body:374",
+              "label": "severity",
+              "path": "/properties/severity",
+              "expression": "    severity: 3",
+              "analysis": "REST severity enum is 0..4; source literal 3 is allowed."
+            },
+            {
+              "source_id": "body:394",
+              "label": "autoMitigate",
+              "path": "/properties/autoMitigate",
+              "expression": "    autoMitigate: true",
+              "analysis": "REST autoMitigate is boolean; literal true matches."
+            },
+            {
+              "source_id": "body:413",
+              "label": "criteria",
+              "path": "/properties/criteria",
+              "expression": "    criteria: {",
+              "analysis": "Criteria source maps to the 2026-03-01 ScheduledQueryRuleCriteria/Condition schema; exact field type, enum, and values are checked in adjacent usage analyses."
+            },
+            {
+              "source_id": "body:428",
+              "label": "allOf",
+              "path": "/properties/criteria/allOf",
+              "expression": "      allOf: [",
+              "analysis": "Source maps to ScheduledQueryRuleCriteria.allOf array; the query condition item supplies its declared query, aggregation, operator, threshold, metric column, and dimensions."
+            },
+            {
+              "source_id": "body:457",
+              "label": "query",
+              "path": "/properties/criteria/allOf/[]/query",
+              "expression": "          query: aksNodeOsAutoUpgradeKql",
+              "analysis": "Source path maps to ScheduledQueryRule criteria condition query:string. The KQL text is loaded from the matching repository template and the resource-ID placeholder is replaced; REST schema checks string only, not KQL execution semantics."
+            },
+            {
+              "source_id": "body:508",
+              "label": "timeAggregation",
+              "path": "/properties/criteria/allOf/[]/timeAggregation",
+              "expression": "          timeAggregation: 'Count'",
+              "analysis": "Source maps to Condition.timeAggregation enum; Count is an allowed value."
+            },
+            {
+              "source_id": "body:536",
+              "label": "operator",
+              "path": "/properties/criteria/allOf/[]/operator",
+              "expression": "          operator: 'GreaterThan'",
+              "analysis": "Source maps to Condition.operator enum; GreaterThan is allowed. Dimension operator Include is also allowed by its separate enum."
+            },
+            {
+              "source_id": "body:571",
+              "label": "threshold",
+              "path": "/properties/criteria/allOf/[]/threshold",
+              "expression": "          threshold: 0",
+              "analysis": "Source maps to numeric Condition.threshold; integer literal 0 is a valid number and no additional min/max constraint is declared."
+            },
+            {
+              "source_id": "body:604",
+              "label": "metricMeasureColumn",
+              "path": "/properties/criteria/allOf/[]/metricMeasureColumn",
+              "expression": "          metricMeasureColumn: ''",
+              "analysis": "Source maps to Condition.metricMeasureColumn:string; empty string is type-valid and no minLength is declared."
+            },
+            {
+              "source_id": "body:629",
+              "label": "dimensions",
+              "path": "/properties/criteria/allOf/[]/dimensions",
+              "expression": "          dimensions: [",
+              "analysis": "Source maps to Condition.dimensions array. AKS supplies one dimension with required name/operator/values fields; Fleet supplies an empty array, which is valid."
+            },
+            {
+              "source_id": "body:665",
+              "label": "name",
+              "path": "/properties/criteria/allOf/[]/dimensions/[]/name",
+              "expression": "              name: 'status'",
+              "analysis": "Source maps to required Dimension.name:string; status is a string literal."
+            },
+            {
+              "source_id": "body:698",
+              "label": "operator",
+              "path": "/properties/criteria/allOf/[]/dimensions/[]/operator",
+              "expression": "              operator: 'Include'",
+              "analysis": "Source maps to Condition.operator enum; GreaterThan is allowed. Dimension operator Include is also allowed by its separate enum."
+            },
+            {
+              "source_id": "body:730",
+              "label": "values",
+              "path": "/properties/criteria/allOf/[]/dimensions/[]/values",
+              "expression": "              values: ['*']",
+              "analysis": "Source maps to required Dimension.values array<string>; wildcard literal is string."
+            },
+            {
+              "source_id": "body:799",
+              "label": "actions",
+              "path": "/properties/actions",
+              "expression": "    actions: {",
+              "analysis": "REST actions is Actions object; actionGroups is array<string> and other maps are optional."
+            },
+            {
+              "source_id": "body:821",
+              "label": "actionGroups",
+              "path": "/properties/actions/actionGroups",
+              "expression": "      actionGroups: actionGroupId != '' ? [actionGroupId] : []",
+              "analysis": "REST Actions.actionGroups is array<string>; conditional expression produces [] or one action-group resource ID string."
+            },
+            {
+              "source_id": "body:861",
+              "label": "$expression",
+              "path": "/properties/actions/$syntax/861",
+              "expression": "      actionGroups: actionGroupId != '' ? [actionGroupId] : []",
+              "analysis": "String actionGroupId parameter defaults to empty; empty produces no action groups, otherwise the string is placed in the array<string> field."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksNodeOSAutoUpgradeAlertRule 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = ",
+              "analysis": "Resource header selects Microsoft.Insights/scheduledQueryRules@2026-03-01; it is current/latest stable API identity."
+            },
+            {
+              "source_id": "symbol:actionGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/actionGroupId/$expression-line/0",
+              "expression": "@description('Action Group resource ID for alerts (optional, leave empty for lab use)')",
+              "analysis": "Description annotation is not runtime data; the parameter/value declaration is checked separately."
+            },
+            {
+              "source_id": "symbol:actionGroupId:line:88",
+              "label": "$expression",
+              "path": "/$symbol/actionGroupId/$expression-line/1",
+              "expression": "param actionGroupId string = ''",
+              "analysis": "String actionGroupId parameter defaults to empty; empty produces no action groups, otherwise the string is placed in the array<string> field."
+            },
+            {
+              "source_id": "symbol:aksNodeOsAutoUpgradeKql:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksNodeOsAutoUpgradeKql/$expression-line/0",
+              "expression": "var aksNodeOsAutoUpgradeKql = replace(aksNodeOsAutoUpgradeKqlTemplate, '{{AKS_ID}}', aksCluster.id)",
+              "analysis": "This local variable loads infra/modules/templates/aks-nodeos-autoupgrade.kql as text; resulting value is query:string."
+            },
+            {
+              "source_id": "symbol:aksNodeOsAutoUpgradeKqlTemplate:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksNodeOsAutoUpgradeKqlTemplate/$expression-line/0",
+              "expression": "var aksNodeOsAutoUpgradeKqlTemplate = sys.loadTextContent('templates/aks-nodeos-autoupgrade.kql')",
+              "analysis": "This local variable loads infra/modules/templates/aks-nodeos-autoupgrade.kql as text; resulting value is query:string."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "String location parameter maps to required root location:string."
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "String location parameter maps to required root location:string."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags object')",
+              "analysis": "Object tags parameter defaults to {}; actual upstream tag values are strings and satisfy tags.additionalProperties:string."
+            },
+            {
+              "source_id": "symbol:tags:line:28",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object = {}",
+              "analysis": "Object tags parameter defaults to {}; actual upstream tag values are strings and satisfy tags.additionalProperties:string."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/fleet.bicep",
+          "name": "fleetPendingApprovalAlert",
+          "line": 105,
+          "type": "Microsoft.Insights/scheduledQueryRules",
+          "version": "2026-03-01",
+          "existing": false,
+          "start": 2630,
+          "end": 3511,
+          "header": "resource fleetPendingApprovalAlert 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = ",
+          "body": "{\n  name: 'fleet-approval-pending'\n  location: location\n  tags: tags\n  kind: 'LogAlert'\n  identity: {\n    type: 'SystemAssigned'\n  }\n  properties: {\n    displayName: 'fleet-approval-pending'\n    description: 'Fleet manual approval gate is pending approval.'\n    enabled: true\n    scopes: [resourceGroup().id]\n    evaluationFrequency: 'PT30M'\n    windowSize: 'PT60M'\n    severity: 3\n    autoMitigate: true\n    criteria: {\n      allOf: [\n        {\n          query: pendingApprovalGateKql\n          timeAggregation: 'Count'\n          operator: 'GreaterThan'\n          threshold: 0\n          metricMeasureColumn: ''\n          dimensions: []\n        }\n      ]\n    }\n    actions: {\n      actionGroups: actionGroupId != '' ? [actionGroupId] : []\n    }\n  }\n  dependsOn: [\n    autoUpgradeProfile\n  ]\n}",
+          "status": "verified",
+          "reason": "Exact current 2026-03-01 Learn and REST schema and latest stable GA were confirmed. Root required properties/location are supplied; kind, identity, Actions, criteria, conditions, dimensions, and string/number/enum constraints match. KQL is a string from the directly read template with the documented resource-ID substitution. Bicep dependsOn is language-only.",
+          "migration": "Current GA; Learn marks 2026-03-01 Latest and fixed-commit tree lists stable scheduledQueryRule APIs through 2026-03-01. No newer GA version.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'fleet-approval-pending'",
+              "analysis": "Source JSON Pointer /name maps to required scheduledQueryRules/{ruleName} string and resource name string; literal is a string."
+            },
+            {
+              "source_id": "body:45",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "Source /location maps to required root location:string; supplied as the deployment-location parameter."
+            },
+            {
+              "source_id": "body:62",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "Source /tags maps to tags object with additionalProperties:string; module default is {} and upstream tag values are strings."
+            },
+            {
+              "source_id": "body:75",
+              "label": "kind",
+              "path": "/kind",
+              "expression": "  kind: 'LogAlert'",
+              "analysis": "Source /kind maps to kind enum ['LogAlert','SimpleLogAlert','LogToMetric']; LogAlert is allowed."
+            },
+            {
+              "source_id": "body:98",
+              "label": "identity",
+              "path": "/identity",
+              "expression": "  identity: {",
+              "analysis": "Source /identity maps to Identity; required type is supplied as SystemAssigned and optional assigned identity fields are not needed."
+            },
+            {
+              "source_id": "body:110",
+              "label": "type",
+              "path": "/identity/type",
+              "expression": "    type: 'SystemAssigned'",
+              "analysis": "Identity.type enum includes SystemAssigned; source literal matches."
+            },
+            {
+              "source_id": "body:145",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "Source /properties maps to ScheduledQueryRuleProperties; required enabled, criteria, and scopes are present. All source properties are checked individually."
+            },
+            {
+              "source_id": "body:164",
+              "label": "displayName",
+              "path": "/properties/displayName",
+              "expression": "    displayName: 'fleet-approval-pending'",
+              "analysis": "REST properties.displayName is string; source literal matches the rule name."
+            },
+            {
+              "source_id": "body:206",
+              "label": "description",
+              "path": "/properties/description",
+              "expression": "    description: 'Fleet manual approval gate is pending approval.'",
+              "analysis": "REST properties.description is string; each source literal is a string."
+            },
+            {
+              "source_id": "body:269",
+              "label": "enabled",
+              "path": "/properties/enabled",
+              "expression": "    enabled: true",
+              "analysis": "REST properties.enabled is boolean; literal true matches."
+            },
+            {
+              "source_id": "body:286",
+              "label": "scopes",
+              "path": "/properties/scopes",
+              "expression": "    scopes: [resourceGroup().id]",
+              "analysis": "REST properties.scopes is array<string>; source supplies AKS or resource-group ARM resource ID as string."
+            },
+            {
+              "source_id": "body:332",
+              "label": "evaluationFrequency",
+              "path": "/properties/evaluationFrequency",
+              "expression": "    evaluationFrequency: 'PT30M'",
+              "analysis": "REST evaluationFrequency is ISO-8601 duration string; PT30M is valid."
+            },
+            {
+              "source_id": "body:356",
+              "label": "windowSize",
+              "path": "/properties/windowSize",
+              "expression": "    windowSize: 'PT60M'",
+              "analysis": "REST windowSize is ISO-8601 duration string; PT60M is valid."
+            },
+            {
+              "source_id": "body:378",
+              "label": "severity",
+              "path": "/properties/severity",
+              "expression": "    severity: 3",
+              "analysis": "REST severity enum is 0..4; source literal 3 is allowed."
+            },
+            {
+              "source_id": "body:398",
+              "label": "autoMitigate",
+              "path": "/properties/autoMitigate",
+              "expression": "    autoMitigate: true",
+              "analysis": "REST autoMitigate is boolean; literal true matches."
+            },
+            {
+              "source_id": "body:417",
+              "label": "criteria",
+              "path": "/properties/criteria",
+              "expression": "    criteria: {",
+              "analysis": "Criteria source maps to the 2026-03-01 ScheduledQueryRuleCriteria/Condition schema; exact field type, enum, and values are checked in adjacent usage analyses."
+            },
+            {
+              "source_id": "body:432",
+              "label": "allOf",
+              "path": "/properties/criteria/allOf",
+              "expression": "      allOf: [",
+              "analysis": "Source maps to ScheduledQueryRuleCriteria.allOf array; the query condition item supplies its declared query, aggregation, operator, threshold, metric column, and dimensions."
+            },
+            {
+              "source_id": "body:461",
+              "label": "query",
+              "path": "/properties/criteria/allOf/[]/query",
+              "expression": "          query: pendingApprovalGateKql",
+              "analysis": "Source path maps to ScheduledQueryRule criteria condition query:string. The KQL text is loaded from the matching repository template and the resource-ID placeholder is replaced; REST schema checks string only, not KQL execution semantics."
+            },
+            {
+              "source_id": "body:511",
+              "label": "timeAggregation",
+              "path": "/properties/criteria/allOf/[]/timeAggregation",
+              "expression": "          timeAggregation: 'Count'",
+              "analysis": "Source maps to Condition.timeAggregation enum; Count is an allowed value."
+            },
+            {
+              "source_id": "body:539",
+              "label": "operator",
+              "path": "/properties/criteria/allOf/[]/operator",
+              "expression": "          operator: 'GreaterThan'",
+              "analysis": "Source maps to Condition.operator enum; GreaterThan is allowed. Dimension operator Include is also allowed by its separate enum."
+            },
+            {
+              "source_id": "body:574",
+              "label": "threshold",
+              "path": "/properties/criteria/allOf/[]/threshold",
+              "expression": "          threshold: 0",
+              "analysis": "Source maps to numeric Condition.threshold; integer literal 0 is a valid number and no additional min/max constraint is declared."
+            },
+            {
+              "source_id": "body:607",
+              "label": "metricMeasureColumn",
+              "path": "/properties/criteria/allOf/[]/metricMeasureColumn",
+              "expression": "          metricMeasureColumn: ''",
+              "analysis": "Source maps to Condition.metricMeasureColumn:string; empty string is type-valid and no minLength is declared."
+            },
+            {
+              "source_id": "body:632",
+              "label": "dimensions",
+              "path": "/properties/criteria/allOf/[]/dimensions",
+              "expression": "          dimensions: []",
+              "analysis": "Source maps to Condition.dimensions array. AKS supplies one dimension with required name/operator/values fields; Fleet supplies an empty array, which is valid."
+            },
+            {
+              "source_id": "body:672",
+              "label": "actions",
+              "path": "/properties/actions",
+              "expression": "    actions: {",
+              "analysis": "REST actions is Actions object; actionGroups is array<string> and other maps are optional."
+            },
+            {
+              "source_id": "body:694",
+              "label": "actionGroups",
+              "path": "/properties/actions/actionGroups",
+              "expression": "      actionGroups: actionGroupId != '' ? [actionGroupId] : []",
+              "analysis": "REST Actions.actionGroups is array<string>; conditional expression produces [] or one action-group resource ID string."
+            },
+            {
+              "source_id": "body:734",
+              "label": "$expression",
+              "path": "/properties/actions/$syntax/734",
+              "expression": "      actionGroups: actionGroupId != '' ? [actionGroupId] : []",
+              "analysis": "String actionGroupId parameter defaults to empty; empty produces no action groups, otherwise the string is placed in the array<string> field."
+            },
+            {
+              "source_id": "body:760",
+              "label": "dependsOn",
+              "path": "/dependsOn",
+              "expression": "  dependsOn: [",
+              "analysis": "This source pointer is Bicep dependency ordering, not a REST payload property; it establishes deployment ordering for the auto-upgrade profile."
+            },
+            {
+              "source_id": "body:line:764",
+              "label": "$expression",
+              "path": "/dependsOn/[]/$expression-line/34",
+              "expression": "    autoUpgradeProfile",
+              "analysis": "This source pointer is Bicep dependency ordering, not a REST payload property; it establishes deployment ordering for the auto-upgrade profile."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource fleetPendingApprovalAlert 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = ",
+              "analysis": "Resource header selects Microsoft.Insights/scheduledQueryRules@2026-03-01; it is current/latest stable API identity."
+            },
+            {
+              "source_id": "symbol:actionGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/actionGroupId/$expression-line/0",
+              "expression": "@description('Action Group resource ID for alerts (optional, leave empty for lab use)')",
+              "analysis": "Description annotation is not runtime data; the parameter/value declaration is checked separately."
+            },
+            {
+              "source_id": "symbol:actionGroupId:line:88",
+              "label": "$expression",
+              "path": "/$symbol/actionGroupId/$expression-line/1",
+              "expression": "param actionGroupId string = ''",
+              "analysis": "String actionGroupId parameter defaults to empty; empty produces no action groups, otherwise the string is placed in the array<string> field."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "String location parameter maps to required root location:string."
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "String location parameter maps to required root location:string."
+            },
+            {
+              "source_id": "symbol:pendingApprovalGateKql:line:0",
+              "label": "$expression",
+              "path": "/$symbol/pendingApprovalGateKql/$expression-line/0",
+              "expression": "var pendingApprovalGateKql = replace(pendingApprovalGateKqlTemplate, '{{FLEET_RESOURCE_ID}}', toLower(fleet.id))",
+              "analysis": "This local variable loads infra/modules/templates/pending-approval-gate.kql as text; resulting value is query:string."
+            },
+            {
+              "source_id": "symbol:pendingApprovalGateKql:line:114",
+              "label": "$expression",
+              "path": "/$symbol/pendingApprovalGateKql/$expression-line/2",
+              "expression": "#disable-next-line BCP081",
+              "analysis": "This source is a Bicep diagnostic suppression comment, not a runtime value or REST field; it does not affect query string compatibility."
+            },
+            {
+              "source_id": "symbol:pendingApprovalGateKqlTemplate:line:0",
+              "label": "$expression",
+              "path": "/$symbol/pendingApprovalGateKqlTemplate/$expression-line/0",
+              "expression": "var pendingApprovalGateKqlTemplate = sys.loadTextContent('./templates/pending-approval-gate.kql')",
+              "analysis": "This local variable loads infra/modules/templates/pending-approval-gate.kql as text; resulting value is query:string."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags applied to the fleet resources')",
+              "analysis": "Object tags parameter defaults to {}; actual upstream tag values are strings and satisfy tags.additionalProperties:string."
+            },
+            {
+              "source_id": "symbol:tags:line:52",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object = {}",
+              "analysis": "Object tags parameter defaults to {}; actual upstream tag values are strings and satisfy tags.additionalProperties:string."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-03-01",
+          "analysis": "Exact Learn 2026-03-01 reference and pinned scheduledQueryRule_API.json were read. ScheduledQueryRuleResource requires location and properties; properties requires enabled, criteria, scopes. Kind enum includes LogAlert; Identity type includes SystemAssigned. Criteria allOf item schema validates query:string, timeAggregation enum Count, operator enum GreaterThan, numeric threshold, metricMeasureColumn:string, dimensions required name/operator/values. Actions.actionGroups is array<string>; duration fields are ISO-8601 strings. KQL source templates were read directly; their substituted results are strings, with KQL semantics outside the REST schema.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2026-03-01/scheduledqueryrules",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-03-01/scheduledQueryRule_API.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2026-03-01/scheduledqueryrules": "716ff4de779afa7053692559332926a703f82e4c74a9c7acd126e8427fb7b4ae",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-03-01/scheduledQueryRule_API.json": "dbb905a1e7d83a733e3d81458dbbf582fe0712bff7a1806187945df0caea8b1f"
+          }
+        },
+        "ga": {
+          "version": "2026-03-01",
+          "analysis": "Learn selector marks 2026-03-01 Latest; fixed-commit stable scheduledQueryRule_API paths include 2018-04-16, 2021-08-01, 2022-06-15, 2023-12-01, and 2026-03-01. The latest stable candidate equals current.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2026-03-01/scheduledqueryrules",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-03-01/scheduledQueryRule_API.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2026-03-01/scheduledqueryrules": "716ff4de779afa7053692559332926a703f82e4c74a9c7acd126e8427fb7b4ae",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-03-01/scheduledQueryRule_API.json": "dbb905a1e7d83a733e3d81458dbbf582fe0712bff7a1806187945df0caea8b1f"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log entry 2026-03-01 adds identity and identity model definitions. Both declarations provide SystemAssigned identity, so the addition is supported; no properties were removed or updated in this version.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/scheduledqueryrules"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/scheduledqueryrules": "287f8a307b78e5bb9f957642134842b4b8889c336be723a92bb11abf43a0e139"
+          }
+        }
+      }
     },
     "Microsoft.KeyVault/vaults@2025-05-01": {
       "stage": "pending",
