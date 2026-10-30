@@ -1,0 +1,2156 @@
+{
+  "pair": "Microsoft.Insights/metricAlerts@2026-01-01",
+  "results": [
+    {
+      "file": "infra/modules/azmonitor/sli-metric-alerts.bicep",
+      "name": "baselineAlerts",
+      "line": 109,
+      "type": "Microsoft.Insights/metricAlerts",
+      "version": "2026-01-01",
+      "existing": false,
+      "start": 3042,
+      "end": 4677,
+      "header": "resource baselineAlerts 'Microsoft.Insights/metricAlerts@2026-01-01' = ",
+      "body": "[\n  for sli in sliDefinitions: {\n    name: 'SLI baseline alert for ${sli.name}'\n    location: location\n    tags: tags\n    identity: {\n      type: 'UserAssigned'\n      userAssignedIdentities: {\n        '${sliIdentityResourceId}': {}\n      }\n    }\n    properties: {\n      description: 'SLI baseline alert for ${sli.name}'\n      enabled: true\n      severity: severity\n      scopes: [\n        prometheusWorkspaceResourceId\n      ]\n      evaluationFrequency: 'PT1M'\n      targetResourceType: 'microsoft.monitor/accounts'\n      criteria: any({\n        'odata.type': 'Microsoft.Azure.Monitor.PromQLCriteria'\n        allOf: [\n          {\n            criterionType: 'StaticThresholdCriterion'\n            name: 'SliBaselineCriterion'\n            query: 'sum(sum_over_time(${sli.totalMetricName}{${metricLabels}}[${evaluationPeriodDays}d])) >= ${evaluationPeriodDays * 24 * 60} and sum(sum_over_time(${sli.goodMetricName}{${metricLabels}${sli.goodMetricFilter}}[${evaluationPeriodDays}d])) / sum(sum_over_time(${sli.totalMetricName}{${metricLabels}}[${evaluationPeriodDays}d])) * 100 < ${sli.targetPercent}'\n          }\n        ]\n        failingPeriods: failingPeriods\n      })\n      actions: actions\n      #disable-next-line BCP037\n      customProperties: {\n        serviceGroupId: serviceGroupId\n        sliId: sli.id\n        targetPercent: string(sli.targetPercent)\n        evaluationPeriodDays: string(evaluationPeriodDays)\n      }\n      #disable-next-line BCP037\n      resolveConfiguration: {\n        autoResolved: true\n        timeToResolve: 'PT2M'\n      }\n    }\n  }\n]",
+      "status": "verified",
+      "reason": "Exact current 2026-01-01 Learn and REST schemas agree and Learn marks this version Latest. Required MetricAlertProperties fields are present; PromQLCriteria and each criterion satisfy the discriminator, item, and required fields. Identity, maps, customProperties, and resolution settings match resolved types. Parameter constraints and every loop-derived value were checked.",
+      "migration": "Current GA; Learn marks 2026-01-01 Latest and the fixed-commit tree has stable metricAlert API schemas at 2018-03-01 and 2026-01-01, with 2026-01-01 highest. No newer GA version.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:29",
+          "label": "$expression",
+          "path": "/$syntax/29",
+          "expression": "  for sli in sliDefinitions: {",
+          "analysis": "Source JSON Pointer identifies a Bicep for-expression that emits one alert per sliDefinitions item; loop syntax is not a REST payload field. Each emitted body uses the checked schema paths."
+        },
+        {
+          "source_id": "body:41",
+          "label": "name",
+          "path": "/name",
+          "expression": "    name: 'SLI baseline alert for ${sli.name}'",
+          "analysis": "Source JSON Pointer /name maps to inherited Resource.name and required metricAlerts/{ruleName} string path; the interpolated SLI name produces a string. No API name constraints are declared."
+        },
+        {
+          "source_id": "body:92",
+          "label": "location",
+          "path": "/location",
+          "expression": "    location: location",
+          "analysis": "Source pointer /location maps to required TrackedResource.location:string. The module description requires the caller to pass the Azure Monitor workspace region; Bicep itself does not enforce equality."
+        },
+        {
+          "source_id": "body:111",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "    tags: tags",
+          "analysis": "Source pointer /tags maps to inherited TrackedResource.tags object with additionalProperties:string in common-types v5; empty tags or root string-valued tags comply."
+        },
+        {
+          "source_id": "body:130",
+          "label": "identity",
+          "path": "/identity",
+          "expression": "    identity: {",
+          "analysis": "Source pointer /identity maps to required MetricAlertResource identity; identity.type is required and userAssignedIdentities uses additionalProperties ref UserIdentityProperties."
+        },
+        {
+          "source_id": "body:144",
+          "label": "type",
+          "path": "/identity/type",
+          "expression": "      type: 'UserAssigned'",
+          "analysis": "REST identity.type enum includes UserAssigned; source literal is valid."
+        },
+        {
+          "source_id": "body:189",
+          "label": "userAssignedIdentities",
+          "path": "/identity/userAssignedIdentities",
+          "expression": "      userAssignedIdentities: {",
+          "analysis": "REST userAssignedIdentities is an object map whose additionalProperties ref UserIdentityProperties has no required child fields; the ARM resource-ID key maps to {} and is structurally valid."
+        },
+        {
+          "source_id": "body:227",
+          "label": "${sliIdentityResourceId}",
+          "path": "/identity/userAssignedIdentities/${sliIdentityResourceId}",
+          "expression": "        '${sliIdentityResourceId}': {}",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:260",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "    properties: {",
+          "analysis": "Source /properties maps to MetricAlertProperties, which requires severity, enabled, scopes, evaluationFrequency, and criteria; all are supplied in each declaration."
+        },
+        {
+          "source_id": "body:281",
+          "label": "description",
+          "path": "/properties/description",
+          "expression": "      description: 'SLI baseline alert for ${sli.name}'",
+          "analysis": "REST MetricAlertProperties.description is string; each generated source description is string."
+        },
+        {
+          "source_id": "body:333",
+          "label": "enabled",
+          "path": "/properties/enabled",
+          "expression": "      enabled: true",
+          "analysis": "REST properties.enabled is boolean; literal true matches."
+        },
+        {
+          "source_id": "body:354",
+          "label": "severity",
+          "path": "/properties/severity",
+          "expression": "      severity: severity",
+          "analysis": "REST properties.severity is integer; source parameter is int constrained by @minValue(0) and @maxValue(4), default 3, matching the documented severity range."
+        },
+        {
+          "source_id": "body:377",
+          "label": "scopes",
+          "path": "/properties/scopes",
+          "expression": "      scopes: [",
+          "analysis": "REST properties.scopes is array<string>; the source supplies the managed Prometheus workspace ARM resource ID as string."
+        },
+        {
+          "source_id": "body:452",
+          "label": "evaluationFrequency",
+          "path": "/properties/evaluationFrequency",
+          "expression": "      evaluationFrequency: 'PT1M'",
+          "analysis": "REST properties.evaluationFrequency is string with ISO-8601 duration format; PT1M is valid."
+        },
+        {
+          "source_id": "body:485",
+          "label": "targetResourceType",
+          "path": "/properties/targetResourceType",
+          "expression": "      targetResourceType: 'microsoft.monitor/accounts'",
+          "analysis": "REST targetResourceType is string; literal microsoft.monitor/accounts is a string."
+        },
+        {
+          "source_id": "body:530",
+          "label": "criteria",
+          "path": "/properties/criteria",
+          "expression": "      criteria: any({",
+          "analysis": "Criteria source uses the exact PromQLCriteria discriminated model; its REST mapping and required fields are recorded in the associated usage analyses."
+        },
+        {
+          "source_id": "body:558",
+          "label": "odata.type",
+          "path": "/properties/criteria/odata.type",
+          "expression": "        'odata.type': 'Microsoft.Azure.Monitor.PromQLCriteria'",
+          "analysis": "Source JSON Pointer /properties/criteria/odata.type maps to the literal object key 'odata.type' (not nested fields); Odatatype enum includes Microsoft.Azure.Monitor.PromQLCriteria, exactly the selected discriminator."
+        },
+        {
+          "source_id": "body:614",
+          "label": "allOf",
+          "path": "/properties/criteria/allOf",
+          "expression": "        allOf: [",
+          "analysis": "Source path maps to PromQLCriteria.allOf array; each item resolves through $ref to MultiPromQLCriteria and meets its required properties."
+        },
+        {
+          "source_id": "body:655",
+          "label": "criterionType",
+          "path": "/properties/criteria/allOf/[]/criterionType",
+          "expression": "            criterionType: 'StaticThresholdCriterion'",
+          "analysis": "Source path /properties/criteria/allOf/[]/criterionType maps to MultiPromQLCriteria. Required enum permits StaticThresholdCriterion; source literal matches."
+        },
+        {
+          "source_id": "body:700",
+          "label": "name",
+          "path": "/properties/criteria/allOf/[]/name",
+          "expression": "            name: 'SliBaselineCriterion'",
+          "analysis": "Source path under criteria.allOf maps to required MultiPromQLCriteria.name:string; the fixed criterion name is a string."
+        },
+        {
+          "source_id": "body:742",
+          "label": "query",
+          "path": "/properties/criteria/allOf/[]/query",
+          "expression": "            query: 'sum(sum_over_time(${sli.totalMetricName}{${metricLabels}}[${evaluationPeriodDays}d])) >= ${evaluationPeriodDays * 24 * 60} and sum(sum_over_time(${sli.goodMetricName}{${metricLabels}${sli.goodMetricFilter}}[${evaluationPeriodDays}d])) / sum(sum_over_time(${sli.totalMetricName}{${metricLabels}}[${evaluationPeriodDays}d])) * 100 < ${sli.targetPercent}'",
+          "analysis": "Source path under criteria.allOf maps to required MultiPromQLCriteria.query:string. The interpolated PromQL expression is a string; the REST schema does not parse or constrain PromQL semantics."
+        },
+        {
+          "source_id": "body:1142",
+          "label": "failingPeriods",
+          "path": "/properties/criteria/failingPeriods",
+          "expression": "        failingPeriods: failingPeriods",
+          "analysis": "Source path maps to PromQLCriteria.failingPeriods -> QueryFailingPeriods; required child for is present and checked separately."
+        },
+        {
+          "source_id": "body:1181",
+          "label": "actions",
+          "path": "/properties/actions",
+          "expression": "      actions: actions",
+          "analysis": "REST properties.actions is an array of MetricAlertAction; source condition produces [] or one action with actionGroupId:string."
+        },
+        {
+          "source_id": "body:1245",
+          "label": "customProperties",
+          "path": "/properties/customProperties",
+          "expression": "      customProperties: {",
+          "analysis": "REST customProperties is object with additionalProperties:string; each supplied property value is a string or converted with string()."
+        },
+        {
+          "source_id": "body:1271",
+          "label": "serviceGroupId",
+          "path": "/properties/customProperties/serviceGroupId",
+          "expression": "        serviceGroupId: serviceGroupId",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1301",
+          "label": "sliId",
+          "path": "/properties/customProperties/sliId",
+          "expression": "        sliId: sli.id",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1331",
+          "label": "targetPercent",
+          "path": "/properties/customProperties/targetPercent",
+          "expression": "        targetPercent: string(sli.targetPercent)",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1387",
+          "label": "evaluationPeriodDays",
+          "path": "/properties/customProperties/evaluationPeriodDays",
+          "expression": "        evaluationPeriodDays: string(evaluationPeriodDays)",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1484",
+          "label": "resolveConfiguration",
+          "path": "/properties/resolveConfiguration",
+          "expression": "      resolveConfiguration: {",
+          "analysis": "REST resolveConfiguration references ResolveConfiguration; required autoResolved is present and optional timeToResolve is a string duration."
+        },
+        {
+          "source_id": "body:1508",
+          "label": "autoResolved",
+          "path": "/properties/resolveConfiguration/autoResolved",
+          "expression": "        autoResolved: true",
+          "analysis": "REST resolveConfiguration.autoResolved is required boolean; source literal true matches."
+        },
+        {
+          "source_id": "body:1536",
+          "label": "timeToResolve",
+          "path": "/properties/resolveConfiguration/timeToResolve",
+          "expression": "        timeToResolve: 'PT2M'",
+          "analysis": "REST resolveConfiguration.timeToResolve is string; PT2M is a valid ISO-8601 duration."
+        },
+        {
+          "source_id": "body:line:381",
+          "label": "$expression",
+          "path": "/properties/scopes/[]/$expression-line/16",
+          "expression": "        prometheusWorkspaceResourceId",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:line:1191",
+          "label": "$expression",
+          "path": "/properties/actions/$expression-line/32",
+          "expression": "      #disable-next-line BCP037",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:line:1426",
+          "label": "$expression",
+          "path": "/properties/customProperties/$expression-line/39",
+          "expression": "      #disable-next-line BCP037",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource baselineAlerts 'Microsoft.Insights/metricAlerts@2026-01-01' = ",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "symbol:actions:69",
+          "label": "actionGroupId",
+          "path": "/$symbol/actions/[]/actionGroupId",
+          "expression": "        actionGroupId: actionGroupId",
+          "analysis": "REST MetricAlertAction.actionGroupId is string; source parameter is string and empty values are removed by the conditional before building an action."
+        },
+        {
+          "source_id": "symbol:actions:101",
+          "label": "$expression",
+          "path": "/$symbol/actions/$syntax/101",
+          "expression": "  : []",
+          "analysis": "Local conditional creates no actions when actionGroupId is empty, otherwise one MetricAlertAction with the string actionGroupId; both branches match the array schema."
+        },
+        {
+          "source_id": "symbol:actions:line:0",
+          "label": "$expression",
+          "path": "/$symbol/actions/$expression-line/0",
+          "expression": "var actions = actionGroupId != ''",
+          "analysis": "Local conditional creates no actions when actionGroupId is empty, otherwise one MetricAlertAction with the string actionGroupId; both branches match the array schema."
+        },
+        {
+          "source_id": "symbol:actions:line:34",
+          "label": "$expression",
+          "path": "/$symbol/actions/$expression-line/1",
+          "expression": "  ? [",
+          "analysis": "Local conditional creates no actions when actionGroupId is empty, otherwise one MetricAlertAction with the string actionGroupId; both branches match the array schema."
+        },
+        {
+          "source_id": "symbol:actionGroupId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/actionGroupId/$expression-line/0",
+          "expression": "@description('Resource ID of the Action Group for SLI alerts')",
+          "analysis": "String action-group resource ID parameter defaults to empty string; a nonempty string becomes MetricAlertAction.actionGroupId, while empty produces an empty actions array."
+        },
+        {
+          "source_id": "symbol:actionGroupId:line:63",
+          "label": "$expression",
+          "path": "/$symbol/actionGroupId/$expression-line/1",
+          "expression": "param actionGroupId string = ''",
+          "analysis": "String action-group resource ID parameter defaults to empty string; a nonempty string becomes MetricAlertAction.actionGroupId, while empty produces an empty actions array."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:0",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/0",
+          "expression": "@description('SLI rolling evaluation period in days')",
+          "analysis": "Integer period parameter has @minValue(1); its value is interpolated into a string PromQL query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:54",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/1",
+          "expression": "@minValue(1)",
+          "analysis": "Integer period parameter has @minValue(1); its value is interpolated into a string PromQL query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:67",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/2",
+          "expression": "param evaluationPeriodDays int",
+          "analysis": "Integer period parameter has @minValue(1); its value is interpolated into a string PromQL query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:failingPeriods:28",
+          "label": "for",
+          "path": "/$symbol/failingPeriods/for",
+          "expression": "  for: 'PT1M'",
+          "analysis": "Local object {for:'PT1M'} maps to required PromQLCriteria.failingPeriods.for, validated as ISO-8601 duration."
+        },
+        {
+          "source_id": "symbol:failingPeriods:line:0",
+          "label": "$expression",
+          "path": "/$symbol/failingPeriods/$expression-line/0",
+          "expression": "var failingPeriods = {",
+          "analysis": "Local object {for:'PT1M'} maps to required PromQLCriteria.failingPeriods.for, validated as ISO-8601 duration."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Location of the metric alert rules. Must match the Azure Monitor workspace location')",
+          "analysis": "This source is a description annotation, not runtime data; the parameter/value declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:location:line:100",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "Source JSON Pointer identifies a local variable/parameter/annotation; its exact expression is preserved and its REST property mapping is specified by the consuming usage entry."
+        },
+        {
+          "source_id": "symbol:metricLabels:line:0",
+          "label": "$expression",
+          "path": "/$symbol/metricLabels/$expression-line/0",
+          "expression": "var metricLabels = 'environment=\"${environment}\",service=\"chaos-app\",test=\"${externalSliProbeName}\"'",
+          "analysis": "Local metricLabels expression interpolates environment and externalSliProbeName strings into PromQL query labels; it is query text, not a separate REST field."
+        },
+        {
+          "source_id": "symbol:environment:line:0",
+          "label": "$expression",
+          "path": "/$symbol/environment/$expression-line/0",
+          "expression": "@description('Environment label emitted by the external SLI publisher')",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:environment:line:72",
+          "label": "$expression",
+          "path": "/$symbol/environment/$expression-line/1",
+          "expression": "param environment string",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:externalSliProbeName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/externalSliProbeName/$expression-line/0",
+          "expression": "@description('Probe name emitted in the external SLI publisher test label')",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:externalSliProbeName:line:76",
+          "label": "$expression",
+          "path": "/$symbol/externalSliProbeName/$expression-line/1",
+          "expression": "param externalSliProbeName string",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/0",
+          "expression": "@description('Resource ID of the Azure Monitor managed Prometheus workspace')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:78",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/1",
+          "expression": "param prometheusWorkspaceResourceId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:serviceGroupId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/serviceGroupId/$expression-line/0",
+          "expression": "@description('Azure Service Group resource ID')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:serviceGroupId:line:48",
+          "label": "$expression",
+          "path": "/$symbol/serviceGroupId/$expression-line/1",
+          "expression": "param serviceGroupId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:severity:line:0",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/0",
+          "expression": "@description('Severity for Azure Monitor SLI metric alerts')",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:severity:line:61",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:severity:line:74",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/2",
+          "expression": "@maxValue(4)",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:severity:line:87",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/3",
+          "expression": "param severity int = 3",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:35",
+          "label": "name",
+          "path": "/$symbol/sliDefinitions/[]/name",
+          "expression": "    name: availabilitySliName",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:63",
+          "label": "id",
+          "path": "/$symbol/sliDefinitions/[]/id",
+          "expression": "    id: availabilitySliId",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:101",
+          "label": "goodMetricName",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricName",
+          "expression": "    goodMetricName: 'chaos_app_external_availability_good'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:161",
+          "label": "totalMetricName",
+          "path": "/$symbol/sliDefinitions/[]/totalMetricName",
+          "expression": "    totalMetricName: 'chaos_app_external_availability_total'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:223",
+          "label": "goodMetricFilter",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricFilter",
+          "expression": "    goodMetricFilter: ''",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:245",
+          "label": "targetPercent",
+          "path": "/$symbol/sliDefinitions/[]/targetPercent",
+          "expression": "    targetPercent: availabilityBaselineTargetPercent",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:297",
+          "label": "name",
+          "path": "/$symbol/sliDefinitions/[]/name",
+          "expression": "    name: latencySliName",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:320",
+          "label": "id",
+          "path": "/$symbol/sliDefinitions/[]/id",
+          "expression": "    id: latencySliId",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:353",
+          "label": "goodMetricName",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricName",
+          "expression": "    goodMetricName: 'chaos_app_external_latency_good'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:408",
+          "label": "totalMetricName",
+          "path": "/$symbol/sliDefinitions/[]/totalMetricName",
+          "expression": "    totalMetricName: 'chaos_app_external_latency_total'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:465",
+          "label": "goodMetricFilter",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricFilter",
+          "expression": "    goodMetricFilter: ',le=\"${latencyThresholdLe}\"'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:514",
+          "label": "targetPercent",
+          "path": "/$symbol/sliDefinitions/[]/targetPercent",
+          "expression": "    targetPercent: latencyBaselineTargetPercent",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliDefinitions/$expression-line/0",
+          "expression": "var sliDefinitions = [",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/0",
+          "expression": "@description('Availability SLI target percentage')",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:51",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:64",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/2",
+          "expression": "@maxValue(100)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:79",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/3",
+          "expression": "param availabilityBaselineTargetPercent int",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilitySliId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliId/$expression-line/0",
+          "expression": "@description('Availability SLI resource ID')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:availabilitySliId:line:45",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliId/$expression-line/1",
+          "expression": "param availabilitySliId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:availabilitySliName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliName/$expression-line/0",
+          "expression": "@description('Availability SLI resource name')",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:availabilitySliName:line:47",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliName/$expression-line/1",
+          "expression": "param availabilitySliName string",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/0",
+          "expression": "@description('Latency SLI target percentage')",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:46",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:59",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/2",
+          "expression": "@maxValue(100)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:74",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/3",
+          "expression": "param latencyBaselineTargetPercent int",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencySliId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencySliId/$expression-line/0",
+          "expression": "@description('Latency SLI resource ID')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:latencySliId:line:40",
+          "label": "$expression",
+          "path": "/$symbol/latencySliId/$expression-line/1",
+          "expression": "param latencySliId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:latencySliName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencySliName/$expression-line/0",
+          "expression": "@description('Latency SLI resource name')",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:latencySliName:line:42",
+          "label": "$expression",
+          "path": "/$symbol/latencySliName/$expression-line/1",
+          "expression": "param latencySliName string",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/$expression-line/0",
+          "expression": "@description('Latency SLI good-signal bucket boundary')",
+          "analysis": "String bucket-boundary parameter is interpolated into the latency query string; REST query is string and provides no additional syntax constraint."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:56",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/$expression-line/1",
+          "expression": "param latencyThresholdLe string",
+          "analysis": "String bucket-boundary parameter is interpolated into the latency query string; REST query is string and provides no additional syntax constraint."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/0",
+          "expression": "@description('User-assigned managed identity resource ID used by Azure Monitor SLI and its metric alerts')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:107",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/1",
+          "expression": "param sliIdentityResourceId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags applied to all resources')",
+          "analysis": "This source is a description annotation, not runtime data; the parameter/value declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:tags:line:46",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "Source JSON Pointer identifies a local variable/parameter/annotation; its exact expression is preserved and its REST property mapping is specified by the consuming usage entry."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/azmonitor/sli-metric-alerts.bicep",
+      "name": "shortWindowAlerts",
+      "line": 157,
+      "type": "Microsoft.Insights/metricAlerts",
+      "version": "2026-01-01",
+      "existing": false,
+      "start": 4679,
+      "end": 6368,
+      "header": "resource shortWindowAlerts 'Microsoft.Insights/metricAlerts@2026-01-01' = ",
+      "body": "[\n  for sli in sliDefinitions: {\n    name: 'SLI short-window alert for ${sli.name}'\n    location: location\n    tags: tags\n    identity: {\n      type: 'UserAssigned'\n      userAssignedIdentities: {\n        '${sliIdentityResourceId}': {}\n      }\n    }\n    properties: {\n      description: 'SLI short-window alert for ${sli.name}. At least ${shortWindowFailedProbeThreshold} failed probe windows in the last ${shortWindowLookbackMinutes} minutes.'\n      enabled: true\n      severity: severity\n      scopes: [\n        prometheusWorkspaceResourceId\n      ]\n      evaluationFrequency: 'PT1M'\n      targetResourceType: 'microsoft.monitor/accounts'\n      criteria: any({\n        'odata.type': 'Microsoft.Azure.Monitor.PromQLCriteria'\n        allOf: [\n          {\n            criterionType: 'StaticThresholdCriterion'\n            name: 'SliShortWindowFailureCriterion'\n            query: 'sum(sum_over_time(${sli.totalMetricName}{${metricLabels}}[${shortWindowLookbackMinutes}m])) - sum(sum_over_time(${sli.goodMetricName}{${metricLabels}${sli.goodMetricFilter}}[${shortWindowLookbackMinutes}m])) >= ${shortWindowFailedProbeThreshold}'\n          }\n        ]\n        failingPeriods: failingPeriods\n      })\n      actions: actions\n      #disable-next-line BCP037\n      customProperties: {\n        failedProbeThreshold: string(shortWindowFailedProbeThreshold)\n        lookbackMinutes: string(shortWindowLookbackMinutes)\n        serviceGroupId: serviceGroupId\n        sliId: sli.id\n      }\n      #disable-next-line BCP037\n      resolveConfiguration: {\n        autoResolved: true\n        timeToResolve: 'PT2M'\n      }\n    }\n  }\n]",
+      "status": "verified",
+      "reason": "Exact current 2026-01-01 Learn and REST schemas agree and Learn marks this version Latest. Required MetricAlertProperties fields are present; PromQLCriteria and each criterion satisfy the discriminator, item, and required fields. Identity, maps, customProperties, and resolution settings match resolved types. Parameter constraints and every loop-derived value were checked.",
+      "migration": "Current GA; Learn marks 2026-01-01 Latest and the fixed-commit tree has stable metricAlert API schemas at 2018-03-01 and 2026-01-01, with 2026-01-01 highest. No newer GA version.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:29",
+          "label": "$expression",
+          "path": "/$syntax/29",
+          "expression": "  for sli in sliDefinitions: {",
+          "analysis": "Source JSON Pointer identifies a Bicep for-expression that emits one alert per sliDefinitions item; loop syntax is not a REST payload field. Each emitted body uses the checked schema paths."
+        },
+        {
+          "source_id": "body:41",
+          "label": "name",
+          "path": "/name",
+          "expression": "    name: 'SLI short-window alert for ${sli.name}'",
+          "analysis": "Source JSON Pointer /name maps to inherited Resource.name and required metricAlerts/{ruleName} string path; the interpolated SLI name produces a string. No API name constraints are declared."
+        },
+        {
+          "source_id": "body:96",
+          "label": "location",
+          "path": "/location",
+          "expression": "    location: location",
+          "analysis": "Source pointer /location maps to required TrackedResource.location:string. The module description requires the caller to pass the Azure Monitor workspace region; Bicep itself does not enforce equality."
+        },
+        {
+          "source_id": "body:115",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "    tags: tags",
+          "analysis": "Source pointer /tags maps to inherited TrackedResource.tags object with additionalProperties:string in common-types v5; empty tags or root string-valued tags comply."
+        },
+        {
+          "source_id": "body:134",
+          "label": "identity",
+          "path": "/identity",
+          "expression": "    identity: {",
+          "analysis": "Source pointer /identity maps to required MetricAlertResource identity; identity.type is required and userAssignedIdentities uses additionalProperties ref UserIdentityProperties."
+        },
+        {
+          "source_id": "body:148",
+          "label": "type",
+          "path": "/identity/type",
+          "expression": "      type: 'UserAssigned'",
+          "analysis": "REST identity.type enum includes UserAssigned; source literal is valid."
+        },
+        {
+          "source_id": "body:193",
+          "label": "userAssignedIdentities",
+          "path": "/identity/userAssignedIdentities",
+          "expression": "      userAssignedIdentities: {",
+          "analysis": "REST userAssignedIdentities is an object map whose additionalProperties ref UserIdentityProperties has no required child fields; the ARM resource-ID key maps to {} and is structurally valid."
+        },
+        {
+          "source_id": "body:231",
+          "label": "${sliIdentityResourceId}",
+          "path": "/identity/userAssignedIdentities/${sliIdentityResourceId}",
+          "expression": "        '${sliIdentityResourceId}': {}",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:264",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "    properties: {",
+          "analysis": "Source /properties maps to MetricAlertProperties, which requires severity, enabled, scopes, evaluationFrequency, and criteria; all are supplied in each declaration."
+        },
+        {
+          "source_id": "body:285",
+          "label": "description",
+          "path": "/properties/description",
+          "expression": "      description: 'SLI short-window alert for ${sli.name}. At least ${shortWindowFailedProbeThreshold} failed probe windows in the last ${shortWindowLookbackMinutes} minutes.'",
+          "analysis": "REST MetricAlertProperties.description is string; each generated source description is string."
+        },
+        {
+          "source_id": "body:458",
+          "label": "enabled",
+          "path": "/properties/enabled",
+          "expression": "      enabled: true",
+          "analysis": "REST properties.enabled is boolean; literal true matches."
+        },
+        {
+          "source_id": "body:479",
+          "label": "severity",
+          "path": "/properties/severity",
+          "expression": "      severity: severity",
+          "analysis": "REST properties.severity is integer; source parameter is int constrained by @minValue(0) and @maxValue(4), default 3, matching the documented severity range."
+        },
+        {
+          "source_id": "body:502",
+          "label": "scopes",
+          "path": "/properties/scopes",
+          "expression": "      scopes: [",
+          "analysis": "REST properties.scopes is array<string>; the source supplies the managed Prometheus workspace ARM resource ID as string."
+        },
+        {
+          "source_id": "body:577",
+          "label": "evaluationFrequency",
+          "path": "/properties/evaluationFrequency",
+          "expression": "      evaluationFrequency: 'PT1M'",
+          "analysis": "REST properties.evaluationFrequency is string with ISO-8601 duration format; PT1M is valid."
+        },
+        {
+          "source_id": "body:610",
+          "label": "targetResourceType",
+          "path": "/properties/targetResourceType",
+          "expression": "      targetResourceType: 'microsoft.monitor/accounts'",
+          "analysis": "REST targetResourceType is string; literal microsoft.monitor/accounts is a string."
+        },
+        {
+          "source_id": "body:655",
+          "label": "criteria",
+          "path": "/properties/criteria",
+          "expression": "      criteria: any({",
+          "analysis": "Criteria source uses the exact PromQLCriteria discriminated model; its REST mapping and required fields are recorded in the associated usage analyses."
+        },
+        {
+          "source_id": "body:683",
+          "label": "odata.type",
+          "path": "/properties/criteria/odata.type",
+          "expression": "        'odata.type': 'Microsoft.Azure.Monitor.PromQLCriteria'",
+          "analysis": "Source JSON Pointer /properties/criteria/odata.type maps to the literal object key 'odata.type' (not nested fields); Odatatype enum includes Microsoft.Azure.Monitor.PromQLCriteria, exactly the selected discriminator."
+        },
+        {
+          "source_id": "body:739",
+          "label": "allOf",
+          "path": "/properties/criteria/allOf",
+          "expression": "        allOf: [",
+          "analysis": "Source path maps to PromQLCriteria.allOf array; each item resolves through $ref to MultiPromQLCriteria and meets its required properties."
+        },
+        {
+          "source_id": "body:780",
+          "label": "criterionType",
+          "path": "/properties/criteria/allOf/[]/criterionType",
+          "expression": "            criterionType: 'StaticThresholdCriterion'",
+          "analysis": "Source path /properties/criteria/allOf/[]/criterionType maps to MultiPromQLCriteria. Required enum permits StaticThresholdCriterion; source literal matches."
+        },
+        {
+          "source_id": "body:825",
+          "label": "name",
+          "path": "/properties/criteria/allOf/[]/name",
+          "expression": "            name: 'SliShortWindowFailureCriterion'",
+          "analysis": "Source path under criteria.allOf maps to required MultiPromQLCriteria.name:string; the fixed criterion name is a string."
+        },
+        {
+          "source_id": "body:877",
+          "label": "query",
+          "path": "/properties/criteria/allOf/[]/query",
+          "expression": "            query: 'sum(sum_over_time(${sli.totalMetricName}{${metricLabels}}[${shortWindowLookbackMinutes}m])) - sum(sum_over_time(${sli.goodMetricName}{${metricLabels}${sli.goodMetricFilter}}[${shortWindowLookbackMinutes}m])) >= ${shortWindowFailedProbeThreshold}'",
+          "analysis": "Source path under criteria.allOf maps to required MultiPromQLCriteria.query:string. The interpolated PromQL expression is a string; the REST schema does not parse or constrain PromQL semantics."
+        },
+        {
+          "source_id": "body:1171",
+          "label": "failingPeriods",
+          "path": "/properties/criteria/failingPeriods",
+          "expression": "        failingPeriods: failingPeriods",
+          "analysis": "Source path maps to PromQLCriteria.failingPeriods -> QueryFailingPeriods; required child for is present and checked separately."
+        },
+        {
+          "source_id": "body:1210",
+          "label": "actions",
+          "path": "/properties/actions",
+          "expression": "      actions: actions",
+          "analysis": "REST properties.actions is an array of MetricAlertAction; source condition produces [] or one action with actionGroupId:string."
+        },
+        {
+          "source_id": "body:1274",
+          "label": "customProperties",
+          "path": "/properties/customProperties",
+          "expression": "      customProperties: {",
+          "analysis": "REST customProperties is object with additionalProperties:string; each supplied property value is a string or converted with string()."
+        },
+        {
+          "source_id": "body:1306",
+          "label": "failedProbeThreshold",
+          "path": "/properties/customProperties/failedProbeThreshold",
+          "expression": "        failedProbeThreshold: string(shortWindowFailedProbeThreshold)",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1371",
+          "label": "lookbackMinutes",
+          "path": "/properties/customProperties/lookbackMinutes",
+          "expression": "        lookbackMinutes: string(shortWindowLookbackMinutes)",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1430",
+          "label": "serviceGroupId",
+          "path": "/properties/customProperties/serviceGroupId",
+          "expression": "        serviceGroupId: serviceGroupId",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1460",
+          "label": "sliId",
+          "path": "/properties/customProperties/sliId",
+          "expression": "        sliId: sli.id",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1535",
+          "label": "resolveConfiguration",
+          "path": "/properties/resolveConfiguration",
+          "expression": "      resolveConfiguration: {",
+          "analysis": "REST resolveConfiguration references ResolveConfiguration; required autoResolved is present and optional timeToResolve is a string duration."
+        },
+        {
+          "source_id": "body:1559",
+          "label": "autoResolved",
+          "path": "/properties/resolveConfiguration/autoResolved",
+          "expression": "        autoResolved: true",
+          "analysis": "REST resolveConfiguration.autoResolved is required boolean; source literal true matches."
+        },
+        {
+          "source_id": "body:1587",
+          "label": "timeToResolve",
+          "path": "/properties/resolveConfiguration/timeToResolve",
+          "expression": "        timeToResolve: 'PT2M'",
+          "analysis": "REST resolveConfiguration.timeToResolve is string; PT2M is a valid ISO-8601 duration."
+        },
+        {
+          "source_id": "body:line:506",
+          "label": "$expression",
+          "path": "/properties/scopes/[]/$expression-line/16",
+          "expression": "        prometheusWorkspaceResourceId",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:line:1220",
+          "label": "$expression",
+          "path": "/properties/actions/$expression-line/32",
+          "expression": "      #disable-next-line BCP037",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:line:1477",
+          "label": "$expression",
+          "path": "/properties/customProperties/$expression-line/39",
+          "expression": "      #disable-next-line BCP037",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource shortWindowAlerts 'Microsoft.Insights/metricAlerts@2026-01-01' = ",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "symbol:actions:69",
+          "label": "actionGroupId",
+          "path": "/$symbol/actions/[]/actionGroupId",
+          "expression": "        actionGroupId: actionGroupId",
+          "analysis": "REST MetricAlertAction.actionGroupId is string; source parameter is string and empty values are removed by the conditional before building an action."
+        },
+        {
+          "source_id": "symbol:actions:101",
+          "label": "$expression",
+          "path": "/$symbol/actions/$syntax/101",
+          "expression": "  : []",
+          "analysis": "Local conditional creates no actions when actionGroupId is empty, otherwise one MetricAlertAction with the string actionGroupId; both branches match the array schema."
+        },
+        {
+          "source_id": "symbol:actions:line:0",
+          "label": "$expression",
+          "path": "/$symbol/actions/$expression-line/0",
+          "expression": "var actions = actionGroupId != ''",
+          "analysis": "Local conditional creates no actions when actionGroupId is empty, otherwise one MetricAlertAction with the string actionGroupId; both branches match the array schema."
+        },
+        {
+          "source_id": "symbol:actions:line:34",
+          "label": "$expression",
+          "path": "/$symbol/actions/$expression-line/1",
+          "expression": "  ? [",
+          "analysis": "Local conditional creates no actions when actionGroupId is empty, otherwise one MetricAlertAction with the string actionGroupId; both branches match the array schema."
+        },
+        {
+          "source_id": "symbol:actionGroupId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/actionGroupId/$expression-line/0",
+          "expression": "@description('Resource ID of the Action Group for SLI alerts')",
+          "analysis": "String action-group resource ID parameter defaults to empty string; a nonempty string becomes MetricAlertAction.actionGroupId, while empty produces an empty actions array."
+        },
+        {
+          "source_id": "symbol:actionGroupId:line:63",
+          "label": "$expression",
+          "path": "/$symbol/actionGroupId/$expression-line/1",
+          "expression": "param actionGroupId string = ''",
+          "analysis": "String action-group resource ID parameter defaults to empty string; a nonempty string becomes MetricAlertAction.actionGroupId, while empty produces an empty actions array."
+        },
+        {
+          "source_id": "symbol:failingPeriods:28",
+          "label": "for",
+          "path": "/$symbol/failingPeriods/for",
+          "expression": "  for: 'PT1M'",
+          "analysis": "Local object {for:'PT1M'} maps to required PromQLCriteria.failingPeriods.for, validated as ISO-8601 duration."
+        },
+        {
+          "source_id": "symbol:failingPeriods:line:0",
+          "label": "$expression",
+          "path": "/$symbol/failingPeriods/$expression-line/0",
+          "expression": "var failingPeriods = {",
+          "analysis": "Local object {for:'PT1M'} maps to required PromQLCriteria.failingPeriods.for, validated as ISO-8601 duration."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Location of the metric alert rules. Must match the Azure Monitor workspace location')",
+          "analysis": "This source is a description annotation, not runtime data; the parameter/value declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:location:line:100",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "Source JSON Pointer identifies a local variable/parameter/annotation; its exact expression is preserved and its REST property mapping is specified by the consuming usage entry."
+        },
+        {
+          "source_id": "symbol:metricLabels:line:0",
+          "label": "$expression",
+          "path": "/$symbol/metricLabels/$expression-line/0",
+          "expression": "var metricLabels = 'environment=\"${environment}\",service=\"chaos-app\",test=\"${externalSliProbeName}\"'",
+          "analysis": "Local metricLabels expression interpolates environment and externalSliProbeName strings into PromQL query labels; it is query text, not a separate REST field."
+        },
+        {
+          "source_id": "symbol:environment:line:0",
+          "label": "$expression",
+          "path": "/$symbol/environment/$expression-line/0",
+          "expression": "@description('Environment label emitted by the external SLI publisher')",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:environment:line:72",
+          "label": "$expression",
+          "path": "/$symbol/environment/$expression-line/1",
+          "expression": "param environment string",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:externalSliProbeName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/externalSliProbeName/$expression-line/0",
+          "expression": "@description('Probe name emitted in the external SLI publisher test label')",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:externalSliProbeName:line:76",
+          "label": "$expression",
+          "path": "/$symbol/externalSliProbeName/$expression-line/1",
+          "expression": "param externalSliProbeName string",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/0",
+          "expression": "@description('Resource ID of the Azure Monitor managed Prometheus workspace')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:78",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/1",
+          "expression": "param prometheusWorkspaceResourceId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:serviceGroupId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/serviceGroupId/$expression-line/0",
+          "expression": "@description('Azure Service Group resource ID')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:serviceGroupId:line:48",
+          "label": "$expression",
+          "path": "/$symbol/serviceGroupId/$expression-line/1",
+          "expression": "param serviceGroupId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:severity:line:0",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/0",
+          "expression": "@description('Severity for Azure Monitor SLI metric alerts')",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:severity:line:61",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:severity:line:74",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/2",
+          "expression": "@maxValue(4)",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:severity:line:87",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/3",
+          "expression": "param severity int = 3",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:shortWindowFailedProbeThreshold:line:0",
+          "label": "$expression",
+          "path": "/$symbol/shortWindowFailedProbeThreshold/$expression-line/0",
+          "expression": "@description('Minimum failed probe windows in the short-window alert lookback')",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:shortWindowFailedProbeThreshold:line:80",
+          "label": "$expression",
+          "path": "/$symbol/shortWindowFailedProbeThreshold/$expression-line/1",
+          "expression": "@minValue(1)",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:shortWindowFailedProbeThreshold:line:93",
+          "label": "$expression",
+          "path": "/$symbol/shortWindowFailedProbeThreshold/$expression-line/2",
+          "expression": "param shortWindowFailedProbeThreshold int = 5",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:shortWindowLookbackMinutes:line:0",
+          "label": "$expression",
+          "path": "/$symbol/shortWindowLookbackMinutes/$expression-line/0",
+          "expression": "@description('Short-window alert lookback in minutes')",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:shortWindowLookbackMinutes:line:55",
+          "label": "$expression",
+          "path": "/$symbol/shortWindowLookbackMinutes/$expression-line/1",
+          "expression": "@minValue(1)",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:shortWindowLookbackMinutes:line:68",
+          "label": "$expression",
+          "path": "/$symbol/shortWindowLookbackMinutes/$expression-line/2",
+          "expression": "param shortWindowLookbackMinutes int = 15",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:35",
+          "label": "name",
+          "path": "/$symbol/sliDefinitions/[]/name",
+          "expression": "    name: availabilitySliName",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:63",
+          "label": "id",
+          "path": "/$symbol/sliDefinitions/[]/id",
+          "expression": "    id: availabilitySliId",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:101",
+          "label": "goodMetricName",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricName",
+          "expression": "    goodMetricName: 'chaos_app_external_availability_good'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:161",
+          "label": "totalMetricName",
+          "path": "/$symbol/sliDefinitions/[]/totalMetricName",
+          "expression": "    totalMetricName: 'chaos_app_external_availability_total'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:223",
+          "label": "goodMetricFilter",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricFilter",
+          "expression": "    goodMetricFilter: ''",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:245",
+          "label": "targetPercent",
+          "path": "/$symbol/sliDefinitions/[]/targetPercent",
+          "expression": "    targetPercent: availabilityBaselineTargetPercent",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:297",
+          "label": "name",
+          "path": "/$symbol/sliDefinitions/[]/name",
+          "expression": "    name: latencySliName",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:320",
+          "label": "id",
+          "path": "/$symbol/sliDefinitions/[]/id",
+          "expression": "    id: latencySliId",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:353",
+          "label": "goodMetricName",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricName",
+          "expression": "    goodMetricName: 'chaos_app_external_latency_good'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:408",
+          "label": "totalMetricName",
+          "path": "/$symbol/sliDefinitions/[]/totalMetricName",
+          "expression": "    totalMetricName: 'chaos_app_external_latency_total'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:465",
+          "label": "goodMetricFilter",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricFilter",
+          "expression": "    goodMetricFilter: ',le=\"${latencyThresholdLe}\"'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:514",
+          "label": "targetPercent",
+          "path": "/$symbol/sliDefinitions/[]/targetPercent",
+          "expression": "    targetPercent: latencyBaselineTargetPercent",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliDefinitions/$expression-line/0",
+          "expression": "var sliDefinitions = [",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/0",
+          "expression": "@description('Availability SLI target percentage')",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:51",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:64",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/2",
+          "expression": "@maxValue(100)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:79",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/3",
+          "expression": "param availabilityBaselineTargetPercent int",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilitySliId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliId/$expression-line/0",
+          "expression": "@description('Availability SLI resource ID')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:availabilitySliId:line:45",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliId/$expression-line/1",
+          "expression": "param availabilitySliId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:availabilitySliName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliName/$expression-line/0",
+          "expression": "@description('Availability SLI resource name')",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:availabilitySliName:line:47",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliName/$expression-line/1",
+          "expression": "param availabilitySliName string",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/0",
+          "expression": "@description('Latency SLI target percentage')",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:46",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:59",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/2",
+          "expression": "@maxValue(100)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:74",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/3",
+          "expression": "param latencyBaselineTargetPercent int",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencySliId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencySliId/$expression-line/0",
+          "expression": "@description('Latency SLI resource ID')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:latencySliId:line:40",
+          "label": "$expression",
+          "path": "/$symbol/latencySliId/$expression-line/1",
+          "expression": "param latencySliId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:latencySliName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencySliName/$expression-line/0",
+          "expression": "@description('Latency SLI resource name')",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:latencySliName:line:42",
+          "label": "$expression",
+          "path": "/$symbol/latencySliName/$expression-line/1",
+          "expression": "param latencySliName string",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/$expression-line/0",
+          "expression": "@description('Latency SLI good-signal bucket boundary')",
+          "analysis": "String bucket-boundary parameter is interpolated into the latency query string; REST query is string and provides no additional syntax constraint."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:56",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/$expression-line/1",
+          "expression": "param latencyThresholdLe string",
+          "analysis": "String bucket-boundary parameter is interpolated into the latency query string; REST query is string and provides no additional syntax constraint."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/0",
+          "expression": "@description('User-assigned managed identity resource ID used by Azure Monitor SLI and its metric alerts')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:107",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/1",
+          "expression": "param sliIdentityResourceId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags applied to all resources')",
+          "analysis": "This source is a description annotation, not runtime data; the parameter/value declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:tags:line:46",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "Source JSON Pointer identifies a local variable/parameter/annotation; its exact expression is preserved and its REST property mapping is specified by the consuming usage entry."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/azmonitor/sli-metric-alerts.bicep",
+      "name": "longWindowAlerts",
+      "line": 205,
+      "type": "Microsoft.Insights/metricAlerts",
+      "version": "2026-01-01",
+      "existing": false,
+      "start": 6370,
+      "end": 8205,
+      "header": "resource longWindowAlerts 'Microsoft.Insights/metricAlerts@2026-01-01' = ",
+      "body": "[\n  for sli in sliDefinitions: {\n    name: 'SLI long-window alert for ${sli.name}'\n    location: location\n    tags: tags\n    identity: {\n      type: 'UserAssigned'\n      userAssignedIdentities: {\n        '${sliIdentityResourceId}': {}\n      }\n    }\n    properties: {\n      description: 'SLI long-window alert for ${sli.name}. Burn rate threshold: ${longWindowBurnRateThreshold} over the last ${longWindowLookbackHours} hour(s).'\n      enabled: true\n      severity: severity\n      scopes: [\n        prometheusWorkspaceResourceId\n      ]\n      evaluationFrequency: 'PT1M'\n      targetResourceType: 'microsoft.monitor/accounts'\n      criteria: any({\n        'odata.type': 'Microsoft.Azure.Monitor.PromQLCriteria'\n        allOf: [\n          {\n            criterionType: 'StaticThresholdCriterion'\n            name: 'SliLongWindowBurnRateCriterion'\n            query: sli.targetPercent == 100\n              ? '0 >= 1'\n              : '(sum(sum_over_time(${sli.totalMetricName}{${metricLabels}}[${longWindowLookbackHours}h])) - sum(sum_over_time(${sli.goodMetricName}{${metricLabels}${sli.goodMetricFilter}}[${longWindowLookbackHours}h]))) / sum(sum_over_time(${sli.totalMetricName}{${metricLabels}}[${longWindowLookbackHours}h])) * 100 / ${100 - sli.targetPercent} >= ${longWindowBurnRateThreshold}'\n          }\n        ]\n        failingPeriods: failingPeriods\n      })\n      actions: actions\n      #disable-next-line BCP037\n      customProperties: {\n        burnRate: string(longWindowBurnRateThreshold)\n        lookbackHours: string(longWindowLookbackHours)\n        serviceGroupId: serviceGroupId\n        sliId: sli.id\n      }\n      #disable-next-line BCP037\n      resolveConfiguration: {\n        autoResolved: true\n        timeToResolve: 'PT2M'\n      }\n    }\n  }\n]",
+      "status": "verified",
+      "reason": "Exact current 2026-01-01 Learn and REST schemas agree and Learn marks this version Latest. Required MetricAlertProperties fields are present; PromQLCriteria and each criterion satisfy the discriminator, item, and required fields. Identity, maps, customProperties, and resolution settings match resolved types. Parameter constraints and every loop-derived value were checked.",
+      "migration": "Current GA; Learn marks 2026-01-01 Latest and the fixed-commit tree has stable metricAlert API schemas at 2018-03-01 and 2026-01-01, with 2026-01-01 highest. No newer GA version.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:29",
+          "label": "$expression",
+          "path": "/$syntax/29",
+          "expression": "  for sli in sliDefinitions: {",
+          "analysis": "Source JSON Pointer identifies a Bicep for-expression that emits one alert per sliDefinitions item; loop syntax is not a REST payload field. Each emitted body uses the checked schema paths."
+        },
+        {
+          "source_id": "body:41",
+          "label": "name",
+          "path": "/name",
+          "expression": "    name: 'SLI long-window alert for ${sli.name}'",
+          "analysis": "Source JSON Pointer /name maps to inherited Resource.name and required metricAlerts/{ruleName} string path; the interpolated SLI name produces a string. No API name constraints are declared."
+        },
+        {
+          "source_id": "body:95",
+          "label": "location",
+          "path": "/location",
+          "expression": "    location: location",
+          "analysis": "Source pointer /location maps to required TrackedResource.location:string. The module description requires the caller to pass the Azure Monitor workspace region; Bicep itself does not enforce equality."
+        },
+        {
+          "source_id": "body:114",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "    tags: tags",
+          "analysis": "Source pointer /tags maps to inherited TrackedResource.tags object with additionalProperties:string in common-types v5; empty tags or root string-valued tags comply."
+        },
+        {
+          "source_id": "body:133",
+          "label": "identity",
+          "path": "/identity",
+          "expression": "    identity: {",
+          "analysis": "Source pointer /identity maps to required MetricAlertResource identity; identity.type is required and userAssignedIdentities uses additionalProperties ref UserIdentityProperties."
+        },
+        {
+          "source_id": "body:147",
+          "label": "type",
+          "path": "/identity/type",
+          "expression": "      type: 'UserAssigned'",
+          "analysis": "REST identity.type enum includes UserAssigned; source literal is valid."
+        },
+        {
+          "source_id": "body:192",
+          "label": "userAssignedIdentities",
+          "path": "/identity/userAssignedIdentities",
+          "expression": "      userAssignedIdentities: {",
+          "analysis": "REST userAssignedIdentities is an object map whose additionalProperties ref UserIdentityProperties has no required child fields; the ARM resource-ID key maps to {} and is structurally valid."
+        },
+        {
+          "source_id": "body:230",
+          "label": "${sliIdentityResourceId}",
+          "path": "/identity/userAssignedIdentities/${sliIdentityResourceId}",
+          "expression": "        '${sliIdentityResourceId}': {}",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:263",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "    properties: {",
+          "analysis": "Source /properties maps to MetricAlertProperties, which requires severity, enabled, scopes, evaluationFrequency, and criteria; all are supplied in each declaration."
+        },
+        {
+          "source_id": "body:284",
+          "label": "description",
+          "path": "/properties/description",
+          "expression": "      description: 'SLI long-window alert for ${sli.name}. Burn rate threshold: ${longWindowBurnRateThreshold} over the last ${longWindowLookbackHours} hour(s).'",
+          "analysis": "REST MetricAlertProperties.description is string; each generated source description is string."
+        },
+        {
+          "source_id": "body:442",
+          "label": "enabled",
+          "path": "/properties/enabled",
+          "expression": "      enabled: true",
+          "analysis": "REST properties.enabled is boolean; literal true matches."
+        },
+        {
+          "source_id": "body:463",
+          "label": "severity",
+          "path": "/properties/severity",
+          "expression": "      severity: severity",
+          "analysis": "REST properties.severity is integer; source parameter is int constrained by @minValue(0) and @maxValue(4), default 3, matching the documented severity range."
+        },
+        {
+          "source_id": "body:486",
+          "label": "scopes",
+          "path": "/properties/scopes",
+          "expression": "      scopes: [",
+          "analysis": "REST properties.scopes is array<string>; the source supplies the managed Prometheus workspace ARM resource ID as string."
+        },
+        {
+          "source_id": "body:561",
+          "label": "evaluationFrequency",
+          "path": "/properties/evaluationFrequency",
+          "expression": "      evaluationFrequency: 'PT1M'",
+          "analysis": "REST properties.evaluationFrequency is string with ISO-8601 duration format; PT1M is valid."
+        },
+        {
+          "source_id": "body:594",
+          "label": "targetResourceType",
+          "path": "/properties/targetResourceType",
+          "expression": "      targetResourceType: 'microsoft.monitor/accounts'",
+          "analysis": "REST targetResourceType is string; literal microsoft.monitor/accounts is a string."
+        },
+        {
+          "source_id": "body:639",
+          "label": "criteria",
+          "path": "/properties/criteria",
+          "expression": "      criteria: any({",
+          "analysis": "Criteria source uses the exact PromQLCriteria discriminated model; its REST mapping and required fields are recorded in the associated usage analyses."
+        },
+        {
+          "source_id": "body:667",
+          "label": "odata.type",
+          "path": "/properties/criteria/odata.type",
+          "expression": "        'odata.type': 'Microsoft.Azure.Monitor.PromQLCriteria'",
+          "analysis": "Source JSON Pointer /properties/criteria/odata.type maps to the literal object key 'odata.type' (not nested fields); Odatatype enum includes Microsoft.Azure.Monitor.PromQLCriteria, exactly the selected discriminator."
+        },
+        {
+          "source_id": "body:723",
+          "label": "allOf",
+          "path": "/properties/criteria/allOf",
+          "expression": "        allOf: [",
+          "analysis": "Source path maps to PromQLCriteria.allOf array; each item resolves through $ref to MultiPromQLCriteria and meets its required properties."
+        },
+        {
+          "source_id": "body:764",
+          "label": "criterionType",
+          "path": "/properties/criteria/allOf/[]/criterionType",
+          "expression": "            criterionType: 'StaticThresholdCriterion'",
+          "analysis": "Source path /properties/criteria/allOf/[]/criterionType maps to MultiPromQLCriteria. Required enum permits StaticThresholdCriterion; source literal matches."
+        },
+        {
+          "source_id": "body:809",
+          "label": "name",
+          "path": "/properties/criteria/allOf/[]/name",
+          "expression": "            name: 'SliLongWindowBurnRateCriterion'",
+          "analysis": "Source path under criteria.allOf maps to required MultiPromQLCriteria.name:string; the fixed criterion name is a string."
+        },
+        {
+          "source_id": "body:861",
+          "label": "query",
+          "path": "/properties/criteria/allOf/[]/query",
+          "expression": "            query: sli.targetPercent == 100",
+          "analysis": "Source path under criteria.allOf maps to required MultiPromQLCriteria.query:string. The interpolated PromQL expression is a string; the REST schema does not parse or constrain PromQL semantics."
+        },
+        {
+          "source_id": "body:927",
+          "label": "$expression",
+          "path": "/properties/criteria/allOf/[]/$syntax/927",
+          "expression": "              : '(sum(sum_over_time(${sli.totalMetricName}{${metricLabels}}[${longWindowLookbackHours}h])) - sum(sum_over_time(${sli.goodMetricName}{${metricLabels}${sli.goodMetricFilter}}[${longWindowLookbackHours}h]))) / sum(sum_over_time(${sli.totalMetricName}{${metricLabels}}[${longWindowLookbackHours}h])) * 100 / ${100 - sli.targetPercent} >= ${longWindowBurnRateThreshold}'",
+          "analysis": "Criteria source uses the exact PromQLCriteria discriminated model; its REST mapping and required fields are recorded in the associated usage analyses."
+        },
+        {
+          "source_id": "body:1339",
+          "label": "failingPeriods",
+          "path": "/properties/criteria/failingPeriods",
+          "expression": "        failingPeriods: failingPeriods",
+          "analysis": "Source path maps to PromQLCriteria.failingPeriods -> QueryFailingPeriods; required child for is present and checked separately."
+        },
+        {
+          "source_id": "body:1378",
+          "label": "actions",
+          "path": "/properties/actions",
+          "expression": "      actions: actions",
+          "analysis": "REST properties.actions is an array of MetricAlertAction; source condition produces [] or one action with actionGroupId:string."
+        },
+        {
+          "source_id": "body:1442",
+          "label": "customProperties",
+          "path": "/properties/customProperties",
+          "expression": "      customProperties: {",
+          "analysis": "REST customProperties is object with additionalProperties:string; each supplied property value is a string or converted with string()."
+        },
+        {
+          "source_id": "body:1462",
+          "label": "burnRate",
+          "path": "/properties/customProperties/burnRate",
+          "expression": "        burnRate: string(longWindowBurnRateThreshold)",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1521",
+          "label": "lookbackHours",
+          "path": "/properties/customProperties/lookbackHours",
+          "expression": "        lookbackHours: string(longWindowLookbackHours)",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1577",
+          "label": "serviceGroupId",
+          "path": "/properties/customProperties/serviceGroupId",
+          "expression": "        serviceGroupId: serviceGroupId",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1607",
+          "label": "sliId",
+          "path": "/properties/customProperties/sliId",
+          "expression": "        sliId: sli.id",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:1682",
+          "label": "resolveConfiguration",
+          "path": "/properties/resolveConfiguration",
+          "expression": "      resolveConfiguration: {",
+          "analysis": "REST resolveConfiguration references ResolveConfiguration; required autoResolved is present and optional timeToResolve is a string duration."
+        },
+        {
+          "source_id": "body:1706",
+          "label": "autoResolved",
+          "path": "/properties/resolveConfiguration/autoResolved",
+          "expression": "        autoResolved: true",
+          "analysis": "REST resolveConfiguration.autoResolved is required boolean; source literal true matches."
+        },
+        {
+          "source_id": "body:1734",
+          "label": "timeToResolve",
+          "path": "/properties/resolveConfiguration/timeToResolve",
+          "expression": "        timeToResolve: 'PT2M'",
+          "analysis": "REST resolveConfiguration.timeToResolve is string; PT2M is a valid ISO-8601 duration."
+        },
+        {
+          "source_id": "body:line:490",
+          "label": "$expression",
+          "path": "/properties/scopes/[]/$expression-line/16",
+          "expression": "        prometheusWorkspaceResourceId",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:line:888",
+          "label": "$expression",
+          "path": "/properties/criteria/allOf/[]/query/$expression-line/27",
+          "expression": "              ? '0 >= 1'",
+          "analysis": "Criteria source uses the exact PromQLCriteria discriminated model; its REST mapping and required fields are recorded in the associated usage analyses."
+        },
+        {
+          "source_id": "body:line:1388",
+          "label": "$expression",
+          "path": "/properties/actions/$expression-line/34",
+          "expression": "      #disable-next-line BCP037",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "body:line:1624",
+          "label": "$expression",
+          "path": "/properties/customProperties/$expression-line/41",
+          "expression": "      #disable-next-line BCP037",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource longWindowAlerts 'Microsoft.Insights/metricAlerts@2026-01-01' = ",
+          "analysis": "Source JSON Pointer identifies a declaration-specific literal or value; its REST schema field and type are checked in the matching property usage analysis."
+        },
+        {
+          "source_id": "symbol:actions:69",
+          "label": "actionGroupId",
+          "path": "/$symbol/actions/[]/actionGroupId",
+          "expression": "        actionGroupId: actionGroupId",
+          "analysis": "REST MetricAlertAction.actionGroupId is string; source parameter is string and empty values are removed by the conditional before building an action."
+        },
+        {
+          "source_id": "symbol:actions:101",
+          "label": "$expression",
+          "path": "/$symbol/actions/$syntax/101",
+          "expression": "  : []",
+          "analysis": "Local conditional creates no actions when actionGroupId is empty, otherwise one MetricAlertAction with the string actionGroupId; both branches match the array schema."
+        },
+        {
+          "source_id": "symbol:actions:line:0",
+          "label": "$expression",
+          "path": "/$symbol/actions/$expression-line/0",
+          "expression": "var actions = actionGroupId != ''",
+          "analysis": "Local conditional creates no actions when actionGroupId is empty, otherwise one MetricAlertAction with the string actionGroupId; both branches match the array schema."
+        },
+        {
+          "source_id": "symbol:actions:line:34",
+          "label": "$expression",
+          "path": "/$symbol/actions/$expression-line/1",
+          "expression": "  ? [",
+          "analysis": "Local conditional creates no actions when actionGroupId is empty, otherwise one MetricAlertAction with the string actionGroupId; both branches match the array schema."
+        },
+        {
+          "source_id": "symbol:actionGroupId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/actionGroupId/$expression-line/0",
+          "expression": "@description('Resource ID of the Action Group for SLI alerts')",
+          "analysis": "String action-group resource ID parameter defaults to empty string; a nonempty string becomes MetricAlertAction.actionGroupId, while empty produces an empty actions array."
+        },
+        {
+          "source_id": "symbol:actionGroupId:line:63",
+          "label": "$expression",
+          "path": "/$symbol/actionGroupId/$expression-line/1",
+          "expression": "param actionGroupId string = ''",
+          "analysis": "String action-group resource ID parameter defaults to empty string; a nonempty string becomes MetricAlertAction.actionGroupId, while empty produces an empty actions array."
+        },
+        {
+          "source_id": "symbol:failingPeriods:28",
+          "label": "for",
+          "path": "/$symbol/failingPeriods/for",
+          "expression": "  for: 'PT1M'",
+          "analysis": "Local object {for:'PT1M'} maps to required PromQLCriteria.failingPeriods.for, validated as ISO-8601 duration."
+        },
+        {
+          "source_id": "symbol:failingPeriods:line:0",
+          "label": "$expression",
+          "path": "/$symbol/failingPeriods/$expression-line/0",
+          "expression": "var failingPeriods = {",
+          "analysis": "Local object {for:'PT1M'} maps to required PromQLCriteria.failingPeriods.for, validated as ISO-8601 duration."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Location of the metric alert rules. Must match the Azure Monitor workspace location')",
+          "analysis": "This source is a description annotation, not runtime data; the parameter/value declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:location:line:100",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "Source JSON Pointer identifies a local variable/parameter/annotation; its exact expression is preserved and its REST property mapping is specified by the consuming usage entry."
+        },
+        {
+          "source_id": "symbol:longWindowBurnRateThreshold:line:0",
+          "label": "$expression",
+          "path": "/$symbol/longWindowBurnRateThreshold/$expression-line/0",
+          "expression": "@description('Long-window burn-rate alert threshold')",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:longWindowBurnRateThreshold:line:54",
+          "label": "$expression",
+          "path": "/$symbol/longWindowBurnRateThreshold/$expression-line/1",
+          "expression": "@minValue(1)",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:longWindowBurnRateThreshold:line:67",
+          "label": "$expression",
+          "path": "/$symbol/longWindowBurnRateThreshold/$expression-line/2",
+          "expression": "param longWindowBurnRateThreshold int = 6",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:longWindowLookbackHours:line:0",
+          "label": "$expression",
+          "path": "/$symbol/longWindowLookbackHours/$expression-line/0",
+          "expression": "@description('Long-window burn-rate alert lookback in hours')",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:longWindowLookbackHours:line:62",
+          "label": "$expression",
+          "path": "/$symbol/longWindowLookbackHours/$expression-line/1",
+          "expression": "@minValue(1)",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:longWindowLookbackHours:line:75",
+          "label": "$expression",
+          "path": "/$symbol/longWindowLookbackHours/$expression-line/2",
+          "expression": "param longWindowLookbackHours int = 6",
+          "analysis": "Integer parameter has @minValue(1); its value enters a query string or a customProperties string via string(), not a constrained numeric REST property."
+        },
+        {
+          "source_id": "symbol:metricLabels:line:0",
+          "label": "$expression",
+          "path": "/$symbol/metricLabels/$expression-line/0",
+          "expression": "var metricLabels = 'environment=\"${environment}\",service=\"chaos-app\",test=\"${externalSliProbeName}\"'",
+          "analysis": "Local metricLabels expression interpolates environment and externalSliProbeName strings into PromQL query labels; it is query text, not a separate REST field."
+        },
+        {
+          "source_id": "symbol:environment:line:0",
+          "label": "$expression",
+          "path": "/$symbol/environment/$expression-line/0",
+          "expression": "@description('Environment label emitted by the external SLI publisher')",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:environment:line:72",
+          "label": "$expression",
+          "path": "/$symbol/environment/$expression-line/1",
+          "expression": "param environment string",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:externalSliProbeName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/externalSliProbeName/$expression-line/0",
+          "expression": "@description('Probe name emitted in the external SLI publisher test label')",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:externalSliProbeName:line:76",
+          "label": "$expression",
+          "path": "/$symbol/externalSliProbeName/$expression-line/1",
+          "expression": "param externalSliProbeName string",
+          "analysis": "String parameter is interpolated into PromQL label text; the resulting criteria.query remains string."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/0",
+          "expression": "@description('Resource ID of the Azure Monitor managed Prometheus workspace')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:78",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/1",
+          "expression": "param prometheusWorkspaceResourceId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:serviceGroupId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/serviceGroupId/$expression-line/0",
+          "expression": "@description('Azure Service Group resource ID')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:serviceGroupId:line:48",
+          "label": "$expression",
+          "path": "/$symbol/serviceGroupId/$expression-line/1",
+          "expression": "param serviceGroupId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:severity:line:0",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/0",
+          "expression": "@description('Severity for Azure Monitor SLI metric alerts')",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:severity:line:61",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:severity:line:74",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/2",
+          "expression": "@maxValue(4)",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:severity:line:87",
+          "label": "$expression",
+          "path": "/$symbol/severity/$expression-line/3",
+          "expression": "param severity int = 3",
+          "analysis": "Integer severity parameter has @minValue(0), @maxValue(4), default 3; maps to integer properties.severity."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:35",
+          "label": "name",
+          "path": "/$symbol/sliDefinitions/[]/name",
+          "expression": "    name: availabilitySliName",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:63",
+          "label": "id",
+          "path": "/$symbol/sliDefinitions/[]/id",
+          "expression": "    id: availabilitySliId",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:101",
+          "label": "goodMetricName",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricName",
+          "expression": "    goodMetricName: 'chaos_app_external_availability_good'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:161",
+          "label": "totalMetricName",
+          "path": "/$symbol/sliDefinitions/[]/totalMetricName",
+          "expression": "    totalMetricName: 'chaos_app_external_availability_total'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:223",
+          "label": "goodMetricFilter",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricFilter",
+          "expression": "    goodMetricFilter: ''",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:245",
+          "label": "targetPercent",
+          "path": "/$symbol/sliDefinitions/[]/targetPercent",
+          "expression": "    targetPercent: availabilityBaselineTargetPercent",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:297",
+          "label": "name",
+          "path": "/$symbol/sliDefinitions/[]/name",
+          "expression": "    name: latencySliName",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:320",
+          "label": "id",
+          "path": "/$symbol/sliDefinitions/[]/id",
+          "expression": "    id: latencySliId",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:353",
+          "label": "goodMetricName",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricName",
+          "expression": "    goodMetricName: 'chaos_app_external_latency_good'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:408",
+          "label": "totalMetricName",
+          "path": "/$symbol/sliDefinitions/[]/totalMetricName",
+          "expression": "    totalMetricName: 'chaos_app_external_latency_total'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:465",
+          "label": "goodMetricFilter",
+          "path": "/$symbol/sliDefinitions/[]/goodMetricFilter",
+          "expression": "    goodMetricFilter: ',le=\"${latencyThresholdLe}\"'",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:514",
+          "label": "targetPercent",
+          "path": "/$symbol/sliDefinitions/[]/targetPercent",
+          "expression": "    targetPercent: latencyBaselineTargetPercent",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:sliDefinitions:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliDefinitions/$expression-line/0",
+          "expression": "var sliDefinitions = [",
+          "analysis": "This source pointer is a local sliDefinitions object, not REST path. It defines two SLI rows; name/id feed alert name/customProperties, metric names/filter feed query strings, and targetPercent feeds the query and string custom property."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/0",
+          "expression": "@description('Availability SLI target percentage')",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:51",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:64",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/2",
+          "expression": "@maxValue(100)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:79",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/3",
+          "expression": "param availabilityBaselineTargetPercent int",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:availabilitySliId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliId/$expression-line/0",
+          "expression": "@description('Availability SLI resource ID')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:availabilitySliId:line:45",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliId/$expression-line/1",
+          "expression": "param availabilitySliId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:availabilitySliName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliName/$expression-line/0",
+          "expression": "@description('Availability SLI resource name')",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:availabilitySliName:line:47",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliName/$expression-line/1",
+          "expression": "param availabilitySliName string",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/0",
+          "expression": "@description('Latency SLI target percentage')",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:46",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:59",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/2",
+          "expression": "@maxValue(100)",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:74",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/3",
+          "expression": "param latencyBaselineTargetPercent int",
+          "analysis": "Integer target parameter is constrained to 0..100; the selected sli.targetPercent is interpolated in the query and converted to string for customProperties."
+        },
+        {
+          "source_id": "symbol:latencySliId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencySliId/$expression-line/0",
+          "expression": "@description('Latency SLI resource ID')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:latencySliId:line:40",
+          "label": "$expression",
+          "path": "/$symbol/latencySliId/$expression-line/1",
+          "expression": "param latencySliId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:latencySliName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencySliName/$expression-line/0",
+          "expression": "@description('Latency SLI resource name')",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:latencySliName:line:42",
+          "label": "$expression",
+          "path": "/$symbol/latencySliName/$expression-line/1",
+          "expression": "param latencySliName string",
+          "analysis": "String SLI name parameter supplies resource-name and description interpolation; required Resource.name is string."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/$expression-line/0",
+          "expression": "@description('Latency SLI good-signal bucket boundary')",
+          "analysis": "String bucket-boundary parameter is interpolated into the latency query string; REST query is string and provides no additional syntax constraint."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:56",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/$expression-line/1",
+          "expression": "param latencyThresholdLe string",
+          "analysis": "String bucket-boundary parameter is interpolated into the latency query string; REST query is string and provides no additional syntax constraint."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/0",
+          "expression": "@description('User-assigned managed identity resource ID used by Azure Monitor SLI and its metric alerts')",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:107",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/1",
+          "expression": "param sliIdentityResourceId string",
+          "analysis": "String resource-ID input maps to scopes, identity key, or string-valued customProperties according to the source expression; the REST schema imposes string type, not ARM-ID format here."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags applied to all resources')",
+          "analysis": "This source is a description annotation, not runtime data; the parameter/value declaration is checked separately."
+        },
+        {
+          "source_id": "symbol:tags:line:46",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "Source JSON Pointer identifies a local variable/parameter/annotation; its exact expression is preserved and its REST property mapping is specified by the consuming usage entry."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2026-01-01",
+      "analysis": "Exact Learn 2026-01-01 reference and pinned metricAlert.json were fetched and parsed. Current stable route is metricAlerts/{ruleName}; MetricAlertResource requires properties, TrackedResource supplies location/name/tags. MetricAlertProperties requires severity, enabled, scopes, evaluationFrequency, criteria. PromQLCriteria resolves to MetricAlertCriteria discriminator plus allOf MultiPromQLCriteria items and QueryFailingPeriods; identity/action/customProperties/resolveConfiguration refs and map value types were checked.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2026-01-01/metricalerts",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-01-01/metricAlert.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    },
+    "ga": {
+      "version": "2026-01-01",
+      "analysis": "Learn selector marks 2026-01-01 Latest. Fixed-commit stable metric-alert schemas include 2018-03-01 and 2026-01-01; 2026-01-01 is highest stable and equals current. The exact current schema is the GA candidate.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2026-01-01/metricalerts",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-01-01/metricAlert.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn metricAlerts change log explicitly reports no properties added, updated, or removed for 2026-01-01. The current schema includes every used PromQL, identity, action, customProperties, and resolveConfiguration path; required values, enums, ref/allOf/items, and additionalProperties were checked.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/metricalerts"
+      ]
+    }
+  }
+}

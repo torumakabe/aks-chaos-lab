@@ -268,5 +268,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2026-01-01/metricalerts",
+    "attempt": 1,
+    "started_monotonic": 3826.22617527,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/metricalerts",
+    "attempt": 1,
+    "started_monotonic": 3829.226268221,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6665217069999017
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2026-01-01/metricAlert.json",
+    "attempt": 1,
+    "started_monotonic": 3829.556947977,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
