@@ -1,0 +1,80 @@
+{
+  "pair": "Microsoft.Chaos/targets@2025-01-01",
+  "results": [
+    {
+      "file": "infra/modules/chaos/experiments.bicep",
+      "name": "chaosTarget",
+      "line": 64,
+      "type": "Microsoft.Chaos/targets",
+      "version": "2025-01-01",
+      "existing": false,
+      "start": 2257,
+      "end": 2409,
+      "header": "resource chaosTarget 'Microsoft.Chaos/targets@2025-01-01' = ",
+      "body": "{\n  name: 'microsoft-azurekubernetesservicechaosmesh'\n  scope: aksCluster\n  properties: {}\n}",
+      "status": "verified",
+      "reason": "Learn version selector lists 2025-01-01 as latest stable GA. Exact PUT body Target requires properties, supplied as {}; the empty object is valid against the unconstrained additionalProperties schema. location is optional, and scope maps to the parent-resource route.",
+      "migration": "Current 2025-01-01 is latest GA; no GA migration needed.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'microsoft-azurekubernetesservicechaosmesh'",
+          "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'microsoft-azurekubernetesservicechaosmesh'\"); Bicep target name is the REST targetName path parameter, not a JSON body field; the mandated literal target name is a string."
+        },
+        {
+          "source_id": "body:61",
+          "label": "scope",
+          "path": "/scope",
+          "expression": "  scope: aksCluster",
+          "analysis": "body:61: Bicep source JSON Pointer /scope (expression 'scope: aksCluster'); Bicep scope aksCluster selects the parent managed-cluster route segments; it is not a request-body property and is not the optional Target.location."
+        },
+        {
+          "source_id": "body:86",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {}",
+          "analysis": "body:86: Bicep source JSON Pointer /properties (expression 'properties: {}'); Maps to Target.properties, the only required writable request member; the exact empty object is valid because the REST schema permits additionalProperties with no narrower constraint."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource chaosTarget 'Microsoft.Chaos/targets@2025-01-01' = ",
+          "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource chaosTarget 'Microsoft.Chaos/targets@2025-01-01' =\"); Resource header identifies the current API version; it is not a request property."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2025-01-01",
+      "analysis": "Learn selector and pinned stable OpenAPI identify 2025-01-01. The Target PUT body expands through ProxyResource; properties is the sole required member, and its object schema has unconstrained additionalProperties. Bicep sends properties: {}. Target.location is optional; Bicep scope maps to the parent-resource route.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/targets",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    },
+    "ga": {
+      "version": "2025-01-01",
+      "analysis": "Latest GA from the Learn version selector is 2025-01-01; later versions are preview. Current and candidate stable schema are the same pinned OpenAPI file.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/targets",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn change log reports no properties added, updated, or removed in 2025-01-01. The required properties object remains present, and no changed fields are used.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/change-log/targets",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    }
+  }
+}
