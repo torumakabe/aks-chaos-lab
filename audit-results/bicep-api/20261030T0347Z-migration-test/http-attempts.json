@@ -340,5 +340,50 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.902614131000064
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerregistry/registries",
+    "attempt": 1,
+    "started_monotonic": 2218.526929365,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerregistry/change-log/registries",
+    "attempt": 1,
+    "started_monotonic": 2221.527031443,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.896106893999786
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerregistry/2025-11-01/registries",
+    "attempt": 1,
+    "started_monotonic": 2224.5271126,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7951240480001616
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerregistry/resource-manager/Microsoft.ContainerRegistry/Registry/readme.md",
+    "attempt": 1,
+    "started_monotonic": 2224.632746687,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerregistry/resource-manager/Microsoft.ContainerRegistry/Registry/stable/2025-11-01/containerregistry.json",
+    "attempt": 1,
+    "started_monotonic": 2224.763712593,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

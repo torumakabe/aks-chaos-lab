@@ -1,0 +1,301 @@
+{
+  "pair": "Microsoft.ContainerRegistry/registries@2025-11-01",
+  "results": [
+    {
+      "file": "infra/modules/acr.bicep",
+      "name": "containerRegistry",
+      "line": 16,
+      "type": "Microsoft.ContainerRegistry/registries",
+      "version": "2025-11-01",
+      "existing": false,
+      "start": 442,
+      "end": 1046,
+      "header": "resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-11-01' = ",
+      "body": "{\n  name: registryName\n  location: location\n  tags: tags\n  sku: {\n    name: 'Premium' // Private Endpoint requires Premium SKU\n  }\n  properties: {\n    adminUserEnabled: false\n    dataEndpointEnabled: false\n    publicNetworkAccess: 'Enabled'\n    networkRuleBypassOptions: 'AzureServices'\n    encryption: {\n      status: 'disabled'\n    }\n    policies: {\n      quarantinePolicy: { status: 'disabled' }\n      trustPolicy: { type: 'Notary', status: 'disabled' }\n      retentionPolicy: { days: 7, status: 'disabled' }\n    }\n  }\n}",
+      "status": "verified",
+      "reason": "Learn identifies 2025-11-01 as latest stable GA. Exact Registry schema requires location and sku (with required enum sku.name); both are present. Schemas helper validated all supplied policy/encryption/network literals and their nested refs.",
+      "migration": "Current 2025-11-01 is latest GA; no GA migration needed.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: registryName",
+          "analysis": "body:8: Bicep source JSON Pointer /name (expression 'name: registryName'); Bicep registryName supplies the REST registryName path parameter, not request-body JSON; the source parameter is string-typed."
+        },
+        {
+          "source_id": "body:33",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "body:33: Bicep source JSON Pointer /location (expression 'location: location'); Maps to required TrackedResource.location string; the source deployment-location parameter is string-typed."
+        },
+        {
+          "source_id": "body:50",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "body:50: Bicep source JSON Pointer /tags (expression 'tags: tags'); Maps to TrackedResource.tags object with additionalProperties string; main.bicep passes a tags map whose azd-env-name value comes from string environment."
+        },
+        {
+          "source_id": "body:62",
+          "label": "sku",
+          "path": "/sku",
+          "expression": "  sku: {",
+          "analysis": "body:62: Bicep source JSON Pointer /sku (expression 'sku: {'); Maps to required Sku object. Its required name is present; tier is readOnly and correctly omitted."
+        },
+        {
+          "source_id": "body:74",
+          "label": "name",
+          "path": "/sku/name",
+          "expression": "    name: 'Premium' // Private Endpoint requires Premium SKU",
+          "analysis": "body:74: Bicep source JSON Pointer /sku/name (expression \"name: 'Premium' // Private Endpoint requires Premium SKU\"); Maps to required Sku.name; 'Premium' is an exact member of the current/latest GA SKU enum."
+        },
+        {
+          "source_id": "body:143",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "body:143: Bicep source JSON Pointer /properties (expression 'properties: {'); Maps to optional RegistryProperties; it is present and all assigned children are individually checked below. Root required location and sku are supplied."
+        },
+        {
+          "source_id": "body:167",
+          "label": "adminUserEnabled",
+          "path": "/properties/adminUserEnabled",
+          "expression": "    adminUserEnabled: false",
+          "analysis": "body:167: Bicep source JSON Pointer /properties/adminUserEnabled (expression 'adminUserEnabled: false'); Maps to adminUserEnabled boolean; literal false is type-correct."
+        },
+        {
+          "source_id": "body:198",
+          "label": "dataEndpointEnabled",
+          "path": "/properties/dataEndpointEnabled",
+          "expression": "    dataEndpointEnabled: false",
+          "analysis": "body:198: Bicep source JSON Pointer /properties/dataEndpointEnabled (expression 'dataEndpointEnabled: false'); Maps to dataEndpointEnabled boolean; literal false is type-correct."
+        },
+        {
+          "source_id": "body:229",
+          "label": "publicNetworkAccess",
+          "path": "/properties/publicNetworkAccess",
+          "expression": "    publicNetworkAccess: 'Enabled'",
+          "analysis": "body:229: Bicep source JSON Pointer /properties/publicNetworkAccess (expression \"publicNetworkAccess: 'Enabled'\"); Maps to publicNetworkAccess string enum; literal 'Enabled' is allowed."
+        },
+        {
+          "source_id": "body:269",
+          "label": "networkRuleBypassOptions",
+          "path": "/properties/networkRuleBypassOptions",
+          "expression": "    networkRuleBypassOptions: 'AzureServices'",
+          "analysis": "body:269: Bicep source JSON Pointer /properties/networkRuleBypassOptions (expression \"networkRuleBypassOptions: 'AzureServices'\"); Maps to networkRuleBypassOptions string enum; literal 'AzureServices' is allowed."
+        },
+        {
+          "source_id": "body:301",
+          "label": "encryption",
+          "path": "/properties/encryption",
+          "expression": "    encryption: {",
+          "analysis": "body:301: Bicep source JSON Pointer /properties/encryption (expression 'encryption: {'); Maps to optional EncryptionProperty object; its status is provided and optional key-vault properties are not required."
+        },
+        {
+          "source_id": "body:317",
+          "label": "status",
+          "path": "/properties/encryption/status",
+          "expression": "      status: 'disabled'",
+          "analysis": "body:317: Bicep source JSON Pointer /properties/encryption/status (expression \"status: 'disabled'\"); Maps to EncryptionProperty.status; exact lowercase literal 'disabled' is an allowed enum value."
+        },
+        {
+          "source_id": "body:348",
+          "label": "policies",
+          "path": "/properties/policies",
+          "expression": "    policies: {",
+          "analysis": "body:348: Bicep source JSON Pointer /properties/policies (expression 'policies: {'); Maps to optional Policies object, whose supplied quarantine, trust, and retention subobjects are individually schema-checked."
+        },
+        {
+          "source_id": "body:374",
+          "label": "quarantinePolicy",
+          "path": "/properties/policies/quarantinePolicy",
+          "expression": "      quarantinePolicy: { status: 'disabled' }",
+          "analysis": "body:374: Bicep source JSON Pointer /properties/policies/quarantinePolicy (expression \"quarantinePolicy: { status: 'disabled' }\"); Maps to QuarantinePolicy object; status is supplied and valid."
+        },
+        {
+          "source_id": "body:384",
+          "label": "status",
+          "path": "/properties/policies/quarantinePolicy/status",
+          "expression": "      quarantinePolicy: { status: 'disabled' }",
+          "analysis": "body:384: Bicep source JSON Pointer /properties/policies/quarantinePolicy/status (expression \"quarantinePolicy: { status: 'disabled' }\"); Maps to PolicyStatus string enum; literal 'disabled' is allowed."
+        },
+        {
+          "source_id": "body:416",
+          "label": "trustPolicy",
+          "path": "/properties/policies/trustPolicy",
+          "expression": "      trustPolicy: { type: 'Notary', status: 'disabled' }",
+          "analysis": "body:416: Bicep source JSON Pointer /properties/policies/trustPolicy (expression \"trustPolicy: { type: 'Notary', status: 'disabled' }\"); Maps to TrustPolicy object; both discriminator type and status are supplied."
+        },
+        {
+          "source_id": "body:424",
+          "label": "type",
+          "path": "/properties/policies/trustPolicy/type",
+          "expression": "      trustPolicy: { type: 'Notary', status: 'disabled' }",
+          "analysis": "body:424: Bicep source JSON Pointer /properties/policies/trustPolicy/type (expression \"trustPolicy: { type: 'Notary', status: 'disabled' }\"); Maps to TrustPolicy.type string enum; literal 'Notary' is the only allowed value."
+        },
+        {
+          "source_id": "body:442",
+          "label": "status",
+          "path": "/properties/policies/trustPolicy/status",
+          "expression": "      trustPolicy: { type: 'Notary', status: 'disabled' }",
+          "analysis": "body:442: Bicep source JSON Pointer /properties/policies/trustPolicy/status (expression \"trustPolicy: { type: 'Notary', status: 'disabled' }\"); Maps to PolicyStatus string enum; literal 'disabled' is allowed."
+        },
+        {
+          "source_id": "body:478",
+          "label": "retentionPolicy",
+          "path": "/properties/policies/retentionPolicy",
+          "expression": "      retentionPolicy: { days: 7, status: 'disabled' }",
+          "analysis": "body:478: Bicep source JSON Pointer /properties/policies/retentionPolicy (expression \"retentionPolicy: { days: 7, status: 'disabled' }\"); Maps to RetentionPolicy object; integer days and status are supplied."
+        },
+        {
+          "source_id": "body:486",
+          "label": "days",
+          "path": "/properties/policies/retentionPolicy/days",
+          "expression": "      retentionPolicy: { days: 7, status: 'disabled' }",
+          "analysis": "body:486: Bicep source JSON Pointer /properties/policies/retentionPolicy/days (expression \"retentionPolicy: { days: 7, status: 'disabled' }\"); Maps to RetentionPolicy.days integer; literal 7 is type-correct and the schema declares no conflicting bound."
+        },
+        {
+          "source_id": "body:497",
+          "label": "status",
+          "path": "/properties/policies/retentionPolicy/status",
+          "expression": "      retentionPolicy: { days: 7, status: 'disabled' }",
+          "analysis": "body:497: Bicep source JSON Pointer /properties/policies/retentionPolicy/status (expression \"retentionPolicy: { days: 7, status: 'disabled' }\"); Maps to PolicyStatus string enum; literal 'disabled' is allowed."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-11-01' = ",
+          "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-11-01' =\"); Bicep resource declaration header identifies the current stable API version; it is not request data."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Deployment location')",
+          "analysis": "symbol:location:line:0: Bicep source JSON Pointer /$symbol/location/$expression-line/0 (expression \"@description('Deployment location')\"); Parameter documentation only; the referenced source is checked against the mapped Registry field."
+        },
+        {
+          "source_id": "symbol:location:line:36",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "symbol:location:line:36: Bicep source JSON Pointer /$symbol/location/$expression-line/1 (expression 'param location string'); String-typed Bicep location parameter supplies required REST location."
+        },
+        {
+          "source_id": "symbol:registryName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/registryName/$expression-line/0",
+          "expression": "@description('Registry name')",
+          "analysis": "symbol:registryName:line:0: Bicep source JSON Pointer /$symbol/registryName/$expression-line/0 (expression \"@description('Registry name')\"); Parameter documentation only; the referenced source is checked against the mapped Registry field."
+        },
+        {
+          "source_id": "symbol:registryName:line:30",
+          "label": "$expression",
+          "path": "/$symbol/registryName/$expression-line/1",
+          "expression": "param registryName string",
+          "analysis": "symbol:registryName:line:30: Bicep source JSON Pointer /$symbol/registryName/$expression-line/1 (expression 'param registryName string'); String-typed registryName parameter supplies the REST path parameter, not the body."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags object')",
+          "analysis": "symbol:tags:line:0: Bicep source JSON Pointer /$symbol/tags/$expression-line/0 (expression \"@description('Tags object')\"); Parameter documentation only; the referenced source is checked against the mapped Registry field."
+        },
+        {
+          "source_id": "symbol:tags:line:28",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "symbol:tags:line:28: Bicep source JSON Pointer /$symbol/tags/$expression-line/1 (expression 'param tags object = {}'); Object parameter supplies tags; actual parent map entries use string values, matching additionalProperties string."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/azmonitor/service-group-members.bicep",
+      "name": "containerRegistry",
+      "line": 50,
+      "type": "Microsoft.ContainerRegistry/registries",
+      "version": "2025-11-01",
+      "existing": true,
+      "start": 1410,
+      "end": 1533,
+      "header": "resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-11-01' existing = ",
+      "body": "{\n  name: containerRegistryName\n}",
+      "status": "verified",
+      "reason": "Existing reference declaration only; name is a string path value and create-only required fields are not applicable.",
+      "migration": "Current 2025-11-01 is latest GA; no GA migration needed.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: containerRegistryName",
+          "analysis": "body:8: Bicep source JSON Pointer /name (expression 'name: containerRegistryName'); Existing resource name maps to the registries/{registryName} path parameter; it is not request-body JSON."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-11-01' existing = ",
+          "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-11-01' existing =\"); Existing modifier makes this a symbolic reference; no create/update payload or create-only required field is assessed."
+        },
+        {
+          "source_id": "symbol:containerRegistryName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/containerRegistryName/$expression-line/0",
+          "expression": "@description('Azure Container Registry name')",
+          "analysis": "symbol:containerRegistryName:line:0: Bicep source JSON Pointer /$symbol/containerRegistryName/$expression-line/0 (expression \"@description('Azure Container Registry name')\"); Parameter description only; it documents the string registry-name source, not a REST field."
+        },
+        {
+          "source_id": "symbol:containerRegistryName:line:46",
+          "label": "$expression",
+          "path": "/$symbol/containerRegistryName/$expression-line/1",
+          "expression": "param containerRegistryName string",
+          "analysis": "symbol:containerRegistryName:line:46: Bicep source JSON Pointer /$symbol/containerRegistryName/$expression-line/1 (expression 'param containerRegistryName string'); containerRegistryName is a string-typed Bicep parameter used only as the existing-resource path name; no create properties are inferred."
+        },
+        {
+          "source_id": "symbol:containerRegistryName:line:82",
+          "label": "$expression",
+          "path": "/$symbol/containerRegistryName/$expression-line/3",
+          "expression": "#disable-next-line BCP081",
+          "analysis": "symbol:containerRegistryName:line:82: Bicep source JSON Pointer /$symbol/containerRegistryName/$expression-line/3 (expression '#disable-next-line BCP081'); Bicep diagnostic suppression directive only; it is not an API attribute and does not change the existing reference."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2025-11-01",
+      "analysis": "Learn selector and exact stable REST contract identify 2025-11-01. Schemas helper expanded Registry through common-types v6 TrackedResource: required location and sku; Sku.name required. It validated Premium, network/encryption/trust/quarantine/retention enums, boolean fields, retention days integer, and string-valued tags. The existing declaration is reference-only.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerregistry/2025-11-01/registries",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerregistry/resource-manager/Microsoft.ContainerRegistry/Registry/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerregistry/resource-manager/Microsoft.ContainerRegistry/Registry/stable/2025-11-01/containerregistry.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json"
+      ]
+    },
+    "ga": {
+      "version": "2025-11-01",
+      "analysis": "Latest GA from the Learn version selector is 2025-11-01; newer listed APIs are previews. Current and candidate schema use the exact same pinned stable file.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerregistry/2025-11-01/registries",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerregistry/resource-manager/Microsoft.ContainerRegistry/Registry/stable/2025-11-01/containerregistry.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn change log for 2025-11-01 removes softDeletePolicy, autoGeneratedDomainNameLabelScope, and metadataSearch from Registry models; none is used in this source. The specified sku, tags, network, encryption and policies fields remain valid in the exact current schema.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerregistry/change-log/registries",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerregistry/resource-manager/Microsoft.ContainerRegistry/Registry/stable/2025-11-01/containerregistry.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json"
+      ]
+    }
+  }
+}
