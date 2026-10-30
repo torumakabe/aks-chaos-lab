@@ -46994,9 +46994,1044 @@
       }
     },
     "Microsoft.Insights/dataCollectionRules@2024-03-11": {
-      "stage": "pending",
+      "stage": "blocked",
       "results": [],
-      "evidence": {}
+      "evidence": {},
+      "attempts": [
+        {
+          "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-03-11/dataCollection.json",
+          "finding": "HTTP 200 and fixed-commit schema parsed. ExtensionDataSource.extensionSettings has description only and no type, properties, or additionalProperties; the required nested ContainerInsights fields cannot be resolved."
+        },
+        {
+          "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionrules",
+          "finding": "HTTP 200 exact API reference renders extensionSettings as any(...), without nested dataCollectionSettings fields or constraints; it does not provide the missing exact contract."
+        }
+      ],
+      "reason": "The exact REST 2024-03-11 ExtensionDataSource.extensionSettings schema contains a description only: no type, properties, or additionalProperties. Learn renders the field as any(...) and says its format is extension-specific. The current ContainerInsights dataCollectionSettings nested fields therefore lack a public exact wire schema; general Learn configuration guidance does not close that gap. Do not mark the pair assessed.",
+      "partial_results": [
+        {
+          "file": "infra/modules/azmonitor/container-insights.bicep",
+          "name": "dataCollectionRule",
+          "line": 105,
+          "type": "Microsoft.Insights/dataCollectionRules",
+          "version": "2024-03-11",
+          "existing": false,
+          "start": 3432,
+          "end": 4550,
+          "header": "resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' = ",
+          "body": "{\n  name: dataCollectionRuleName\n  location: location\n  tags: tags\n  kind: 'Linux'\n  properties: {\n    dataCollectionEndpointId: enableContainerNetworkLogs ? dataCollectionEndpoint.id : null\n    dataSources: {\n      extensions: [\n        {\n          name: 'ContainerInsightsExtension'\n          streams: streamsWithNetworkLogs\n          extensionSettings: {\n            dataCollectionSettings: {\n              interval: dataCollectionInterval\n              namespaceFilteringMode: namespaceFilteringMode\n              namespacesForDataCollection: namespacesForDataCollection\n              enableContainerLogV2: enableContainerLogV2\n            }\n          }\n          extensionName: 'ContainerInsights'\n        }\n      ]\n    }\n    destinations: {\n      logAnalytics: [\n        {\n          workspaceResourceId: logAnalyticsWorkspaceId\n          name: 'ciworkspace'\n        }\n      ]\n    }\n    dataFlows: [\n      {\n        streams: streamWithKubeMonAgentEvents\n        destinations: [\n          'ciworkspace'\n        ]\n      }\n    ]\n  }\n}",
+          "status": "unverified",
+          "reason": "The exact REST 2024-03-11 ExtensionDataSource.extensionSettings schema contains a description only: no type, properties, or additionalProperties. Learn renders the field as any(...) and says its format is extension-specific. The current ContainerInsights dataCollectionSettings nested fields therefore lack a public exact wire schema; general Learn configuration guidance does not close that gap. Do not mark the pair assessed.",
+          "migration": "Current and latest GA are both 2024-03-11; no newer GA candidate.",
+          "findings": [
+            {
+              "kind": "issue",
+              "detail": "dataCollectionEndpointId is declared optional string with no nullable=true; the default enableContainerNetworkLogs=false branch supplies null. The schema does not prove that explicit null is accepted."
+            },
+            {
+              "kind": "issue",
+              "detail": "ContainerInsights extensionSettings contains nested dataCollectionSettings properties with no exact public API schema; see the pair blocker and preserve this as unverified."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: dataCollectionRuleName",
+              "analysis": "Original Bicep JSON Pointer /name maps to inherited Resource.name and required string route name; computed or parameterized name is string. DCR name expression bounds output to 64 characters, but the REST schema provides no extra name pattern."
+            },
+            {
+              "source_id": "body:43",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "Original /location maps to required TrackedResource.location:string; deployment location parameter is string."
+            },
+            {
+              "source_id": "body:60",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "Original /tags maps to TrackedResource.tags object whose additionalProperties is string in common-types v5. Root infra tags are string-valued; Prometheus module default is {}."
+            },
+            {
+              "source_id": "body:73",
+              "label": "kind",
+              "path": "/kind",
+              "expression": "  kind: 'Linux'",
+              "analysis": "Original /kind maps to KnownDataCollectionRuleResourceKind enum ['Linux','Windows']; literal Linux is allowed."
+            },
+            {
+              "source_id": "body:95",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "Original /properties maps to DataCollectionRuleResourceProperties allOf DataCollectionRule. Direct child fields are examined individually; dataCollectionEndpointId is optional string, dataFlows/dataSources/destinations have resolved item schemas."
+            },
+            {
+              "source_id": "body:127",
+              "label": "dataCollectionEndpointId",
+              "path": "/properties/dataCollectionEndpointId",
+              "expression": "    dataCollectionEndpointId: enableContainerNetworkLogs ? dataCollectionEndpoint.id : null",
+              "analysis": "Original source pointer identifies properties.dataCollectionEndpointId and its ternary value: a resource ID string when network logs are enabled, otherwise null. REST declares an optional string with no nullable flag; the default false branch cannot be proven schema-compatible and is preserved as a finding."
+            },
+            {
+              "source_id": "body:184",
+              "label": "$expression",
+              "path": "/properties/$syntax/184",
+              "expression": "    dataCollectionEndpointId: enableContainerNetworkLogs ? dataCollectionEndpoint.id : null",
+              "analysis": "Original source pointer identifies properties.dataCollectionEndpointId and its ternary value: a resource ID string when network logs are enabled, otherwise null. REST declares an optional string with no nullable flag; the default false branch cannot be proven schema-compatible and is preserved as a finding."
+            },
+            {
+              "source_id": "body:206",
+              "label": "dataSources",
+              "path": "/properties/dataSources",
+              "expression": "    dataSources: {",
+              "analysis": "Original source pointer maps to DataCollectionRuleDataSources, which allOf-inherits DataSourcesSpec; the selected extensions or prometheusForwarder member is checked by its concrete schema."
+            },
+            {
+              "source_id": "body:226",
+              "label": "extensions",
+              "path": "/properties/dataSources/extensions",
+              "expression": "      extensions: [",
+              "analysis": "Maps to ExtensionDataSource array; items are resolved through $ref and extensionName is required string."
+            },
+            {
+              "source_id": "body:254",
+              "label": "name",
+              "path": "/properties/dataSources/extensions/[]/name",
+              "expression": "          name: 'ContainerInsightsExtension'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "body:302",
+              "label": "streams",
+              "path": "/properties/dataSources/extensions/[]/streams",
+              "expression": "          streams: streamsWithNetworkLogs",
+              "analysis": "REST streams is array of KnownExtensionDataSourceStreams (or KnownDataFlowStreams for dataFlows). The model lists five known streams and x-ms-enum.modelAsString=true; Container Insights stream names are extension-specific and not listed. Treating them as open string values still does not establish extension-specific compatibility."
+            },
+            {
+              "source_id": "body:354",
+              "label": "extensionSettings",
+              "path": "/properties/dataSources/extensions/[]/extensionSettings",
+              "expression": "          extensionSettings: {",
+              "analysis": "Maps to ExtensionDataSource.extensionSettings. The exact REST contract supplies only a description that its format is specific to the extension; it has no type, properties, or additionalProperties schema. Source emits an object, but nested fields cannot be verified against this API contract."
+            },
+            {
+              "source_id": "body:392",
+              "label": "dataCollectionSettings",
+              "path": "/properties/dataSources/extensions/[]/extensionSettings/dataCollectionSettings",
+              "expression": "            dataCollectionSettings: {",
+              "analysis": "Nested dataCollectionSettings object is not modeled by the exact REST schema: extensionSettings is deliberately extension-specific and has no inner schema. Source builds an object; exact field requirements cannot be confirmed."
+            },
+            {
+              "source_id": "body:418",
+              "label": "interval",
+              "path": "/properties/dataSources/extensions/[]/extensionSettings/dataCollectionSettings/interval",
+              "expression": "              interval: dataCollectionInterval",
+              "analysis": "Maps to a nested field under extensionSettings.dataCollectionSettings, but the public REST schema stops at opaque extensionSettings (no type/properties/additionalProperties). Source expression and local parameter constraints are retained; API-level compatibility is unverified."
+            },
+            {
+              "source_id": "body:479",
+              "label": "namespaceFilteringMode",
+              "path": "/properties/dataSources/extensions/[]/extensionSettings/dataCollectionSettings/namespaceFilteringMode",
+              "expression": "              namespaceFilteringMode: namespaceFilteringMode",
+              "analysis": "Maps to a nested field under extensionSettings.dataCollectionSettings, but the public REST schema stops at opaque extensionSettings (no type/properties/additionalProperties). Source expression and local parameter constraints are retained; API-level compatibility is unverified."
+            },
+            {
+              "source_id": "body:545",
+              "label": "namespacesForDataCollection",
+              "path": "/properties/dataSources/extensions/[]/extensionSettings/dataCollectionSettings/namespacesForDataCollection",
+              "expression": "              namespacesForDataCollection: namespacesForDataCollection",
+              "analysis": "Maps to a nested field under extensionSettings.dataCollectionSettings, but the public REST schema stops at opaque extensionSettings (no type/properties/additionalProperties). Source expression and local parameter constraints are retained; API-level compatibility is unverified."
+            },
+            {
+              "source_id": "body:609",
+              "label": "enableContainerLogV2",
+              "path": "/properties/dataSources/extensions/[]/extensionSettings/dataCollectionSettings/enableContainerLogV2",
+              "expression": "              enableContainerLogV2: enableContainerLogV2",
+              "analysis": "Maps to a nested field under extensionSettings.dataCollectionSettings, but the public REST schema stops at opaque extensionSettings (no type/properties/additionalProperties). Source expression and local parameter constraints are retained; API-level compatibility is unverified."
+            },
+            {
+              "source_id": "body:681",
+              "label": "extensionName",
+              "path": "/properties/dataSources/extensions/[]/extensionName",
+              "expression": "          extensionName: 'ContainerInsights'",
+              "analysis": "REST ExtensionDataSource.extensionName is required string; literal ContainerInsights is a string."
+            },
+            {
+              "source_id": "body:743",
+              "label": "destinations",
+              "path": "/properties/destinations",
+              "expression": "    destinations: {",
+              "analysis": "Maps to DCR destinations object; logAnalytics and monitoringAccounts entries are resolved types with string names/resource IDs."
+            },
+            {
+              "source_id": "body:765",
+              "label": "logAnalytics",
+              "path": "/properties/destinations/logAnalytics",
+              "expression": "      logAnalytics: [",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "body:808",
+              "label": "workspaceResourceId",
+              "path": "/properties/destinations/logAnalytics/[]/workspaceResourceId",
+              "expression": "          workspaceResourceId: logAnalyticsWorkspaceId",
+              "analysis": "REST LogAnalyticsDestination.workspaceResourceId is string; source parameter is resource-ID string."
+            },
+            {
+              "source_id": "body:848",
+              "label": "name",
+              "path": "/properties/destinations/logAnalytics/[]/name",
+              "expression": "          name: 'ciworkspace'",
+              "analysis": "REST LogAnalyticsDestination.name is string; ciworkspace is the matching name used by the data flow."
+            },
+            {
+              "source_id": "body:901",
+              "label": "dataFlows",
+              "path": "/properties/dataFlows",
+              "expression": "    dataFlows: [",
+              "analysis": "Maps to array of DataFlow; each item has streams and destinations arrays. The nested items and references were resolved in the pinned schema."
+            },
+            {
+              "source_id": "body:928",
+              "label": "streams",
+              "path": "/properties/dataFlows/[]/streams",
+              "expression": "        streams: streamWithKubeMonAgentEvents",
+              "analysis": "REST streams is array of KnownExtensionDataSourceStreams (or KnownDataFlowStreams for dataFlows). The model lists five known streams and x-ms-enum.modelAsString=true; Container Insights stream names are extension-specific and not listed. Treating them as open string values still does not establish extension-specific compatibility."
+            },
+            {
+              "source_id": "body:979",
+              "label": "destinations",
+              "path": "/properties/dataFlows/[]/destinations",
+              "expression": "        destinations: [",
+              "analysis": "Maps to DCR destinations object; logAnalytics and monitoringAccounts entries are resolved types with string names/resource IDs."
+            },
+            {
+              "source_id": "body:line:983",
+              "label": "$expression",
+              "path": "/properties/dataFlows/[]/destinations/[]/$expression-line/36",
+              "expression": "          'ciworkspace'",
+              "analysis": "REST DataFlow.destinations is array<string>; ciworkspace and MonitoringAccount1 match the corresponding named destination objects in this same DCR."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' = ",
+              "analysis": "Resource header selects Microsoft.Insights/dataCollectionRules@2024-03-11; existing references use name-only identity. API version is current and latest GA."
+            },
+            {
+              "source_id": "symbol:dataCollectionInterval:line:0",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionInterval/$expression-line/0",
+              "expression": "@description('Data collection interval (valid values: 1m-30m in 1m intervals)')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:dataCollectionInterval:line:80",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionInterval/$expression-line/1",
+              "expression": "param dataCollectionInterval string = '1m'",
+              "analysis": "String parameter default '1m'; description specifies 1m–30m in 1m increments, and official Learn guidance describes interval cadence. It is embedded in opaque extensionSettings, with no REST nested constraint."
+            },
+            {
+              "source_id": "symbol:dataCollectionRuleName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionRuleName/$expression-line/0",
+              "expression": "var dataCollectionRuleName = substring(dataCollectionRuleNameBase, 0, min(64, length(dataCollectionRuleNameBase)))",
+              "analysis": "Computed string resource name is capped at 64 characters by substring; maps to resource-name identity."
+            },
+            {
+              "source_id": "symbol:dataCollectionRuleNameBase:line:0",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionRuleNameBase/$expression-line/0",
+              "expression": "var dataCollectionRuleNameBase = 'dcr-ci-${nameSuffix}'",
+              "analysis": "String nameSuffix feeds a generated resource name; it is not itself a payload property."
+            },
+            {
+              "source_id": "symbol:enableContainerLogV2:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableContainerLogV2/$expression-line/0",
+              "expression": "@description('Enable container log version 2')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:enableContainerLogV2:line:47",
+              "label": "$expression",
+              "path": "/$symbol/enableContainerLogV2/$expression-line/1",
+              "expression": "param enableContainerLogV2 bool = true",
+              "analysis": "Boolean parameter default true, used only inside opaque ContainerInsights extensionSettings; the general Learn guide describes it as a Boolean."
+            },
+            {
+              "source_id": "symbol:enableContainerNetworkLogs:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableContainerNetworkLogs/$expression-line/0",
+              "expression": "@description('Enable container network logs collection (ACNS + Cilium required)')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:enableContainerNetworkLogs:line:82",
+              "label": "$expression",
+              "path": "/$symbol/enableContainerNetworkLogs/$expression-line/1",
+              "expression": "param enableContainerNetworkLogs bool = false",
+              "analysis": "Boolean parameter default false controls DCE creation and selected stream composition; when false the DCR dataCollectionEndpointId expression yields null against an optional non-nullable string schema."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Location of the Azure resources')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:location:line:48",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "String location parameter maps to required TrackedResource.location:string."
+            },
+            {
+              "source_id": "symbol:logAnalyticsWorkspaceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsWorkspaceId/$expression-line/0",
+              "expression": "@description('Log Analytics workspace resource ID')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:logAnalyticsWorkspaceId:line:52",
+              "label": "$expression",
+              "path": "/$symbol/logAnalyticsWorkspaceId/$expression-line/1",
+              "expression": "param logAnalyticsWorkspaceId string",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:nameSuffix:line:0",
+              "label": "$expression",
+              "path": "/$symbol/nameSuffix/$expression-line/0",
+              "expression": "@description('Name suffix for resources (e.g., appName-environment)')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:nameSuffix:line:70",
+              "label": "$expression",
+              "path": "/$symbol/nameSuffix/$expression-line/1",
+              "expression": "param nameSuffix string",
+              "analysis": "String nameSuffix feeds a generated resource name; it is not itself a payload property."
+            },
+            {
+              "source_id": "symbol:namespaceFilteringMode:line:0",
+              "label": "$expression",
+              "path": "/$symbol/namespaceFilteringMode/$expression-line/0",
+              "expression": "@allowed([",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:namespaceFilteringMode:line:11",
+              "label": "$expression",
+              "path": "/$symbol/namespaceFilteringMode/[]/$expression-line/1",
+              "expression": "  'Off'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:namespaceFilteringMode:line:19",
+              "label": "$expression",
+              "path": "/$symbol/namespaceFilteringMode/[]/$expression-line/2",
+              "expression": "  'Include'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:namespaceFilteringMode:line:31",
+              "label": "$expression",
+              "path": "/$symbol/namespaceFilteringMode/[]/$expression-line/3",
+              "expression": "  'Exclude'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:namespaceFilteringMode:line:46",
+              "label": "$expression",
+              "path": "/$symbol/namespaceFilteringMode/$expression-line/5",
+              "expression": "@description('Mode for namespace filtering in data collection')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:namespaceFilteringMode:line:110",
+              "label": "$expression",
+              "path": "/$symbol/namespaceFilteringMode/$expression-line/6",
+              "expression": "param namespaceFilteringMode string = 'Off'",
+              "analysis": "String parameter has explicit @allowed values Off/Include/Exclude and default Off; it is inserted into the unmodeled extension-specific settings object."
+            },
+            {
+              "source_id": "symbol:namespacesForDataCollection:line:0",
+              "label": "$expression",
+              "path": "/$symbol/namespacesForDataCollection/$expression-line/0",
+              "expression": "@description('Namespaces to include/exclude in data collection')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:namespacesForDataCollection:line:65",
+              "label": "$expression",
+              "path": "/$symbol/namespacesForDataCollection/$expression-line/1",
+              "expression": "param namespacesForDataCollection array = []",
+              "analysis": "Array parameter defaults to []; it supplies the namespace-list setting inside opaque extensionSettings; the REST schema does not declare inner types or constraints."
+            },
+            {
+              "source_id": "symbol:streamWithKubeMonAgentEvents:line:0",
+              "label": "$expression",
+              "path": "/$symbol/streamWithKubeMonAgentEvents/$expression-line/0",
+              "expression": "var streamWithKubeMonAgentEvents = union(streamsWithNetworkLogs, [",
+              "analysis": "Derived array unions selected stream values with Microsoft-KubeMonAgentEvents; the REST stream enum is string-backed with modelAsString=true, but no extension-specific stream schema is published."
+            },
+            {
+              "source_id": "symbol:streamWithKubeMonAgentEvents:line:67",
+              "label": "$expression",
+              "path": "/$symbol/streamWithKubeMonAgentEvents/[]/$expression-line/1",
+              "expression": "  'Microsoft-KubeMonAgentEvents'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:streams:line:0",
+              "label": "$expression",
+              "path": "/$symbol/streams/$expression-line/0",
+              "expression": "@description('Data streams to collect (used when dataCollectionPreset is Custom)')",
+              "analysis": "Parameter @allowed values are All/LogsAndEvents/Custom, default All; branches select preset stream arrays or the caller-provided streams array."
+            },
+            {
+              "source_id": "symbol:streams:line:83",
+              "label": "$expression",
+              "path": "/$symbol/streams/$expression-line/1",
+              "expression": "param streams array",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:dataCollectionPreset:line:0",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionPreset/$expression-line/0",
+              "expression": "@description('Data collection preset configuration')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:dataCollectionPreset:line:53",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionPreset/$expression-line/1",
+              "expression": "@allowed([",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:dataCollectionPreset:line:64",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionPreset/[]/$expression-line/2",
+              "expression": "  'All'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:dataCollectionPreset:line:72",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionPreset/[]/$expression-line/3",
+              "expression": "  'LogsAndEvents'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:dataCollectionPreset:line:90",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionPreset/[]/$expression-line/4",
+              "expression": "  'Custom'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:dataCollectionPreset:line:104",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionPreset/$expression-line/6",
+              "expression": "param dataCollectionPreset string = 'All'",
+              "analysis": "Parameter @allowed values are All/LogsAndEvents/Custom, default All; branches select preset stream arrays or the caller-provided streams array."
+            },
+            {
+              "source_id": "symbol:streamsWithNetworkLogs:121",
+              "label": "$expression",
+              "path": "/$symbol/streamsWithNetworkLogs/$syntax/121",
+              "expression": "  : selectedStreams",
+              "analysis": "Derived from LogsAndEvents, All, or Custom; All/LogsAndEvents use source arrays, while Custom uses the caller stream array. Exact ContainerInsights extension semantics are absent from the REST schema."
+            },
+            {
+              "source_id": "symbol:streamsWithNetworkLogs:line:0",
+              "label": "$expression",
+              "path": "/$symbol/streamsWithNetworkLogs/$expression-line/0",
+              "expression": "var streamsWithNetworkLogs = enableContainerNetworkLogs",
+              "analysis": "Boolean parameter default false controls DCE creation and selected stream composition; when false the DCR dataCollectionEndpointId expression yields null against an optional non-nullable string schema."
+            },
+            {
+              "source_id": "symbol:streamsWithNetworkLogs:line:56",
+              "label": "$expression",
+              "path": "/$symbol/streamsWithNetworkLogs/$expression-line/1",
+              "expression": "  ? union(selectedStreams, ['Microsoft-ContainerNetworkLogs'])",
+              "analysis": "Derived from LogsAndEvents, All, or Custom; All/LogsAndEvents use source arrays, while Custom uses the caller stream array. Exact ContainerInsights extension semantics are absent from the REST schema."
+            },
+            {
+              "source_id": "symbol:selectedStreams:89",
+              "label": "$expression",
+              "path": "/$symbol/selectedStreams/$syntax/89",
+              "expression": "  : dataCollectionPreset == 'All' ? allStreams : streams",
+              "analysis": "Parameter @allowed values are All/LogsAndEvents/Custom, default All; branches select preset stream arrays or the caller-provided streams array."
+            },
+            {
+              "source_id": "symbol:selectedStreams:134",
+              "label": "$expression",
+              "path": "/$symbol/selectedStreams/$syntax/134",
+              "expression": "  : dataCollectionPreset == 'All' ? allStreams : streams",
+              "analysis": "Parameter @allowed values are All/LogsAndEvents/Custom, default All; branches select preset stream arrays or the caller-provided streams array."
+            },
+            {
+              "source_id": "symbol:selectedStreams:line:0",
+              "label": "$expression",
+              "path": "/$symbol/selectedStreams/$expression-line/0",
+              "expression": "var selectedStreams = dataCollectionPreset == 'LogsAndEvents'",
+              "analysis": "Parameter @allowed values are All/LogsAndEvents/Custom, default All; branches select preset stream arrays or the caller-provided streams array."
+            },
+            {
+              "source_id": "symbol:selectedStreams:line:62",
+              "label": "$expression",
+              "path": "/$symbol/selectedStreams/$expression-line/1",
+              "expression": "  ? logsAndEventsStreams",
+              "analysis": "This source contains literal Container Insights stream names. REST known enum has five generic values and modelAsString=true; extension-specific values are not in the finite list, and exact extension semantics remain unverified."
+            },
+            {
+              "source_id": "symbol:allStreams:line:0",
+              "label": "$expression",
+              "path": "/$symbol/allStreams/$expression-line/0",
+              "expression": "var allStreams = [",
+              "analysis": "This source contains literal Container Insights stream names. REST known enum has five generic values and modelAsString=true; extension-specific values are not in the finite list, and exact extension semantics remain unverified."
+            },
+            {
+              "source_id": "symbol:allStreams:line:19",
+              "label": "$expression",
+              "path": "/$symbol/allStreams/[]/$expression-line/1",
+              "expression": "  'Microsoft-ContainerLog'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:allStreams:line:46",
+              "label": "$expression",
+              "path": "/$symbol/allStreams/[]/$expression-line/2",
+              "expression": "  'Microsoft-ContainerLogV2'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:allStreams:line:75",
+              "label": "$expression",
+              "path": "/$symbol/allStreams/[]/$expression-line/3",
+              "expression": "  'Microsoft-KubeEvents'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:allStreams:line:100",
+              "label": "$expression",
+              "path": "/$symbol/allStreams/[]/$expression-line/4",
+              "expression": "  'Microsoft-KubePodInventory'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:allStreams:line:131",
+              "label": "$expression",
+              "path": "/$symbol/allStreams/[]/$expression-line/5",
+              "expression": "  'Microsoft-ContainerInventory'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:allStreams:line:164",
+              "label": "$expression",
+              "path": "/$symbol/allStreams/[]/$expression-line/6",
+              "expression": "  'Microsoft-ContainerNodeInventory'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:allStreams:line:201",
+              "label": "$expression",
+              "path": "/$symbol/allStreams/[]/$expression-line/7",
+              "expression": "  'Microsoft-KubeNodeInventory'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:allStreams:line:233",
+              "label": "$expression",
+              "path": "/$symbol/allStreams/[]/$expression-line/8",
+              "expression": "  'Microsoft-InsightsMetrics'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:allStreams:line:263",
+              "label": "$expression",
+              "path": "/$symbol/allStreams/[]/$expression-line/9",
+              "expression": "  'Microsoft-Perf'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:logsAndEventsStreams:line:0",
+              "label": "$expression",
+              "path": "/$symbol/logsAndEventsStreams/$expression-line/0",
+              "expression": "var logsAndEventsStreams = [",
+              "analysis": "This source contains literal Container Insights stream names. REST known enum has five generic values and modelAsString=true; extension-specific values are not in the finite list, and exact extension semantics remain unverified."
+            },
+            {
+              "source_id": "symbol:logsAndEventsStreams:line:29",
+              "label": "$expression",
+              "path": "/$symbol/logsAndEventsStreams/[]/$expression-line/1",
+              "expression": "  'Microsoft-ContainerLog'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:logsAndEventsStreams:line:56",
+              "label": "$expression",
+              "path": "/$symbol/logsAndEventsStreams/[]/$expression-line/2",
+              "expression": "  'Microsoft-ContainerLogV2'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:logsAndEventsStreams:line:85",
+              "label": "$expression",
+              "path": "/$symbol/logsAndEventsStreams/[]/$expression-line/3",
+              "expression": "  'Microsoft-KubeEvents'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:logsAndEventsStreams:line:110",
+              "label": "$expression",
+              "path": "/$symbol/logsAndEventsStreams/[]/$expression-line/4",
+              "expression": "  'Microsoft-KubePodInventory'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags that will be applied to all resources')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:tags:line:59",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object = {}",
+              "analysis": "Tags object is forwarded to TrackedResource.tags, whose additionalProperties is string; root tag values are strings and empty object is permitted."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/external-sli-publisher-rbac.bicep",
+          "name": "prometheusDataCollectionRule",
+          "line": 26,
+          "type": "Microsoft.Insights/dataCollectionRules",
+          "version": "2024-03-11",
+          "existing": true,
+          "start": 892,
+          "end": 1053,
+          "header": "resource prometheusDataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' existing = ",
+          "body": "{\n  name: last(split(prometheusDataCollectionRuleId, '/'))\n}",
+          "status": "unverified",
+          "reason": "The exact REST 2024-03-11 ExtensionDataSource.extensionSettings schema contains a description only: no type, properties, or additionalProperties. Learn renders the field as any(...) and says its format is extension-specific. The current ContainerInsights dataCollectionSettings nested fields therefore lack a public exact wire schema; general Learn configuration guidance does not close that gap. Do not mark the pair assessed.",
+          "migration": "Current and latest GA are both 2024-03-11; no newer GA candidate.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: last(split(prometheusDataCollectionRuleId, '/'))",
+              "analysis": "Original Bicep JSON Pointer /name maps to inherited Resource.name and required string route name; computed or parameterized name is string. DCR name expression bounds output to 64 characters, but the REST schema provides no extra name pattern."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource prometheusDataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' existing = ",
+              "analysis": "Resource header selects Microsoft.Insights/dataCollectionRules@2024-03-11; existing references use name-only identity. API version is current and latest GA."
+            },
+            {
+              "source_id": "symbol:prometheusDataCollectionRuleId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/prometheusDataCollectionRuleId/$expression-line/0",
+              "expression": "@description('Managed Prometheus Data Collection Rule resource ID used by remote-write')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:prometheusDataCollectionRuleId:line:89",
+              "label": "$expression",
+              "path": "/$symbol/prometheusDataCollectionRuleId/$expression-line/1",
+              "expression": "param prometheusDataCollectionRuleId string",
+              "analysis": "String resource-ID parameter is parsed for the final resource-name segment; it is an identity source for an existing DCR, not request payload."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/sli-managed-dcr-rbac.bicep",
+          "name": "prometheusWorkspaceManagedDataCollectionRule",
+          "line": 18,
+          "type": "Microsoft.Insights/dataCollectionRules",
+          "version": "2024-03-11",
+          "existing": true,
+          "start": 583,
+          "end": 735,
+          "header": "resource prometheusWorkspaceManagedDataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' existing = ",
+          "body": "{\n  name: prometheusWorkspaceName\n}",
+          "status": "unverified",
+          "reason": "The exact REST 2024-03-11 ExtensionDataSource.extensionSettings schema contains a description only: no type, properties, or additionalProperties. Learn renders the field as any(...) and says its format is extension-specific. The current ContainerInsights dataCollectionSettings nested fields therefore lack a public exact wire schema; general Learn configuration guidance does not close that gap. Do not mark the pair assessed.",
+          "migration": "Current and latest GA are both 2024-03-11; no newer GA candidate.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: prometheusWorkspaceName",
+              "analysis": "Original Bicep JSON Pointer /name maps to inherited Resource.name and required string route name; computed or parameterized name is string. DCR name expression bounds output to 64 characters, but the REST schema provides no extra name pattern."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource prometheusWorkspaceManagedDataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' existing = ",
+              "analysis": "Resource header selects Microsoft.Insights/dataCollectionRules@2024-03-11; existing references use name-only identity. API version is current and latest GA."
+            },
+            {
+              "source_id": "symbol:prometheusWorkspaceName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/prometheusWorkspaceName/$expression-line/0",
+              "expression": "@description('Name of the Managed Prometheus Azure Monitor Workspace')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:prometheusWorkspaceName:line:71",
+              "label": "$expression",
+              "path": "/$symbol/prometheusWorkspaceName/$expression-line/1",
+              "expression": "param prometheusWorkspaceName string",
+              "analysis": "String name parameter maps to inherited Resource.name for an existing DCR reference; no create-time payload fields apply."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/sli-rbac.bicep",
+          "name": "prometheusDataCollectionRule",
+          "line": 28,
+          "type": "Microsoft.Insights/dataCollectionRules",
+          "version": "2024-03-11",
+          "existing": true,
+          "start": 1032,
+          "end": 1177,
+          "header": "resource prometheusDataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' existing = ",
+          "body": "{\n  name: prometheusDataCollectionRuleName\n}",
+          "status": "unverified",
+          "reason": "The exact REST 2024-03-11 ExtensionDataSource.extensionSettings schema contains a description only: no type, properties, or additionalProperties. Learn renders the field as any(...) and says its format is extension-specific. The current ContainerInsights dataCollectionSettings nested fields therefore lack a public exact wire schema; general Learn configuration guidance does not close that gap. Do not mark the pair assessed.",
+          "migration": "Current and latest GA are both 2024-03-11; no newer GA candidate.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: prometheusDataCollectionRuleName",
+              "analysis": "Original Bicep JSON Pointer /name maps to inherited Resource.name and required string route name; computed or parameterized name is string. DCR name expression bounds output to 64 characters, but the REST schema provides no extra name pattern."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource prometheusDataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' existing = ",
+              "analysis": "Resource header selects Microsoft.Insights/dataCollectionRules@2024-03-11; existing references use name-only identity. API version is current and latest GA."
+            },
+            {
+              "source_id": "symbol:prometheusDataCollectionRuleName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/prometheusDataCollectionRuleName/$expression-line/0",
+              "expression": "var prometheusDataCollectionRuleName = last(split(prometheusDataCollectionRuleId, '/'))",
+              "analysis": "String resource-ID parameter is parsed for the final resource-name segment; it is an identity source for an existing DCR, not request payload."
+            },
+            {
+              "source_id": "symbol:prometheusDataCollectionRuleId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/prometheusDataCollectionRuleId/$expression-line/0",
+              "expression": "@description('Resource ID of the Managed Prometheus Data Collection Rule')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:prometheusDataCollectionRuleId:line:75",
+              "label": "$expression",
+              "path": "/$symbol/prometheusDataCollectionRuleId/$expression-line/1",
+              "expression": "param prometheusDataCollectionRuleId string",
+              "analysis": "String resource-ID parameter is parsed for the final resource-name segment; it is an identity source for an existing DCR, not request payload."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/prometheus/pipeline.bicep",
+          "name": "dataCollectionRule",
+          "line": 35,
+          "type": "Microsoft.Insights/dataCollectionRules",
+          "version": "2024-03-11",
+          "existing": false,
+          "start": 1106,
+          "end": 1934,
+          "header": "resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' = ",
+          "body": "{\n  name: dataCollectionRuleName\n  location: location\n  tags: tags\n  kind: 'Linux'\n  properties: {\n    dataCollectionEndpointId: dataCollectionEndpoint.id\n    dataFlows: [\n      {\n        destinations: ['MonitoringAccount1']\n        streams: ['Microsoft-PrometheusMetrics']\n      }\n    ]\n    dataSources: {\n      prometheusForwarder: [\n        {\n          name: 'PrometheusDataSource'\n          streams: ['Microsoft-PrometheusMetrics']\n          labelIncludeFilter: {}\n        }\n      ]\n    }\n    description: 'DCR for Azure Monitor Metrics Profile (Managed Prometheus)'\n    destinations: {\n      monitoringAccounts: [\n        {\n          accountResourceId: prometheusWorkspaceId\n          name: 'MonitoringAccount1'\n        }\n      ]\n    }\n  }\n}",
+          "status": "unverified",
+          "reason": "The exact REST 2024-03-11 ExtensionDataSource.extensionSettings schema contains a description only: no type, properties, or additionalProperties. Learn renders the field as any(...) and says its format is extension-specific. The current ContainerInsights dataCollectionSettings nested fields therefore lack a public exact wire schema; general Learn configuration guidance does not close that gap. Do not mark the pair assessed.",
+          "migration": "Current and latest GA are both 2024-03-11; no newer GA candidate.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: dataCollectionRuleName",
+              "analysis": "Original Bicep JSON Pointer /name maps to inherited Resource.name and required string route name; computed or parameterized name is string. DCR name expression bounds output to 64 characters, but the REST schema provides no extra name pattern."
+            },
+            {
+              "source_id": "body:43",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "Original /location maps to required TrackedResource.location:string; deployment location parameter is string."
+            },
+            {
+              "source_id": "body:60",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "Original /tags maps to TrackedResource.tags object whose additionalProperties is string in common-types v5. Root infra tags are string-valued; Prometheus module default is {}."
+            },
+            {
+              "source_id": "body:73",
+              "label": "kind",
+              "path": "/kind",
+              "expression": "  kind: 'Linux'",
+              "analysis": "Original /kind maps to KnownDataCollectionRuleResourceKind enum ['Linux','Windows']; literal Linux is allowed."
+            },
+            {
+              "source_id": "body:95",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "Original /properties maps to DataCollectionRuleResourceProperties allOf DataCollectionRule. Direct child fields are examined individually; dataCollectionEndpointId is optional string, dataFlows/dataSources/destinations have resolved item schemas."
+            },
+            {
+              "source_id": "body:127",
+              "label": "dataCollectionEndpointId",
+              "path": "/properties/dataCollectionEndpointId",
+              "expression": "    dataCollectionEndpointId: dataCollectionEndpoint.id",
+              "analysis": "Original source pointer identifies properties.dataCollectionEndpointId and its ternary value: a resource ID string when network logs are enabled, otherwise null. REST declares an optional string with no nullable flag; the default false branch cannot be proven schema-compatible and is preserved as a finding."
+            },
+            {
+              "source_id": "body:168",
+              "label": "dataFlows",
+              "path": "/properties/dataFlows",
+              "expression": "    dataFlows: [",
+              "analysis": "Maps to array of DataFlow; each item has streams and destinations arrays. The nested items and references were resolved in the pinned schema."
+            },
+            {
+              "source_id": "body:200",
+              "label": "destinations",
+              "path": "/properties/dataFlows/[]/destinations",
+              "expression": "        destinations: ['MonitoringAccount1']",
+              "analysis": "Maps to DCR destinations object; logAnalytics and monitoringAccounts entries are resolved types with string names/resource IDs."
+            },
+            {
+              "source_id": "body:240",
+              "label": "streams",
+              "path": "/properties/dataFlows/[]/streams",
+              "expression": "        streams: ['Microsoft-PrometheusMetrics']",
+              "analysis": "REST streams is array of KnownExtensionDataSourceStreams (or KnownDataFlowStreams for dataFlows). The model lists five known streams and x-ms-enum.modelAsString=true; Container Insights stream names are extension-specific and not listed. Treating them as open string values still does not establish extension-specific compatibility."
+            },
+            {
+              "source_id": "body:303",
+              "label": "dataSources",
+              "path": "/properties/dataSources",
+              "expression": "    dataSources: {",
+              "analysis": "Original source pointer maps to DataCollectionRuleDataSources, which allOf-inherits DataSourcesSpec; the selected extensions or prometheusForwarder member is checked by its concrete schema."
+            },
+            {
+              "source_id": "body:332",
+              "label": "prometheusForwarder",
+              "path": "/properties/dataSources/prometheusForwarder",
+              "expression": "      prometheusForwarder: [",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "body:360",
+              "label": "name",
+              "path": "/properties/dataSources/prometheusForwarder/[]/name",
+              "expression": "          name: 'PrometheusDataSource'",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "body:402",
+              "label": "streams",
+              "path": "/properties/dataSources/prometheusForwarder/[]/streams",
+              "expression": "          streams: ['Microsoft-PrometheusMetrics']",
+              "analysis": "REST streams is array of KnownExtensionDataSourceStreams (or KnownDataFlowStreams for dataFlows). The model lists five known streams and x-ms-enum.modelAsString=true; Container Insights stream names are extension-specific and not listed. Treating them as open string values still does not establish extension-specific compatibility."
+            },
+            {
+              "source_id": "body:464",
+              "label": "labelIncludeFilter",
+              "path": "/properties/dataSources/prometheusForwarder/[]/labelIncludeFilter",
+              "expression": "          labelIncludeFilter: {}",
+              "analysis": "REST labelIncludeFilter is object with additionalProperties:string; the source value {} has no values violating that constraint. The schema description documents the supported label key."
+            },
+            {
+              "source_id": "body:508",
+              "label": "description",
+              "path": "/properties/description",
+              "expression": "    description: 'DCR for Azure Monitor Metrics Profile (Managed Prometheus)'",
+              "analysis": "REST DCR properties.description is string; source literal is string."
+            },
+            {
+              "source_id": "body:587",
+              "label": "destinations",
+              "path": "/properties/destinations",
+              "expression": "    destinations: {",
+              "analysis": "Maps to DCR destinations object; logAnalytics and monitoringAccounts entries are resolved types with string names/resource IDs."
+            },
+            {
+              "source_id": "body:615",
+              "label": "monitoringAccounts",
+              "path": "/properties/destinations/monitoringAccounts",
+              "expression": "      monitoringAccounts: [",
+              "analysis": "Source-specific variable contributes to the mapped resource name, stream/destination selection, or identity; original JSON Pointer and expression remain preserved for individual reference."
+            },
+            {
+              "source_id": "body:656",
+              "label": "accountResourceId",
+              "path": "/properties/destinations/monitoringAccounts/[]/accountResourceId",
+              "expression": "          accountResourceId: prometheusWorkspaceId",
+              "analysis": "REST MonitoringAccountDestination.accountResourceId is string; source Prometheus workspace ID parameter is string."
+            },
+            {
+              "source_id": "body:694",
+              "label": "name",
+              "path": "/properties/destinations/monitoringAccounts/[]/name",
+              "expression": "          name: 'MonitoringAccount1'",
+              "analysis": "REST MonitoringAccountDestination.name is string; MonitoringAccount1 matches the data-flow destination reference."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2024-03-11' = ",
+              "analysis": "Resource header selects Microsoft.Insights/dataCollectionRules@2024-03-11; existing references use name-only identity. API version is current and latest GA."
+            },
+            {
+              "source_id": "symbol:dataCollectionRuleName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionRuleName/$expression-line/0",
+              "expression": "var dataCollectionRuleName = substring(dataCollectionRuleNameBase, 0, min(64, length(dataCollectionRuleNameBase)))",
+              "analysis": "Computed string resource name is capped at 64 characters by substring; maps to resource-name identity."
+            },
+            {
+              "source_id": "symbol:dataCollectionRuleNameBase:line:0",
+              "label": "$expression",
+              "path": "/$symbol/dataCollectionRuleNameBase/$expression-line/0",
+              "expression": "var dataCollectionRuleNameBase = 'dcr-prom-${nameSuffix}'",
+              "analysis": "String nameSuffix feeds a generated resource name; it is not itself a payload property."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Location of the Azure resources')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:location:line:48",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "String location parameter maps to required TrackedResource.location:string."
+            },
+            {
+              "source_id": "symbol:nameSuffix:line:0",
+              "label": "$expression",
+              "path": "/$symbol/nameSuffix/$expression-line/0",
+              "expression": "@description('Name suffix for resources (e.g., appName-environment)')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:nameSuffix:line:70",
+              "label": "$expression",
+              "path": "/$symbol/nameSuffix/$expression-line/1",
+              "expression": "param nameSuffix string",
+              "analysis": "String nameSuffix feeds a generated resource name; it is not itself a payload property."
+            },
+            {
+              "source_id": "symbol:prometheusWorkspaceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/prometheusWorkspaceId/$expression-line/0",
+              "expression": "@description('Resource ID of the Azure Monitor managed Prometheus workspace')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:prometheusWorkspaceId:line:78",
+              "label": "$expression",
+              "path": "/$symbol/prometheusWorkspaceId/$expression-line/1",
+              "expression": "param prometheusWorkspaceId string",
+              "analysis": "String resource-ID input maps to MonitoringAccountDestination.accountResourceId:string."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags that will be applied to all resources')",
+              "analysis": "Description annotation is not runtime data; its parameter declaration and use are checked separately."
+            },
+            {
+              "source_id": "symbol:tags:line:59",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object = {}",
+              "analysis": "Tags object is forwarded to TrackedResource.tags, whose additionalProperties is string; root tag values are strings and empty object is permitted."
+            }
+          ]
+        }
+      ],
+      "partial_evidence": {
+        "current": {
+          "analysis": "Learn and pinned REST confirm exact current 2024-03-11; dataCollectionEndpointId is optional string, no nullable flag; DataFlow items/refs, destinations, stream enum and tags inheritance inspected. ExtensionDataSource.extensionSettings is untyped and has no nested schema; general Learn guidance describes config values but not this DCR wire shape.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionrules",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-03-11/dataCollection.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json",
+            "https://learn.microsoft.com/en-us/azure/azure-monitor/containers/kubernetes-monitoring-enable#enable-prometheus-metrics-and-container-logging"
+          ],
+          "version": "2024-03-11",
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionrules": "4210bba5db2e6f85ce468a612ba183b11397c2638c6c888371ca7b062232cd6c",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-03-11/dataCollection.json": "3ce671f7da0e7119027c804ed2b013aa5a3ab74b991d345f73519f40aed1ec3b",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1",
+            "https://learn.microsoft.com/en-us/azure/azure-monitor/containers/kubernetes-monitoring-enable#enable-prometheus-metrics-and-container-logging": "4cf250b2bf69a361e5c00f702420f6067d3e03b537ac6919973160eca96f5c40"
+          }
+        },
+        "ga": {
+          "analysis": "Learn marks 2024-03-11 Latest. Fixed-commit metadata contains stable dataCollection association/DCR contracts through 2024-03-11; exact current schema is the latest GA candidate.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionrules",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-03-11/dataCollection.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+          ],
+          "version": "2024-03-11",
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionrules": "4210bba5db2e6f85ce468a612ba183b11397c2638c6c888371ca7b062232cd6c",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-03-11/dataCollection.json": "3ce671f7da0e7119027c804ed2b013aa5a3ab74b991d345f73519f40aed1ec3b",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log 2024-03-11 adds direct data sources, telemetry/data-source models, SKU, and TrackedResourceTags; removes old DataCollectionRuleResourceTags. Current tags map is inherited string-valued TrackedResource tags. No future GA transition is present. For the ContainerInsights extension-settings fields, there is no versioned nested schema to compare. ",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/datacollectionrules"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/datacollectionrules": "ea9c2c6911fa2b56c434ee30053d561224d2e5ee7e26c402748fc43ed6bceb30"
+          }
+        }
+      }
     },
     "Microsoft.Insights/diagnosticSettings@2021-05-01-preview": {
       "stage": "pending",

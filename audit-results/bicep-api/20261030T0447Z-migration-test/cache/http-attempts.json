@@ -142,5 +142,86 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.6429316720000315
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionrules",
+    "attempt": 1,
+    "started_monotonic": 3335.310027076,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/datacollectionrules",
+    "attempt": 1,
+    "started_monotonic": 3338.310120916,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.585959512000045
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/containers/container-insights-data-collection-dcr",
+    "attempt": 1,
+    "started_monotonic": 3424.820534467,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/containers/container-insights-data-collection-configure",
+    "attempt": 1,
+    "started_monotonic": 3427.820624407,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.199068905999866
+  },
+  {
+    "url": "https://learn.microsoft.com/api/search?search=ContainerInsights%20extensionSettings%20dataCollectionSettings&locale=en-us",
+    "attempt": 1,
+    "started_monotonic": 3452.225678247,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/api/search?search=namespacesForDataCollection%20ContainerInsightsExtension&locale=en-us",
+    "attempt": 1,
+    "started_monotonic": 3463.859293142,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/api/search?search=dataCollectionSettings%20extensionSettings%20ContainerInsights%20DCR&locale=en-us",
+    "attempt": 1,
+    "started_monotonic": 3466.859385745,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.5355627359999744
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/containers/container-insights-multitenant",
+    "attempt": 1,
+    "started_monotonic": 3473.409819719,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/containers/kubernetes-monitoring-enable#enable-prometheus-metrics-and-container-logging",
+    "attempt": 1,
+    "started_monotonic": 3562.49565583,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
