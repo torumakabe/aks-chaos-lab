@@ -1,0 +1,118 @@
+{
+  "pair": "Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01",
+  "results": [
+    {
+      "file": "infra/modules/redis.bicep",
+      "name": "redisAccessPolicyAssignment",
+      "line": 95,
+      "type": "Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments",
+      "version": "2025-07-01",
+      "existing": false,
+      "start": 2520,
+      "end": 2824,
+      "header": "resource redisAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = if (!empty(principalObjectId)) ",
+      "body": "{\n  name: 'app'\n  parent: redisEnterpriseDatabase\n  properties: {\n    accessPolicyName: 'default'\n    user: {\n      objectId: principalObjectId\n    }\n  }\n}",
+      "status": "verified",
+      "reason": "Learn selector identifies 2026-09-01 as the latest stable GA; exact current and candidate schemas preserve the required accessPolicyName and user fields and identical constraints for the used literal and nested objectId string.",
+      "migration": "2026-09-01 GA移行可能。sourceのdefault literalとuser.objectId stringはいずれも候補schemaと互換。",
+      "findings": [
+        {
+          "kind": "update",
+          "detail": "Current 2025-07-01; latest GA 2026-09-01. Exact REST schemas keep required accessPolicyName and user; default satisfies the string pattern and only supported name, and user.objectId remains string. The 2026-09-01 change log removes accessString and provisioningError, neither is used in this Bicep declaration."
+        }
+      ],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'app'",
+          "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'app'\"); Bicep child-resource name 'app' becomes the REST accessPolicyAssignmentName path parameter, not request-body JSON."
+        },
+        {
+          "source_id": "body:24",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: redisEnterpriseDatabase",
+          "analysis": "body:24: Bicep source JSON Pointer /parent (expression 'parent: redisEnterpriseDatabase'); Bicep parent redisEnterpriseDatabase selects the cluster/database path segments of the REST endpoint; it is not an API payload property."
+        },
+        {
+          "source_id": "body:62",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "body:62: Bicep source JSON Pointer /properties (expression 'properties: {'); Bicep properties is the request-body envelope, not a leaf API field; it contains the required accessPolicyName and user properties."
+        },
+        {
+          "source_id": "body:86",
+          "label": "accessPolicyName",
+          "path": "/properties/accessPolicyName",
+          "expression": "    accessPolicyName: 'default'",
+          "analysis": "body:86: Bicep source JSON Pointer /properties/accessPolicyName (expression \"accessPolicyName: 'default'\"); Maps to AccessPolicyAssignmentProperties.accessPolicyName (string, regex-constrained); the literal 'default' matches the schema pattern and is the only supported policy name according to the exact current and candidate schemas."
+        },
+        {
+          "source_id": "body:106",
+          "label": "user",
+          "path": "/properties/user",
+          "expression": "    user: {",
+          "analysis": "body:106: Bicep source JSON Pointer /properties/user (expression 'user: {'); Maps to required AccessPolicyAssignmentProperties.user (object); its nested objectId is present. The Bicep object wrapper itself is not a scalar property."
+        },
+        {
+          "source_id": "body:124",
+          "label": "objectId",
+          "path": "/properties/user/objectId",
+          "expression": "      objectId: principalObjectId",
+          "analysis": "body:124: Bicep source JSON Pointer /properties/user/objectId (expression 'objectId: principalObjectId'); Maps to AccessPolicyAssignmentProperties.user.objectId (string); principalObjectId is a string-typed Bicep parameter, and the resource condition prevents emission when it is empty."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource redisAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = if (!empty(principalObjectId)) ",
+          "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource redisAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = if (!empty(principalObjectId))\"); The if (!empty(principalObjectId)) header condition controls resource emission; it is deployment syntax, not serialized request data."
+        },
+        {
+          "source_id": "symbol:principalObjectId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/principalObjectId/$expression-line/0",
+          "expression": "@description('Principal objectId to grant Redis DB access (optional)')",
+          "analysis": "symbol:principalObjectId:line:0: Bicep source JSON Pointer /$symbol/principalObjectId/$expression-line/0 (expression \"@description('Principal objectId to grant Redis DB access (optional)')\"); Bicep parameter documentation only, not request data; it documents principalObjectId, the string source for required parent object user.objectId."
+        },
+        {
+          "source_id": "symbol:principalObjectId:line:71",
+          "label": "$expression",
+          "path": "/$symbol/principalObjectId/$expression-line/1",
+          "expression": "param principalObjectId string = ''",
+          "analysis": "symbol:principalObjectId:line:71: Bicep source JSON Pointer /$symbol/principalObjectId/$expression-line/1 (expression \"param principalObjectId string = ''\"); Declares principalObjectId as string with empty default; it supplies user.objectId (string), and if (!empty(principalObjectId)) prevents sending an empty value."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2025-07-01",
+      "analysis": "Learn current-version page and fixed REST README identify the 2025-07-01 stable contract. Schemas helper expanded AccessPolicyAssignmentProperties: required accessPolicyName (string with pattern) and user (object); user.objectId is string. The declaration supplies both required fields, literal default, and guarded string objectId.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2025-07-01/redisenterprise/databases/accesspolicyassignments",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2025-07-01/redisenterprise.json"
+      ]
+    },
+    "ga": {
+      "version": "2026-09-01",
+      "analysis": "Learn selector includes GA 2026-09-01 and newer preview 2026-10-01-preview; 2026-09-01 is the newest stable GA. Exact candidate REST model was expanded with Schemas helper; used required fields, accessPolicyName pattern, and user.objectId string match current schema.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2026-09-01/redisenterprise/databases/accesspolicyassignments",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2026-09-01/redisenterprise.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn change log: 2026-09-01 removes accessString and provisioningError from AccessPolicyAssignmentProperties; these are not used in the current Bicep source, and exact 2026-09-01 schema confirms accessPolicyName and user.objectId remain with the same constraints. Current 2025-07-01 change-log entry reports no properties added, updated, or removed.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/change-log/redisenterprise/databases/accesspolicyassignments",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2025-07-01/redisenterprise.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2026-09-01/redisenterprise.json"
+      ]
+    }
+  }
+}

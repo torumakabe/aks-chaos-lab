@@ -43,5 +43,77 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/redisenterprise/databases/accesspolicyassignments",
+    "attempt": 1,
+    "started_monotonic": 1405.162476652,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/redisenterprise/change-log/databases/accesspolicyassignments",
+    "attempt": 1,
+    "started_monotonic": 1408.162588272,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.817232464999961
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/readme.md",
+    "attempt": 1,
+    "started_monotonic": 1408.273072707,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2025-07-01/redisenterprise.json",
+    "attempt": 1,
+    "started_monotonic": 1408.428164857,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/redisenterprise/resource-manager/Microsoft.Cache/RedisEnterprise/stable/2026-09-01/redisenterprise.json",
+    "attempt": 1,
+    "started_monotonic": 1408.574769713,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/change-log/redisenterprise/databases/accesspolicyassignments",
+    "attempt": 1,
+    "started_monotonic": 1432.088215266,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2025-07-01/redisenterprise/databases/accesspolicyassignments",
+    "attempt": 1,
+    "started_monotonic": 1457.778766665,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.cache/2026-09-01/redisenterprise/databases/accesspolicyassignments",
+    "attempt": 1,
+    "started_monotonic": 1460.778904579,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7954524079998464
   }
 ]
