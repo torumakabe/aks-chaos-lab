@@ -52078,9 +52078,583 @@
       }
     },
     "Microsoft.Management/serviceGroups@2024-02-01-preview": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/main.bicep",
+          "name": "azureMonitorSliServiceGroup",
+          "line": 444,
+          "type": "Microsoft.Management/serviceGroups",
+          "version": "2024-02-01-preview",
+          "existing": false,
+          "start": 17438,
+          "end": 17821,
+          "header": "resource azureMonitorSliServiceGroup 'Microsoft.Management/serviceGroups@2024-02-01-preview' = if (enableAzureMonitorSliEffective && !useExistingAzureMonitorSliServiceGroup) ",
+          "body": "{\n  scope: tenant()\n  name: azureMonitorSliServiceGroupName\n  properties: {\n    displayName: '${appName} ${environment}'\n    parent: {\n      resourceId: azureMonitorSliEffectiveParentServiceGroupId\n    }\n  }\n}",
+          "status": "verified",
+          "reason": "Exact current 2024-02-01-preview and latest stable GA 2026-08-01 Learn/REST schemas were compared. Both are tenant-scoped and retain the same serviceGroupName pattern, displayName:string, and parent.resourceId:string/arm-id contract; GA only adds optional attributes. Source create bodies supply displayName and parent. Existing is a reference declaration, so create-only body requirements are not missing.",
+          "migration": "GA migration is structurally compatible: stable 2026-08-01 is the latest published GA and preserves every used field and the resource-name pattern. The source name expression truncates to 90 characters; deployment-time environment/optional resource-ID inputs remain dynamic and were not queried.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "Current API is preview 2024-02-01-preview; exact stable GA 2026-08-01 is available. The GA schema keeps the same name pattern, tenant route, displayName, and parent.resourceId; its only change is optional properties.attributes, so all source-used fields remain supported."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:9",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: tenant()",
+              "analysis": "Bicep scope tenant() selects the tenant-level deployment endpoint; it is not REST JSON. Both Learn versions and both OpenAPI paths target Tenant scope."
+            },
+            {
+              "source_id": "body:26",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: azureMonitorSliServiceGroupName",
+              "analysis": "Original /name maps to required REST path parameter serviceGroupName:string with pattern ^[a-zA-Z0-9\\-_().]{1,90}$. The root expression is azureMonitorSliServiceGroupName, built from sg-, appName, environment, and uniqueString, then truncated to at most 90 characters; default fixed components use allowed characters, while AZURE_ENV_NAME is a deployment-time input."
+            },
+            {
+              "source_id": "body:72",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "REST ServiceGroup.properties is optional. The create declarations supply displayName and parent; exact types and formats are checked in their child usage entries. The existing declaration is reference-only and does not require create properties."
+            },
+            {
+              "source_id": "body:91",
+              "label": "displayName",
+              "path": "/properties/displayName",
+              "expression": "    displayName: '${appName} ${environment}'",
+              "analysis": "REST properties.displayName is string without enum or format constraints. Source interpolates appName and environment in the root declaration, or receives the documented string parameter in the reusable module."
+            },
+            {
+              "source_id": "body:131",
+              "label": "parent",
+              "path": "/properties/parent",
+              "expression": "    parent: {",
+              "analysis": "REST properties.parent is ParentServiceGroupProperties; its child resourceId is checked separately. Do not confuse this REST relationship with the Bicep scope tenant() deployment target."
+            },
+            {
+              "source_id": "body:151",
+              "label": "resourceId",
+              "path": "/properties/parent/resourceId",
+              "expression": "      resourceId: azureMonitorSliEffectiveParentServiceGroupId",
+              "analysis": "REST properties.parent.resourceId is string with format arm-id. Root/module source supplies either the tenant root Service Group ARM ID or the explicit parentServiceGroupResourceId input, whose description identifies it as a Service Group resource ID."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource azureMonitorSliServiceGroup 'Microsoft.Management/serviceGroups@2024-02-01-preview' = if (enableAzureMonitorSliEffective && !useExistingAzureMonitorSliServiceGroup) ",
+              "analysis": "Declaration header selects Microsoft.Management/serviceGroups@2024-02-01-preview. Learn shows stable 2026-08-01 as the latest API and the pinned REST README maps package-2026-08 to stable/2026-08-01."
+            },
+            {
+              "source_id": "symbol:appName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/appName/$expression-line/0",
+              "expression": "@description('Workload/application name (used for resource naming)')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:appName:line:69",
+              "label": "$expression",
+              "path": "/$symbol/appName/$expression-line/1",
+              "expression": "param appName string = 'aks-chaos-lab'",
+              "analysis": "Root appName is pinned to 'aks-chaos-lab' by main.parameters.json (Bicep default agrees); it contributes to displayName and generated Service Group name."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliEffectiveParentServiceGroupId:179",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliEffectiveParentServiceGroupId/$syntax/179",
+              "expression": "  : normalizedAzureMonitorSliParentServiceGroupId",
+              "analysis": "This selects the normalized user-supplied parent ARM ID when present; otherwise it selects the tenant root Service Group ID. The selected value feeds required-by-source REST parent.resourceId, whose format is arm-id."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliEffectiveParentServiceGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliEffectiveParentServiceGroupId/$expression-line/0",
+              "expression": "var azureMonitorSliEffectiveParentServiceGroupId = empty(normalizedAzureMonitorSliParentServiceGroupId)",
+              "analysis": "This selects the normalized user-supplied parent ARM ID when present; otherwise it selects the tenant root Service Group ID. The selected value feeds required-by-source REST parent.resourceId, whose format is arm-id."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliEffectiveParentServiceGroupId:line:104",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliEffectiveParentServiceGroupId/$expression-line/1",
+              "expression": "  ? '/providers/Microsoft.Management/serviceGroups/${tenant().tenantId}'",
+              "analysis": "This selects the normalized user-supplied parent ARM ID when present; otherwise it selects the tenant root Service Group ID. The selected value feeds required-by-source REST parent.resourceId, whose format is arm-id."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliServiceGroupName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliServiceGroupName/$expression-line/0",
+              "expression": "var azureMonitorSliServiceGroupName = substring(",
+              "analysis": "The variable applies substring(base, 0, min(90, length(base))); this caps the API path name at the schema maximum 90 characters without changing its prefix/character set."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliServiceGroupName:line:49",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliServiceGroupName/$expression-line/1",
+              "expression": "  azureMonitorSliServiceGroupNameBase,",
+              "analysis": "The variable applies substring(base, 0, min(90, length(base))); this caps the API path name at the schema maximum 90 characters without changing its prefix/character set."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliServiceGroupName:line:88",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliServiceGroupName/$expression-line/2",
+              "expression": "  0,",
+              "analysis": "The variable applies substring(base, 0, min(90, length(base))); this caps the API path name at the schema maximum 90 characters without changing its prefix/character set."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliServiceGroupName:line:93",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliServiceGroupName/$expression-line/3",
+              "expression": "  min(90, length(azureMonitorSliServiceGroupNameBase))",
+              "analysis": "The variable applies substring(base, 0, min(90, length(base))); this caps the API path name at the schema maximum 90 characters without changing its prefix/character set."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliServiceGroupNameBase:line:0",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliServiceGroupNameBase/$expression-line/0",
+              "expression": "var azureMonitorSliServiceGroupNameBase = 'sg-${appName}-${environment}-${resourceToken}'",
+              "analysis": "Name base is sg-${appName}-${environment}-${resourceToken}; fixed prefix and separators are allowed by the API path pattern. appName is fixed and environment is an unresolved string input."
+            },
+            {
+              "source_id": "symbol:enableAzureMonitorSliEffective:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableAzureMonitorSliEffective/$expression-line/0",
+              "expression": "var enableAzureMonitorSliEffective = enableAzureMonitorSli && enableExternalSliEffective",
+              "analysis": "Boolean composition controls whether the root Service Group is deployed; it is a Bicep condition, not an API payload value."
+            },
+            {
+              "source_id": "symbol:enableAzureMonitorSli:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableAzureMonitorSli/$expression-line/0",
+              "expression": "@description('Deploy Azure Monitor SLI resources for the chaos app. Requires Service Group permissions at the tenant root or specified parent service group.')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:enableAzureMonitorSli:line:159",
+              "label": "$expression",
+              "path": "/$symbol/enableAzureMonitorSli/$expression-line/1",
+              "expression": "param enableAzureMonitorSli bool = false",
+              "analysis": "Boolean deployment-condition parameter; main.parameters.json enables it. It gates the SLI resources and is not REST payload."
+            },
+            {
+              "source_id": "symbol:enableExternalSliEffective:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableExternalSliEffective/$expression-line/0",
+              "expression": "var enableExternalSliEffective = enableExternalSliSignals && enablePrometheusWorkspace && enablePrometheusPipeline",
+              "analysis": "Boolean inputs compose the Bicep deployment condition for external SLI prerequisites; they do not map to Service Group REST fields."
+            },
+            {
+              "source_id": "symbol:enableExternalSliSignals:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enableExternalSliSignals/$expression-line/0",
+              "expression": "@description('Deploy external Azure Functions probe based SLI signals')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:enableExternalSliSignals:line:72",
+              "label": "$expression",
+              "path": "/$symbol/enableExternalSliSignals/$expression-line/1",
+              "expression": "param enableExternalSliSignals bool = true",
+              "analysis": "Boolean inputs compose the Bicep deployment condition for external SLI prerequisites; they do not map to Service Group REST fields."
+            },
+            {
+              "source_id": "symbol:enablePrometheusPipeline:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enablePrometheusPipeline/$expression-line/0",
+              "expression": "@description('Deploy Data Collection pipeline (DCR/DCE/DCRA) for Managed Prometheus')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:enablePrometheusPipeline:line:86",
+              "label": "$expression",
+              "path": "/$symbol/enablePrometheusPipeline/$expression-line/1",
+              "expression": "param enablePrometheusPipeline bool = true",
+              "analysis": "Boolean inputs compose the Bicep deployment condition for external SLI prerequisites; they do not map to Service Group REST fields."
+            },
+            {
+              "source_id": "symbol:enablePrometheusWorkspace:line:0",
+              "label": "$expression",
+              "path": "/$symbol/enablePrometheusWorkspace/$expression-line/0",
+              "expression": "@description('Create Azure Monitor Workspace for Managed Prometheus (recommended)')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:enablePrometheusWorkspace:line:84",
+              "label": "$expression",
+              "path": "/$symbol/enablePrometheusWorkspace/$expression-line/1",
+              "expression": "param enablePrometheusWorkspace bool = true",
+              "analysis": "Boolean inputs compose the Bicep deployment condition for external SLI prerequisites; they do not map to Service Group REST fields."
+            },
+            {
+              "source_id": "symbol:environment:line:0",
+              "label": "$expression",
+              "path": "/$symbol/environment/$expression-line/0",
+              "expression": "@description('Environment name (e.g., dev, test, prod)')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:environment:line:57",
+              "label": "$expression",
+              "path": "/$symbol/environment/$expression-line/1",
+              "expression": "param environment string = 'dev'",
+              "analysis": "Root environment is a string (Bicep default 'dev'); main.parameters.json substitutes AZURE_ENV_NAME. It contributes to displayName/name; only the parameter's actual characters are not resolved in this static audit."
+            },
+            {
+              "source_id": "symbol:normalizedAzureMonitorSliParentServiceGroupId:107",
+              "label": "$expression",
+              "path": "/$symbol/normalizedAzureMonitorSliParentServiceGroupId/$syntax/107",
+              "expression": "  : azureMonitorSliParentServiceGroupId",
+              "analysis": "The 'none' sentinel becomes empty; otherwise the explicit parent Service Group ID is forwarded. This determines the arm-id parent resourceId branch."
+            },
+            {
+              "source_id": "symbol:normalizedAzureMonitorSliParentServiceGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/normalizedAzureMonitorSliParentServiceGroupId/$expression-line/0",
+              "expression": "var normalizedAzureMonitorSliParentServiceGroupId = azureMonitorSliParentServiceGroupId == 'none'",
+              "analysis": "The 'none' sentinel becomes empty; otherwise the explicit parent Service Group ID is forwarded. This determines the arm-id parent resourceId branch."
+            },
+            {
+              "source_id": "symbol:normalizedAzureMonitorSliParentServiceGroupId:line:98",
+              "label": "$expression",
+              "path": "/$symbol/normalizedAzureMonitorSliParentServiceGroupId/$expression-line/1",
+              "expression": "  ? ''",
+              "analysis": "The 'none' sentinel becomes empty; otherwise the explicit parent Service Group ID is forwarded. This determines the arm-id parent resourceId branch."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliParentServiceGroupId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliParentServiceGroupId/$expression-line/0",
+              "expression": "@description('Parent Service Group resource ID for Azure Monitor SLI. Leave empty to use the tenant root service group.')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliParentServiceGroupId:line:122",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliParentServiceGroupId/$expression-line/1",
+              "expression": "param azureMonitorSliParentServiceGroupId string = ''",
+              "analysis": "Optional string parameter documented as a parent Service Group resource ID; main.parameters.json uses the none sentinel by default."
+            },
+            {
+              "source_id": "symbol:resourceToken:line:0",
+              "label": "$expression",
+              "path": "/$symbol/resourceToken/$expression-line/0",
+              "expression": "var resourceToken = toLower(uniqueString(subscription().id, appName, environment))",
+              "analysis": "toLower(uniqueString(subscription().id, appName, environment)) supplies the deterministic suffix. Microsoft Learn documents uniqueString as a 13-character string; it is used only in the generated resource name."
+            },
+            {
+              "source_id": "symbol:useExistingAzureMonitorSliServiceGroup:line:0",
+              "label": "$expression",
+              "path": "/$symbol/useExistingAzureMonitorSliServiceGroup/$expression-line/0",
+              "expression": "var useExistingAzureMonitorSliServiceGroup = !empty(normalizedAzureMonitorSliServiceGroupResourceId)",
+              "analysis": "Boolean branch derived from whether a pre-existing Service Group resource ID was supplied; true suppresses creation and selects existing-reference semantics."
+            },
+            {
+              "source_id": "symbol:normalizedAzureMonitorSliServiceGroupResourceId:111",
+              "label": "$expression",
+              "path": "/$symbol/normalizedAzureMonitorSliServiceGroupResourceId/$syntax/111",
+              "expression": "  : azureMonitorSliServiceGroupResourceId",
+              "analysis": "The 'none' sentinel becomes empty; otherwise the explicit existing Service Group resource ID is retained for the use-existing branch."
+            },
+            {
+              "source_id": "symbol:normalizedAzureMonitorSliServiceGroupResourceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/normalizedAzureMonitorSliServiceGroupResourceId/$expression-line/0",
+              "expression": "var normalizedAzureMonitorSliServiceGroupResourceId = azureMonitorSliServiceGroupResourceId == 'none'",
+              "analysis": "The 'none' sentinel becomes empty; otherwise the explicit existing Service Group resource ID is retained for the use-existing branch."
+            },
+            {
+              "source_id": "symbol:normalizedAzureMonitorSliServiceGroupResourceId:line:102",
+              "label": "$expression",
+              "path": "/$symbol/normalizedAzureMonitorSliServiceGroupResourceId/$expression-line/1",
+              "expression": "  ? ''",
+              "analysis": "The 'none' sentinel becomes empty; otherwise the explicit existing Service Group resource ID is retained for the use-existing branch."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliServiceGroupResourceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliServiceGroupResourceId/$expression-line/0",
+              "expression": "@description('Existing Service Group resource ID for Azure Monitor SLI. When set, Bicep uses this Service Group directly instead of creating a per-environment child Service Group.')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:azureMonitorSliServiceGroupResourceId:line:182",
+              "label": "$expression",
+              "path": "/$symbol/azureMonitorSliServiceGroupResourceId/$expression-line/1",
+              "expression": "param azureMonitorSliServiceGroupResourceId string = ''",
+              "analysis": "Optional string parameter is documented as an existing Service Group resource ID; main.parameters.json uses the none sentinel by default."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/service-group.bicep",
+          "name": "serviceGroup",
+          "line": 23,
+          "type": "Microsoft.Management/serviceGroups",
+          "version": "2024-02-01-preview",
+          "existing": false,
+          "start": 1196,
+          "end": 1462,
+          "header": "resource serviceGroup 'Microsoft.Management/serviceGroups@2024-02-01-preview' = if (!useExistingServiceGroup) ",
+          "body": "{\n  name: serviceGroupName\n  properties: {\n    displayName: serviceGroupDisplayName\n    parent: {\n      resourceId: serviceGroupParentResourceId\n    }\n  }\n}",
+          "status": "verified",
+          "reason": "Exact current 2024-02-01-preview and latest stable GA 2026-08-01 Learn/REST schemas were compared. Both are tenant-scoped and retain the same serviceGroupName pattern, displayName:string, and parent.resourceId:string/arm-id contract; GA only adds optional attributes. Source create bodies supply displayName and parent. Existing is a reference declaration, so create-only body requirements are not missing.",
+          "migration": "GA migration is structurally compatible: stable 2026-08-01 is the latest published GA and preserves every used field and the resource-name pattern. The source name expression truncates to 90 characters; deployment-time environment/optional resource-ID inputs remain dynamic and were not queried.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "Current API is preview 2024-02-01-preview; exact stable GA 2026-08-01 is available. The GA schema keeps the same name pattern, tenant route, displayName, and parent.resourceId; its only change is optional properties.attributes, so all source-used fields remain supported."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: serviceGroupName",
+              "analysis": "Original /name maps to required REST path parameter serviceGroupName:string with pattern ^[a-zA-Z0-9\\-_().]{1,90}$. This reusable module takes serviceGroupName as a required string parameter; no in-repository module caller supplies a concrete value."
+            },
+            {
+              "source_id": "body:39",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "REST ServiceGroup.properties is optional. The create declarations supply displayName and parent; exact types and formats are checked in their child usage entries. The existing declaration is reference-only and does not require create properties."
+            },
+            {
+              "source_id": "body:58",
+              "label": "displayName",
+              "path": "/properties/displayName",
+              "expression": "    displayName: serviceGroupDisplayName",
+              "analysis": "REST properties.displayName is string without enum or format constraints. Source interpolates appName and environment in the root declaration, or receives the documented string parameter in the reusable module."
+            },
+            {
+              "source_id": "body:94",
+              "label": "parent",
+              "path": "/properties/parent",
+              "expression": "    parent: {",
+              "analysis": "REST properties.parent is ParentServiceGroupProperties; its child resourceId is checked separately. Do not confuse this REST relationship with the Bicep scope tenant() deployment target."
+            },
+            {
+              "source_id": "body:114",
+              "label": "resourceId",
+              "path": "/properties/parent/resourceId",
+              "expression": "      resourceId: serviceGroupParentResourceId",
+              "analysis": "REST properties.parent.resourceId is string with format arm-id. Root/module source supplies either the tenant root Service Group ARM ID or the explicit parentServiceGroupResourceId input, whose description identifies it as a Service Group resource ID."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource serviceGroup 'Microsoft.Management/serviceGroups@2024-02-01-preview' = if (!useExistingServiceGroup) ",
+              "analysis": "Declaration header selects Microsoft.Management/serviceGroups@2024-02-01-preview. Learn shows stable 2026-08-01 as the latest API and the pinned REST README maps package-2026-08 to stable/2026-08-01."
+            },
+            {
+              "source_id": "symbol:serviceGroupDisplayName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupDisplayName/$expression-line/0",
+              "expression": "@description('Display name of the Azure Service Group')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:serviceGroupDisplayName:line:56",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupDisplayName/$expression-line/1",
+              "expression": "param serviceGroupDisplayName string",
+              "analysis": "Required string module parameter supplies REST properties.displayName; the API imposes no enum or format constraint."
+            },
+            {
+              "source_id": "symbol:serviceGroupName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupName/$expression-line/0",
+              "expression": "@description('Globally unique Azure Service Group name')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:serviceGroupName:line:57",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupName/$expression-line/1",
+              "expression": "param serviceGroupName string",
+              "analysis": "Required string module parameter supplies the serviceGroupName path segment; its actual caller value is not present in the repository, so the public schema pattern remains the caller contract."
+            },
+            {
+              "source_id": "symbol:serviceGroupParentResourceId:156",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupParentResourceId/$syntax/156",
+              "expression": "  : normalizedParentServiceGroupResourceId",
+              "analysis": "Variable chooses tenant-root Service Group ARM ID when the optional input is empty, otherwise forwards the provided parent ARM ID; it maps to REST parent.resourceId:string/arm-id."
+            },
+            {
+              "source_id": "symbol:serviceGroupParentResourceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupParentResourceId/$expression-line/0",
+              "expression": "var serviceGroupParentResourceId = empty(normalizedParentServiceGroupResourceId)",
+              "analysis": "Variable chooses tenant-root Service Group ARM ID when the optional input is empty, otherwise forwards the provided parent ARM ID; it maps to REST parent.resourceId:string/arm-id."
+            },
+            {
+              "source_id": "symbol:serviceGroupParentResourceId:line:81",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupParentResourceId/$expression-line/1",
+              "expression": "  ? '/providers/Microsoft.Management/serviceGroups/${tenant().tenantId}'",
+              "analysis": "Variable chooses tenant-root Service Group ARM ID when the optional input is empty, otherwise forwards the provided parent ARM ID; it maps to REST parent.resourceId:string/arm-id."
+            },
+            {
+              "source_id": "symbol:normalizedParentServiceGroupResourceId:89",
+              "label": "$expression",
+              "path": "/$symbol/normalizedParentServiceGroupResourceId/$syntax/89",
+              "expression": "var normalizedParentServiceGroupResourceId = parentServiceGroupResourceId == 'none' ? '' : parentServiceGroupResourceId",
+              "analysis": "The 'none' sentinel is normalized to empty before selecting the tenant-root ARM ID or caller-provided parent Service Group ID."
+            },
+            {
+              "source_id": "symbol:parentServiceGroupResourceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/parentServiceGroupResourceId/$expression-line/0",
+              "expression": "@description('Parent service group resource ID. Leave empty to use the tenant root service group.')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:parentServiceGroupResourceId:line:100",
+              "label": "$expression",
+              "path": "/$symbol/parentServiceGroupResourceId/$expression-line/1",
+              "expression": "param parentServiceGroupResourceId string = ''",
+              "analysis": "Optional string module parameter is described as a parent Service Group resource ID; empty/default selects the valid tenant-root parent ID."
+            },
+            {
+              "source_id": "symbol:useExistingServiceGroup:line:0",
+              "label": "$expression",
+              "path": "/$symbol/useExistingServiceGroup/$expression-line/0",
+              "expression": "var useExistingServiceGroup = !empty(normalizedExistingServiceGroupResourceId)",
+              "analysis": "Boolean module condition suppresses create when an existing Service Group resource ID is supplied; this controls deployment only."
+            },
+            {
+              "source_id": "symbol:normalizedExistingServiceGroupResourceId:93",
+              "label": "$expression",
+              "path": "/$symbol/normalizedExistingServiceGroupResourceId/$syntax/93",
+              "expression": "var normalizedExistingServiceGroupResourceId = existingServiceGroupResourceId == 'none' ? '' : existingServiceGroupResourceId",
+              "analysis": "The 'none' sentinel normalizes to empty; a nonempty supplied resource ID selects the existing-resource branch."
+            },
+            {
+              "source_id": "symbol:existingServiceGroupResourceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/existingServiceGroupResourceId/$expression-line/0",
+              "expression": "@description('Existing Service Group resource ID. When set, this module skips Service Group creation and returns this existing scope.')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:existingServiceGroupResourceId:line:136",
+              "label": "$expression",
+              "path": "/$symbol/existingServiceGroupResourceId/$expression-line/1",
+              "expression": "param existingServiceGroupResourceId string = ''",
+              "analysis": "Optional string module parameter describes an existing Service Group resource ID; it affects whether the create declaration runs, not the REST body."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/sli-definitions.bicep",
+          "name": "serviceGroup",
+          "line": 103,
+          "type": "Microsoft.Management/serviceGroups",
+          "version": "2024-02-01-preview",
+          "existing": true,
+          "start": 3489,
+          "end": 3624,
+          "header": "resource serviceGroup 'Microsoft.Management/serviceGroups@2024-02-01-preview' existing = ",
+          "body": "{\n  scope: tenant()\n  name: serviceGroupName\n}",
+          "status": "verified",
+          "reason": "Exact current 2024-02-01-preview and latest stable GA 2026-08-01 Learn/REST schemas were compared. Both are tenant-scoped and retain the same serviceGroupName pattern, displayName:string, and parent.resourceId:string/arm-id contract; GA only adds optional attributes. Source create bodies supply displayName and parent. Existing is a reference declaration, so create-only body requirements are not missing.",
+          "migration": "GA migration is structurally compatible: stable 2026-08-01 is the latest published GA and preserves every used field and the resource-name pattern. The source name expression truncates to 90 characters; deployment-time environment/optional resource-ID inputs remain dynamic and were not queried.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "Current API is preview 2024-02-01-preview; exact stable GA 2026-08-01 is available. The GA schema keeps the same name pattern, tenant route, displayName, and parent.resourceId; its only change is optional properties.attributes, so all source-used fields remain supported."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:9",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: tenant()",
+              "analysis": "Bicep scope tenant() selects the tenant-level deployment endpoint; it is not REST JSON. Both Learn versions and both OpenAPI paths target Tenant scope."
+            },
+            {
+              "source_id": "body:26",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: serviceGroupName",
+              "analysis": "Original /name maps to required REST path parameter serviceGroupName:string with pattern ^[a-zA-Z0-9\\-_().]{1,90}$. The existing-reference name is supplied as a string parameter; it resolves in the SLI layer from an explicit name or the final segment of a supplied Service Group resource ID, without create payload fields."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource serviceGroup 'Microsoft.Management/serviceGroups@2024-02-01-preview' existing = ",
+              "analysis": "Declaration header selects Microsoft.Management/serviceGroups@2024-02-01-preview. Learn shows stable 2026-08-01 as the latest API and the pinned REST README maps package-2026-08 to stable/2026-08-01."
+            },
+            {
+              "source_id": "symbol:serviceGroupName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupName/$expression-line/0",
+              "expression": "@description('Azure Service Group name that owns the SLI resources')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:serviceGroupName:line:69",
+              "label": "$expression",
+              "path": "/$symbol/serviceGroupName/$expression-line/1",
+              "expression": "param serviceGroupName string",
+              "analysis": "Required string parameter supplies the name for an existing reference only; infra/sli/main.bicep chooses explicit serviceGroupName or last path segment of serviceGroupId. No create-body required fields apply."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2024-02-01-preview",
+          "analysis": "Fetched exact preview Learn reference and pinned preview OpenAPI. ServiceGroup has tenant-level path; ServiceGroupProperties exposes string displayName and parent.resourceId string/arm-id. The path name is required string with regex ^[a-zA-Z0-9\\-_().]{1,90}$. Current source supplies displayName and parent; existing declaration is reference-only.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.management/2024-02-01-preview/servicegroups",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/preview/2024-02-01-preview/serviceGroups.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/readme.md"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.management/2024-02-01-preview/servicegroups": "77f75410f518664e316fb5909aaeca82851b4f74d14967bc0d284eeb6eae90ea",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/preview/2024-02-01-preview/serviceGroups.json": "2b26f01c1bf2902ab9bcc1aa0ac3f94831e743c1381e1510e0062045ea631088",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/readme.md": "d51ce2c7a46c6916f9dfdabd9b7bca1e74e69c4af8ad4924d7c6fa07fd97ffc9"
+          }
+        },
+        "ga": {
+          "version": "2026-08-01",
+          "analysis": "Learn version selector labels 2026-08-01 as Latest and pinned REST README maps package-2026-08 to stable/2026-08-01/serviceGroups.json. Exact candidate schema preserves the tenant route, name regex, displayName:string, and parent.resourceId:string/arm-id. Its ServiceGroupProperties adds optional attributes; the source does not use it. The exact GA PUT example confirms parent.resourceId payload shape.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.management/2026-08-01/servicegroups",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/stable/2026-08-01/serviceGroups.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/stable/2026-08-01/examples/ServiceGroup_Put.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.management/2026-08-01/servicegroups": "2380e19a2dec46b994d0eca14b9503e48d5248da69498dc43d7aa79292d2197b",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/stable/2026-08-01/serviceGroups.json": "f818eccf20ecac4db654ea069a00fbfe9a4044c5abc85648c4ae0fd691450ad0",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/readme.md": "d51ce2c7a46c6916f9dfdabd9b7bca1e74e69c4af8ad4924d7c6fa07fd97ffc9",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/stable/2026-08-01/examples/ServiceGroup_Put.json": "463a32aa0da4ec123e86eba1c86dbb34cd944daed7be8612f9620583aac3eac2"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log for 2026-08-01 lists only addition of ServiceGroupAttributes and addition of optional ServiceGroupProperties.attributes. No removal or change is listed for displayName, parent, or parent.resourceId. Microsoft Learn uniqueString reference was read for the generated-name suffix (13 characters).",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.management/change-log/servicegroups",
+            "https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/template-functions-string#uniquestring"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.management/change-log/servicegroups": "6e8e74d4d95ceafc32909680b875762a1cdeadf8ef67cdac71e3e8b0044a84ae",
+            "https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/template-functions-string#uniquestring": "c9a570955b83a5edfe75586ba3c7801fcf22b565f0b677b1956852d8591d288c"
+          }
+        }
+      }
     },
     "Microsoft.Monitor/accounts@2025-10-03": {
       "stage": "pending",

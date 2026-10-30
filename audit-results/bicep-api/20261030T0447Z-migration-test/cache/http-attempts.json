@@ -610,5 +610,77 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.management/2024-02-01-preview/servicegroups",
+    "attempt": 1,
+    "started_monotonic": 4821.622576728,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.management/change-log/servicegroups",
+    "attempt": 1,
+    "started_monotonic": 4824.622669468,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6557592710005338
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.management/2026-08-01/servicegroups",
+    "attempt": 1,
+    "started_monotonic": 4849.739765718,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/readme.md",
+    "attempt": 1,
+    "started_monotonic": 4850.192982878,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/preview/2024-02-01-preview/serviceGroups.json",
+    "attempt": 1,
+    "started_monotonic": 4850.333948706,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/stable/2026-08-01/serviceGroups.json",
+    "attempt": 1,
+    "started_monotonic": 4850.447464239,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/azure-resource-manager/templates/template-functions-string#uniquestring",
+    "attempt": 1,
+    "started_monotonic": 5028.869618801,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/stable/2026-08-01/examples/ServiceGroup_Put.json",
+    "attempt": 1,
+    "started_monotonic": 5029.267161789,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

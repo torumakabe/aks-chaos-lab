@@ -1,0 +1,32 @@
+{
+  "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/readme.md",
+  "final_url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/readme.md",
+  "status": 200,
+  "headers": {
+    "Content-Length": "1215",
+    "Accept-Ranges": "bytes",
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "max-age=300",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cross-Origin-Resource-Policy": "cross-origin",
+    "Date": "Fri, 30 Oct 2026 05:22:15 GMT",
+    "Etag": "\"aa167b870472499df35a810b921de0ee6afb08162a81fc58f84ef4d4e6d3f88d\"",
+    "Expires": "Fri, 30 Oct 2026 05:27:15 GMT",
+    "Source-Age": "0",
+    "Strict-Transport-Security": "max-age=31536000",
+    "Vary": "Authorization,Accept-Encoding",
+    "Via": "1.1 varnish",
+    "X-Cache": "MISS",
+    "X-Cache-Hits": "0",
+    "X-Content-Type-Options": "nosniff",
+    "X-Fastly-Request-Id": "64272ce3dafc30175868b3e389331732e73fe668",
+    "X-Frame-Options": "deny",
+    "X-Github-Edge-Region": "iad",
+    "X-Github-Request-Id": "98D2:30910:249E1:3CDAA:6AE42987",
+    "X-Served-By": "cache-dfw-kdfw8210042-DFW",
+    "X-Timer": "S1793337736.704440,VS0,VE88",
+    "X-Xss-Protection": "1; mode=block"
+  },
+  "body": "# Service Groups\n\n> see https://aka.ms/autorest\n\nThis is the AutoRest configuration file for Service Groups.\n\n---\n\n## Getting Started\n\nTo build the SDK for Service Groups, simply [Install AutoRest](https://aka.ms/autorest/install) and in this folder, run:\n\n> `autorest`\n\nTo see additional help and options, run:\n\n> `autorest --help`\n\n---\n\n## Configuration\n\n### Basic Information\n\nThese are the global settings for the API.\n\n``` yaml\nopenapi-type: arm\ntag: package-2026-08\n```\n\n### Tag: package-2026-08\n\nThese settings apply only when `--tag=package-2026-08` is specified on the command line.\n\n```yaml $(tag) == 'package-2026-08'\ninput-file:\n  - stable/2026-08-01/serviceGroups.json\nv3: true\n```\n\n### Tag: package-2024-02-preview\n\nThese settings apply only when `--tag=package-2024-02-preview` is specified on the command line.\n\n```yaml $(tag) == 'package-2024-02-preview'\ninput-file:\n  - preview/2024-02-01-preview/serviceGroups.json\nv3: true\n```\n---\n\n# Suppression\n\n``` yaml\nsuppressions:\n  - code: TenantLevelAPIsNotAllowed\n    reason: These are tenant level APIs and resource types by design.\n    from: serviceGroups.json\n    where: $.paths[\"/providers/Microsoft.Management/serviceGroups/{serviceGroupName}\"]\n```"
+}

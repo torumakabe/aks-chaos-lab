@@ -1,0 +1,32 @@
+{
+  "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/stable/2026-08-01/examples/ServiceGroup_Put.json",
+  "final_url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/management/resource-manager/Microsoft.Management/ServiceGroups/stable/2026-08-01/examples/ServiceGroup_Put.json",
+  "status": 200,
+  "headers": {
+    "Content-Length": "1729",
+    "Accept-Ranges": "bytes",
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "max-age=300",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cross-Origin-Resource-Policy": "cross-origin",
+    "Date": "Fri, 30 Oct 2026 05:25:14 GMT",
+    "Etag": "\"c6d46372501457739b8bc27d7d3d702db7875130b4b21f9f4fc3af42e95fdfb4\"",
+    "Expires": "Fri, 30 Oct 2026 05:30:14 GMT",
+    "Source-Age": "0",
+    "Strict-Transport-Security": "max-age=31536000",
+    "Vary": "Authorization,Accept-Encoding",
+    "Via": "1.1 varnish",
+    "X-Cache": "MISS",
+    "X-Cache-Hits": "0",
+    "X-Content-Type-Options": "nosniff",
+    "X-Fastly-Request-Id": "4389caa06a68d0c0c155b3df12a548b956fad6d9",
+    "X-Frame-Options": "deny",
+    "X-Github-Edge-Region": "iad",
+    "X-Github-Request-Id": "0A76:207E8D:47E29:602D1:6AE42A39",
+    "X-Served-By": "cache-dfw-kdfw8210126-DFW",
+    "X-Timer": "S1793337915.781494,VS0,VE105",
+    "X-Xss-Protection": "1; mode=block"
+  },
+  "body": "{\n  \"parameters\": {\n    \"api-version\": \"2026-08-01\",\n    \"createServiceGroupRequest\": {\n      \"properties\": {\n        \"attributes\": {\n          \"criticality\": 2\n        },\n        \"displayName\": \"ServiceGroup 1 Name\",\n        \"parent\": {\n          \"resourceId\": \"/providers/Microsoft.Management/serviceGroups/RootGroup\"\n        }\n      }\n    },\n    \"serviceGroupName\": \"ServiceGroup1\"\n  },\n  \"responses\": {\n    \"200\": {\n      \"body\": {\n        \"name\": \"ServiceGroup1\",\n        \"type\": \"Microsoft.Management/serviceGroups\",\n        \"id\": \"/providers/Microsoft.Management/serviceGroups/ServiceGroup1\",\n        \"properties\": {\n          \"attributes\": {\n            \"criticality\": 2\n          },\n          \"displayName\": \"ServiceGroup 1 Name\",\n          \"parent\": {\n            \"resourceId\": \"/providers/Microsoft.Management/serviceGroups/RootGroup\"\n          },\n          \"provisioningState\": \"Succeeded\"\n        }\n      }\n    },\n    \"201\": {\n      \"headers\": {\n        \"Azure-AsyncOperation\": \"https://management.azure.com/providers/Microsoft.Management/operationStatuses/20000000-0000-0000-0000-000000000001?api-version=2026-08-01\"\n      },\n      \"body\": {\n        \"name\": \"ServiceGroup1\",\n        \"type\": \"Microsoft.Management/serviceGroups\",\n        \"id\": \"/providers/Microsoft.Management/serviceGroups/ServiceGroup1\",\n        \"properties\": {\n          \"attributes\": {\n            \"criticality\": 2\n          },\n          \"displayName\": \"ServiceGroup 1 Name\",\n          \"parent\": {\n            \"resourceId\": \"/providers/Microsoft.Management/serviceGroups/RootGroup\"\n          },\n          \"provisioningState\": \"Succeeded\"\n        }\n      }\n    }\n  },\n  \"operationId\": \"CreateOrUpdateServiceGroup\",\n  \"title\": \"PutServiceGroup\"\n}\n"
+}
