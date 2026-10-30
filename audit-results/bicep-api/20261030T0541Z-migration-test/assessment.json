@@ -1,532 +1,555 @@
 {
-  "pair": "Microsoft.Network/privateDnsZones@2024-06-01",
+  "pair": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01",
   "results": [
     {
       "file": "infra/modules/acr.bicep",
-      "name": "containerRegistryPrivateDnsZone",
-      "line": 39,
-      "type": "Microsoft.Network/privateDnsZones",
-      "version": "2024-06-01",
+      "name": "containerRegistryPrivateDnsZoneGroup",
+      "line": 75,
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "version": "2026-03-01",
       "existing": false,
-      "start": 1048,
-      "end": 1208,
-      "header": "resource containerRegistryPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-      "body": "{\n  name: 'privatelink.azurecr.io'\n  location: 'global'\n  tags: tags\n}",
+      "start": 2007,
+      "end": 2406,
+      "header": "resource containerRegistryPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+      "body": "{\n  parent: containerRegistryPrivateEndpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }\n    ]\n  }\n  dependsOn: [\n    containerRegistryPrivateDnsZoneLink\n  ]\n}",
       "status": "verified",
-      "reason": "Learn selectorで2024-06-01が最新GAと確認し、固定REST README/specのPrivateZone・Resource/allOf・tags additionalProperties:stringをSchemasで照合した。全6作成宣言のname/location/tagsはAPI型と整合し、propertiesを省略している点は任意のzone propertiesと一致。",
-      "migration": "GA移行不要。現行2024-06-01が最新公開GAと一致。change logのPrivateZoneTags追加とTrackedResourceTags削除後も現行schemaはtags object<string>を定義し、全宣言のtags入力は文字列mapまたは空object。",
+      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
+      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
       "findings": [],
       "usage": [
         {
-          "source_id": "body:8",
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: containerRegistryPrivateEndpoint",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: containerRegistryPrivateEndpoint。"
+        },
+        {
+          "source_id": "body:51",
           "label": "name",
           "path": "/name",
-          "expression": "  name: 'privatelink.azurecr.io'",
-          "analysis": "JSON Pointer /name はREST resource identityの名前。OpenAPIのname:string/readOnlyはresponseモデルだが、Bicep nameはdeploymentがPUT target pathに使う識別子でpayloadの更新値ではない。式 name: 'privatelink.azurecr.io' はliteralまたはstring-valued zone-name var。"
+          "expression": "  name: 'default'",
+          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
+        },
+        {
+          "source_id": "body:75",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
+        },
+        {
+          "source_id": "body:104",
+          "label": "privateDnsZoneConfigs",
+          "path": "/properties/privateDnsZoneConfigs",
+          "expression": "    privateDnsZoneConfigs: [",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
+        },
+        {
+          "source_id": "body:120",
+          "label": "name",
+          "path": "/properties/privateDnsZoneConfigs/[]/name",
+          "expression": "      { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalは{ name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }で、Schemas.literalによりstring型を確認。"
+        },
+        {
+          "source_id": "body:151",
+          "label": "properties",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties",
+          "expression": "      { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
+        },
+        {
+          "source_id": "body:171",
+          "label": "privateDnsZoneId",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
+          "expression": "      { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression { name: 'registry-config', properties: { privateDnsZoneId: containerRegistryPrivateDnsZone.id } }は先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
+        },
+        {
+          "source_id": "body:233",
+          "label": "dependsOn",
+          "path": "/dependsOn",
+          "expression": "  dependsOn: [",
+          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
+        },
+        {
+          "source_id": "body:line:237",
+          "label": "$expression",
+          "path": "/dependsOn/[]/$expression-line/9",
+          "expression": "    containerRegistryPrivateDnsZoneLink",
+          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/9 はBicep dependsOn item containerRegistryPrivateDnsZoneLinkでresource orderingを指定し、REST payloadへ送信されない。"
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource containerRegistryPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/functions/external-sli-publisher.bicep",
+      "name": "storageBlobPrivateDnsZoneGroup",
+      "line": 155,
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "version": "2026-03-01",
+      "existing": false,
+      "start": 5247,
+      "end": 5618,
+      "header": "resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+      "body": "{\n  parent: storageBlobPrivateEndpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      { name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }\n    ]\n  }\n  dependsOn: [\n    storageBlobPrivateDnsZoneLink\n  ]\n}",
+      "status": "verified",
+      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
+      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: storageBlobPrivateEndpoint",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: storageBlobPrivateEndpoint。"
         },
         {
           "source_id": "body:45",
-          "label": "location",
-          "path": "/location",
-          "expression": "  location: 'global'",
-          "analysis": "JSON Pointer /location はREST PrivateZone.location:string。'global' literalをSchemas.literalで確認。"
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: 'default'",
+          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
         },
         {
-          "source_id": "body:62",
-          "label": "tags",
-          "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags はREST PrivateZoneTags object with additionalProperties:string。module param tags objectはmain.bicepのcommon tags map (environment:string)から渡されるか{} defaultで、どちらもstring-valued/empty map。Schemas.literalで代表mapと{}を検証。"
+          "source_id": "body:69",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
+        },
+        {
+          "source_id": "body:98",
+          "label": "privateDnsZoneConfigs",
+          "path": "/properties/privateDnsZoneConfigs",
+          "expression": "    privateDnsZoneConfigs: [",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
+        },
+        {
+          "source_id": "body:114",
+          "label": "name",
+          "path": "/properties/privateDnsZoneConfigs/[]/name",
+          "expression": "      { name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalは{ name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }で、Schemas.literalによりstring型を確認。"
+        },
+        {
+          "source_id": "body:141",
+          "label": "properties",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties",
+          "expression": "      { name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
+        },
+        {
+          "source_id": "body:161",
+          "label": "privateDnsZoneId",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
+          "expression": "      { name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression { name: 'blob-config', properties: { privateDnsZoneId: storageBlobPrivateDnsZone.id } }は先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
+        },
+        {
+          "source_id": "body:217",
+          "label": "dependsOn",
+          "path": "/dependsOn",
+          "expression": "  dependsOn: [",
+          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
+        },
+        {
+          "source_id": "body:line:221",
+          "label": "$expression",
+          "path": "/dependsOn/[]/$expression-line/9",
+          "expression": "    storageBlobPrivateDnsZoneLink",
+          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/9 はBicep dependsOn item storageBlobPrivateDnsZoneLinkでresource orderingを指定し、REST payloadへ送信されない。"
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource containerRegistryPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version headerでpayload propertyではない。Microsoft.Network/privateDnsZones@2024-06-01がLearn/REST current versionと一致。"
-        },
-        {
-          "source_id": "symbol:location:line:0",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/0",
-          "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:location:line:36",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/1",
-          "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:tags:line:0",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/0",
-          "expression": "@description('Tags object')",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
-        },
-        {
-          "source_id": "symbol:tags:line:28",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/1",
-          "expression": "param tags object = {}",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
+          "expression": "resource storageBlobPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
         }
       ]
     },
     {
       "file": "infra/modules/functions/external-sli-publisher.bicep",
-      "name": "storageBlobPrivateDnsZone",
-      "line": 119,
-      "type": "Microsoft.Network/privateDnsZones",
-      "version": "2024-06-01",
+      "name": "storageQueuePrivateDnsZoneGroup",
+      "line": 204,
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "version": "2026-03-01",
       "existing": false,
-      "start": 4278,
-      "end": 4437,
-      "header": "resource storageBlobPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-      "body": "{\n  name: storageBlobPrivateDnsZoneName\n  location: 'global'\n  tags: tags\n}",
+      "start": 6598,
+      "end": 6974,
+      "header": "resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+      "body": "{\n  parent: storageQueuePrivateEndpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      { name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }\n    ]\n  }\n  dependsOn: [\n    storageQueuePrivateDnsZoneLink\n  ]\n}",
       "status": "verified",
-      "reason": "Learn selectorで2024-06-01が最新GAと確認し、固定REST README/specのPrivateZone・Resource/allOf・tags additionalProperties:stringをSchemasで照合した。全6作成宣言のname/location/tagsはAPI型と整合し、propertiesを省略している点は任意のzone propertiesと一致。",
-      "migration": "GA移行不要。現行2024-06-01が最新公開GAと一致。change logのPrivateZoneTags追加とTrackedResourceTags削除後も現行schemaはtags object<string>を定義し、全宣言のtags入力は文字列mapまたは空object。",
+      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
+      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
       "findings": [],
       "usage": [
         {
-          "source_id": "body:8",
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: storageQueuePrivateEndpoint",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: storageQueuePrivateEndpoint。"
+        },
+        {
+          "source_id": "body:46",
           "label": "name",
           "path": "/name",
-          "expression": "  name: storageBlobPrivateDnsZoneName",
-          "analysis": "JSON Pointer /name はREST resource identityの名前。OpenAPIのname:string/readOnlyはresponseモデルだが、Bicep nameはdeploymentがPUT target pathに使う識別子でpayloadの更新値ではない。式 name: storageBlobPrivateDnsZoneName はliteralまたはstring-valued zone-name var。"
+          "expression": "  name: 'default'",
+          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
         },
         {
-          "source_id": "body:50",
-          "label": "location",
-          "path": "/location",
-          "expression": "  location: 'global'",
-          "analysis": "JSON Pointer /location はREST PrivateZone.location:string。'global' literalをSchemas.literalで確認。"
+          "source_id": "body:70",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
         },
         {
-          "source_id": "body:67",
-          "label": "tags",
-          "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags はREST PrivateZoneTags object with additionalProperties:string。module param tags objectはmain.bicepのcommon tags map (environment:string)から渡されるか{} defaultで、どちらもstring-valued/empty map。Schemas.literalで代表mapと{}を検証。"
+          "source_id": "body:99",
+          "label": "privateDnsZoneConfigs",
+          "path": "/properties/privateDnsZoneConfigs",
+          "expression": "    privateDnsZoneConfigs: [",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
+        },
+        {
+          "source_id": "body:115",
+          "label": "name",
+          "path": "/properties/privateDnsZoneConfigs/[]/name",
+          "expression": "      { name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalは{ name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }で、Schemas.literalによりstring型を確認。"
+        },
+        {
+          "source_id": "body:143",
+          "label": "properties",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties",
+          "expression": "      { name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
+        },
+        {
+          "source_id": "body:163",
+          "label": "privateDnsZoneId",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
+          "expression": "      { name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression { name: 'queue-config', properties: { privateDnsZoneId: storageQueuePrivateDnsZone.id } }は先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
+        },
+        {
+          "source_id": "body:220",
+          "label": "dependsOn",
+          "path": "/dependsOn",
+          "expression": "  dependsOn: [",
+          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
+        },
+        {
+          "source_id": "body:line:224",
+          "label": "$expression",
+          "path": "/dependsOn/[]/$expression-line/9",
+          "expression": "    storageQueuePrivateDnsZoneLink",
+          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/9 はBicep dependsOn item storageQueuePrivateDnsZoneLinkでresource orderingを指定し、REST payloadへ送信されない。"
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource storageBlobPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version headerでpayload propertyではない。Microsoft.Network/privateDnsZones@2024-06-01がLearn/REST current versionと一致。"
-        },
-        {
-          "source_id": "symbol:location:line:0",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/0",
-          "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:location:line:36",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/1",
-          "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:storageBlobPrivateDnsZoneName:line:0",
-          "label": "$expression",
-          "path": "/$symbol/storageBlobPrivateDnsZoneName/$expression-line/0",
-          "expression": "var storageBlobPrivateDnsZoneName = 'privatelink.blob.${az.environment().suffixes.storage}'",
-          "analysis": "JSON Pointer /$symbol/storageBlobPrivateDnsZoneName/$expression-line/0 はzone名変数の定義。expression var storageBlobPrivateDnsZoneName = 'privatelink.blob.${az.environment().suffixes.storage}'はDNS suffix stringとの補間でstring resource nameを生成し、REST name:stringに対応。"
-        },
-        {
-          "source_id": "symbol:environment:line:0",
-          "label": "$expression",
-          "path": "/$symbol/environment/$expression-line/0",
-          "expression": "@description('Environment name')",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/0 はenvironment parameter source (string)。このzone name式はenvironmentを参照せず、DNS suffixはaz.environment().suffixes.storageから取得する。"
-        },
-        {
-          "source_id": "symbol:environment:line:33",
-          "label": "$expression",
-          "path": "/$symbol/environment/$expression-line/1",
-          "expression": "param environment string",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/1 はenvironment parameter source (string)。このzone name式はenvironmentを参照せず、DNS suffixはaz.environment().suffixes.storageから取得する。"
-        },
-        {
-          "source_id": "symbol:tags:line:0",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/0",
-          "expression": "@description('Tags applied to all resources')",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
-        },
-        {
-          "source_id": "symbol:tags:line:46",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/1",
-          "expression": "param tags object = {}",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
+          "expression": "resource storageQueuePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
         }
       ]
     },
     {
       "file": "infra/modules/functions/external-sli-publisher.bicep",
-      "name": "storageQueuePrivateDnsZone",
-      "line": 168,
-      "type": "Microsoft.Network/privateDnsZones",
-      "version": "2024-06-01",
+      "name": "storageTablePrivateDnsZoneGroup",
+      "line": 253,
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "version": "2026-03-01",
       "existing": false,
-      "start": 5620,
-      "end": 5781,
-      "header": "resource storageQueuePrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-      "body": "{\n  name: storageQueuePrivateDnsZoneName\n  location: 'global'\n  tags: tags\n}",
+      "start": 7954,
+      "end": 8330,
+      "header": "resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+      "body": "{\n  parent: storageTablePrivateEndpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      { name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }\n    ]\n  }\n  dependsOn: [\n    storageTablePrivateDnsZoneLink\n  ]\n}",
       "status": "verified",
-      "reason": "Learn selectorで2024-06-01が最新GAと確認し、固定REST README/specのPrivateZone・Resource/allOf・tags additionalProperties:stringをSchemasで照合した。全6作成宣言のname/location/tagsはAPI型と整合し、propertiesを省略している点は任意のzone propertiesと一致。",
-      "migration": "GA移行不要。現行2024-06-01が最新公開GAと一致。change logのPrivateZoneTags追加とTrackedResourceTags削除後も現行schemaはtags object<string>を定義し、全宣言のtags入力は文字列mapまたは空object。",
+      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
+      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
       "findings": [],
       "usage": [
         {
-          "source_id": "body:8",
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: storageTablePrivateEndpoint",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: storageTablePrivateEndpoint。"
+        },
+        {
+          "source_id": "body:46",
           "label": "name",
           "path": "/name",
-          "expression": "  name: storageQueuePrivateDnsZoneName",
-          "analysis": "JSON Pointer /name はREST resource identityの名前。OpenAPIのname:string/readOnlyはresponseモデルだが、Bicep nameはdeploymentがPUT target pathに使う識別子でpayloadの更新値ではない。式 name: storageQueuePrivateDnsZoneName はliteralまたはstring-valued zone-name var。"
+          "expression": "  name: 'default'",
+          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
         },
         {
-          "source_id": "body:51",
-          "label": "location",
-          "path": "/location",
-          "expression": "  location: 'global'",
-          "analysis": "JSON Pointer /location はREST PrivateZone.location:string。'global' literalをSchemas.literalで確認。"
+          "source_id": "body:70",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
         },
         {
-          "source_id": "body:68",
-          "label": "tags",
-          "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags はREST PrivateZoneTags object with additionalProperties:string。module param tags objectはmain.bicepのcommon tags map (environment:string)から渡されるか{} defaultで、どちらもstring-valued/empty map。Schemas.literalで代表mapと{}を検証。"
+          "source_id": "body:99",
+          "label": "privateDnsZoneConfigs",
+          "path": "/properties/privateDnsZoneConfigs",
+          "expression": "    privateDnsZoneConfigs: [",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
+        },
+        {
+          "source_id": "body:115",
+          "label": "name",
+          "path": "/properties/privateDnsZoneConfigs/[]/name",
+          "expression": "      { name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalは{ name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }で、Schemas.literalによりstring型を確認。"
+        },
+        {
+          "source_id": "body:143",
+          "label": "properties",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties",
+          "expression": "      { name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
+        },
+        {
+          "source_id": "body:163",
+          "label": "privateDnsZoneId",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
+          "expression": "      { name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression { name: 'table-config', properties: { privateDnsZoneId: storageTablePrivateDnsZone.id } }は先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
+        },
+        {
+          "source_id": "body:220",
+          "label": "dependsOn",
+          "path": "/dependsOn",
+          "expression": "  dependsOn: [",
+          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
+        },
+        {
+          "source_id": "body:line:224",
+          "label": "$expression",
+          "path": "/dependsOn/[]/$expression-line/9",
+          "expression": "    storageTablePrivateDnsZoneLink",
+          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/9 はBicep dependsOn item storageTablePrivateDnsZoneLinkでresource orderingを指定し、REST payloadへ送信されない。"
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource storageQueuePrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version headerでpayload propertyではない。Microsoft.Network/privateDnsZones@2024-06-01がLearn/REST current versionと一致。"
-        },
-        {
-          "source_id": "symbol:location:line:0",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/0",
-          "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:location:line:36",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/1",
-          "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:storageQueuePrivateDnsZoneName:line:0",
-          "label": "$expression",
-          "path": "/$symbol/storageQueuePrivateDnsZoneName/$expression-line/0",
-          "expression": "var storageQueuePrivateDnsZoneName = 'privatelink.queue.${az.environment().suffixes.storage}'",
-          "analysis": "JSON Pointer /$symbol/storageQueuePrivateDnsZoneName/$expression-line/0 はzone名変数の定義。expression var storageQueuePrivateDnsZoneName = 'privatelink.queue.${az.environment().suffixes.storage}'はDNS suffix stringとの補間でstring resource nameを生成し、REST name:stringに対応。"
-        },
-        {
-          "source_id": "symbol:environment:line:0",
-          "label": "$expression",
-          "path": "/$symbol/environment/$expression-line/0",
-          "expression": "@description('Environment name')",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/0 はenvironment parameter source (string)。このzone name式はenvironmentを参照せず、DNS suffixはaz.environment().suffixes.storageから取得する。"
-        },
-        {
-          "source_id": "symbol:environment:line:33",
-          "label": "$expression",
-          "path": "/$symbol/environment/$expression-line/1",
-          "expression": "param environment string",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/1 はenvironment parameter source (string)。このzone name式はenvironmentを参照せず、DNS suffixはaz.environment().suffixes.storageから取得する。"
-        },
-        {
-          "source_id": "symbol:tags:line:0",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/0",
-          "expression": "@description('Tags applied to all resources')",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
-        },
-        {
-          "source_id": "symbol:tags:line:46",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/1",
-          "expression": "param tags object = {}",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
-        }
-      ]
-    },
-    {
-      "file": "infra/modules/functions/external-sli-publisher.bicep",
-      "name": "storageTablePrivateDnsZone",
-      "line": 217,
-      "type": "Microsoft.Network/privateDnsZones",
-      "version": "2024-06-01",
-      "existing": false,
-      "start": 6976,
-      "end": 7137,
-      "header": "resource storageTablePrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-      "body": "{\n  name: storageTablePrivateDnsZoneName\n  location: 'global'\n  tags: tags\n}",
-      "status": "verified",
-      "reason": "Learn selectorで2024-06-01が最新GAと確認し、固定REST README/specのPrivateZone・Resource/allOf・tags additionalProperties:stringをSchemasで照合した。全6作成宣言のname/location/tagsはAPI型と整合し、propertiesを省略している点は任意のzone propertiesと一致。",
-      "migration": "GA移行不要。現行2024-06-01が最新公開GAと一致。change logのPrivateZoneTags追加とTrackedResourceTags削除後も現行schemaはtags object<string>を定義し、全宣言のtags入力は文字列mapまたは空object。",
-      "findings": [],
-      "usage": [
-        {
-          "source_id": "body:8",
-          "label": "name",
-          "path": "/name",
-          "expression": "  name: storageTablePrivateDnsZoneName",
-          "analysis": "JSON Pointer /name はREST resource identityの名前。OpenAPIのname:string/readOnlyはresponseモデルだが、Bicep nameはdeploymentがPUT target pathに使う識別子でpayloadの更新値ではない。式 name: storageTablePrivateDnsZoneName はliteralまたはstring-valued zone-name var。"
-        },
-        {
-          "source_id": "body:51",
-          "label": "location",
-          "path": "/location",
-          "expression": "  location: 'global'",
-          "analysis": "JSON Pointer /location はREST PrivateZone.location:string。'global' literalをSchemas.literalで確認。"
-        },
-        {
-          "source_id": "body:68",
-          "label": "tags",
-          "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags はREST PrivateZoneTags object with additionalProperties:string。module param tags objectはmain.bicepのcommon tags map (environment:string)から渡されるか{} defaultで、どちらもstring-valued/empty map。Schemas.literalで代表mapと{}を検証。"
-        },
-        {
-          "source_id": "header:line:0",
-          "label": "$expression",
-          "path": "/$expression-line/0",
-          "expression": "resource storageTablePrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version headerでpayload propertyではない。Microsoft.Network/privateDnsZones@2024-06-01がLearn/REST current versionと一致。"
-        },
-        {
-          "source_id": "symbol:location:line:0",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/0",
-          "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:location:line:36",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/1",
-          "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:storageTablePrivateDnsZoneName:line:0",
-          "label": "$expression",
-          "path": "/$symbol/storageTablePrivateDnsZoneName/$expression-line/0",
-          "expression": "var storageTablePrivateDnsZoneName = 'privatelink.table.${az.environment().suffixes.storage}'",
-          "analysis": "JSON Pointer /$symbol/storageTablePrivateDnsZoneName/$expression-line/0 はzone名変数の定義。expression var storageTablePrivateDnsZoneName = 'privatelink.table.${az.environment().suffixes.storage}'はDNS suffix stringとの補間でstring resource nameを生成し、REST name:stringに対応。"
-        },
-        {
-          "source_id": "symbol:environment:line:0",
-          "label": "$expression",
-          "path": "/$symbol/environment/$expression-line/0",
-          "expression": "@description('Environment name')",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/0 はenvironment parameter source (string)。このzone name式はenvironmentを参照せず、DNS suffixはaz.environment().suffixes.storageから取得する。"
-        },
-        {
-          "source_id": "symbol:environment:line:33",
-          "label": "$expression",
-          "path": "/$symbol/environment/$expression-line/1",
-          "expression": "param environment string",
-          "analysis": "JSON Pointer /$symbol/environment/$expression-line/1 はenvironment parameter source (string)。このzone name式はenvironmentを参照せず、DNS suffixはaz.environment().suffixes.storageから取得する。"
-        },
-        {
-          "source_id": "symbol:tags:line:0",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/0",
-          "expression": "@description('Tags applied to all resources')",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
-        },
-        {
-          "source_id": "symbol:tags:line:46",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/1",
-          "expression": "param tags object = {}",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
+          "expression": "resource storageTablePrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
         }
       ]
     },
     {
       "file": "infra/modules/redis.bicep",
-      "name": "redisPrivateDnsZone",
-      "line": 42,
-      "type": "Microsoft.Network/privateDnsZones",
-      "version": "2024-06-01",
+      "name": "redisPrivateDnsZoneGroup",
+      "line": 78,
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "version": "2026-03-01",
       "existing": false,
-      "start": 1123,
-      "end": 1276,
-      "header": "resource redisPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-      "body": "{\n  name: 'privatelink.redis.azure.net'\n  location: 'global'\n  tags: tags\n}",
+      "start": 2035,
+      "end": 2383,
+      "header": "resource redisPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+      "body": "{\n  parent: redisPrivateEndpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }\n    ]\n  }\n  dependsOn: [\n    redisPrivateDnsZoneLink\n  ]\n}",
       "status": "verified",
-      "reason": "Learn selectorで2024-06-01が最新GAと確認し、固定REST README/specのPrivateZone・Resource/allOf・tags additionalProperties:stringをSchemasで照合した。全6作成宣言のname/location/tagsはAPI型と整合し、propertiesを省略している点は任意のzone propertiesと一致。",
-      "migration": "GA移行不要。現行2024-06-01が最新公開GAと一致。change logのPrivateZoneTags追加とTrackedResourceTags削除後も現行schemaはtags object<string>を定義し、全宣言のtags入力は文字列mapまたは空object。",
+      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
+      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
       "findings": [],
       "usage": [
         {
-          "source_id": "body:8",
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: redisPrivateEndpoint",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: redisPrivateEndpoint。"
+        },
+        {
+          "source_id": "body:39",
           "label": "name",
           "path": "/name",
-          "expression": "  name: 'privatelink.redis.azure.net'",
-          "analysis": "JSON Pointer /name はREST resource identityの名前。OpenAPIのname:string/readOnlyはresponseモデルだが、Bicep nameはdeploymentがPUT target pathに使う識別子でpayloadの更新値ではない。式 name: 'privatelink.redis.azure.net' はliteralまたはstring-valued zone-name var。"
+          "expression": "  name: 'default'",
+          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
         },
         {
-          "source_id": "body:50",
-          "label": "location",
-          "path": "/location",
-          "expression": "  location: 'global'",
-          "analysis": "JSON Pointer /location はREST PrivateZone.location:string。'global' literalをSchemas.literalで確認。"
+          "source_id": "body:63",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
         },
         {
-          "source_id": "body:67",
-          "label": "tags",
-          "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags はREST PrivateZoneTags object with additionalProperties:string。module param tags objectはmain.bicepのcommon tags map (environment:string)から渡されるか{} defaultで、どちらもstring-valued/empty map。Schemas.literalで代表mapと{}を検証。"
+          "source_id": "body:92",
+          "label": "privateDnsZoneConfigs",
+          "path": "/properties/privateDnsZoneConfigs",
+          "expression": "    privateDnsZoneConfigs: [",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
+        },
+        {
+          "source_id": "body:108",
+          "label": "name",
+          "path": "/properties/privateDnsZoneConfigs/[]/name",
+          "expression": "      { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalは{ name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }で、Schemas.literalによりstring型を確認。"
+        },
+        {
+          "source_id": "body:136",
+          "label": "properties",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties",
+          "expression": "      { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
+        },
+        {
+          "source_id": "body:156",
+          "label": "privateDnsZoneId",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
+          "expression": "      { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression { name: 'redis-config', properties: { privateDnsZoneId: redisPrivateDnsZone.id } }は先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
+        },
+        {
+          "source_id": "body:206",
+          "label": "dependsOn",
+          "path": "/dependsOn",
+          "expression": "  dependsOn: [",
+          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
+        },
+        {
+          "source_id": "body:line:210",
+          "label": "$expression",
+          "path": "/dependsOn/[]/$expression-line/9",
+          "expression": "    redisPrivateDnsZoneLink",
+          "analysis": "JSON Pointer /dependsOn/[]/$expression-line/9 はBicep dependsOn item redisPrivateDnsZoneLinkでresource orderingを指定し、REST payloadへ送信されない。"
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource redisPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version headerでpayload propertyではない。Microsoft.Network/privateDnsZones@2024-06-01がLearn/REST current versionと一致。"
-        },
-        {
-          "source_id": "symbol:location:line:0",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/0",
-          "expression": "@description('Deployment location')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:location:line:36",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/1",
-          "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:tags:line:0",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/0",
-          "expression": "@description('Tags object')",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
-        },
-        {
-          "source_id": "symbol:tags:line:28",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/1",
-          "expression": "param tags object",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/1 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
+          "expression": "resource redisPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
         }
       ]
     },
     {
       "file": "infra/modules/sre-agent-vault.bicep",
-      "name": "zone",
-      "line": 31,
-      "type": "Microsoft.Network/privateDnsZones",
-      "version": "2024-06-01",
+      "name": "dnsGroup",
+      "line": 69,
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "version": "2026-03-01",
       "existing": false,
-      "start": 681,
-      "end": 823,
-      "header": "resource zone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-      "body": "{\n  name: 'privatelink.vaultcore.azure.net'\n  location: 'global'\n  tags: tags\n}",
+      "start": 1463,
+      "end": 1773,
+      "header": "resource dnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+      "body": "{\n  parent: endpoint\n  name: 'default'\n  properties: {\n    privateDnsZoneConfigs: [\n      {\n        name: 'vault'\n        properties: {\n          privateDnsZoneId: zone.id\n        }\n      }\n    ]\n  }\n  dependsOn: [link]\n}",
       "status": "verified",
-      "reason": "Learn selectorで2024-06-01が最新GAと確認し、固定REST README/specのPrivateZone・Resource/allOf・tags additionalProperties:stringをSchemasで照合した。全6作成宣言のname/location/tagsはAPI型と整合し、propertiesを省略している点は任意のzone propertiesと一致。",
-      "migration": "GA移行不要。現行2024-06-01が最新公開GAと一致。change logのPrivateZoneTags追加とTrackedResourceTags削除後も現行schemaはtags object<string>を定義し、全宣言のtags入力は文字列mapまたは空object。",
+      "reason": "Learn selectorで2026-03-01が最新GAと確認し、固定Network READMEのpackage-2026-03-01に含まれるvirtualNetwork.json/common.json内のPrivateDnsZoneGroup/Config/SubResource $refをSchemasで照合。全6宣言のconfig nameとprivateDnsZoneIdの型が一致。",
+      "migration": "GA移行不要。現行2026-03-01が最新GAで一致。Learn change logは2026-03-01に追加・更新・削除なし。",
       "findings": [],
       "usage": [
         {
-          "source_id": "body:8",
+          "source_id": "body:10",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: endpoint",
+          "analysis": "JSON Pointer /parent はBicep parent relationshipでREST payload属性ではなく、privateEndpoint parent resourceをAPI pathに組み込む。式 parent: endpoint。"
+        },
+        {
+          "source_id": "body:27",
           "label": "name",
           "path": "/name",
-          "expression": "  name: 'privatelink.vaultcore.azure.net'",
-          "analysis": "JSON Pointer /name はREST resource identityの名前。OpenAPIのname:string/readOnlyはresponseモデルだが、Bicep nameはdeploymentがPUT target pathに使う識別子でpayloadの更新値ではない。式 name: 'privatelink.vaultcore.azure.net' はliteralまたはstring-valued zone-name var。"
+          "expression": "  name: 'default'",
+          "analysis": "JSON Pointer /name はchild resource identity/path segment。'default'はstringで、REST PrivateDnsZoneGroup.name:stringに適合。"
         },
         {
-          "source_id": "body:54",
-          "label": "location",
-          "path": "/location",
-          "expression": "  location: 'global'",
-          "analysis": "JSON Pointer /location はREST PrivateZone.location:string。'global' literalをSchemas.literalで確認。"
+          "source_id": "body:51",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "JSON Pointer /properties はREST PrivateDnsZoneGroupPropertiesFormat object。Bicep object値が型に一致。"
         },
         {
-          "source_id": "body:71",
-          "label": "tags",
-          "path": "/tags",
-          "expression": "  tags: tags",
-          "analysis": "JSON Pointer /tags はREST PrivateZoneTags object with additionalProperties:string。module param tags objectはmain.bicepのcommon tags map (environment:string)から渡されるか{} defaultで、どちらもstring-valued/empty map。Schemas.literalで代表mapと{}を検証。"
+          "source_id": "body:80",
+          "label": "privateDnsZoneConfigs",
+          "path": "/properties/privateDnsZoneConfigs",
+          "expression": "    privateDnsZoneConfigs: [",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs はREST PrivateDnsZoneConfig[]。Bicepは各zone configをarrayで指定。"
+        },
+        {
+          "source_id": "body:104",
+          "label": "name",
+          "path": "/properties/privateDnsZoneConfigs/[]/name",
+          "expression": "        name: 'vault'",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/name はREST PrivateDnsZoneConfig.name:string。literalはname: 'vault'で、Schemas.literalによりstring型を確認。"
+        },
+        {
+          "source_id": "body:132",
+          "label": "properties",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties",
+          "expression": "        properties: {",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties はREST PrivateDnsZoneConfig.properties objectへの対応。含むprivateDnsZoneIdを次のsource usageで確認。"
+        },
+        {
+          "source_id": "body:162",
+          "label": "privateDnsZoneId",
+          "path": "/properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId",
+          "expression": "          privateDnsZoneId: zone.id",
+          "analysis": "JSON Pointer /properties/privateDnsZoneConfigs/[]/properties/privateDnsZoneId はREST PrivateDnsZonePropertiesFormat.privateDnsZoneId:string。expression privateDnsZoneId: zone.idは先行して確認済みPrivate DNS zone resourceの.idで、ARM resource ID stringを渡す。"
+        },
+        {
+          "source_id": "body:211",
+          "label": "dependsOn",
+          "path": "/dependsOn",
+          "expression": "  dependsOn: [link]",
+          "analysis": "JSON Pointer /dependsOn はBicep deployment ordering syntaxで、REST payload propertyではない。"
         },
         {
           "source_id": "header:line:0",
           "label": "$expression",
           "path": "/$expression-line/0",
-          "expression": "resource zone 'Microsoft.Network/privateDnsZones@2024-06-01' = ",
-          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version headerでpayload propertyではない。Microsoft.Network/privateDnsZones@2024-06-01がLearn/REST current versionと一致。"
-        },
-        {
-          "source_id": "symbol:location:line:0",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/0",
-          "expression": "@description('Deployment location (same region as the VNet and Agent)')",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/0 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:location:line:72",
-          "label": "$expression",
-          "path": "/$symbol/location/$expression-line/1",
-          "expression": "param location string",
-          "analysis": "JSON Pointer /$symbol/location/$expression-line/1 はmodule location parameterのdescription/param declaration。param location:stringだがzone本文はglobal literalを使いこのparameterを参照しない。REST /locationはbodyの値を照合済み。"
-        },
-        {
-          "source_id": "symbol:tags:line:0",
-          "label": "$expression",
-          "path": "/$symbol/tags/$expression-line/0",
-          "expression": "param tags object",
-          "analysis": "JSON Pointer /$symbol/tags/$expression-line/0 はtags parameter source。object型の実引数はmain.bicepのenvironment:stringから生成するtags map、または{} defaultで、REST tags.additionalProperties:stringと一致。"
+          "expression": "resource dnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01' = ",
+          "analysis": "JSON Pointer /$expression-line/0 はBicep resource type/version header/symbol sourceでありREST payload fieldではない。resource type/versionはMicrosoft.Network/privateEndpoints/privateDnsZoneGroups@2026-03-01。"
         }
       ]
     }
   ],
   "evidence": {
     "current": {
-      "version": "2024-06-01",
-      "analysis": "Learn version selector lists 2024-06-01 as Latest. Pinned PrivateDns README maps stable/2024-06-01/privatedns.json. Schemas resolves PrivateZone and allOf/resource references; name:string identity, location:string, tags object with additionalProperties:string, and properties.",
+      "version": "2026-03-01",
+      "analysis": "Learn selector lists 2026-03-01 as Latest. Pinned Network README package-2026-03-01 includes virtualNetwork.json/common.json; Schemas resolves PrivateDnsZoneGroup, PrivateDnsZoneGroupPropertiesFormat, PrivateDnsZoneConfig and privateDnsZoneId:string.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privatednszones",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2024-06-01/privatednszones",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/privatedns/resource-manager/Microsoft.Network/PrivateDns/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/privatedns/resource-manager/Microsoft.Network/PrivateDns/stable/2024-06-01/privatedns.json"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privateendpoints/privatednszonegroups",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/privateendpoints/privatednszonegroups",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
       ]
     },
     "ga": {
-      "version": "2024-06-01",
-      "analysis": "Latest GA from the Learn selector equals current 2024-06-01. The exact candidate is the same fixed stable REST document; no version upgrade delta.",
+      "version": "2026-03-01",
+      "analysis": "Latest GA from Learn selector equals current 2026-03-01. Exact candidate schema is the same versioned REST definitions in virtualNetwork.json with common references.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privatednszones",
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2024-06-01/privatednszones",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/privatedns/resource-manager/Microsoft.Network/PrivateDns/readme.md",
-        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/privatedns/resource-manager/Microsoft.Network/PrivateDns/stable/2024-06-01/privatedns.json"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privateendpoints/privatednszonegroups",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/privateendpoints/privatednszonegroups",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/virtualNetwork.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/common.json"
       ]
     },
     "breaking": {
-      "analysis": "Learn change log for 2024-06-01 reports PrivateZoneTags added, TrackedResourceTags removed, and systemData added. Current REST schema continues to define tags as object<string>; every declaration passes a string-valued common tag map or {} and does not set read-only systemData.",
+      "analysis": "Learn change log states 2026-03-01 has no properties added, updated or removed. No used property migration delta.",
       "urls": [
-        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/privatednszones"
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/privateendpoints/privatednszonegroups"
       ]
     }
   }

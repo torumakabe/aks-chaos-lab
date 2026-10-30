@@ -151,5 +151,50 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.423278699000093
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privateendpoints/privatednszonegroups",
+    "attempt": 1,
+    "started_monotonic": 1186.048436408,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/privateendpoints/privatednszonegroups",
+    "attempt": 1,
+    "started_monotonic": 1189.048555474,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.580500746000098
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/privateendpoints/privatednszonegroups",
+    "attempt": 1,
+    "started_monotonic": 1192.048704569,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.81224499200016
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2026-03-01/privateEndpoint.json",
+    "attempt": 1,
+    "started_monotonic": 1192.266513458,
+    "status": 404,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/network/resource-manager/Microsoft.Network/Network/stable/2025-03-01/privateEndpoint.json",
+    "attempt": 1,
+    "started_monotonic": 1192.39517203,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
