@@ -637,5 +637,41 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.785071713999969
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-04-01/storageaccounts",
+    "attempt": 1,
+    "started_monotonic": 2302.499108803,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/storageaccounts",
+    "attempt": 1,
+    "started_monotonic": 2305.499231888,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.782127088999914
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-09-01/storageaccounts",
+    "attempt": 1,
+    "started_monotonic": 2308.499357235,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.503791961999923
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/change-log/storageaccounts",
+    "attempt": 1,
+    "started_monotonic": 2311.49947927,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.723993860000064
   }
 ]
