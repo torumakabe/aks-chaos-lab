@@ -304,5 +304,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.7856905730000108
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/virtualnetworks",
+    "attempt": 1,
+    "started_monotonic": 1576.077757406,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2026-03-01/virtualnetworks",
+    "attempt": 1,
+    "started_monotonic": 1579.077876923,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.290934049000043
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/virtualnetworks",
+    "attempt": 1,
+    "started_monotonic": 1582.078003785,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.802808614000014
   }
 ]
