@@ -1,0 +1,19 @@
+{
+  "target_commit": "8be0dd8b802404f6bc557a211aea6d409d8c380c",
+  "helper_commit": "d95d56029fcd134c7af0894a1c6792118657d861",
+  "helper_sha256": "2e2ca176614ff6328bc7a6b37f093661054b0cdd70cbfcdb7049d3a448591ae2",
+  "checkpoint_url": "https://github.com/torumakabe/aks-chaos-lab/blob/cb303c6ffa15f577e073b08d591b86d2cedc53d3/audit-results/bicep-api/20261030T0224Z-migration-test/state.json",
+  "checkpoint_sha256": "320e76e185191e46967ecc987cc1668a59326384a91ff08bdabf905f9861dcd1",
+  "status": "確認未完了。引継ぎ済みassessed 2組・blocked 1組を保持し、残47組の仕様照合は未完了。",
+  "inventory": {
+    "files": 35,
+    "declarations": 179,
+    "existing": 24,
+    "pairs": 50
+  },
+  "checkpoint_stages": {
+    "assessed": 2,
+    "blocked": 1,
+    "pending": 47
+  }
+}
