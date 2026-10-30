@@ -223,5 +223,68 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/experiments",
+    "attempt": 1,
+    "started_monotonic": 1816.181779836,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/change-log/experiments",
+    "attempt": 1,
+    "started_monotonic": 1819.18188424,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.819436198999938
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.chaos/2025-01-01/experiments",
+    "attempt": 1,
+    "started_monotonic": 1822.182037171,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.902431349000153
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/readme.md",
+    "attempt": 1,
+    "started_monotonic": 1822.33238975,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/chaos/resource-manager/Microsoft.Chaos/Chaos/stable/2025-01-01/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 1822.513762526,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json",
+    "attempt": 1,
+    "started_monotonic": 1931.406238985,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/managedidentity.json",
+    "attempt": 1,
+    "started_monotonic": 1965.772189853,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
