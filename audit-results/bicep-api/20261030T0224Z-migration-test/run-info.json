@@ -1,0 +1,8 @@
+{
+  "target_commit": "8be0dd8b802404f6bc557a211aea6d409d8c380c",
+  "helper_commit": "97ba910110191f305376e7e96572727cdc512fae",
+  "helper_sha256": "f5767df7d5a4da0511c412401127a1d9846156b0924a58e9c9b8c8da4120abce",
+  "status": "pending",
+  "branch": "copilot/task-993850-1043036649-c4bb4906-2e92-54ee-95cf-e93b5c56fe55",
+  "result_directory": "audit-results/bicep-api/20261030T0224Z-migration-test"
+}
