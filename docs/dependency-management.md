@@ -83,7 +83,11 @@ runnerにuvがあることを前提にせず、監査前にuvのversionと固定
 
 Automationで選択するツールは`github/get_file_contents`、`github/create_issue`、`report_progress`（commit/push）、`github/issue_read`（作成したIssueの読み戻し）。設定APIが文字列を受理しても、実行時に呼び出せることの証明にはならない。必要なツールの選択と実行専用ブランチへの保存を監査前に確認する。
 
+`Azure/azure-rest-api-specs`の仕様は公開raw本文を`Fetcher`で取得する。ファイル一覧は公開repositoryを一時ディレクトリへ`git clone --bare --filter=blob:none --depth 1`し、固定commitをfetchして`git --git-dir=<path> ls-tree -r --name-only <commit> specification`で取得する。Azure組織への認証付きMCP呼び出しやSSO承認を、この公開情報確認の前提にしない。
+
 `init`で対象checkoutの完全なcommit SHAとREST仕様のcommit SHAを固定する。`next --state <state.json> --output <assessment.json>`は次のpairの宣言とusageを未処理の雛形へ複写し、大きなJSONの再入力を避ける。`record`はpair別の`results`と`evidence`を持つJSONを読み、公開根拠の取得、宣言の一致、全usageの`source_id`、`path`、`expression`、`analysis`を検査して状態を保存する。`Schemas`は外部参照と`allOf`を展開するが、互換性の判断自体は実行者が公開仕様と使用属性を照合して記録する。HTTP成功や状態JSONの形式検査だけで判断を代替しない。
+
+各pairの処理直後にstateと取得記録を実行専用ブランチへ保存する。実行を分割して続ける場合は、公開checkpointのcommitとSHA-256を固定し、新しいcheckoutから生成した全sourceとusageに一致することを確認してから未処理pairだけを再開する。別runnerへcacheを引き継ぐ際は本文entryを再利用し、`started_monotonic`を持つ旧HTTP試行ログは新しい`Fetcher`のactive logへ混ぜず、実行単位で別に保存する。未処理pairが残る区切りでは最終レポートやIssueを生成しない。
 
 `prepare --state <state.json> --title <title> --directory <output>`は全pair、全宣言、使用属性、判断、根拠と完全なハッシュを`evidence.json`へ保存し、`report.md`も生成する。未処理pairがあれば生成を拒否する。公開根拠不足を`block`で記録した場合だけ`--allow-blocked`で未完了の報告を生成でき、その宣言は`unverified`として残る。この段階ではIssue用payloadを生成しない。
 
