@@ -73,35 +73,13 @@ uv run --no-project "${PWD}/scripts/tasks.py" check-renovate-config
 
 ## AKSアップデートの取得状況
 
-[AKS Updates analyzer](../.github/workflows/aks-updates-analyzer.md)は、Azure Updates RSSの過去7日分と、GitHub AKS releasesの最新5件に含まれる過去14日分を週次Issueで分析する。各ソースの構造化JSONにある`status`、`reason_code`、`reason`、取得件数、解析失敗件数を同じIssueへ記載する。通信失敗、応答不正、項目の部分解析失敗は`unverified`とし、有効な`items`だけを分析する。結果が欠落したソースも未確認として扱い、0件で補わない。両ソースが`pass`で対象項目が空の場合だけ、取得範囲内で「更新なし」と報告する。理由コードと報告形式はworkflow本文を参照する。
+[AKS Updates 分析手順](aks-updates-analysis.md)は、Azure Updates RSSの過去7日分と、GitHub AKS releasesの最新5件に含まれる過去14日分を週次Issueで分析するCopilot Automationが使う。各ソースの構造化JSONにある`status`、`reason_code`、`reason`、取得件数、解析失敗件数を同じIssueへ記載する。通信失敗、応答不正、項目の部分解析失敗は`unverified`とし、有効な`items`だけを分析する。結果が欠落したソースも未確認として扱い、0件で補わない。両ソースが`pass`で対象項目が空の場合だけ、取得範囲内で「更新なし」と報告する。理由コードと報告形式は分析手順を参照する。
 
-## Bicep確認の手動移行PoC
+## Bicep API versionの週次確認廃止
 
-GitHub cloud Copilot Automationへの移行は検証中で、Automationは`enabled=false`のまま手動で試す。[bicep_api_audit.py](../scripts/bicep_api_audit.py)は標準ライブラリだけを使い、宣言別の確認状態と公開根拠を保存する。これは本番移行の完了やAPI仕様照合の完了を示すものではない。既存の週次workflowの説明と運用は変更しない。
-
-手動PoCの実行記録は[#388](https://github.com/torumakabe/aks-chaos-lab/issues/388)を参照する。35ファイル179宣言、50組の未処理を0にし、公開した詳細JSONとレポートのバイト一致、Issueのtitleとbodyの一致を確認した。結果は`verified=168`、理由付き`excluded=5`、公開根拠不足の`unverified=6`であり、全宣言の確認完了ではない。この記録はcheckpointから続けた複数実行の結果であり、1回のAutomation実行だけで全件を確認できたことを示さない。
-
-runnerにuvがあることを前提にせず、監査前にuvのversionと固定したhelperのimportを確認する。uvはルート`pyproject.toml`の`required-version`を満たす版を使う。未導入の場合は公式releaseのarchiveを公開されたSHA-256と照合し、実行用の一時ディレクトリへ展開する。helperは`uv run --no-project --no-config --no-python-downloads python`で実行し、workspaceの同期やpackage indexの変更を行わない。
-
-Automationで選択するツールは`github/get_file_contents`、`github/create_issue`、`report_progress`（commit/push）、`github/issue_read`（作成したIssueの読み戻し）。設定APIが文字列を受理しても、実行時に呼び出せることの証明にはならない。必要なツールの選択と実行専用ブランチへの保存を監査前に確認する。
-
-`Azure/azure-rest-api-specs`の仕様は公開raw本文を`Fetcher`で取得する。ファイル一覧は公開repositoryを一時ディレクトリへ`git clone --bare --filter=blob:none --depth 1`し、固定commitをfetchして`git --git-dir=<path> ls-tree -r --name-only <commit> specification`で取得する。Azure組織への認証付きMCP呼び出しやSSO承認を、この公開情報確認の前提にしない。
-
-`init`で対象checkoutの完全なcommit SHAとREST仕様のcommit SHAを固定する。`next --state <state.json> --output <assessment.json>`は次のpairの宣言とusageを未処理の雛形へ複写し、大きなJSONの再入力を避ける。`record`はpair別の`results`と`evidence`を持つJSONを読み、公開根拠の取得、宣言の一致、全usageの`source_id`、`path`、`expression`、`analysis`を検査して状態を保存する。`Schemas`は外部参照と`allOf`を展開するが、互換性の判断自体は実行者が公開仕様と使用属性を照合して記録する。HTTP成功や状態JSONの形式検査だけで判断を代替しない。
-
-各pairの処理直後にstateと取得記録を実行専用ブランチへ保存する。実行を分割して続ける場合は、公開checkpointのcommitとSHA-256を固定し、新しいcheckoutから生成した全sourceとusageに一致することを確認してから未処理pairだけを再開する。別runnerへcacheを引き継ぐ際は本文entryを再利用し、`started_monotonic`を持つ旧HTTP試行ログは新しい`Fetcher`のactive logへ混ぜず、実行単位で別に保存する。未処理pairが残る区切りでは最終レポートやIssueを生成しない。
-
-`prepare --state <state.json> --title <title> --directory <output>`は全pair、全宣言、使用属性、判断、根拠と完全なハッシュを`evidence.json`へ保存し、`report.md`も生成する。未処理pairがあれば生成を拒否する。公開根拠不足を`block`で記録した場合だけ`--allow-blocked`で未完了の報告を生成でき、その宣言は`unverified`として残る。この段階ではIssue用payloadを生成しない。
-
-`block`の入力JSONには、任意の`partial_results`と`partial_evidence`を追加できる。`partial_results`を渡す場合は、そのpairの全宣言の`file`、`line`、`name`と確認済みの`findings`を過不足なく記録する。`partial_evidence`は確認できた`current`、`ga`、`breaking`だけを持ち、各項目に`analysis`と公開根拠の`urls`、版の根拠には`version`も記録する。current schemaが不足していても既知のGA候補と指摘はJSON、レポート、Issueの件数に残るが、GAの根拠でcurrentの確認を代替せず、宣言は常に`unverified`とする。
-
-実行ごとの検証専用ブランチへ両ファイルをcommit/pushした後、同じ`prepare`に`--evidence-url`と`--report-url`を追加する。両URLは同じrepositoryと実在する完全なcommit SHAの`https://github.com/<owner>/<repo>/blob/<commit>/<path>`を指定する。スクリプトは公開repositoryの同じowner、repository、commit、pathを指定した`raw.githubusercontent.com`から、標準ライブラリの`urllib`で両ファイルを認証なしで再取得し、ローカル出力とバイト単位で一致する場合だけ短い`issue-payload.json`と本文のSHA-256を生成する。GitHub CLIやtokenには依存せず、取得に失敗した場合は別の取得先へ切り替えずに停止する。Issue本文は不変のファイルリンク、件数、未確認状態とハッシュに限定し、圧縮JSONを埋め込まない。
-
-Issue作成は別途許可された操作で行う。作成後にGitHubから取得したtitleとbodyのJSONを`verify-issue --payload <issue-payload.json> --actual <actual.json>`へ渡し、保存済みpayloadとの一致を確認する。これらのコマンドはcommit、push、Issue作成、Azure照会、Automation設定変更を実行しない。
+週次workflowと検証用Copilot Automationは停止した。元workflowの[#359](https://github.com/torumakabe/aks-chaos-lab/issues/359)は調査記録として残す。必要時の確認と更新には、別用途でも使う[bicep-api-version-updaterスキル](../.github/skills/bicep-api-version-updater/SKILL.md)を使う。
 
 ## gh-awとLefthookをRenovateに含めない理由
-
-Bicep API versionの週次確認は特定のCopilot modelを固定せず、`GH_AW_MODEL_AGENT_COPILOT`、`GH_AW_DEFAULT_MODEL_COPILOT`の順でActions variableを参照し、未設定なら`auto`を使う。利用できないmodelが指定されるとagent開始時に失敗するため、variableを設定する場合は実行accountで利用可能なmodelを選ぶ。threat detectionはcompiler既定の`detection`を使う。
 
 gh-awのcompiler pinは、生成物であるlock workflowのcompiler versionと一体で決まる。version単独の更新はcompile結果と矛盾するため、適用は`gh aw compile`が所有する。compiler versionの定義元は[Copilot setup](../.github/workflows/copilot-setup-steps.yml)であり、生成lockと同じ版を使う。
 
@@ -129,7 +107,7 @@ fastが実行するversion関連の検査は`check-version-pins`である。検�
 - azdとAzure Functions extension bundleのrange構文と座標数
 - Chaos Mesh chart versionの正本座標
 
-uv pinの内部整合は`check-uv-version`が、gh-aw pinとlock fileの`compiler_version`の整合は`check-repo-health`の`gh-aw-compiler-version`ルールが検査する。どちらもfastが実行する。
+uv pinの内部整合は`check-uv-version`が、生成lockがある場合のgh-aw pinとlock fileの`compiler_version`の整合は`check-repo-health`の`gh-aw-compiler-version`ルールが検査する。どちらもfastが実行する。
 
 `review-repo-full`は専用worktreeでfastを一度だけ実行し、application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-awの非書き込み検証を追加する。生成lockの更新と差分検査には、手動またはCIで`compile-aw`を実行する。version更新候補はRenovateまたは明示的な保守作業が担当するため再検出しない。Azure Functions extension bundleのsupport範囲はfullで意味評価する。
 

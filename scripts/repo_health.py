@@ -269,25 +269,37 @@ def _check_versions(root: Path, files: Sequence[Path]) -> list[Check]:
     except RepoHealthError as error:
         checks.append(Check("kubernetes-version", "fail", str(error)))
 
-    try:
-        setup = _single_match(
-            root / ".github/workflows/copilot-setup-steps.yml",
-            _GH_AW_SETUP,
-            "gh-aw setup version",
-        )
-        compiler = _single_match(
-            root / ".github/workflows/aks-updates-analyzer.lock.yml",
-            _GH_AW_METADATA,
-            "gh-aw compiler version",
-        )
-        status = "pass" if setup == compiler else "fail"
-        checks.append(
-            Check(
-                "gh-aw-compiler-version", status, f"setup={setup}, compiler={compiler}"
+    lock_files = sorted((root / ".github/workflows").glob("*.lock.yml"))
+    if lock_files:
+        try:
+            setup = _single_match(
+                root / ".github/workflows/copilot-setup-steps.yml",
+                _GH_AW_SETUP,
+                "gh-aw setup version",
             )
-        )
-    except RepoHealthError as error:
-        checks.append(Check("gh-aw-compiler-version", "fail", str(error)))
+            compiler_versions = {
+                path.name: _single_match(
+                    path, _GH_AW_METADATA, "gh-aw compiler version"
+                )
+                for path in lock_files
+            }
+            status = (
+                "pass"
+                if all(version == setup for version in compiler_versions.values())
+                else "fail"
+            )
+            versions = ", ".join(
+                f"{name}={version}" for name, version in compiler_versions.items()
+            )
+            checks.append(
+                Check(
+                    "gh-aw-compiler-version",
+                    status,
+                    f"setup={setup}, compiler versions: {versions}",
+                )
+            )
+        except RepoHealthError as error:
+            checks.append(Check("gh-aw-compiler-version", "fail", str(error)))
 
     try:
         images = [

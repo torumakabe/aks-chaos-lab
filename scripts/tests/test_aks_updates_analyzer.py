@@ -16,9 +16,7 @@ from unittest.mock import Mock
 import pytest
 from freezegun import freeze_time
 
-WORKFLOW = (
-    Path(__file__).resolve().parents[2] / ".github/workflows/aks-updates-analyzer.md"
-)
+PROCEDURE = Path(__file__).resolve().parents[2] / "docs/aks-updates-analysis.md"
 RunSource = Callable[..., dict[str, Any]]
 RSS_ITEM = """<item><title>AKS update</title><description>Kubernetes fixes</description>
 <link>https://example.com/update</link><pubDate>Tue, 08 Sep 2026 00:00:00 GMT</pubDate></item>"""
@@ -39,7 +37,7 @@ def rss(*items: str) -> bytes:
 def run_source(monkeypatch: pytest.MonkeyPatch) -> RunSource:
     scripts = re.findall(
         r"python3 << 'PYEOF'\n(.*?)\nPYEOF",
-        WORKFLOW.read_text(encoding="utf-8"),
+        PROCEDURE.read_text(encoding="utf-8"),
         re.DOTALL,
     )
     assert len(scripts) == 2
@@ -57,7 +55,7 @@ def run_source(monkeypatch: pytest.MonkeyPatch) -> RunSource:
         output = io.StringIO()
         with freeze_time("2026-09-09T00:00:00Z"), redirect_stdout(output):
             try:
-                exec(compile(scripts[source], str(WORKFLOW), "exec"), {})  # noqa: S102
+                exec(compile(scripts[source], str(PROCEDURE), "exec"), {})  # noqa: S102
             except SystemExit as exc:
                 assert exc.code == 0
         request.assert_called_once()

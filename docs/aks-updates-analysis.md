@@ -1,49 +1,6 @@
----
-on:
-  schedule: weekly on monday around 9:00 utc+9
-  workflow_dispatch:
-description: "Weekly AKS updates analyzer that checks Azure Updates RSS and GitHub AKS changelog, then creates an issue with impact analysis for this repository."
-labels: [aks, automation]
-permissions:
-  contents: read
-  copilot-requests: write
-engine:
-  id: copilot
-  model: auto
-network:
-  allowed:
-    - defaults
-    - github
-    - "api.github.com"
-    - "www.microsoft.com"
-    - "azure.microsoft.com"
-    - "learn.microsoft.com"
-    - "releases.aks.azure.com"
-tools:
-  bash: ["python3"]
-safe-outputs:
-  report-failure-as-issue: false
-  report-failed-jobs: false
-  threat-detection:
-    enabled: ${{ needs.agent.result == 'success' }}
-  missing-tool:
-    create-issue: false
-  missing-data:
-    create-issue: false
-  report-incomplete:
-    create-issue: false
-  create-issue:
-    title-prefix: "[AKS Updates] "
-    labels: [aks-updates, automation]
-    close-older-issues: true
-    max: 1
-timeout-minutes: 15
----
+# AKS Updates 分析手順
 
-# AKS Updates 週次分析
-
-あなたは Azure Kubernetes Service (AKS) のアップデート情報を収集・分析するエキスパートです。
-以下の手順に従い、このリポジトリに影響する AKS アップデートを分析し、日本語で GitHub Issue を作成してください。
+この手順は、Azure Kubernetes Service (AKS) の公開アップデート情報を収集・分析するCopilot Automationが使います。手順に従ってこのリポジトリへの影響を評価し、日本語で結果を報告してください。
 
 ## Step 1: Azure Updates RSS フィードから AKS 関連エントリを取得
 
@@ -273,7 +230,7 @@ Step 1〜3 の情報を照合し、**Step 1 と Step 2 の`items`に保持され
 以下の形式で日本語の Issue を作成してください。
 
 ### Issue タイトル
-`週次 AKS アップデート分析 (YYYY-MM-DD)`
+`[AKS Updates] 週次 AKS アップデート分析 (YYYY-MM-DD)`
 
 ### Issue 本文の構成
 
@@ -323,6 +280,7 @@ Step 1〜3 の情報を照合し、**Step 1 と Step 2 の`items`に保持され
 **重要**:
 - 両ソースの`status`が`pass`で、両方の`items`が空の場合のみ、「今週は該当するアップデートはありませんでした」と記載してください。上記の取得範囲も併記してください
 - 片方でも`unverified`または結果欠落がある場合は、「更新なし」と報告せず、取得状況と未確認理由を明記してください。有効項目が0件でも、更新の有無を確認できなかったことを記載してください
-- 取得結果にかかわらず週次Issueは既存の1件だけを作成し、取得失敗用のIssueを別に作成しないでください
+- 1回の分析につきIssueを1件だけ作成し、取得失敗用のIssueを別に作成しないでください
+- 新しい週次Issueを作成した後、以前の通常週次Issue（タイトルが`[AKS Updates]`で始まるもの）だけを閉じてください。移行テストIssueや無関係なIssueは変更しないでください
 - テーブル内のリンクは Markdown リンク形式で記載してください
 - 分析の根拠を明確に記載してください
