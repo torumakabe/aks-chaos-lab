@@ -88,5 +88,41 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionendpoints",
+    "attempt": 1,
+    "started_monotonic": 3144.884446882,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/datacollectionendpoints",
+    "attempt": 1,
+    "started_monotonic": 3147.884548735,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6751560509997034
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-03-11/dataCollection.json",
+    "attempt": 1,
+    "started_monotonic": 3148.129373663,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json",
+    "attempt": 1,
+    "started_monotonic": 3157.925421952,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

@@ -1,0 +1,305 @@
+{
+  "pair": "Microsoft.Insights/dataCollectionEndpoints@2024-03-11",
+  "results": [
+    {
+      "file": "infra/modules/azmonitor/container-insights.bicep",
+      "name": "dataCollectionEndpoint",
+      "line": 97,
+      "type": "Microsoft.Insights/dataCollectionEndpoints",
+      "version": "2024-03-11",
+      "existing": false,
+      "start": 3194,
+      "end": 3430,
+      "header": "resource dataCollectionEndpoint 'Microsoft.Insights/dataCollectionEndpoints@2024-03-11' = if (enableContainerNetworkLogs) ",
+      "body": "{\n  name: dataCollectionEndpointName\n  location: workspaceLocation\n  tags: tags\n  kind: 'Linux'\n  properties: {}\n}",
+      "status": "verified",
+      "reason": "The exact current 2024-03-11 Learn and REST schema and latest stable GA were confirmed. Both resource declarations use a required string name and location, kind Linux is within the schema enum, tags map to inherited TrackedResource tags (string values), and the empty properties object has no required child fields. The conditional only controls whether one resource is deployed.",
+      "migration": "Current GA; Learn marks 2024-03-11 as Latest and fixed-commit tree contains one stable dataCollection.json version (2024-03-11), so no newer GA candidate.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: dataCollectionEndpointName",
+          "analysis": "Original Bicep source pointer /name maps to required string route parameter dataCollectionEndpointName and inherited Resource.name string. Computed name includes a fixed prefix; substring(..., min(44,length(...))) caps it at 44 characters. The REST schema has no pattern/length restriction on the path parameter."
+        },
+        {
+          "source_id": "body:47",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: workspaceLocation",
+          "analysis": "Original source pointer /location maps to inherited TrackedResource.location, required string; workspaceLocation aliases the string location parameter."
+        },
+        {
+          "source_id": "body:73",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "Original source pointer /tags maps to inherited TrackedResource.tags object with additionalProperties string in common-types v5. The root tag map uses azd-env-name with a string environment value; module defaults are empty objects."
+        },
+        {
+          "source_id": "body:86",
+          "label": "kind",
+          "path": "/kind",
+          "expression": "  kind: 'Linux'",
+          "analysis": "Original source pointer /kind maps to KnownDataCollectionEndpointResourceKind enum ['Linux','Windows']; literal 'Linux' is allowed."
+        },
+        {
+          "source_id": "body:108",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {}",
+          "analysis": "Original source pointer /properties maps to DataCollectionEndpointResourceProperties, which resolves via allOf to DataCollectionEndpoint; its required child list is empty, so {} is valid."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource dataCollectionEndpoint 'Microsoft.Insights/dataCollectionEndpoints@2024-03-11' = if (enableContainerNetworkLogs) ",
+          "analysis": "Resource header selects Microsoft.Insights/dataCollectionEndpoints@2024-03-11. The first declaration is conditional on enableContainerNetworkLogs; the second is unconditional. Header/condition are Bicep deployment control, not API payload members."
+        },
+        {
+          "source_id": "symbol:dataCollectionEndpointName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionEndpointName/$expression-line/0",
+          "expression": "var dataCollectionEndpointName = substring(dataCollectionEndpointNameBase, 0, min(44, length(dataCollectionEndpointNameBase)))",
+          "analysis": "Expression builds a string name and uses substring with min(44,length(...)), bounding output to 44 characters; it maps only to the route resource-name parameter."
+        },
+        {
+          "source_id": "symbol:dataCollectionEndpointNameBase:line:0",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionEndpointNameBase/$expression-line/0",
+          "expression": "var dataCollectionEndpointNameBase = 'dce-ci-${nameSuffix}'",
+          "analysis": "Base name is a string prefix (dce-ci- or dce-prom-) concatenated with string nameSuffix; resulting value is resource identity, not a JSON property."
+        },
+        {
+          "source_id": "symbol:enableContainerNetworkLogs:line:0",
+          "label": "$expression",
+          "path": "/$symbol/enableContainerNetworkLogs/$expression-line/0",
+          "expression": "@description('Enable container network logs collection (ACNS + Cilium required)')",
+          "analysis": "Description annotation is not a runtime value; corresponding parameter declaration is separately checked."
+        },
+        {
+          "source_id": "symbol:enableContainerNetworkLogs:line:82",
+          "label": "$expression",
+          "path": "/$symbol/enableContainerNetworkLogs/$expression-line/1",
+          "expression": "param enableContainerNetworkLogs bool = false",
+          "analysis": "Boolean parameter default false controls resource creation only; it is not serialized into the API body and does not change schema compatibility."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Location of the Azure resources')",
+          "analysis": "String deployment-location parameter maps to required TrackedResource.location string."
+        },
+        {
+          "source_id": "symbol:location:line:48",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "String deployment-location parameter maps to required TrackedResource.location string."
+        },
+        {
+          "source_id": "symbol:nameSuffix:line:0",
+          "label": "$expression",
+          "path": "/$symbol/nameSuffix/$expression-line/0",
+          "expression": "@description('Name suffix for resources (e.g., appName-environment)')",
+          "analysis": "Description annotation is not a runtime value; corresponding parameter declaration is separately checked."
+        },
+        {
+          "source_id": "symbol:nameSuffix:line:70",
+          "label": "$expression",
+          "path": "/$symbol/nameSuffix/$expression-line/1",
+          "expression": "param nameSuffix string",
+          "analysis": "String nameSuffix parameter is incorporated into the endpoint name; the endpoint schema exposes a string resource-name parameter with no additional pattern/length constraint."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags that will be applied to all resources')",
+          "analysis": "Description annotation is not a runtime value; corresponding parameter declaration is separately checked."
+        },
+        {
+          "source_id": "symbol:tags:line:59",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "Tags parameter is an object defaulting to {}; the actual root tag map contains one string-valued azd-env-name entry, satisfying inherited TrackedResource.tags additionalProperties:string."
+        },
+        {
+          "source_id": "symbol:workspaceLocation:line:0",
+          "label": "$expression",
+          "path": "/$symbol/workspaceLocation/$expression-line/0",
+          "expression": "var workspaceLocation = location",
+          "analysis": "workspaceLocation aliases the deployment location string parameter; maps to required REST location string."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/prometheus/pipeline.bicep",
+      "name": "dataCollectionEndpoint",
+      "line": 27,
+      "type": "Microsoft.Insights/dataCollectionEndpoints",
+      "version": "2024-03-11",
+      "existing": false,
+      "start": 909,
+      "end": 1104,
+      "header": "resource dataCollectionEndpoint 'Microsoft.Insights/dataCollectionEndpoints@2024-03-11' = ",
+      "body": "{\n  name: dataCollectionEndpointName\n  location: location\n  tags: tags\n  kind: 'Linux'\n  properties: {}\n}",
+      "status": "verified",
+      "reason": "The exact current 2024-03-11 Learn and REST schema and latest stable GA were confirmed. Both resource declarations use a required string name and location, kind Linux is within the schema enum, tags map to inherited TrackedResource tags (string values), and the empty properties object has no required child fields. The conditional only controls whether one resource is deployed.",
+      "migration": "Current GA; Learn marks 2024-03-11 as Latest and fixed-commit tree contains one stable dataCollection.json version (2024-03-11), so no newer GA candidate.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: dataCollectionEndpointName",
+          "analysis": "Original Bicep source pointer /name maps to required string route parameter dataCollectionEndpointName and inherited Resource.name string. Computed name includes a fixed prefix; substring(..., min(44,length(...))) caps it at 44 characters. The REST schema has no pattern/length restriction on the path parameter."
+        },
+        {
+          "source_id": "body:47",
+          "label": "location",
+          "path": "/location",
+          "expression": "  location: location",
+          "analysis": "Original source pointer /location maps to inherited TrackedResource.location, required string; workspaceLocation aliases the string location parameter."
+        },
+        {
+          "source_id": "body:64",
+          "label": "tags",
+          "path": "/tags",
+          "expression": "  tags: tags",
+          "analysis": "Original source pointer /tags maps to inherited TrackedResource.tags object with additionalProperties string in common-types v5. The root tag map uses azd-env-name with a string environment value; module defaults are empty objects."
+        },
+        {
+          "source_id": "body:77",
+          "label": "kind",
+          "path": "/kind",
+          "expression": "  kind: 'Linux'",
+          "analysis": "Original source pointer /kind maps to KnownDataCollectionEndpointResourceKind enum ['Linux','Windows']; literal 'Linux' is allowed."
+        },
+        {
+          "source_id": "body:99",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {}",
+          "analysis": "Original source pointer /properties maps to DataCollectionEndpointResourceProperties, which resolves via allOf to DataCollectionEndpoint; its required child list is empty, so {} is valid."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource dataCollectionEndpoint 'Microsoft.Insights/dataCollectionEndpoints@2024-03-11' = ",
+          "analysis": "Resource header selects Microsoft.Insights/dataCollectionEndpoints@2024-03-11. The first declaration is conditional on enableContainerNetworkLogs; the second is unconditional. Header/condition are Bicep deployment control, not API payload members."
+        },
+        {
+          "source_id": "symbol:dataCollectionEndpointName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionEndpointName/$expression-line/0",
+          "expression": "var dataCollectionEndpointName = substring(",
+          "analysis": "Expression builds a string name and uses substring with min(44,length(...)), bounding output to 44 characters; it maps only to the route resource-name parameter."
+        },
+        {
+          "source_id": "symbol:dataCollectionEndpointName:line:44",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionEndpointName/$expression-line/1",
+          "expression": "  dataCollectionEndpointNameBase,",
+          "analysis": "Base name is a string prefix (dce-ci- or dce-prom-) concatenated with string nameSuffix; resulting value is resource identity, not a JSON property."
+        },
+        {
+          "source_id": "symbol:dataCollectionEndpointName:line:78",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionEndpointName/$expression-line/2",
+          "expression": "  0,",
+          "analysis": "Declaration-specific source input affects resource identity or Bicep deployment control only; it does not add another REST request-body attribute."
+        },
+        {
+          "source_id": "symbol:dataCollectionEndpointName:line:83",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionEndpointName/$expression-line/3",
+          "expression": "  min(44, length(dataCollectionEndpointNameBase))",
+          "analysis": "Base name is a string prefix (dce-ci- or dce-prom-) concatenated with string nameSuffix; resulting value is resource identity, not a JSON property."
+        },
+        {
+          "source_id": "symbol:dataCollectionEndpointNameBase:line:0",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionEndpointNameBase/$expression-line/0",
+          "expression": "var dataCollectionEndpointNameBase = 'dce-prom-${nameSuffix}'",
+          "analysis": "Base name is a string prefix (dce-ci- or dce-prom-) concatenated with string nameSuffix; resulting value is resource identity, not a JSON property."
+        },
+        {
+          "source_id": "symbol:location:line:0",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/0",
+          "expression": "@description('Location of the Azure resources')",
+          "analysis": "String deployment-location parameter maps to required TrackedResource.location string."
+        },
+        {
+          "source_id": "symbol:location:line:48",
+          "label": "$expression",
+          "path": "/$symbol/location/$expression-line/1",
+          "expression": "param location string",
+          "analysis": "String deployment-location parameter maps to required TrackedResource.location string."
+        },
+        {
+          "source_id": "symbol:nameSuffix:line:0",
+          "label": "$expression",
+          "path": "/$symbol/nameSuffix/$expression-line/0",
+          "expression": "@description('Name suffix for resources (e.g., appName-environment)')",
+          "analysis": "Description annotation is not a runtime value; corresponding parameter declaration is separately checked."
+        },
+        {
+          "source_id": "symbol:nameSuffix:line:70",
+          "label": "$expression",
+          "path": "/$symbol/nameSuffix/$expression-line/1",
+          "expression": "param nameSuffix string",
+          "analysis": "String nameSuffix parameter is incorporated into the endpoint name; the endpoint schema exposes a string resource-name parameter with no additional pattern/length constraint."
+        },
+        {
+          "source_id": "symbol:tags:line:0",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/0",
+          "expression": "@description('Tags that will be applied to all resources')",
+          "analysis": "Description annotation is not a runtime value; corresponding parameter declaration is separately checked."
+        },
+        {
+          "source_id": "symbol:tags:line:59",
+          "label": "$expression",
+          "path": "/$symbol/tags/$expression-line/1",
+          "expression": "param tags object = {}",
+          "analysis": "Tags parameter is an object defaulting to {}; the actual root tag map contains one string-valued azd-env-name entry, satisfying inherited TrackedResource.tags additionalProperties:string."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2024-03-11",
+      "analysis": "Exact Learn current page and fixed-commit dataCollection.json were fetched and parsed. Endpoint PUT uses DataCollectionEndpointResource; kind is enum Linux/Windows; properties resolves through DataCollectionEndpointResourceProperties -> DataCollectionEndpoint and has no required child fields. Inherited TrackedResource v5 requires location:string and defines tags as object with additionalProperties:string. Endpoint name route parameter is required string.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionendpoints",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-03-11/dataCollection.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    },
+    "ga": {
+      "version": "2024-03-11",
+      "analysis": "Learn selector marks 2024-03-11 Latest. Complete fixed-commit tree search found only stable dataCollection.json at 2024-03-11 for this resource. The exact current schema is therefore also the latest GA candidate; no newer GA schema exists at the reviewed commit.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionendpoints",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-03-11/dataCollection.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn change log entry 2024-03-11 adds DataCollectionEndpointResourceSku and TrackedResourceTags, removes DataCollectionEndpointResourceTags, and adds sku. These declarations use tags values matching TrackedResourceTags and do not use sku; there is no newer GA transition beyond the current version.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/datacollectionendpoints"
+      ]
+    }
+  }
+}
