@@ -385,5 +385,50 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/fleets/autoupgradeprofiles",
+    "attempt": 1,
+    "started_monotonic": 2346.273395844,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/autoupgradeprofiles",
+    "attempt": 1,
+    "started_monotonic": 2349.273505324,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.86747665699977
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/autoupgradeprofiles",
+    "attempt": 1,
+    "started_monotonic": 2352.273616559,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8818005690000064
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md",
+    "attempt": 1,
+    "started_monotonic": 2352.350653169,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+    "attempt": 1,
+    "started_monotonic": 2352.496891901,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

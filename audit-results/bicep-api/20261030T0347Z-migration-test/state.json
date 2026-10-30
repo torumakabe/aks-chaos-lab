@@ -43374,9 +43374,184 @@
       }
     },
     "Microsoft.ContainerService/fleets/autoUpgradeProfiles@2026-06-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/fleet.bicep",
+          "name": "autoUpgradeProfile",
+          "line": 92,
+          "type": "Microsoft.ContainerService/fleets/autoUpgradeProfiles",
+          "version": "2026-06-01",
+          "existing": false,
+          "start": 2307,
+          "end": 2628,
+          "header": "resource autoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfiles@2026-06-01' = ",
+          "body": "{\n  name: 'default-auto-upgrade'\n  parent: fleet\n  properties: {\n    updateStrategyId: fleetUpdateStrategy.id\n    channel: autoUpgradeChannel\n    disabled: false\n    nodeImageSelection: {\n      type: 'Consistent'\n    }\n  }\n}",
+          "status": "verified",
+          "reason": "Learn version selector identifies 2026-06-01 as latest stable GA; exact REST AutoUpgradeProfileProperties requires channel and the nested nodeImageSelection type. Bicep supplies both, with allowed channel values, a valid updateStrategy resource ID, boolean disabled, and an allowed Consistent enum.",
+          "migration": "Current 2026-06-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'default-auto-upgrade'",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression \"name: 'default-auto-upgrade'\"); Bicep child name becomes autoUpgradeProfileName path parameter; it is not request-body JSON."
+            },
+            {
+              "source_id": "body:41",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: fleet",
+              "analysis": "body:41: Bicep source JSON Pointer /parent (expression 'parent: fleet'); Bicep parent fleet selects the fleetName route segment; this is a route relationship, not an API payload field."
+            },
+            {
+              "source_id": "body:61",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "body:61: Bicep source JSON Pointer /properties (expression 'properties: {'); Request properties maps to AutoUpgradeProfileProperties; required channel is supplied, as is nested nodeImageSelection whose required type is present."
+            },
+            {
+              "source_id": "body:85",
+              "label": "updateStrategyId",
+              "path": "/properties/updateStrategyId",
+              "expression": "    updateStrategyId: fleetUpdateStrategy.id",
+              "analysis": "body:85: Bicep source JSON Pointer /properties/updateStrategyId (expression 'updateStrategyId: fleetUpdateStrategy.id'); Maps to optional updateStrategyId with format arm-id and allowed resource Microsoft.ContainerService/fleets/updateStrategies; fleetUpdateStrategy.id is the resource ID of that exact child type."
+            },
+            {
+              "source_id": "body:121",
+              "label": "channel",
+              "path": "/properties/channel",
+              "expression": "    channel: autoUpgradeChannel",
+              "analysis": "body:121: Bicep source JSON Pointer /properties/channel (expression 'channel: autoUpgradeChannel'); Maps to required UpgradeChannel string enum; autoUpgradeChannel defaults to 'Stable' and its Bicep @allowed set exactly matches all four REST enum values."
+            },
+            {
+              "source_id": "body:154",
+              "label": "disabled",
+              "path": "/properties/disabled",
+              "expression": "    disabled: false",
+              "analysis": "body:154: Bicep source JSON Pointer /properties/disabled (expression 'disabled: false'); Maps to disabled boolean; literal false is type-correct and means auto-upgrade remains enabled."
+            },
+            {
+              "source_id": "body:184",
+              "label": "nodeImageSelection",
+              "path": "/properties/nodeImageSelection",
+              "expression": "    nodeImageSelection: {",
+              "analysis": "body:184: Bicep source JSON Pointer /properties/nodeImageSelection (expression 'nodeImageSelection: {'); Maps to nodeImageSelection object; its nested required type is supplied."
+            },
+            {
+              "source_id": "body:198",
+              "label": "type",
+              "path": "/properties/nodeImageSelection/type",
+              "expression": "      type: 'Consistent'",
+              "analysis": "body:198: Bicep source JSON Pointer /properties/nodeImageSelection/type (expression \"type: 'Consistent'\"); Maps to required AutoUpgradeNodeImageSelection.type; literal 'Consistent' is an exact allowed enum value."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource autoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfiles@2026-06-01' = ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource autoUpgradeProfile 'Microsoft.ContainerService/fleets/autoUpgradeProfiles@2026-06-01' =\"); Bicep resource declaration header identifies the current stable API version; it is not request data."
+            },
+            {
+              "source_id": "symbol:autoUpgradeChannel:line:0",
+              "label": "$expression",
+              "path": "/$symbol/autoUpgradeChannel/$expression-line/0",
+              "expression": "@description('Auto-upgrade channel to use for Fleet-managed updates')",
+              "analysis": "symbol:autoUpgradeChannel:line:0: Bicep source JSON Pointer /$symbol/autoUpgradeChannel/$expression-line/0 (expression \"@description('Auto-upgrade channel to use for Fleet-managed updates')\"); Parameter documentation only; the channel source constraint is recorded in its @allowed declaration."
+            },
+            {
+              "source_id": "symbol:autoUpgradeChannel:line:70",
+              "label": "$expression",
+              "path": "/$symbol/autoUpgradeChannel/$expression-line/1",
+              "expression": "@allowed([",
+              "analysis": "symbol:autoUpgradeChannel:line:70: Bicep source JSON Pointer /$symbol/autoUpgradeChannel/$expression-line/1 (expression '@allowed(['); Bicep @allowed constraint on autoUpgradeChannel; the exact four values match the REST UpgradeChannel enum."
+            },
+            {
+              "source_id": "symbol:autoUpgradeChannel:line:81",
+              "label": "$expression",
+              "path": "/$symbol/autoUpgradeChannel/[]/$expression-line/2",
+              "expression": "  'Stable'",
+              "analysis": "symbol:autoUpgradeChannel:line:81: Bicep source JSON Pointer /$symbol/autoUpgradeChannel/[]/$expression-line/2 (expression \"'Stable'\"); One literal in the Bicep channel allow-list; each is an exact member of the REST UpgradeChannel enum."
+            },
+            {
+              "source_id": "symbol:autoUpgradeChannel:line:92",
+              "label": "$expression",
+              "path": "/$symbol/autoUpgradeChannel/[]/$expression-line/3",
+              "expression": "  'Rapid'",
+              "analysis": "symbol:autoUpgradeChannel:line:92: Bicep source JSON Pointer /$symbol/autoUpgradeChannel/[]/$expression-line/3 (expression \"'Rapid'\"); One literal in the Bicep channel allow-list; each is an exact member of the REST UpgradeChannel enum."
+            },
+            {
+              "source_id": "symbol:autoUpgradeChannel:line:102",
+              "label": "$expression",
+              "path": "/$symbol/autoUpgradeChannel/[]/$expression-line/4",
+              "expression": "  'NodeImage'",
+              "analysis": "symbol:autoUpgradeChannel:line:102: Bicep source JSON Pointer /$symbol/autoUpgradeChannel/[]/$expression-line/4 (expression \"'NodeImage'\"); One literal in the Bicep channel allow-list; each is an exact member of the REST UpgradeChannel enum."
+            },
+            {
+              "source_id": "symbol:autoUpgradeChannel:line:116",
+              "label": "$expression",
+              "path": "/$symbol/autoUpgradeChannel/[]/$expression-line/5",
+              "expression": "  'TargetKubernetesVersion'",
+              "analysis": "symbol:autoUpgradeChannel:line:116: Bicep source JSON Pointer /$symbol/autoUpgradeChannel/[]/$expression-line/5 (expression \"'TargetKubernetesVersion'\"); One literal in the Bicep channel allow-list; each is an exact member of the REST UpgradeChannel enum."
+            },
+            {
+              "source_id": "symbol:autoUpgradeChannel:line:147",
+              "label": "$expression",
+              "path": "/$symbol/autoUpgradeChannel/$expression-line/7",
+              "expression": "param autoUpgradeChannel string = 'Stable'",
+              "analysis": "symbol:autoUpgradeChannel:line:147: Bicep source JSON Pointer /$symbol/autoUpgradeChannel/$expression-line/7 (expression \"param autoUpgradeChannel string = 'Stable'\"); String parameter with default 'Stable'; its @allowed values are identical to the schema enum and it supplies required channel."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-06-01",
+          "analysis": "Learn selector and pinned stable fleets.json identify 2026-06-01 as current. Schemas helper resolved AutoUpgradeProfile and AutoUpgradeProfileProperties; channel is required, nodeImageSelection.type is required, updateStrategyId is an arm-id restricted to fleets/updateStrategies, disabled is boolean, and the supplied literals match exact enums.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/autoupgradeprofiles",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/autoupgradeprofiles": "e4c1e69bb0f7447f94b87b8c51366df984173d6f37a6a69f2be39989ba67cd42",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md": "dbb091949f52e5f30b1bc67a68c87b22cf57d09493c0d24f94010a4aa19b0641",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json": "c47dbd88b848187f664790e484ee9c21d55192be4a636e4ab1e8595bc16f4240",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1"
+          }
+        },
+        "ga": {
+          "version": "2026-06-01",
+          "analysis": "Learn lists 2026-06-01 as the latest stable GA and 2026-06-02-preview as a newer preview. Exact candidate schema is the same pinned stable file; no preview was treated as GA.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/autoupgradeprofiles",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/autoupgradeprofiles": "e4c1e69bb0f7447f94b87b8c51366df984173d6f37a6a69f2be39989ba67cd42",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json": "c47dbd88b848187f664790e484ee9c21d55192be4a636e4ab1e8595bc16f4240",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log: 2026-06-01 adds AutoUpgradeProfileStatus.lastTriggerMessage; the current declaration does not use this response/status field. The required channel and node image selection constraints are unchanged.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/autoupgradeprofiles",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/autoupgradeprofiles": "690e10d233e8b3f6890596c074a0d7c6586ca66f8ea9b9b0bbfc28ec680d53d9",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json": "c47dbd88b848187f664790e484ee9c21d55192be4a636e4ab1e8595bc16f4240",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1"
+          }
+        }
+      }
     },
     "Microsoft.ContainerService/fleets/members@2026-06-01": {
       "stage": "pending",
