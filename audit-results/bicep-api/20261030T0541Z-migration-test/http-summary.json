@@ -1,0 +1,51 @@
+{
+  "sessions": [
+    {
+      "session": "previous-run-74",
+      "file": "prior-http-attempts.json",
+      "sha256": "19656a94bd476f5f8288816b992f837c4a3cc41291ccf01d059ca8b9b22c4ea3",
+      "attempts": 74,
+      "http_status_counts": {
+        "200": 72,
+        "404": 2
+      },
+      "cumulative_429": 0,
+      "stopped_after_three_consecutive_429": false
+    },
+    {
+      "session": "prior-segment-88",
+      "file": "prior-segment-http-attempts.json",
+      "sha256": "33e9c7f288ecb9c74d099e5f846bb6ec3362d8703071ff904131dccfff34cff6",
+      "attempts": 88,
+      "http_status_counts": {
+        "200": 86,
+        "404": 2
+      },
+      "cumulative_429": 0,
+      "stopped_after_three_consecutive_429": false
+    },
+    {
+      "session": "current-run",
+      "file": "http-attempts.json",
+      "sha256": "eb9787b00d434dc6e01d86d57c94f9e7110c08d757a71a8e8c240488e9242bf5",
+      "attempts": 89,
+      "http_status_counts": {
+        "200": 81,
+        "404": 8
+      },
+      "cumulative_429": 0,
+      "stopped_after_three_consecutive_429": false
+    }
+  ],
+  "known_sessions_only": {
+    "attempts": 251,
+    "http_status_counts": {
+      "200": 239,
+      "404": 12
+    },
+    "cumulative_429": 0
+  },
+  "initial_three_pairs_http_attempts": "unknown; not represented as zero",
+  "full_audit_aggregate": "unknown; known sessions are not the complete historical total",
+  "three_consecutive_429_stop_in_current_session": false
+}
