@@ -583,5 +583,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities",
+    "attempt": 1,
+    "started_monotonic": 4626.857776108,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/change-log/userassignedidentities",
+    "attempt": 1,
+    "started_monotonic": 4629.857895705,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.3164850369994383
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/types.json",
+    "attempt": 1,
+    "started_monotonic": 4707.173619743,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]

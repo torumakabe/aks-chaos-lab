@@ -51673,9 +51673,409 @@
       }
     },
     "Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/aks.bicep",
+          "name": "aksIdentity",
+          "line": 215,
+          "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+          "version": "2024-11-30",
+          "existing": false,
+          "start": 6815,
+          "end": 6961,
+          "header": "resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = ",
+          "body": "{\n  name: 'id-${aksName}'\n  location: location\n  tags: tags\n}",
+          "status": "verified",
+          "reason": "Exact current and latest-GA 2024-11-30 Learn and pinned REST schemas were checked across all four declarations. Identity inherits required location:string; tags is an optional object whose values must be strings; properties are optional and omitted. Each Bicep name maps to the string resourceName path parameter. All names, locations, and tags resolve from string/object-typed source parameters and expressions; defaults form valid strings and the common tag value is a string.",
+          "migration": "Current 2024-11-30 is already latest GA. Learn lists later 2025 API versions only as previews; the pinned REST tree has GA schemas 2018-11-30, 2023-01-31, and 2024-11-30 for userAssignedIdentities.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'id-${aksName}'",
+              "analysis": "Original Bicep JSON Pointer /name maps to required REST resourceName:string path parameter. Source expression is name: 'id-${aksName}'; the root default appName/environment and CAF abbreviation resolve to id-aks-aks-chaos-lab-dev. The parameter schema has no extra pattern/length restriction."
+            },
+            {
+              "source_id": "body:36",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "Original /location maps to required REST Identity.location:string inherited from TrackedResource. The module receives a string location; root default is japaneast, and the optional SRE region resolves to deployment location by default."
+            },
+            {
+              "source_id": "body:53",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "Original /tags maps to optional REST tags object with additionalProperties:string. Root builds {'azd-env-name': environment}; environment is string (default dev), and the SRE module receives the same common tag object."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = ",
+              "analysis": "Declaration header selects Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30. Learn version selector and pinned REST stable API tree establish 2024-11-30 as latest GA."
+            },
+            {
+              "source_id": "symbol:aksName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksName/$expression-line/0",
+              "expression": "@description('AKS name')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:aksName:line:25",
+              "label": "$expression",
+              "path": "/$symbol/aksName/$expression-line/1",
+              "expression": "param aksName string",
+              "analysis": "String parameter is supplied from root aksClusterName = aks-${appName}-${environment}; defaults resolve to aks-aks-chaos-lab-dev and feed the string resourceName."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "String parameter receives root deployment location (default japaneast); for SRE, effectiveSreAgentLocation uses that value unless explicitly overridden."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags object')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:tags:line:28",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object = {}",
+              "analysis": "Object parameter receives the root common map {'azd-env-name': environment}; the value is string and the REST schema permits only string tag values."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/sli-identity.bicep",
+          "name": "sliIdentity",
+          "line": 10,
+          "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+          "version": "2024-11-30",
+          "existing": false,
+          "start": 212,
+          "end": 355,
+          "header": "resource sliIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = ",
+          "body": "{\n  name: identityName\n  location: location\n  tags: tags\n}",
+          "status": "verified",
+          "reason": "Exact current and latest-GA 2024-11-30 Learn and pinned REST schemas were checked across all four declarations. Identity inherits required location:string; tags is an optional object whose values must be strings; properties are optional and omitted. Each Bicep name maps to the string resourceName path parameter. All names, locations, and tags resolve from string/object-typed source parameters and expressions; defaults form valid strings and the common tag value is a string.",
+          "migration": "Current 2024-11-30 is already latest GA. Learn lists later 2025 API versions only as previews; the pinned REST tree has GA schemas 2018-11-30, 2023-01-31, and 2024-11-30 for userAssignedIdentities.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: identityName",
+              "analysis": "Original Bicep JSON Pointer /name maps to required REST resourceName:string path parameter. Source expression is name: identityName; the root default appName/environment and CAF abbreviation resolve to id-aks-chaos-lab-sli-dev. The parameter schema has no extra pattern/length restriction."
+            },
+            {
+              "source_id": "body:33",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "Original /location maps to required REST Identity.location:string inherited from TrackedResource. The module receives a string location; root default is japaneast, and the optional SRE region resolves to deployment location by default."
+            },
+            {
+              "source_id": "body:50",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "Original /tags maps to optional REST tags object with additionalProperties:string. Root builds {'azd-env-name': environment}; environment is string (default dev), and the SRE module receives the same common tag object."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource sliIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = ",
+              "analysis": "Declaration header selects Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30. Learn version selector and pinned REST stable API tree establish 2024-11-30 as latest GA."
+            },
+            {
+              "source_id": "symbol:identityName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/identityName/$expression-line/0",
+              "expression": "@description('User-assigned managed identity name for Azure Monitor SLI')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:identityName:line:74",
+              "label": "$expression",
+              "path": "/$symbol/identityName/$expression-line/1",
+              "expression": "param identityName string",
+              "analysis": "String parameter receives azureMonitorSliIdentityName, built from the managed-identity prefix, appName, and environment; default resolves to id-aks-chaos-lab-sli-dev."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "String parameter receives root deployment location (default japaneast); for SRE, effectiveSreAgentLocation uses that value unless explicitly overridden."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags object')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:tags:line:28",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object = {}",
+              "analysis": "Object parameter receives the root common map {'azd-env-name': environment}; the value is string and the REST schema permits only string tag values."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/identity.bicep",
+          "name": "userAssignedManagedIdentity",
+          "line": 24,
+          "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+          "version": "2024-11-30",
+          "existing": false,
+          "start": 665,
+          "end": 824,
+          "header": "resource userAssignedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = ",
+          "body": "{\n  name: identityName\n  location: location\n  tags: tags\n}",
+          "status": "verified",
+          "reason": "Exact current and latest-GA 2024-11-30 Learn and pinned REST schemas were checked across all four declarations. Identity inherits required location:string; tags is an optional object whose values must be strings; properties are optional and omitted. Each Bicep name maps to the string resourceName path parameter. All names, locations, and tags resolve from string/object-typed source parameters and expressions; defaults form valid strings and the common tag value is a string.",
+          "migration": "Current 2024-11-30 is already latest GA. Learn lists later 2025 API versions only as previews; the pinned REST tree has GA schemas 2018-11-30, 2023-01-31, and 2024-11-30 for userAssignedIdentities.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: identityName",
+              "analysis": "Original Bicep JSON Pointer /name maps to required REST resourceName:string path parameter. Source expression is name: identityName; the root default appName/environment and CAF abbreviation resolve to id-aks-chaos-lab-chaos-app-dev. The parameter schema has no extra pattern/length restriction."
+            },
+            {
+              "source_id": "body:33",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "Original /location maps to required REST Identity.location:string inherited from TrackedResource. The module receives a string location; root default is japaneast, and the optional SRE region resolves to deployment location by default."
+            },
+            {
+              "source_id": "body:50",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "Original /tags maps to optional REST tags object with additionalProperties:string. Root builds {'azd-env-name': environment}; environment is string (default dev), and the SRE module receives the same common tag object."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource userAssignedManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = ",
+              "analysis": "Declaration header selects Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30. Learn version selector and pinned REST stable API tree establish 2024-11-30 as latest GA."
+            },
+            {
+              "source_id": "symbol:identityName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/identityName/$expression-line/0",
+              "expression": "@description('User Assigned Managed Identity name')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:identityName:line:52",
+              "label": "$expression",
+              "path": "/$symbol/identityName/$expression-line/1",
+              "expression": "param identityName string",
+              "analysis": "String parameter receives chaosAppIdentityName, built from the managed-identity prefix, appName, and environment; default resolves to id-aks-chaos-lab-chaos-app-dev."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "String parameter receives root deployment location (default japaneast); for SRE, effectiveSreAgentLocation uses that value unless explicitly overridden."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags object')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:tags:line:28",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object = {}",
+              "analysis": "Object parameter receives the root common map {'azd-env-name': environment}; the value is string and the REST schema permits only string tag values."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/sre-agent.bicep",
+          "name": "agentIdentity",
+          "line": 39,
+          "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+          "version": "2024-11-30",
+          "existing": false,
+          "start": 1143,
+          "end": 1288,
+          "header": "resource agentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = ",
+          "body": "{\n  name: identityName\n  location: location\n  tags: tags\n}",
+          "status": "verified",
+          "reason": "Exact current and latest-GA 2024-11-30 Learn and pinned REST schemas were checked across all four declarations. Identity inherits required location:string; tags is an optional object whose values must be strings; properties are optional and omitted. Each Bicep name maps to the string resourceName path parameter. All names, locations, and tags resolve from string/object-typed source parameters and expressions; defaults form valid strings and the common tag value is a string.",
+          "migration": "Current 2024-11-30 is already latest GA. Learn lists later 2025 API versions only as previews; the pinned REST tree has GA schemas 2018-11-30, 2023-01-31, and 2024-11-30 for userAssignedIdentities.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: identityName",
+              "analysis": "Original Bicep JSON Pointer /name maps to required REST resourceName:string path parameter. Source expression is name: identityName; the root default appName/environment and CAF abbreviation resolve to sre-aks-chaos-lab-dev-id. The parameter schema has no extra pattern/length restriction."
+            },
+            {
+              "source_id": "body:33",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "Original /location maps to required REST Identity.location:string inherited from TrackedResource. The module receives a string location; root default is japaneast, and the optional SRE region resolves to deployment location by default."
+            },
+            {
+              "source_id": "body:50",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "Original /tags maps to optional REST tags object with additionalProperties:string. Root builds {'azd-env-name': environment}; environment is string (default dev), and the SRE module receives the same common tag object."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource agentIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = ",
+              "analysis": "Declaration header selects Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30. Learn version selector and pinned REST stable API tree establish 2024-11-30 as latest GA."
+            },
+            {
+              "source_id": "symbol:identityName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/identityName/$expression-line/0",
+              "expression": "var identityName = '${agentName}-id'",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:agentName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/agentName/$expression-line/0",
+              "expression": "@description('Azure SRE Agent name')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:agentName:line:37",
+              "label": "$expression",
+              "path": "/$symbol/agentName/$expression-line/1",
+              "expression": "param agentName string",
+              "analysis": "String parameter receives root sreAgentName = sre-${appName}-${environment}; defaults resolve to sre-aks-chaos-lab-dev before the local -id suffix."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Azure SRE Agent region')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:location:line:39",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "String parameter receives root deployment location (default japaneast); for SRE, effectiveSreAgentLocation uses that value unless explicitly overridden."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags object')",
+              "analysis": "The description annotation is metadata and does not contribute to the REST request body."
+            },
+            {
+              "source_id": "symbol:tags:line:28",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object",
+              "analysis": "Object parameter receives the root common map {'azd-env-name': environment}; the value is string and the REST schema permits only string tag values."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2024-11-30",
+          "analysis": "Fetched exact Learn resource page and pinned stable OpenAPI. The request body uses Identity, which resolves through common TrackedResource: location:string is required, tags is an optional object with additionalProperties:string, and identity properties are optional. The PUT path requires resourceName:string. All four declarations supply location and use string-valued name expressions and the common string-valued tag map.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2024-11-30/ManagedIdentity.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/readme.md"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities": "a7629f414121a8f1670fd4479ca1129f2fc9f128af7a463f76dcf65e3fbf44ad",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2024-11-30/ManagedIdentity.json": "25ef415706ccda3eb5e65bbfb05dab76328493be11c5729f0fdb98c763638855",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/readme.md": "00c076beaeba4a9ae1a2f4cac938035c117f79a3166cbe7bd4bdfb8e4684a50e"
+          }
+        },
+        "ga": {
+          "version": "2024-11-30",
+          "analysis": "Learn selector identifies 2024-11-30 as latest stable; later 2025-01-31-preview and 2025-05-31-preview are previews. The complete pinned REST subtree has stable userAssignedIdentities schemas 2018-11-30, 2023-01-31, and 2024-11-30; 2024-11-30 is latest GA and already current.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2024-11-30/ManagedIdentity.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities": "a7629f414121a8f1670fd4479ca1129f2fc9f128af7a463f76dcf65e3fbf44ad",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/readme.md": "00c076beaeba4a9ae1a2f4cac938035c117f79a3166cbe7bd4bdfb8e4684a50e",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2024-11-30/ManagedIdentity.json": "25ef415706ccda3eb5e65bbfb05dab76328493be11c5729f0fdb98c763638855"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log for 2024-11-30 lists only an addition under UserAssignedIdentityProperties; no used name, location, or tags contract changed. This declaration set does not use identity properties, so the additive field is irrelevant to its payloads.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/change-log/userassignedidentities",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/change-log/userassignedidentities": "a8b0e1d8e2baf099480dfe4510a7af3d21b917f70be7b126c80916e3e62e2cae",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities": "a7629f414121a8f1670fd4479ca1129f2fc9f128af7a463f76dcf65e3fbf44ad"
+          }
+        }
+      }
     },
     "Microsoft.Management/serviceGroups@2024-02-01-preview": {
       "stage": "pending",
