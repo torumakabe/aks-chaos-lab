@@ -601,5 +601,41 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-04-01/storageaccounts/blobservices",
+    "attempt": 1,
+    "started_monotonic": 2233.960632942,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/storageaccounts/blobservices",
+    "attempt": 1,
+    "started_monotonic": 2236.96076344,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.7291273349997027
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-09-01/storageaccounts/blobservices",
+    "attempt": 1,
+    "started_monotonic": 2239.960890792,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.5780889180000486
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/change-log/storageaccounts/blobservices",
+    "attempt": 1,
+    "started_monotonic": 2242.961024857,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.785071713999969
   }
 ]

@@ -60065,9 +60065,94 @@
       }
     },
     "Microsoft.Storage/storageAccounts/blobServices@2026-04-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/functions/external-sli-publisher.bicep",
+          "name": "blobService",
+          "line": 266,
+          "type": "Microsoft.Storage/storageAccounts/blobServices",
+          "version": "2026-04-01",
+          "existing": false,
+          "start": 8332,
+          "end": 8461,
+          "header": "resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2026-04-01' = ",
+          "body": "{\n  name: 'default'\n  parent: storageAccount\n}",
+          "status": "verified",
+          "reason": "Learn latest GA selector is 2026-09-01. Exact current and GA REST OpenAPI paths both fix the Blob Service route suffix to /blobServices/default; request body model has no required properties. No payload properties are used.",
+          "migration": "GA移行可能。current 2026-04-01とGA 2026-09-01でBlob Service routeとBlobServiceProperties shapeに差なし。Learn breaking-change logは2026-04、2026-06、2026-09で追加・更新・削除なし。",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "最新GA candidate 2026-09-01がcurrent 2026-04-01より新しい。resource name default is fixed in the REST route and no mutable payload properties are used; change log reports no changes."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'default'",
+              "analysis": "JSON Pointer /name is Bicep child identity, not a JSON body field. Exact current and candidate REST PUT/GET route is storageAccounts/{accountName}/blobServices/default, so literal 'default' matches the service's fixed name."
+            },
+            {
+              "source_id": "body:28",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: storageAccount",
+              "analysis": "JSON Pointer /parent is a Bicep parent relationship, not REST JSON. The storageAccount parent supplies the accountName path segment; the REST child route is fixed to blobServices/default."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2026-04-01' = ",
+              "analysis": "JSON Pointer /$expression-line/0 is the Bicep resource type/version header, not a REST payload field. Learn selector lists latest GA 2026-09-01; current remains 2026-04-01."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-04-01",
+          "analysis": "Learn exact current API page and pinned stable OpenAPI were checked. PUT request takes BlobServiceProperties; its properties have no required members. Exact route suffix is /blobServices/default.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-04-01/storageaccounts/blobservices",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-04-01/openapi.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-04-01/storageaccounts/blobservices": "d9db85ab99b7654bd58746b0a6e263d0e1c8e15b1faa4afe325da2fcfc38182c",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/readme.md": "f94a3254b20f6c7e293c391109b7570e6ad95fdb381ab74bb3c77365dac6c785",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-04-01/openapi.json": "85b8e8577c169a069584c1400e53fcb0f895446df191246dd63e6384f5c48618"
+          }
+        },
+        "ga": {
+          "version": "2026-09-01",
+          "analysis": "Learn unversioned selector lists 2026-09-01 as latest GA. Pinned stable/2026-09-01/openapi.json confirms same exact fixed route and BlobServiceProperties body contract.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/storageaccounts/blobservices",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-09-01/storageaccounts/blobservices",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-09-01/openapi.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/storageaccounts/blobservices": "2b2335c6413471b6262429f6d09d71bb57d9874842e063c49534f1298f533427",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/2026-09-01/storageaccounts/blobservices": "09eaa8634c5256fe363a588285a4bee6e8ea115dbf7b7c925d11901590cc84a7",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/readme.md": "f94a3254b20f6c7e293c391109b7570e6ad95fdb381ab74bb3c77365dac6c785",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/storage/resource-manager/Microsoft.Storage/Storage/stable/2026-09-01/openapi.json": "9b3aeac07a8682e7adc3055adbde5da2d5cfb3670891856b7733535ce4d0eef0"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log reports no properties added, updated, or removed for 2026-04-01, 2026-06-01, or 2026-09-01.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/change-log/storageaccounts/blobservices"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.storage/change-log/storageaccounts/blobservices": "e7d531f64a240e2b4a2022ac4c3f69c006d23667a4302ea4ad0846ce644c05a1"
+          }
+        }
+      }
     },
     "Microsoft.Storage/storageAccounts@2026-04-01": {
       "stage": "pending",
