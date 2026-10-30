@@ -457,5 +457,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.860733686000003
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/fleets/updatestrategies",
+    "attempt": 1,
+    "started_monotonic": 2560.912788036,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/updatestrategies",
+    "attempt": 1,
+    "started_monotonic": 2563.912888819,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8724846640002397
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/updatestrategies",
+    "attempt": 1,
+    "started_monotonic": 2566.912989344,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.8468373649998284
   }
 ]

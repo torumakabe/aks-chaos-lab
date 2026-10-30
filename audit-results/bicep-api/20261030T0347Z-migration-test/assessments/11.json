@@ -1,0 +1,220 @@
+{
+  "pair": "Microsoft.ContainerService/fleets/updateStrategies@2026-06-01",
+  "results": [
+    {
+      "file": "infra/modules/fleet.bicep",
+      "name": "fleetUpdateStrategy",
+      "line": 63,
+      "type": "Microsoft.ContainerService/fleets/updateStrategies",
+      "version": "2026-06-01",
+      "existing": false,
+      "start": 1746,
+      "end": 2279,
+      "header": "resource fleetUpdateStrategy 'Microsoft.ContainerService/fleets/updateStrategies@2026-06-01' = ",
+      "body": "{\n  name: updateStrategyName\n  parent: fleet\n  properties: {\n    strategy: {\n      stages: [\n        {\n          name: updateStageName\n          beforeGates: [\n            {\n              type: 'Approval'\n              displayName: approvalDisplayName\n            }\n          ]\n          groups: [\n            {\n              name: memberGroupName\n            }\n          ]\n        }\n      ]\n    }\n  }\n  dependsOn: [\n    fleetMember\n  ]\n}",
+      "status": "verified",
+      "reason": "Learn lists 2026-06-01 as latest stable GA. Exact FleetUpdateStrategyProperties requires strategy, UpdateRunStrategy requires stages, and the supplied stage/group/gate fields meet all required, enum, pattern and length constraints. The group base-cluster matches the previously checked FleetMember group.",
+      "migration": "Current 2026-06-01 is latest GA; no GA migration needed.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: updateStrategyName",
+          "analysis": "body:8: Bicep source JSON Pointer /name (expression 'name: updateStrategyName'); Bicep child name becomes the updateStrategyName path parameter; main.bicep supplies base-manual-approval."
+        },
+        {
+          "source_id": "body:37",
+          "label": "parent",
+          "path": "/parent",
+          "expression": "  parent: fleet",
+          "analysis": "body:37: Bicep source JSON Pointer /parent (expression 'parent: fleet'); Bicep parent fleet selects the fleetName route segment; it is not an API payload property."
+        },
+        {
+          "source_id": "body:57",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "body:57: Bicep source JSON Pointer /properties (expression 'properties: {'); Request properties maps to FleetUpdateStrategyProperties; its required strategy object is present."
+        },
+        {
+          "source_id": "body:73",
+          "label": "strategy",
+          "path": "/properties/strategy",
+          "expression": "    strategy: {",
+          "analysis": "body:73: Bicep source JSON Pointer /properties/strategy (expression 'strategy: {'); Maps to required FleetUpdateStrategyProperties.strategy / UpdateRunStrategy; required stages array is present."
+        },
+        {
+          "source_id": "body:89",
+          "label": "stages",
+          "path": "/properties/strategy/stages",
+          "expression": "      stages: [",
+          "analysis": "body:89: Bicep source JSON Pointer /properties/strategy/stages (expression 'stages: ['); Maps to required UpdateRunStrategy.stages; one stage is present, satisfying the documented minimum size of one."
+        },
+        {
+          "source_id": "body:117",
+          "label": "name",
+          "path": "/properties/strategy/stages/[]/name",
+          "expression": "          name: updateStageName",
+          "analysis": "body:117: Bicep source JSON Pointer /properties/strategy/stages/[]/name (expression 'name: updateStageName'); Maps to required UpdateStage.name; main.bicep supplies 'base-stage', satisfying length and lowercase alphanumeric/hyphen pattern."
+        },
+        {
+          "source_id": "body:156",
+          "label": "beforeGates",
+          "path": "/properties/strategy/stages/[]/beforeGates",
+          "expression": "          beforeGates: [",
+          "analysis": "body:156: Bicep source JSON Pointer /properties/strategy/stages/[]/beforeGates (expression 'beforeGates: ['); Maps to optional UpdateStage.beforeGates; one GateConfiguration is present."
+        },
+        {
+          "source_id": "body:192",
+          "label": "type",
+          "path": "/properties/strategy/stages/[]/beforeGates/[]/type",
+          "expression": "              type: 'Approval'",
+          "analysis": "body:192: Bicep source JSON Pointer /properties/strategy/stages/[]/beforeGates/[]/type (expression \"type: 'Approval'\"); Maps to required GateConfiguration.type; 'Approval' is the exact allowed GateType enum value."
+        },
+        {
+          "source_id": "body:230",
+          "label": "displayName",
+          "path": "/properties/strategy/stages/[]/beforeGates/[]/displayName",
+          "expression": "              displayName: approvalDisplayName",
+          "analysis": "body:230: Bicep source JSON Pointer /properties/strategy/stages/[]/beforeGates/[]/displayName (expression 'displayName: approvalDisplayName'); Maps to optional GateConfiguration.displayName (string, length 1–100); the actual caller value Base cluster manual approval satisfies the bounds."
+        },
+        {
+          "source_id": "body:294",
+          "label": "groups",
+          "path": "/properties/strategy/stages/[]/groups",
+          "expression": "          groups: [",
+          "analysis": "body:294: Bicep source JSON Pointer /properties/strategy/stages/[]/groups (expression 'groups: ['); Maps to UpdateStage.groups; one UpdateGroup is present, satisfying the documented minimum size of one."
+        },
+        {
+          "source_id": "body:330",
+          "label": "name",
+          "path": "/properties/strategy/stages/[]/groups/[]/name",
+          "expression": "              name: memberGroupName",
+          "analysis": "body:330: Bicep source JSON Pointer /properties/strategy/stages/[]/groups/[]/name (expression 'name: memberGroupName'); Maps to required UpdateGroup.name; main.bicep passes 'base-cluster', matching the FleetMember group exactly and satisfying its pattern/length."
+        },
+        {
+          "source_id": "body:413",
+          "label": "dependsOn",
+          "path": "/dependsOn",
+          "expression": "  dependsOn: [",
+          "analysis": "body:413: Bicep source JSON Pointer /dependsOn (expression 'dependsOn: ['); Bicep deployment dependency ordering only; dependsOn is not part of the REST request body."
+        },
+        {
+          "source_id": "body:line:417",
+          "label": "$expression",
+          "path": "/dependsOn/[]/$expression-line/24",
+          "expression": "    fleetMember",
+          "analysis": "body:line:417: Bicep source JSON Pointer /dependsOn/[]/$expression-line/24 (expression 'fleetMember'); Bicep dependency reference to fleetMember ensures deployment ordering; it is not an API property."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource fleetUpdateStrategy 'Microsoft.ContainerService/fleets/updateStrategies@2026-06-01' = ",
+          "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource fleetUpdateStrategy 'Microsoft.ContainerService/fleets/updateStrategies@2026-06-01' =\"); Bicep declaration header identifies the current stable API version; it is not request data."
+        },
+        {
+          "source_id": "symbol:approvalDisplayName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/approvalDisplayName/$expression-line/0",
+          "expression": "@description('Display name for the manual approval gate')",
+          "analysis": "symbol:approvalDisplayName:line:0: Bicep source JSON Pointer /$symbol/approvalDisplayName/$expression-line/0 (expression \"@description('Display name for the manual approval gate')\"); Parameter documentation only; the actual caller-supplied value is analyzed against its REST field constraints."
+        },
+        {
+          "source_id": "symbol:approvalDisplayName:line:58",
+          "label": "$expression",
+          "path": "/$symbol/approvalDisplayName/$expression-line/1",
+          "expression": "param approvalDisplayName string = 'Manual approval required'",
+          "analysis": "symbol:approvalDisplayName:line:58: Bicep source JSON Pointer /$symbol/approvalDisplayName/$expression-line/1 (expression \"param approvalDisplayName string = 'Manual approval required'\"); String parameter; main.bicep overrides it with Base cluster manual approval, which satisfies GateConfiguration.displayName length 1–100."
+        },
+        {
+          "source_id": "symbol:memberGroupName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/memberGroupName/$expression-line/0",
+          "expression": "var memberGroupName = fleetMemberName",
+          "analysis": "symbol:memberGroupName:line:0: Bicep source JSON Pointer /$symbol/memberGroupName/$expression-line/0 (expression 'var memberGroupName = fleetMemberName'); memberGroupName aliases fleetMemberName; main.bicep supplies base-cluster, matching the required existing FleetMember group and regex."
+        },
+        {
+          "source_id": "symbol:memberGroupName:line:39",
+          "label": "$expression",
+          "path": "/$symbol/memberGroupName/$expression-line/2",
+          "expression": "#disable-next-line BCP081",
+          "analysis": "symbol:memberGroupName:line:39: Bicep source JSON Pointer /$symbol/memberGroupName/$expression-line/2 (expression '#disable-next-line BCP081'); Bicep diagnostic suppression directive only; it is not serialized into the API payload."
+        },
+        {
+          "source_id": "symbol:fleetMemberName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/fleetMemberName/$expression-line/0",
+          "expression": "@description('Fleet member name (use lowercase alphanumeric and hyphen)')",
+          "analysis": "symbol:fleetMemberName:line:0: Bicep source JSON Pointer /$symbol/fleetMemberName/$expression-line/0 (expression \"@description('Fleet member name (use lowercase alphanumeric and hyphen)')\"); Parameter documentation only; the actual caller-supplied value is analyzed against its REST field constraints."
+        },
+        {
+          "source_id": "symbol:fleetMemberName:line:74",
+          "label": "$expression",
+          "path": "/$symbol/fleetMemberName/$expression-line/1",
+          "expression": "param fleetMemberName string = 'base-cluster'",
+          "analysis": "symbol:fleetMemberName:line:74: Bicep source JSON Pointer /$symbol/fleetMemberName/$expression-line/1 (expression \"param fleetMemberName string = 'base-cluster'\"); memberGroupName aliases fleetMemberName; main.bicep supplies base-cluster, matching the required existing FleetMember group and regex."
+        },
+        {
+          "source_id": "symbol:updateStageName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/updateStageName/$expression-line/0",
+          "expression": "@description('Stage name for the update strategy')",
+          "analysis": "symbol:updateStageName:line:0: Bicep source JSON Pointer /$symbol/updateStageName/$expression-line/0 (expression \"@description('Stage name for the update strategy')\"); Parameter documentation only; the actual caller-supplied value is analyzed against its REST field constraints."
+        },
+        {
+          "source_id": "symbol:updateStageName:line:51",
+          "label": "$expression",
+          "path": "/$symbol/updateStageName/$expression-line/1",
+          "expression": "param updateStageName string = 'base-stage'",
+          "analysis": "symbol:updateStageName:line:51: Bicep source JSON Pointer /$symbol/updateStageName/$expression-line/1 (expression \"param updateStageName string = 'base-stage'\"); String parameter is overridden by main.bicep with base-stage, satisfying UpdateStage.name pattern and length."
+        },
+        {
+          "source_id": "symbol:updateStrategyName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/updateStrategyName/$expression-line/0",
+          "expression": "@description('Update strategy resource name')",
+          "analysis": "symbol:updateStrategyName:line:0: Bicep source JSON Pointer /$symbol/updateStrategyName/$expression-line/0 (expression \"@description('Update strategy resource name')\"); Parameter documentation only; the actual caller-supplied value is analyzed against its REST field constraints."
+        },
+        {
+          "source_id": "symbol:updateStrategyName:line:46",
+          "label": "$expression",
+          "path": "/$symbol/updateStrategyName/$expression-line/1",
+          "expression": "param updateStrategyName string = 'base-manual-approval'",
+          "analysis": "symbol:updateStrategyName:line:46: Bicep source JSON Pointer /$symbol/updateStrategyName/$expression-line/1 (expression \"param updateStrategyName string = 'base-manual-approval'\"); String path-name parameter is overridden by main.bicep with base-manual-approval."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2026-06-01",
+      "analysis": "Learn selector and pinned fleets.json identify 2026-06-01. Schemas helper expanded FleetUpdateStrategyProperties, UpdateRunStrategy, UpdateStage, UpdateGroup and GateConfiguration. strategy/stages and group/name/type requirements are satisfied; group and stage names match actual caller inputs, Approval is the only GateType, and displayName is within bounds. The Bicep dependsOn is deployment ordering only.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/updatestrategies",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    },
+    "ga": {
+      "version": "2026-06-01",
+      "analysis": "Learn lists 2026-06-01 as latest stable GA and 2026-06-02-preview as a newer preview. Exact candidate schema is the same pinned stable fleets.json; preview is not treated as GA.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets/updatestrategies",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn change log: 2026-06-01 adds optional UpdateStage.memberSelector; it is not used. Required strategy/stages/group/gate fields and current literal constraints remain as assessed in the exact schema.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets/updatestrategies",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    }
+  }
+}
