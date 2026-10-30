@@ -1,0 +1,28 @@
+{
+  "target_commit": "8be0dd8b802404f6bc557a211aea6d409d8c380c",
+  "helper_commit": "d95d56029fcd134c7af0894a1c6792118657d861",
+  "helper_sha256": "2e2ca176614ff6328bc7a6b37f093661054b0cdd70cbfcdb7049d3a448591ae2",
+  "helper_published_url": "https://github.com/torumakabe/aks-chaos-lab/blob/d95d56029fcd134c7af0894a1c6792118657d861/scripts/bicep_api_audit.py",
+  "checkpoint_url": "https://github.com/torumakabe/aks-chaos-lab/blob/b85d98e221f5ac277f6795b9f61c2bf4d497e520/audit-results/bicep-api/20261030T0347Z-migration-test/state.json",
+  "checkpoint_sha256": "f1bed5202e4389aff0e3016d801b9b3b263effb3f685891aa4daec61d0b53599",
+  "checkpoint_restored_after_exact_inventory_match": true,
+  "source_inventory": {
+    "files": 35,
+    "declarations": 179,
+    "existing": 24,
+    "type_version_pairs": 50
+  },
+  "checkpoint_pairs": {
+    "assessed": 17,
+    "blocked": 1,
+    "pending": 32
+  },
+  "rest_specs_commit": "fb9f2e6a38761232e8601419798654960aec703a",
+  "rest_readme_fetch": {
+    "status": 200,
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/README.md"
+  },
+  "helper_public_bytes_match": true,
+  "specification_comparison_started": false,
+  "status": "確認未完了"
+}

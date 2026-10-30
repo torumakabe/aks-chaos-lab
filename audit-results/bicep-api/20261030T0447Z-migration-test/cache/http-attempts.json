@@ -1,0 +1,11 @@
+[
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/README.md",
+    "attempt": 1,
+    "started_monotonic": 2742.547055876,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  }
+]
