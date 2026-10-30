@@ -69,7 +69,7 @@ fullでは、`repository-freshness-checker`と`bicep-api-version-updater`のchec
 
 - 通常のversion更新候補はRenovateが検出する。gh-awとLefthookは明示的な保守作業で更新する。
 - fastはリポジトリ内のversion契約だけを検査する。
-- AKSの公開更新情報は`aks-updates-analyzer`が担当する。
+- AKSの公開更新情報はCopilot Automationが定期分析し、手順は[`docs/aks-updates-analysis.md`](../../docs/aks-updates-analysis.md)に記載する。
 - Azure subscription、AKS cluster、Fleet、resource provider、feature登録状態を照会しない。
 - ファイルの自動更新、commit、push、Pull Request作成を行わない。
 

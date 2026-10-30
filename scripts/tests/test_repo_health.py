@@ -45,7 +45,7 @@ def repository(tmp_path: Path) -> Path:
         "with:\n  version: v0.88.7\n",
     )
     write(
-        tmp_path / ".github/workflows/aks-updates-analyzer.lock.yml",
+        tmp_path / ".github/workflows/sample.lock.yml",
         '# gh-aw-metadata: {"compiler_version":"v0.88.7"}\n',
     )
     write(
@@ -120,6 +120,19 @@ def test_check_validates_three_repository_invariants(repository: Path) -> None:
         ("docker-base-digest", "pass"),
     ]
     assert result["findings"] == []
+
+
+def test_check_skips_compiler_version_without_generated_workflows(
+    repository: Path,
+) -> None:
+    (repository / ".github/workflows/sample.lock.yml").unlink()
+
+    result = repo_health.build_result(repository)
+
+    assert [item["id"] for item in result["checks"]] == [
+        "kubernetes-version",
+        "docker-base-digest",
+    ]
 
 
 @pytest.mark.parametrize("read_failure", ["invalid-encoding", "permission-denied"])

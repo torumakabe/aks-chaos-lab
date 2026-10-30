@@ -101,62 +101,13 @@ def test_ci_reuses_kubernetes_and_helm_validation_targets() -> None:
     assert "k8s/apps/chaos-app/*.yaml" not in ci
 
 
-def test_weekly_workflows_disable_operational_failure_issues() -> None:
-    for name in (
-        "aks-updates-analyzer",
-        "bicep-api-version-check",
-    ):
-        workflow = REPO_ROOT / ".github" / "workflows" / name
-        source = workflow.with_suffix(".md").read_text(encoding="utf-8")
-        lock = workflow.with_suffix(".lock.yml").read_text(encoding="utf-8")
-
-        assert "safe-outputs:" in source
-        assert "  create-issue:" in source
-        assert "expires:" not in source
-        for setting in (
-            "report-failure-as-issue: false",
-            "report-failed-jobs: false",
-            "enabled: ${{ needs.agent.result == 'success' }}",
-            "missing-tool:\n    create-issue: false",
-            "missing-data:\n    create-issue: false",
-            "report-incomplete:\n    create-issue: false",
-        ):
-            assert setting in source, (name, setting)
-        for variable in (
-            "GH_AW_SAFE_OUTPUTS_CONFIG",
-            "GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG",
-        ):
-            values = [
-                line.strip().removeprefix(f"{variable}: ")
-                for line in lock.splitlines()
-                if line.strip().startswith(f"{variable}: ")
-            ]
-            assert len(values) == 1, (name, variable)
-            config = json.loads(json.loads(values[0]))
-            assert config["noop"]["report-as-issue"] == "false", (name, variable)
-            assert config["create_issue"]["max"] == 1
-            assert config["create_issue"]["close_older_issues"] is True
-            assert config["missing_tool"] == {}
-            assert config["missing_data"] == {}
-            assert config["report_incomplete"] == {}
-        assert 'GH_AW_NOOP_REPORT_AS_ISSUE: "false"' in lock
-        assert 'GH_AW_FAILURE_REPORT_AS_ISSUE: "false"' in lock
-        assert "Report failed jobs" not in lock
-        assert 'GH_AW_MISSING_TOOL_CREATE_ISSUE: "false"' in lock
-        assert 'GH_AW_REPORT_INCOMPLETE_CREATE_ISSUE: "false"' in lock
-        assert (
-            "if: always() && needs.agent.result != 'skipped' && "
-            "(needs.agent.result == 'success')"
-        ) in lock
-        assert "needs.detection.result == 'success' ||" in lock
-        assert "needs.detection.result == 'skipped'" in lock
-        assert "handle_noop_message.cjs" in lock
-
-
-def test_aks_updates_workflow_reports_unverified_sources() -> None:
-    source = (
-        REPO_ROOT / ".github" / "workflows" / "aks-updates-analyzer.md"
-    ).read_text(encoding="utf-8")
+def test_aks_updates_analysis_uses_documented_automation_procedure() -> None:
+    workflow_dir = REPO_ROOT / ".github" / "workflows"
+    procedure = (REPO_ROOT / "docs" / "aks-updates-analysis.md").read_text(
+        encoding="utf-8"
+    )
+    assert not (workflow_dir / "aks-updates-analyzer.md").exists()
+    assert not (workflow_dir / "aks-updates-analyzer.lock.yml").exists()
 
     for contract in (
         "両ソースの`status`が`pass`で、両方の`items`が空の場合のみ",
@@ -166,13 +117,11 @@ def test_aks_updates_workflow_reports_unverified_sources() -> None:
         "全体を確認済みとはしない",
         "### データ取得状況",
         "| ソース | status | reason_code | 取得件数 | 解析失敗件数 | 対象件数 | 理由 |",
-        "週次Issueは既存の1件だけ",
+        "1回の分析につきIssueを1件だけ作成",
     ):
-        assert contract in source
-    assert "close-older-issues: true" in source
-    assert "max: 1" in source
-    assert "except Exception" not in source
-    assert 'print("[]")' not in source
+        assert contract in procedure
+    assert "except Exception" not in procedure
+    assert 'print("[]")' not in procedure
 
 
 def test_gh_aw_dispatcher_uses_current_generated_layout() -> None:
@@ -195,18 +144,6 @@ def test_gh_aw_dispatcher_uses_current_generated_layout() -> None:
     assert "{{AW_FILE_LIST}}" not in skill_source
 
 
-def test_weekly_workflows_preserve_direct_github_api_access() -> None:
-    for name in (
-        "aks-updates-analyzer",
-        "bicep-api-version-check",
-    ):
-        workflow = REPO_ROOT / ".github" / "workflows" / name
-        source = workflow.with_suffix(".md").read_text(encoding="utf-8")
-        lock = workflow.with_suffix(".lock.yml").read_text(encoding="utf-8")
-        assert '    - "api.github.com"' in source
-        assert r"\"api.github.com\"" in lock
-
-
 def test_repository_health_cli_checks_consistency_without_specialist_inventory() -> (
     None
 ):
@@ -227,98 +164,19 @@ def test_repository_health_cli_checks_consistency_without_specialist_inventory()
     assert "inventory" not in result
     assert {item["id"] for item in result["checks"]} == {
         "kubernetes-version",
-        "gh-aw-compiler-version",
         "docker-base-digest",
     }
     assert result["findings"] == []
     assert result["coverage"]["excluded_kubernetes_documents"]
 
 
-def test_bicep_api_version_workflow_contract() -> None:
-    source = (
-        REPO_ROOT / ".github" / "workflows" / "bicep-api-version-check.md"
-    ).read_text(encoding="utf-8")
-
-    assert "schedule: weekly" in source
-    assert "workflow_dispatch:" in source
-    assert "bicep-api-version-updater/SKILL.md" in source
-    assert "inventory-repo" not in source
-    assert "pre-agent-steps:" not in source
-    assert "Gitで対象のBicepファイルを列挙" in source
-    assert "learn.microsoft.com" in source
-    assert "Azure/azure-rest-api-specs" in source
-    assert "Microsoft.ContainerService/{aks|fleet}/{stable|preview}" in source
-    for reason in (
-        "not-processed",
-        "target-unresolved",
-        "evidence-unavailable",
-        "assessment-incomplete",
-    ):
-        assert reason in source
-    assert "各HTTP requestを30秒以内" in source
-    assert "未完了のまま確認完了と報告してはなりません" in source
-    assert "close-older-issues: true" in source
-    for forbidden in (
-        "azure/login",
-        "az login",
-        "az provider show",
-        "create-pull-request:",
-        "push-to-pr-branch:",
-        "contents: write",
-    ):
-        assert forbidden not in source
-
-
-def test_bicep_api_version_workflow_is_compiled() -> None:
-    lock = (
-        REPO_ROOT / ".github" / "workflows" / "bicep-api-version-check.lock.yml"
-    ).read_text(encoding="utf-8")
-
-    assert "automatically generated by gh-aw" in lock
-    assert "workflow_dispatch:" in lock
-    assert "issues: write" in lock
-    assert "pull-requests: write" not in lock
-    assert "id-token: write" not in lock
-    assert "inventory-repo" not in lock
-    assert "Generate Bicep API inventory" not in lock
-
-
-def test_bicep_api_version_workflow_uses_configurable_copilot_model() -> None:
-    source = (
-        REPO_ROOT / ".github" / "workflows" / "bicep-api-version-check.md"
-    ).read_text(encoding="utf-8")
-    lock = (
-        REPO_ROOT / ".github" / "workflows" / "bicep-api-version-check.lock.yml"
-    ).read_text(encoding="utf-8")
-
-    frontmatter = source.split("---", 2)[1]
-    assert "  id: copilot" in frontmatter
-    assert "model:" not in frontmatter
-    assert "claude-opus-4.8" not in lock
-    model_settings = [
-        line.strip() for line in lock.splitlines() if "COPILOT_MODEL:" in line
-    ]
-    assert len(model_settings) == 2
-    assert "vars.GH_AW_MODEL_AGENT_COPILOT" in model_settings[0]
-    assert "vars.GH_AW_DEFAULT_MODEL_COPILOT" in model_settings[0]
-    assert "'auto'" in model_settings[0]
-    assert model_settings[1] == "COPILOT_MODEL: detection"
-
-
-def test_aks_updates_workflow_uses_auto_copilot_model() -> None:
-    source = (
-        REPO_ROOT / ".github" / "workflows" / "aks-updates-analyzer.md"
-    ).read_text(encoding="utf-8")
-    lock = (
-        REPO_ROOT / ".github" / "workflows" / "aks-updates-analyzer.lock.yml"
-    ).read_text(encoding="utf-8")
-
-    frontmatter = source.split("---", 2)[1]
-    assert "  id: copilot" in frontmatter
-    assert "  model: auto" in frontmatter
-    assert "claude-opus-4.8" not in lock
-    assert 'GH_AW_ENGINE_MODEL: "auto"' in lock
-    assert "COPILOT_MODEL: auto" in lock
+def test_bicep_api_version_workflow_is_retired() -> None:
+    workflows = REPO_ROOT / ".github" / "workflows"
+    assert not (workflows / "bicep-api-version-check.md").exists()
+    assert not (workflows / "bicep-api-version-check.lock.yml").exists()
+    assert (
+        REPO_ROOT / ".github" / "skills" / "bicep-api-version-updater" / "SKILL.md"
+    ).is_file()
 
 
 def test_documentation_exposes_maintenance_entry_points() -> None:

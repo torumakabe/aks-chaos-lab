@@ -73,11 +73,13 @@ uv run --no-project "${PWD}/scripts/tasks.py" check-renovate-config
 
 ## AKSアップデートの取得状況
 
-[AKS Updates analyzer](../.github/workflows/aks-updates-analyzer.md)は、Azure Updates RSSの過去7日分と、GitHub AKS releasesの最新5件に含まれる過去14日分を週次Issueで分析する。各ソースの構造化JSONにある`status`、`reason_code`、`reason`、取得件数、解析失敗件数を同じIssueへ記載する。通信失敗、応答不正、項目の部分解析失敗は`unverified`とし、有効な`items`だけを分析する。結果が欠落したソースも未確認として扱い、0件で補わない。両ソースが`pass`で対象項目が空の場合だけ、取得範囲内で「更新なし」と報告する。理由コードと報告形式はworkflow本文を参照する。
+[AKS Updates 分析手順](aks-updates-analysis.md)は、Azure Updates RSSの過去7日分と、GitHub AKS releasesの最新5件に含まれる過去14日分を週次Issueで分析するCopilot Automationが使う。各ソースの構造化JSONにある`status`、`reason_code`、`reason`、取得件数、解析失敗件数を同じIssueへ記載する。通信失敗、応答不正、項目の部分解析失敗は`unverified`とし、有効な`items`だけを分析する。結果が欠落したソースも未確認として扱い、0件で補わない。両ソースが`pass`で対象項目が空の場合だけ、取得範囲内で「更新なし」と報告する。理由コードと報告形式は分析手順を参照する。
+
+## Bicep API versionの週次確認廃止
+
+週次workflowと検証用Copilot Automationは停止した。元workflowの[#359](https://github.com/torumakabe/aks-chaos-lab/issues/359)は調査記録として残す。必要時の確認と更新には、別用途でも使う[bicep-api-version-updaterスキル](../.github/skills/bicep-api-version-updater/SKILL.md)を使う。
 
 ## gh-awとLefthookをRenovateに含めない理由
-
-Bicep API versionの週次確認は特定のCopilot modelを固定せず、`GH_AW_MODEL_AGENT_COPILOT`、`GH_AW_DEFAULT_MODEL_COPILOT`の順でActions variableを参照し、未設定なら`auto`を使う。利用できないmodelが指定されるとagent開始時に失敗するため、variableを設定する場合は実行accountで利用可能なmodelを選ぶ。threat detectionはcompiler既定の`detection`を使う。
 
 gh-awのcompiler pinは、生成物であるlock workflowのcompiler versionと一体で決まる。version単独の更新はcompile結果と矛盾するため、適用は`gh aw compile`が所有する。compiler versionの定義元は[Copilot setup](../.github/workflows/copilot-setup-steps.yml)であり、生成lockと同じ版を使う。
 
@@ -105,7 +107,7 @@ fastが実行するversion関連の検査は`check-version-pins`である。検�
 - azdとAzure Functions extension bundleのrange構文と座標数
 - Chaos Mesh chart versionの正本座標
 
-uv pinの内部整合は`check-uv-version`が、gh-aw pinとlock fileの`compiler_version`の整合は`check-repo-health`の`gh-aw-compiler-version`ルールが検査する。どちらもfastが実行する。
+uv pinの内部整合は`check-uv-version`が、生成lockがある場合のgh-aw pinとlock fileの`compiler_version`の整合は`check-repo-health`の`gh-aw-compiler-version`ルールが検査する。どちらもfastが実行する。
 
 `review-repo-full`は専用worktreeでfastを一度だけ実行し、application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-awの非書き込み検証を追加する。生成lockの更新と差分検査には、手動またはCIで`compile-aw`を実行する。version更新候補はRenovateまたは明示的な保守作業が担当するため再検出しない。Azure Functions extension bundleのsupport範囲はfullで意味評価する。
 
