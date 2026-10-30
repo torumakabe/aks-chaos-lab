@@ -51493,9 +51493,184 @@
       }
     },
     "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/identity.bicep",
+          "name": "federatedIdentityCredential",
+          "line": 30,
+          "type": "Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials",
+          "version": "2024-11-30",
+          "existing": false,
+          "start": 826,
+          "end": 1170,
+          "header": "resource federatedIdentityCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = ",
+          "body": "{\n  name: 'k8s-${serviceAccountNamespace}-${serviceAccountName}'\n  parent: userAssignedManagedIdentity\n  properties: {\n    issuer: oidcIssuerUrl\n    subject: federatedIdentitySubject\n    audiences: [audience]\n  }\n}",
+          "status": "verified",
+          "reason": "Exact current and latest-GA 2024-11-30 Learn and pinned REST schemas were checked. The three required properties are present; issuer is URI, subject is string, audiences is array<string>. The generated credential name satisfies the exact REST path regex. The configured issuer is AKS oidcIssuerProfile.issuerURL with that profile enabled; the exact subject, name, and default audience resolve from the unmodified Bicep caller and match published Microsoft Learn conventions.",
+          "migration": "Current 2024-11-30 is already latest GA. Pinned REST metadata contains FIC stable schemas 2023-01-31 and 2024-11-30; later 2025 API versions are previews and are not migration candidates.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: 'k8s-${serviceAccountNamespace}-${serviceAccountName}'",
+              "analysis": "Original Bicep JSON Pointer /name maps to required REST path parameter federatedIdentityCredentialResourceName. Caller resolves namespace=chaos-lab and service account=chaos-app-sa, producing k8s-chaos-lab-chaos-app-sa; it passes the exact OpenAPI name pattern (first alphanumeric; remaining alphanumeric/dash/underscore, length 3–120)."
+            },
+            {
+              "source_id": "body:73",
+              "label": "parent",
+              "path": "/parent",
+              "expression": "  parent: userAssignedManagedIdentity",
+              "analysis": "Bicep parent selects the userAssignedManagedIdentity resource and supplies the parent path segment userAssignedIdentities/{resourceName}; it is a deployment relationship, not a REST JSON property. The FIC endpoint path confirms the nested parent-resource route."
+            },
+            {
+              "source_id": "body:115",
+              "label": "properties",
+              "path": "/properties",
+              "expression": "  properties: {",
+              "analysis": "The nested FederatedIdentityCredentialProperties schema requires issuer, subject, and audiences. All three are supplied in the source object and are analyzed individually below."
+            },
+            {
+              "source_id": "body:129",
+              "label": "issuer",
+              "path": "/properties/issuer",
+              "expression": "    issuer: oidcIssuerUrl",
+              "analysis": "REST properties.issuer is required string format uri. The caller passes the AKS module output oidcIssuerUrl, sourced from aksCluster.properties.oidcIssuerProfile.issuerURL; the AKS module enables oidcIssuerProfile. No Azure/runtime value was queried."
+            },
+            {
+              "source_id": "body:156",
+              "label": "subject",
+              "path": "/properties/subject",
+              "expression": "    subject: federatedIdentitySubject",
+              "analysis": "REST properties.subject is required string. The source expression resolves to system:serviceaccount:chaos-lab:chaos-app-sa; Microsoft Learn documents system:serviceaccount:<namespace>:<service-account> as the Kubernetes token subject format."
+            },
+            {
+              "source_id": "body:196",
+              "label": "audiences",
+              "path": "/properties/audiences",
+              "expression": "    audiences: [audience]",
+              "analysis": "REST properties.audiences is required array<string>. The single element resolves to api://AzureADTokenExchange because the module caller omits audience and the parameter default supplies this value; Microsoft Learn recommends this audience for direct federation."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource federatedIdentityCredential 'Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30' = ",
+              "analysis": "Declaration header selects Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials@2024-11-30. Learn version selector and pinned REST stable schemas establish 2024-11-30 as latest GA; newer listed API versions are previews."
+            },
+            {
+              "source_id": "symbol:audience:line:0",
+              "label": "$expression",
+              "path": "/$symbol/audience/$expression-line/0",
+              "expression": "@description('OIDC audience')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:audience:line:30",
+              "label": "$expression",
+              "path": "/$symbol/audience/$expression-line/1",
+              "expression": "param audience string = 'api://AzureADTokenExchange'",
+              "analysis": "Module parameter defaults to api://AzureADTokenExchange; deployment call does not override it, and that exact single audience is recommended by Microsoft Learn for direct federation."
+            },
+            {
+              "source_id": "symbol:federatedIdentitySubject:line:0",
+              "label": "$expression",
+              "path": "/$symbol/federatedIdentitySubject/$expression-line/0",
+              "expression": "var federatedIdentitySubject = 'system:serviceaccount:${serviceAccountNamespace}:${serviceAccountName}'",
+              "analysis": "Variable name is a source symbol, not request data."
+            },
+            {
+              "source_id": "symbol:oidcIssuerUrl:line:0",
+              "label": "$expression",
+              "path": "/$symbol/oidcIssuerUrl/$expression-line/0",
+              "expression": "@description('AKS OIDC issuer URL')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:oidcIssuerUrl:line:36",
+              "label": "$expression",
+              "path": "/$symbol/oidcIssuerUrl/$expression-line/1",
+              "expression": "param oidcIssuerUrl string",
+              "analysis": "String parameter receives aksCluster.outputs.oidcIssuerUrl; the AKS module output reads oidcIssuerProfile.issuerURL and enables the profile. REST requires a URI string; runtime URL is intentionally not fetched."
+            },
+            {
+              "source_id": "symbol:serviceAccountName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceAccountName/$expression-line/0",
+              "expression": "@description('Kubernetes service account name for federated credential')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:serviceAccountName:line:73",
+              "label": "$expression",
+              "path": "/$symbol/serviceAccountName/$expression-line/1",
+              "expression": "param serviceAccountName string",
+              "analysis": "String parameter receives the caller’s serviceAccountName value chaos-app-sa; it is used in both the credential resource name and subject."
+            },
+            {
+              "source_id": "symbol:serviceAccountNamespace:line:0",
+              "label": "$expression",
+              "path": "/$symbol/serviceAccountNamespace/$expression-line/0",
+              "expression": "@description('Kubernetes service account namespace for federated credential')",
+              "analysis": "Parameter description is metadata, not request payload."
+            },
+            {
+              "source_id": "symbol:serviceAccountNamespace:line:78",
+              "label": "$expression",
+              "path": "/$symbol/serviceAccountNamespace/$expression-line/1",
+              "expression": "param serviceAccountNamespace string",
+              "analysis": "String parameter receives the caller’s serviceAccountNamespace value chaos-lab; it is used in both the credential resource name and subject."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2024-11-30",
+          "analysis": "Fetched exact Learn resource page and pinned 2024-11-30 OpenAPI. FederatedIdentityCredentialProperties requires issuer, subject, audiences; issuer is string/uri, subject string, audiences array<string>. The child resource-name path parameter pattern was evaluated against the actual caller-resolved name. Azure REST README maps package-2024-11-30 to stable/2024-11-30/ManagedIdentity.json. Official Microsoft Learn documents the Kubernetes subject format, issuer source, and recommended direct-federation audience.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities/federatedidentitycredentials",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2024-11-30/ManagedIdentity.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/readme.md",
+            "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust",
+            "https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities/federatedidentitycredentials": "227f2c919845e304bc97eef6477ff347f58a46eaf0ab437088e03788fb84dbe0",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2024-11-30/ManagedIdentity.json": "25ef415706ccda3eb5e65bbfb05dab76328493be11c5729f0fdb98c763638855",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/readme.md": "00c076beaeba4a9ae1a2f4cac938035c117f79a3166cbe7bd4bdfb8e4684a50e",
+            "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust": "a9f5aa997c30ec6fe3d996e27ae4f6295163232933a425863d69f4f44204789a",
+            "https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview": "00376078c466f2013374da827b25817798b08b7c5183d5997cd90164c0053715"
+          }
+        },
+        "ga": {
+          "version": "2024-11-30",
+          "analysis": "Learn selector has stable 2024-11-30 and older 2023-01-31; the later 2025-01-31-preview and 2025-05-31-preview are explicitly previews. The complete pinned REST subtree contains FIC operations only in stable 2023-01-31 and 2024-11-30; 2018-11-30 does not define the FIC path. Thus 2024-11-30 is latest GA and is already current.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities/federatedidentitycredentials",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2024-11-30/ManagedIdentity.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities/federatedidentitycredentials": "227f2c919845e304bc97eef6477ff347f58a46eaf0ab437088e03788fb84dbe0",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/readme.md": "00c076beaeba4a9ae1a2f4cac938035c117f79a3166cbe7bd4bdfb8e4684a50e",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2024-11-30/ManagedIdentity.json": "25ef415706ccda3eb5e65bbfb05dab76328493be11c5729f0fdb98c763638855"
+          }
+        },
+        "breaking": {
+          "analysis": "The Learn change log says 2024-11-30 has no properties added, updated, or removed. All required properties and name pattern match the current declaration; no later GA schema exists at the pinned specification commit.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/change-log/userassignedidentities/federatedidentitycredentials",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities/federatedidentitycredentials"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/change-log/userassignedidentities/federatedidentitycredentials": "6d4764cac3bf04d518fc64c75254f2490607a8d45903ab7d0897b364d162fd7b",
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities/federatedidentitycredentials": "227f2c919845e304bc97eef6477ff347f58a46eaf0ab437088e03788fb84dbe0"
+          }
+        }
+      }
     },
     "Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30": {
       "stage": "pending",

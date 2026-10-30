@@ -493,5 +493,95 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/2024-11-30/userassignedidentities/federatedidentitycredentials",
+    "attempt": 1,
+    "started_monotonic": 4427.28058989,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/change-log/userassignedidentities/federatedidentitycredentials",
+    "attempt": 1,
+    "started_monotonic": 4430.280682268,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.683544408999296
+  },
+  {
+    "url": "https://learn.microsoft.com/api/search?search=AKS%20workload%20identity%20federated%20credential%20subject%20issuer&locale=en-us&%24top=12",
+    "attempt": 1,
+    "started_monotonic": 4451.696982887,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2024-11-30/ManagedIdentity.json",
+    "attempt": 1,
+    "started_monotonic": 4474.792606182,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/readme.md",
+    "attempt": 1,
+    "started_monotonic": 4475.024810222,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview",
+    "attempt": 1,
+    "started_monotonic": 4475.238551889,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/api/search?search=system%3Aserviceaccount%20subject%20AKS%20workload%20identity%20federated%20credential&locale=en-us&%24top=12",
+    "attempt": 1,
+    "started_monotonic": 4500.194445569,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust",
+    "attempt": 1,
+    "started_monotonic": 4518.528410759,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2018-11-30/ManagedIdentity.json",
+    "attempt": 1,
+    "started_monotonic": 4567.116309966,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/msi/resource-manager/Microsoft.ManagedIdentity/ManagedIdentity/stable/2023-01-31/ManagedIdentity.json",
+    "attempt": 1,
+    "started_monotonic": 4567.266249946,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
