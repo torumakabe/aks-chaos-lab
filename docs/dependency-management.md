@@ -79,6 +79,8 @@ uv run --no-project "${PWD}/scripts/tasks.py" check-renovate-config
 
 GitHub cloud Copilot Automationへの移行は検証中で、Automationは`enabled=false`のまま手動で試す。[bicep_api_audit.py](../scripts/bicep_api_audit.py)は標準ライブラリだけを使い、宣言別の確認状態と公開根拠を保存する。これは本番移行の完了やAPI仕様照合の完了を示すものではない。既存の週次workflowの説明と運用は変更しない。
 
+手動PoCの実行記録は[#388](https://github.com/torumakabe/aks-chaos-lab/issues/388)を参照する。35ファイル179宣言、50組の未処理を0にし、公開した詳細JSONとレポートのバイト一致、Issueのtitleとbodyの一致を確認した。結果は`verified=168`、理由付き`excluded=5`、公開根拠不足の`unverified=6`であり、全宣言の確認完了ではない。この記録はcheckpointから続けた複数実行の結果であり、1回のAutomation実行だけで全件を確認できたことを示さない。
+
 runnerにuvがあることを前提にせず、監査前にuvのversionと固定したhelperのimportを確認する。uvはルート`pyproject.toml`の`required-version`を満たす版を使う。未導入の場合は公式releaseのarchiveを公開されたSHA-256と照合し、実行用の一時ディレクトリへ展開する。helperは`uv run --no-project --no-config --no-python-downloads python`で実行し、workspaceの同期やpackage indexの変更を行わない。
 
 Automationで選択するツールは`github/get_file_contents`、`github/create_issue`、`report_progress`（commit/push）、`github/issue_read`（作成したIssueの読み戻し）。設定APIが文字列を受理しても、実行時に呼び出せることの証明にはならない。必要なツールの選択と実行専用ブランチへの保存を監査前に確認する。
