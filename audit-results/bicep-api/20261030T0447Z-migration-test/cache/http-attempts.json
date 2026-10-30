@@ -124,5 +124,23 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionruleassociations",
+    "attempt": 1,
+    "started_monotonic": 3255.706228145,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/datacollectionruleassociations",
+    "attempt": 1,
+    "started_monotonic": 3258.706330118,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6429316720000315
   }
 ]

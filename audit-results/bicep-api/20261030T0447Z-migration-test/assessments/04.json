@@ -1,0 +1,267 @@
+{
+  "pair": "Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11",
+  "results": [
+    {
+      "file": "infra/modules/azmonitor/container-insights.bicep",
+      "name": "dataCollectionRuleAssociation",
+      "line": 153,
+      "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+      "version": "2024-03-11",
+      "existing": false,
+      "start": 4701,
+      "end": 5081,
+      "header": "resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11' = ",
+      "body": "{\n  name: dataCollectionRuleAssociationName\n  scope: existingAksCluster\n  properties: {\n    description: 'Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.'\n    dataCollectionRuleId: dataCollectionRule.id\n  }\n}",
+      "status": "verified",
+      "reason": "The exact current 2024-03-11 Learn and pinned REST schema were read; this is the latest stable API. The two route identifiers are required strings, dataCollectionRuleId and description are string properties, and Bicep scope selects the extension resource URI path rather than adding a payload field. All declaration-specific source values were checked.",
+      "migration": "Current GA; Learn marks 2024-03-11 Latest and the fixed-commit tree has stable association specifications through 2024-03-11. No newer GA migration.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: dataCollectionRuleAssociationName",
+          "analysis": "Original Bicep source /name maps to required string route parameter associationName; the literal or interpolation yields a string resource name."
+        },
+        {
+          "source_id": "body:51",
+          "label": "scope",
+          "path": "/scope",
+          "expression": "  scope: existingAksCluster",
+          "analysis": "Original Bicep source /scope is a Bicep extension-resource scope, not a REST JSON field. It supplies the existing AKS resource ID as required string route parameter resourceUri in /{resourceUri}/providers/Microsoft.Insights/dataCollectionRuleAssociations/{associationName}."
+        },
+        {
+          "source_id": "body:84",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "Original Bicep source /properties maps to DataCollectionRuleAssociationProxyOnlyResourceProperties, which allOf-inherits DataCollectionRuleAssociation. The schema declares dataCollectionRuleId and description as optional strings; both are supplied below. No required child list is declared."
+        },
+        {
+          "source_id": "body:103",
+          "label": "description",
+          "path": "/properties/description",
+          "expression": "    description: 'Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.'",
+          "analysis": "REST properties.description is string; each literal description is a string and satisfies the schema."
+        },
+        {
+          "source_id": "body:247",
+          "label": "dataCollectionRuleId",
+          "path": "/properties/dataCollectionRuleId",
+          "expression": "    dataCollectionRuleId: dataCollectionRule.id",
+          "analysis": "REST properties.dataCollectionRuleId is string with no enum/format constraint. dataCollectionRule.id and the OTLP DCR resource-ID parameter are string values; the source supplies this field explicitly."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11' = ",
+          "analysis": "Resource header selects Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11. It is API type/version metadata, not request-body content."
+        },
+        {
+          "source_id": "symbol:dataCollectionRuleAssociationName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionRuleAssociationName/$expression-line/0",
+          "expression": "var dataCollectionRuleAssociationName = 'ContainerInsightsExtension'",
+          "analysis": "Variable assigns a literal string association name; maps to required string route parameter associationName."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/azmonitor/otlp-dcra.bicep",
+      "name": "dataCollectionRuleAssociation",
+      "line": 18,
+      "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+      "version": "2024-03-11",
+      "existing": false,
+      "start": 706,
+      "end": 1068,
+      "header": "resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11' = ",
+      "body": "{\n  name: dataCollectionRuleAssociationName\n  scope: existingAksCluster\n  properties: {\n    description: 'OTLP App Insights DCR association for AKS cluster. Required for ama-logs to accept OTLP telemetry.'\n    dataCollectionRuleId: dataCollectionRuleId\n  }\n}",
+      "status": "verified",
+      "reason": "The exact current 2024-03-11 Learn and pinned REST schema were read; this is the latest stable API. The two route identifiers are required strings, dataCollectionRuleId and description are string properties, and Bicep scope selects the extension resource URI path rather than adding a payload field. All declaration-specific source values were checked.",
+      "migration": "Current GA; Learn marks 2024-03-11 Latest and the fixed-commit tree has stable association specifications through 2024-03-11. No newer GA migration.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: dataCollectionRuleAssociationName",
+          "analysis": "Original Bicep source /name maps to required string route parameter associationName; the literal or interpolation yields a string resource name."
+        },
+        {
+          "source_id": "body:51",
+          "label": "scope",
+          "path": "/scope",
+          "expression": "  scope: existingAksCluster",
+          "analysis": "Original Bicep source /scope is a Bicep extension-resource scope, not a REST JSON field. It supplies the existing AKS resource ID as required string route parameter resourceUri in /{resourceUri}/providers/Microsoft.Insights/dataCollectionRuleAssociations/{associationName}."
+        },
+        {
+          "source_id": "body:84",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "Original Bicep source /properties maps to DataCollectionRuleAssociationProxyOnlyResourceProperties, which allOf-inherits DataCollectionRuleAssociation. The schema declares dataCollectionRuleId and description as optional strings; both are supplied below. No required child list is declared."
+        },
+        {
+          "source_id": "body:103",
+          "label": "description",
+          "path": "/properties/description",
+          "expression": "    description: 'OTLP App Insights DCR association for AKS cluster. Required for ama-logs to accept OTLP telemetry.'",
+          "analysis": "REST properties.description is string; each literal description is a string and satisfies the schema."
+        },
+        {
+          "source_id": "body:230",
+          "label": "dataCollectionRuleId",
+          "path": "/properties/dataCollectionRuleId",
+          "expression": "    dataCollectionRuleId: dataCollectionRuleId",
+          "analysis": "REST properties.dataCollectionRuleId is string with no enum/format constraint. dataCollectionRule.id and the OTLP DCR resource-ID parameter are string values; the source supplies this field explicitly."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11' = ",
+          "analysis": "Resource header selects Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11. It is API type/version metadata, not request-body content."
+        },
+        {
+          "source_id": "symbol:dataCollectionRuleAssociationName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionRuleAssociationName/$expression-line/0",
+          "expression": "var dataCollectionRuleAssociationName = 'OtlpAppInsightsExtension'",
+          "analysis": "Variable assigns a literal string association name; maps to required string route parameter associationName."
+        },
+        {
+          "source_id": "symbol:dataCollectionRuleAssociationName:line:68",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionRuleAssociationName/$expression-line/2",
+          "expression": "#disable-next-line BCP081",
+          "analysis": "Source is a Bicep compiler suppression comment, not a runtime value or REST payload attribute; it does not alter the route or properties schema."
+        },
+        {
+          "source_id": "symbol:dataCollectionRuleId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionRuleId/$expression-line/0",
+          "expression": "@description('Resource ID of the OTLP managed Data Collection Rule (from App Insights)')",
+          "analysis": "Description annotation is not a runtime value; its corresponding string parameter is checked separately."
+        },
+        {
+          "source_id": "symbol:dataCollectionRuleId:line:89",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionRuleId/$expression-line/1",
+          "expression": "param dataCollectionRuleId string",
+          "analysis": "Resource-ID parameter is declared string and maps to REST properties.dataCollectionRuleId:string."
+        }
+      ]
+    },
+    {
+      "file": "infra/modules/prometheus/pipeline.bicep",
+      "name": "dataCollectionRuleAssociation",
+      "line": 76,
+      "type": "Microsoft.Insights/dataCollectionRuleAssociations",
+      "version": "2024-03-11",
+      "existing": false,
+      "start": 2224,
+      "end": 2604,
+      "header": "resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11' = ",
+      "body": "{\n  name: dataCollectionRuleAssociationName\n  scope: existingAksCluster\n  properties: {\n    description: 'Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.'\n    dataCollectionRuleId: dataCollectionRule.id\n  }\n}",
+      "status": "verified",
+      "reason": "The exact current 2024-03-11 Learn and pinned REST schema were read; this is the latest stable API. The two route identifiers are required strings, dataCollectionRuleId and description are string properties, and Bicep scope selects the extension resource URI path rather than adding a payload field. All declaration-specific source values were checked.",
+      "migration": "Current GA; Learn marks 2024-03-11 Latest and the fixed-commit tree has stable association specifications through 2024-03-11. No newer GA migration.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: dataCollectionRuleAssociationName",
+          "analysis": "Original Bicep source /name maps to required string route parameter associationName; the literal or interpolation yields a string resource name."
+        },
+        {
+          "source_id": "body:51",
+          "label": "scope",
+          "path": "/scope",
+          "expression": "  scope: existingAksCluster",
+          "analysis": "Original Bicep source /scope is a Bicep extension-resource scope, not a REST JSON field. It supplies the existing AKS resource ID as required string route parameter resourceUri in /{resourceUri}/providers/Microsoft.Insights/dataCollectionRuleAssociations/{associationName}."
+        },
+        {
+          "source_id": "body:84",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "Original Bicep source /properties maps to DataCollectionRuleAssociationProxyOnlyResourceProperties, which allOf-inherits DataCollectionRuleAssociation. The schema declares dataCollectionRuleId and description as optional strings; both are supplied below. No required child list is declared."
+        },
+        {
+          "source_id": "body:103",
+          "label": "description",
+          "path": "/properties/description",
+          "expression": "    description: 'Association of data collection rule. Deleting this association will break the data collection for this AKS Cluster.'",
+          "analysis": "REST properties.description is string; each literal description is a string and satisfies the schema."
+        },
+        {
+          "source_id": "body:247",
+          "label": "dataCollectionRuleId",
+          "path": "/properties/dataCollectionRuleId",
+          "expression": "    dataCollectionRuleId: dataCollectionRule.id",
+          "analysis": "REST properties.dataCollectionRuleId is string with no enum/format constraint. dataCollectionRule.id and the OTLP DCR resource-ID parameter are string values; the source supplies this field explicitly."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource dataCollectionRuleAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11' = ",
+          "analysis": "Resource header selects Microsoft.Insights/dataCollectionRuleAssociations@2024-03-11. It is API type/version metadata, not request-body content."
+        },
+        {
+          "source_id": "symbol:dataCollectionRuleAssociationName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/dataCollectionRuleAssociationName/$expression-line/0",
+          "expression": "var dataCollectionRuleAssociationName = 'dcra-prom-${nameSuffix}'",
+          "analysis": "Variable assigns a literal string association name; maps to required string route parameter associationName."
+        },
+        {
+          "source_id": "symbol:nameSuffix:line:0",
+          "label": "$expression",
+          "path": "/$symbol/nameSuffix/$expression-line/0",
+          "expression": "@description('Name suffix for resources (e.g., appName-environment)')",
+          "analysis": "Description annotation is not a runtime value; its corresponding string parameter is checked separately."
+        },
+        {
+          "source_id": "symbol:nameSuffix:line:70",
+          "label": "$expression",
+          "path": "/$symbol/nameSuffix/$expression-line/1",
+          "expression": "param nameSuffix string",
+          "analysis": "String suffix parameter is used only to construct the associationName path value; it is not a request-body property."
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2024-03-11",
+      "analysis": "Exact Learn 2024-03-11 reference and pinned REST dataCollection.json were fetched and inspected. PUT path is /{resourceUri}/providers/Microsoft.Insights/dataCollectionRuleAssociations/{associationName}; both path parameters are required strings. Request model resolves to DataCollectionRuleAssociationProxyOnlyResourceProperties allOf DataCollectionRuleAssociation; dataCollectionRuleId, description, and dataCollectionEndpointId are strings; no properties are required by the schema. ProxyResource common definition is in REST common-types v5.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionruleassociations",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-03-11/dataCollection.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    },
+    "ga": {
+      "version": "2024-03-11",
+      "analysis": "Learn version selector marks 2024-03-11 Latest. The complete fixed-commit tree has stable association schema versions 2021-04-01, 2022-06-01, 2023-03-11, and 2024-03-11; latest stable is 2024-03-11, equal to current. Exact current schema is the candidate.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/2024-03-11/datacollectionruleassociations",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitor/resource-manager/Microsoft.Insights/Insights/stable/2024-03-11/dataCollection.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json"
+      ]
+    },
+    "breaking": {
+      "analysis": "Learn change log says the 2024-03-11 version has no properties added, updated, or removed; previous stable entries likewise show no property changes. All used fields remain string-typed and the Bicep scope remains the route resourceUri.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.insights/change-log/datacollectionruleassociations"
+      ]
+    }
+  }
+}
