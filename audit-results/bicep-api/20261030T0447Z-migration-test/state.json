@@ -45566,9 +45566,443 @@
       }
     },
     "Microsoft.ContainerService/managedClusters@2026-07-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/azmonitor/container-insights.bicep",
+          "name": "existingAksCluster",
+          "line": 149,
+          "type": "Microsoft.ContainerService/managedClusters",
+          "version": "2026-07-01",
+          "existing": true,
+          "start": 4578,
+          "end": 4699,
+          "header": "resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+          "body": "{\n  name: aksClusterName\n}",
+          "status": "verified",
+          "reason": "Read the exact 2026-07-01 Learn page and pinned REST schema, the exact 2026-08-01 GA candidate schema, and the Learn change log. This declaration references an existing managed cluster and supplies its name; scope/header/parameter sources are Bicep identity or language metadata, not request payload properties. The current and candidate REST resourceName path parameter is required string and ManagedCluster.name is string; no used field is among the 2026-08-01 removals.",
+          "migration": "Possible: latest GA is 2026-08-01 (Learn selector and highest stable managedClusters spec path in pinned commit); same required string resourceName route and string name identifier in both schemas. The Bicep reference does not use removed properties.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "The current API 2026-07-01 has newer GA 2026-08-01. Exact current/candidate REST schemas and Learn pages were compared; all usage here is resource identity name (plus Bicep scope/header/parameter metadata), and the Learn change log removals do not include a used field."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: aksClusterName",
+              "analysis": "Source JSON Pointer /name (not a REST property path): Bicep name is the managed-cluster resource identifier. It resolves to required string route parameter {resourceName}; exact ManagedCluster.name is string in current and candidate schemas. This is an existing resource reference, so creation-required location is not supplied or required here."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+              "analysis": "Source JSON Pointer points to the resource declaration header: Microsoft.ContainerService/managedClusters@2026-07-01 and existing identify the API type/version and reference semantics. This is not a request-body attribute; its resource identity uses the required string {resourceName} route in both exact schemas."
+            },
+            {
+              "source_id": "symbol:aksClusterName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterName/$expression-line/0",
+              "expression": "var aksClusterName = split(aksClusterResourceId, '/')[8]",
+              "analysis": "Source JSON Pointer identifies the variable expression that selects the AKS name segment from the resource ID. Its string result maps to required string path parameter {resourceName}; no other managed-cluster body field is constructed."
+            },
+            {
+              "source_id": "symbol:aksClusterResourceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterResourceId/$expression-line/0",
+              "expression": "@description('Resource ID of the AKS cluster')",
+              "analysis": "Source JSON Pointer identifies a declaration-specific expression; this input contributes only to the managed-cluster resource identity (string {resourceName}) or Bicep language metadata, not to an additional REST body field."
+            },
+            {
+              "source_id": "symbol:aksClusterResourceId:line:47",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterResourceId/$expression-line/1",
+              "expression": "param aksClusterResourceId string",
+              "analysis": "Source JSON Pointer identifies a string parameter containing a fully qualified AKS resource ID; dependent split/last expressions select its resource-name segment for required string {resourceName}. It is not sent as an additional REST payload field."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/otlp-dcra.bicep",
+          "name": "existingAksCluster",
+          "line": 12,
+          "type": "Microsoft.ContainerService/managedClusters",
+          "version": "2026-07-01",
+          "existing": true,
+          "start": 398,
+          "end": 519,
+          "header": "resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+          "body": "{\n  name: aksClusterName\n}",
+          "status": "verified",
+          "reason": "Read the exact 2026-07-01 Learn page and pinned REST schema, the exact 2026-08-01 GA candidate schema, and the Learn change log. This declaration references an existing managed cluster and supplies its name; scope/header/parameter sources are Bicep identity or language metadata, not request payload properties. The current and candidate REST resourceName path parameter is required string and ManagedCluster.name is string; no used field is among the 2026-08-01 removals.",
+          "migration": "Possible: latest GA is 2026-08-01 (Learn selector and highest stable managedClusters spec path in pinned commit); same required string resourceName route and string name identifier in both schemas. The Bicep reference does not use removed properties.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "The current API 2026-07-01 has newer GA 2026-08-01. Exact current/candidate REST schemas and Learn pages were compared; all usage here is resource identity name (plus Bicep scope/header/parameter metadata), and the Learn change log removals do not include a used field."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: aksClusterName",
+              "analysis": "Source JSON Pointer /name (not a REST property path): Bicep name is the managed-cluster resource identifier. It resolves to required string route parameter {resourceName}; exact ManagedCluster.name is string in current and candidate schemas. This is an existing resource reference, so creation-required location is not supplied or required here."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+              "analysis": "Source JSON Pointer points to the resource declaration header: Microsoft.ContainerService/managedClusters@2026-07-01 and existing identify the API type/version and reference semantics. This is not a request-body attribute; its resource identity uses the required string {resourceName} route in both exact schemas."
+            },
+            {
+              "source_id": "symbol:aksClusterName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterName/$expression-line/0",
+              "expression": "var aksClusterName = split(aksClusterResourceId, '/')[8]",
+              "analysis": "Source JSON Pointer identifies the variable expression that selects the AKS name segment from the resource ID. Its string result maps to required string path parameter {resourceName}; no other managed-cluster body field is constructed."
+            },
+            {
+              "source_id": "symbol:aksClusterResourceId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterResourceId/$expression-line/0",
+              "expression": "@description('Resource ID of the AKS cluster')",
+              "analysis": "Source JSON Pointer identifies a declaration-specific expression; this input contributes only to the managed-cluster resource identity (string {resourceName}) or Bicep language metadata, not to an additional REST body field."
+            },
+            {
+              "source_id": "symbol:aksClusterResourceId:line:47",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterResourceId/$expression-line/1",
+              "expression": "param aksClusterResourceId string",
+              "analysis": "Source JSON Pointer identifies a string parameter containing a fully qualified AKS resource ID; dependent split/last expressions select its resource-name segment for required string {resourceName}. It is not sent as an additional REST payload field."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/azmonitor/service-group-members.bicep",
+          "name": "aksCluster",
+          "line": 26,
+          "type": "Microsoft.ContainerService/managedClusters",
+          "version": "2026-07-01",
+          "existing": true,
+          "start": 699,
+          "end": 805,
+          "header": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+          "body": "{\n  name: aksName\n}",
+          "status": "verified",
+          "reason": "Read the exact 2026-07-01 Learn page and pinned REST schema, the exact 2026-08-01 GA candidate schema, and the Learn change log. This declaration references an existing managed cluster and supplies its name; scope/header/parameter sources are Bicep identity or language metadata, not request payload properties. The current and candidate REST resourceName path parameter is required string and ManagedCluster.name is string; no used field is among the 2026-08-01 removals.",
+          "migration": "Possible: latest GA is 2026-08-01 (Learn selector and highest stable managedClusters spec path in pinned commit); same required string resourceName route and string name identifier in both schemas. The Bicep reference does not use removed properties.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "The current API 2026-07-01 has newer GA 2026-08-01. Exact current/candidate REST schemas and Learn pages were compared; all usage here is resource identity name (plus Bicep scope/header/parameter metadata), and the Learn change log removals do not include a used field."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: aksName",
+              "analysis": "Source JSON Pointer /name (not a REST property path): Bicep name is the managed-cluster resource identifier. It resolves to required string route parameter {resourceName}; exact ManagedCluster.name is string in current and candidate schemas. This is an existing resource reference, so creation-required location is not supplied or required here."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+              "analysis": "Source JSON Pointer points to the resource declaration header: Microsoft.ContainerService/managedClusters@2026-07-01 and existing identify the API type/version and reference semantics. This is not a request-body attribute; its resource identity uses the required string {resourceName} route in both exact schemas."
+            },
+            {
+              "source_id": "symbol:aksName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksName/$expression-line/0",
+              "expression": "@description('AKS cluster name')",
+              "analysis": "Source JSON Pointer identifies a declaration-specific expression; this input contributes only to the managed-cluster resource identity (string {resourceName}) or Bicep language metadata, not to an additional REST body field."
+            },
+            {
+              "source_id": "symbol:aksName:line:33",
+              "label": "$expression",
+              "path": "/$symbol/aksName/$expression-line/1",
+              "expression": "param aksName string",
+              "analysis": "Source JSON Pointer identifies a string parameter used as managed-cluster name; the value maps to required string route parameter {resourceName}, not to a write-only payload property."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/chaos/experiments.bicep",
+          "name": "aksCluster",
+          "line": 56,
+          "type": "Microsoft.ContainerService/managedClusters",
+          "version": "2026-07-01",
+          "existing": true,
+          "start": 1914,
+          "end": 2061,
+          "header": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+          "body": "{\n  name: last(split(aksId, '/'))\n  scope: resourceGroup()\n}",
+          "status": "verified",
+          "reason": "Read the exact 2026-07-01 Learn page and pinned REST schema, the exact 2026-08-01 GA candidate schema, and the Learn change log. This declaration references an existing managed cluster and supplies its name; scope/header/parameter sources are Bicep identity or language metadata, not request payload properties. The current and candidate REST resourceName path parameter is required string and ManagedCluster.name is string; no used field is among the 2026-08-01 removals.",
+          "migration": "Possible: latest GA is 2026-08-01 (Learn selector and highest stable managedClusters spec path in pinned commit); same required string resourceName route and string name identifier in both schemas. The Bicep reference does not use removed properties.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "The current API 2026-07-01 has newer GA 2026-08-01. Exact current/candidate REST schemas and Learn pages were compared; all usage here is resource identity name (plus Bicep scope/header/parameter metadata), and the Learn change log removals do not include a used field."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: last(split(aksId, '/'))",
+              "analysis": "Source JSON Pointer /name (not a REST property path): Bicep name is the managed-cluster resource identifier. It resolves to required string route parameter {resourceName}; exact ManagedCluster.name is string in current and candidate schemas. This is an existing resource reference, so creation-required location is not supplied or required here."
+            },
+            {
+              "source_id": "body:41",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: resourceGroup()",
+              "analysis": "Source JSON Pointer /scope is Bicep deployment scope control, not a REST payload member; resourceGroup() selects scope only and does not map to managed-cluster JSON properties."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+              "analysis": "Source JSON Pointer points to the resource declaration header: Microsoft.ContainerService/managedClusters@2026-07-01 and existing identify the API type/version and reference semantics. This is not a request-body attribute; its resource identity uses the required string {resourceName} route in both exact schemas."
+            },
+            {
+              "source_id": "symbol:aksId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksId/$expression-line/0",
+              "expression": "@description('Target AKS cluster resource ID')",
+              "analysis": "Source JSON Pointer identifies a declaration-specific expression; this input contributes only to the managed-cluster resource identity (string {resourceName}) or Bicep language metadata, not to an additional REST body field."
+            },
+            {
+              "source_id": "symbol:aksId:line:47",
+              "label": "$expression",
+              "path": "/$symbol/aksId/$expression-line/1",
+              "expression": "param aksId string",
+              "analysis": "Source JSON Pointer identifies a string parameter containing a fully qualified AKS resource ID; dependent split/last expressions select its resource-name segment for required string {resourceName}. It is not sent as an additional REST payload field."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/chaos/role-assignments.bicep",
+          "name": "aksCluster",
+          "line": 44,
+          "type": "Microsoft.ContainerService/managedClusters",
+          "version": "2026-07-01",
+          "existing": true,
+          "start": 1440,
+          "end": 1587,
+          "header": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+          "body": "{\n  name: last(split(aksId, '/'))\n  scope: resourceGroup()\n}",
+          "status": "verified",
+          "reason": "Read the exact 2026-07-01 Learn page and pinned REST schema, the exact 2026-08-01 GA candidate schema, and the Learn change log. This declaration references an existing managed cluster and supplies its name; scope/header/parameter sources are Bicep identity or language metadata, not request payload properties. The current and candidate REST resourceName path parameter is required string and ManagedCluster.name is string; no used field is among the 2026-08-01 removals.",
+          "migration": "Possible: latest GA is 2026-08-01 (Learn selector and highest stable managedClusters spec path in pinned commit); same required string resourceName route and string name identifier in both schemas. The Bicep reference does not use removed properties.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "The current API 2026-07-01 has newer GA 2026-08-01. Exact current/candidate REST schemas and Learn pages were compared; all usage here is resource identity name (plus Bicep scope/header/parameter metadata), and the Learn change log removals do not include a used field."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: last(split(aksId, '/'))",
+              "analysis": "Source JSON Pointer /name (not a REST property path): Bicep name is the managed-cluster resource identifier. It resolves to required string route parameter {resourceName}; exact ManagedCluster.name is string in current and candidate schemas. This is an existing resource reference, so creation-required location is not supplied or required here."
+            },
+            {
+              "source_id": "body:41",
+              "label": "scope",
+              "path": "/scope",
+              "expression": "  scope: resourceGroup()",
+              "analysis": "Source JSON Pointer /scope is Bicep deployment scope control, not a REST payload member; resourceGroup() selects scope only and does not map to managed-cluster JSON properties."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+              "analysis": "Source JSON Pointer points to the resource declaration header: Microsoft.ContainerService/managedClusters@2026-07-01 and existing identify the API type/version and reference semantics. This is not a request-body attribute; its resource identity uses the required string {resourceName} route in both exact schemas."
+            },
+            {
+              "source_id": "symbol:aksId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksId/$expression-line/0",
+              "expression": "@description('Target AKS cluster resource ID')",
+              "analysis": "Source JSON Pointer identifies a declaration-specific expression; this input contributes only to the managed-cluster resource identity (string {resourceName}) or Bicep language metadata, not to an additional REST body field."
+            },
+            {
+              "source_id": "symbol:aksId:line:47",
+              "label": "$expression",
+              "path": "/$symbol/aksId/$expression-line/1",
+              "expression": "param aksId string",
+              "analysis": "Source JSON Pointer identifies a string parameter containing a fully qualified AKS resource ID; dependent split/last expressions select its resource-name segment for required string {resourceName}. It is not sent as an additional REST payload field."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/inspektor-gadget.bicep",
+          "name": "aksCluster",
+          "line": 5,
+          "type": "Microsoft.ContainerService/managedClusters",
+          "version": "2026-07-01",
+          "existing": true,
+          "start": 88,
+          "end": 201,
+          "header": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+          "body": "{\n  name: aksClusterName\n}",
+          "status": "verified",
+          "reason": "Read the exact 2026-07-01 Learn page and pinned REST schema, the exact 2026-08-01 GA candidate schema, and the Learn change log. This declaration references an existing managed cluster and supplies its name; scope/header/parameter sources are Bicep identity or language metadata, not request payload properties. The current and candidate REST resourceName path parameter is required string and ManagedCluster.name is string; no used field is among the 2026-08-01 removals.",
+          "migration": "Possible: latest GA is 2026-08-01 (Learn selector and highest stable managedClusters spec path in pinned commit); same required string resourceName route and string name identifier in both schemas. The Bicep reference does not use removed properties.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "The current API 2026-07-01 has newer GA 2026-08-01. Exact current/candidate REST schemas and Learn pages were compared; all usage here is resource identity name (plus Bicep scope/header/parameter metadata), and the Learn change log removals do not include a used field."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: aksClusterName",
+              "analysis": "Source JSON Pointer /name (not a REST property path): Bicep name is the managed-cluster resource identifier. It resolves to required string route parameter {resourceName}; exact ManagedCluster.name is string in current and candidate schemas. This is an existing resource reference, so creation-required location is not supplied or required here."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+              "analysis": "Source JSON Pointer points to the resource declaration header: Microsoft.ContainerService/managedClusters@2026-07-01 and existing identify the API type/version and reference semantics. This is not a request-body attribute; its resource identity uses the required string {resourceName} route in both exact schemas."
+            },
+            {
+              "source_id": "symbol:aksClusterName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterName/$expression-line/0",
+              "expression": "@description('AKS cluster name')",
+              "analysis": "Source JSON Pointer identifies a declaration-specific expression; this input contributes only to the managed-cluster resource identity (string {resourceName}) or Bicep language metadata, not to an additional REST body field."
+            },
+            {
+              "source_id": "symbol:aksClusterName:line:33",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterName/$expression-line/1",
+              "expression": "param aksClusterName string",
+              "analysis": "Source JSON Pointer identifies a string parameter used as managed-cluster name; the value maps to required string route parameter {resourceName}, not to a write-only payload property."
+            },
+            {
+              "source_id": "symbol:aksClusterName:line:62",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterName/$expression-line/3",
+              "expression": "#disable-next-line BCP081",
+              "analysis": "Source JSON Pointer identifies a Bicep compiler diagnostic suppression comment, not a runtime value or REST property; it does not affect payload compatibility or GA migration."
+            }
+          ]
+        },
+        {
+          "file": "infra/modules/prometheus/pipeline.bicep",
+          "name": "existingAksCluster",
+          "line": 72,
+          "type": "Microsoft.ContainerService/managedClusters",
+          "version": "2026-07-01",
+          "existing": true,
+          "start": 2101,
+          "end": 2222,
+          "header": "resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+          "body": "{\n  name: aksClusterName\n}",
+          "status": "verified",
+          "reason": "Read the exact 2026-07-01 Learn page and pinned REST schema, the exact 2026-08-01 GA candidate schema, and the Learn change log. This declaration references an existing managed cluster and supplies its name; scope/header/parameter sources are Bicep identity or language metadata, not request payload properties. The current and candidate REST resourceName path parameter is required string and ManagedCluster.name is string; no used field is among the 2026-08-01 removals.",
+          "migration": "Possible: latest GA is 2026-08-01 (Learn selector and highest stable managedClusters spec path in pinned commit); same required string resourceName route and string name identifier in both schemas. The Bicep reference does not use removed properties.",
+          "findings": [
+            {
+              "kind": "update",
+              "detail": "The current API 2026-07-01 has newer GA 2026-08-01. Exact current/candidate REST schemas and Learn pages were compared; all usage here is resource identity name (plus Bicep scope/header/parameter metadata), and the Learn change log removals do not include a used field."
+            }
+          ],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: aksClusterName",
+              "analysis": "Source JSON Pointer /name (not a REST property path): Bicep name is the managed-cluster resource identifier. It resolves to required string route parameter {resourceName}; exact ManagedCluster.name is string in current and candidate schemas. This is an existing resource reference, so creation-required location is not supplied or required here."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource existingAksCluster 'Microsoft.ContainerService/managedClusters@2026-07-01' existing = ",
+              "analysis": "Source JSON Pointer points to the resource declaration header: Microsoft.ContainerService/managedClusters@2026-07-01 and existing identify the API type/version and reference semantics. This is not a request-body attribute; its resource identity uses the required string {resourceName} route in both exact schemas."
+            },
+            {
+              "source_id": "symbol:aksClusterName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksClusterName/$expression-line/0",
+              "expression": "var aksClusterName = split(aksId, '/')[8]",
+              "analysis": "Source JSON Pointer identifies the variable expression that selects the AKS name segment from the resource ID. Its string result maps to required string path parameter {resourceName}; no other managed-cluster body field is constructed."
+            },
+            {
+              "source_id": "symbol:aksId:line:0",
+              "label": "$expression",
+              "path": "/$symbol/aksId/$expression-line/0",
+              "expression": "@description('Resource ID of the AKS cluster')",
+              "analysis": "Source JSON Pointer identifies a declaration-specific expression; this input contributes only to the managed-cluster resource identity (string {resourceName}) or Bicep language metadata, not to an additional REST body field."
+            },
+            {
+              "source_id": "symbol:aksId:line:47",
+              "label": "$expression",
+              "path": "/$symbol/aksId/$expression-line/1",
+              "expression": "param aksId string",
+              "analysis": "Source JSON Pointer identifies a string parameter containing a fully qualified AKS resource ID; dependent split/last expressions select its resource-name segment for required string {resourceName}. It is not sent as an additional REST payload field."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-07-01",
+          "analysis": "Microsoft Learn exact current reference and pinned REST 2026-07-01 managedClusters.json were fetched and parsed. The PUT operation path is /subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.ContainerService/managedClusters/{resourceName}; resourceName is required string. ManagedCluster.name is string; existing declarations reference the identified resource and do not provide creation-only required location.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-07-01/managedclusters",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-07-01/managedClusters.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-07-01/managedclusters": "b457ebd91e4dbad5134ac683add9d1d22095079afd5b5a2fceeef97307ce3f42",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-07-01/managedClusters.json": "ba660fe43eeae6d35dea5e4330d055979e23c2bcbde71a8448f053d17a5698c6"
+          }
+        },
+        "ga": {
+          "version": "2026-08-01",
+          "analysis": "Learn current reference version selector lists 2026-08-01 as stable and the fixed-commit tree search found 2026-08-01 as the highest stable managedClusters.json path. The exact candidate swagger has info.version 2026-08-01; its required string resourceName route and ManagedCluster.name string match current. The candidate removes other model properties, none used by these Bicep declarations.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters": "888d19a1418ed8d969406ed856417be9a1b84d2a00450b74030714aa3080fb35",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json": "769625cd957b9d236f5a8af0af93e131ed53b5bd9d7022aeb5e8b88495f5e47d"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn managedClusters change log entry for 2026-08-01 lists removed models/properties (including BastionProfile, kubeProxyConfig, CreationData, control-plane/health-monitor/ingress/security/node-disruption properties and upgradeGateSettings). All seven declarations use name for existing resource identity; scope is Bicep scope control, and header/variables/comments are not REST body fields. No removed field is used. Change log reviewed in full around the candidate entry.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters": "2867b823691b7f723f91a7b7ffb847dded3f19bc29dffd8625a9704a7d39cd8c"
+          }
+        }
+      }
     },
     "Microsoft.Insights/components@2020-02-02": {
       "stage": "pending",

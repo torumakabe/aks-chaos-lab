@@ -7,5 +7,59 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-07-01/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 2840.743995291,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-08-01/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 2843.74408607,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.5406329459997323
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/managedclusters",
+    "attempt": 1,
+    "started_monotonic": 2846.744182945,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.560919213000034
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-07-01/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 2847.013563331,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/aks/stable/2026-08-01/managedClusters.json",
+    "attempt": 1,
+    "started_monotonic": 2847.24375398,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v6/types.json",
+    "attempt": 1,
+    "started_monotonic": 2857.585302103,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
