@@ -1,0 +1,1352 @@
+{
+  "pair": "Microsoft.Monitor/slis@2025-03-01-preview",
+  "results": [
+    {
+      "file": "infra/modules/azmonitor/sli-definitions.bicep",
+      "name": "availabilitySli",
+      "line": 109,
+      "type": "Microsoft.Monitor/slis",
+      "version": "2025-03-01-preview",
+      "existing": false,
+      "start": 3652,
+      "end": 5396,
+      "header": "resource availabilitySli 'Microsoft.Monitor/slis@2025-03-01-preview' = ",
+      "body": "{\n  name: availabilitySliName\n  scope: serviceGroup\n  identity: sliIdentity\n  properties: {\n    description: 'Request-based Availability SLI for external Azure Functions probe results.'\n    baselineProperties: {\n      baseline: {\n        evaluationCalculationType: 'RollingDays'\n        evaluationPeriodDays: evaluationPeriodDays\n        value: availabilityBaselineTargetPercent\n      }\n    }\n    category: 'Availability'\n    destinationAmwAccounts: destinationAmwAccounts\n    enableAlert: enableSliAlerts\n    evaluationType: 'RequestBased'\n    sliProperties: {\n      goodSignals: {\n        signalFormula: 'A'\n        signalSources: [\n          union(sourceSignalIdentityProperties, {\n            filters: []\n            metricName: availabilityGoodMetricName\n            metricNamespace: metricNamespace\n            signalSourceId: 'A'\n            spatialAggregation: {\n              type: 'Sum'\n              dimensions: signalDimensions\n            }\n            temporalAggregation: {\n              type: 'Sum'\n              windowSizeMinutes: windowSizeMinutes\n            }\n          })\n        ]\n      }\n      totalSignals: {\n        signalFormula: 'A'\n        signalSources: [\n          union(sourceSignalIdentityProperties, {\n            filters: []\n            metricName: availabilityTotalMetricName\n            metricNamespace: metricNamespace\n            signalSourceId: 'A'\n            spatialAggregation: {\n              type: 'Sum'\n              dimensions: signalDimensions\n            }\n            temporalAggregation: {\n              type: 'Sum'\n              windowSizeMinutes: windowSizeMinutes\n            }\n          })\n        ]\n      }\n    }\n  }\n}",
+      "status": "excluded",
+      "reason": "Exact current 2025-03-01-preview Learn and pinned REST schema were read and matched against every supplied property, required nested field, enum, numeric range, string/ARM-ID type, identity setting, and signal/filter structure. The only published SLI API version is preview; no GA schema exists to migrate to.",
+      "migration": "No GA candidate is published: the Learn version selector and pinned REST tree contain only 2025-03-01-preview. This preview API is the resource used to create the Availability/Latency SLI for the Azure Monitor SLI feature; retain it intentionally until a GA API exists. SLI name inputs are conditional strings and must match the published 3–64 character path pattern when populated; default none inputs suppress deployment.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: availabilitySliName",
+          "analysis": "Original /name maps to required REST sliName path parameter, with pattern ^[a-zA-Z0-9][a-zA-Z0-9_()~-]{2,63}$. Source is the availabilitySliName string parameter supplied by infra/sli/main; parameters default to the none sentinel so canCreateSli is false unless configured. Any configured name must satisfy this exact pattern; no runtime parameter or Azure query was performed."
+        },
+        {
+          "source_id": "body:37",
+          "label": "scope",
+          "path": "/scope",
+          "expression": "  scope: serviceGroup",
+          "analysis": "Bicep scope serviceGroup selects the tenant-level Service Group parent; it is not REST JSON. The REST endpoint nests /providers/Microsoft.Monitor/slis beneath /providers/Microsoft.Management/serviceGroups/{serviceGroupName}."
+        },
+        {
+          "source_id": "body:62",
+          "label": "identity",
+          "path": "/identity",
+          "expression": "  identity: sliIdentity",
+          "analysis": "REST Sli.identity accepts a managed identity object. Source variable sliIdentity sets type='UserAssigned' and the userAssignedIdentities map keyed by the UAMI ARM resource ID; both shape and enum are supported by the exact preview schema."
+        },
+        {
+          "source_id": "body:88",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "REST SliResource requires description, category, evaluationType, destinationAmwAccounts, baselineProperties, enableAlert, and sliProperties; every required field is present in this source object. Nested required fields are checked individually."
+        },
+        {
+          "source_id": "body:107",
+          "label": "description",
+          "path": "/properties/description",
+          "expression": "    description: 'Request-based Availability SLI for external Azure Functions probe results.'",
+          "analysis": "REST properties.description is string with maximum length 1000; this exact source literal is below the limit."
+        },
+        {
+          "source_id": "body:208",
+          "label": "baselineProperties",
+          "path": "/properties/baselineProperties",
+          "expression": "    baselineProperties: {",
+          "analysis": "REST BaselineProperties requires baseline; source supplies the nested baseline object."
+        },
+        {
+          "source_id": "body:226",
+          "label": "baseline",
+          "path": "/properties/baselineProperties/baseline",
+          "expression": "      baseline: {",
+          "analysis": "REST Baseline requires value, evaluationPeriodDays, and evaluationCalculationType; all three are supplied."
+        },
+        {
+          "source_id": "body:263",
+          "label": "evaluationCalculationType",
+          "path": "/properties/baselineProperties/baseline/evaluationCalculationType",
+          "expression": "        evaluationCalculationType: 'RollingDays'",
+          "analysis": "REST enum is ['CalendarDays','RollingDays']; source literal RollingDays is allowed."
+        },
+        {
+          "source_id": "body:307",
+          "label": "evaluationPeriodDays",
+          "path": "/properties/baselineProperties/baseline/evaluationPeriodDays",
+          "expression": "        evaluationPeriodDays: evaluationPeriodDays",
+          "analysis": "REST field is int32 with range 1–90; source parameter has @minValue(1), @maxValue(90), default 30."
+        },
+        {
+          "source_id": "body:343",
+          "label": "value",
+          "path": "/properties/baselineProperties/baseline/value",
+          "expression": "        value: availabilityBaselineTargetPercent",
+          "analysis": "REST baseline value is float in range 0–100; availability baseline parameter is constrained to 0–100 and defaults to 99."
+        },
+        {
+          "source_id": "body:405",
+          "label": "category",
+          "path": "/properties/category",
+          "expression": "    category: 'Availability'",
+          "analysis": "REST category enum is ['Availability','Latency']; source literal matches the declaration's intended category."
+        },
+        {
+          "source_id": "body:448",
+          "label": "destinationAmwAccounts",
+          "path": "/properties/destinationAmwAccounts",
+          "expression": "    destinationAmwAccounts: destinationAmwAccounts",
+          "analysis": "REST field is an array of AmwAccount; each item requires identity and resourceId ARM IDs. Source variable supplies exactly one object with both fields."
+        },
+        {
+          "source_id": "body:488",
+          "label": "enableAlert",
+          "path": "/properties/enableAlert",
+          "expression": "    enableAlert: enableSliAlerts",
+          "analysis": "REST enableAlert is boolean; source passes the SLI alert boolean parameter (the caller/default controls it)."
+        },
+        {
+          "source_id": "body:524",
+          "label": "evaluationType",
+          "path": "/properties/evaluationType",
+          "expression": "    evaluationType: 'RequestBased'",
+          "analysis": "REST enum is ['WindowBased','RequestBased']; source literal RequestBased is allowed."
+        },
+        {
+          "source_id": "body:558",
+          "label": "sliProperties",
+          "path": "/properties/sliProperties",
+          "expression": "    sliProperties: {",
+          "analysis": "REST SliProperties supports goodSignals and totalSignals; source supplies both request-based signal definitions."
+        },
+        {
+          "source_id": "body:579",
+          "label": "goodSignals",
+          "path": "/properties/sliProperties/goodSignals",
+          "expression": "      goodSignals: {",
+          "analysis": "REST Signal requires signalSources and signalFormula; source supplies both for this signal group."
+        },
+        {
+          "source_id": "body:604",
+          "label": "signalFormula",
+          "path": "/properties/sliProperties/goodSignals/signalFormula",
+          "expression": "        signalFormula: 'A'",
+          "analysis": "REST field is string; source literal 'A' references the single signal source identified as A."
+        },
+        {
+          "source_id": "body:631",
+          "label": "signalSources",
+          "path": "/properties/sliProperties/goodSignals/signalSources",
+          "expression": "        signalSources: [",
+          "analysis": "REST signalSources is an array of required SignalSource objects; source provides one item built by union(sourceSignalIdentityProperties, source-specific fields)."
+        },
+        {
+          "source_id": "body:704",
+          "label": "filters",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/filters",
+          "expression": "            filters: []",
+          "analysis": "REST SignalSource.filters is a required array of Condition; source supplies an empty array, except the latency good signal which uses the checked le/eq filter."
+        },
+        {
+          "source_id": "body:731",
+          "label": "metricName",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/metricName",
+          "expression": "            metricName: availabilityGoodMetricName",
+          "analysis": "REST metricName is string; source uses the availability metric-name parameter with the matching availability/latency default."
+        },
+        {
+          "source_id": "body:787",
+          "label": "metricNamespace",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/metricNamespace",
+          "expression": "            metricNamespace: metricNamespace",
+          "analysis": "REST metricNamespace is string; source uses the string metricNamespace parameter, default customdefault."
+        },
+        {
+          "source_id": "body:831",
+          "label": "signalSourceId",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/signalSourceId",
+          "expression": "            signalSourceId: 'A'",
+          "analysis": "REST signalSourceId is string; source literal 'A' matches signalFormula 'A'."
+        },
+        {
+          "source_id": "body:867",
+          "label": "spatialAggregation",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/spatialAggregation",
+          "expression": "            spatialAggregation: {",
+          "analysis": "REST SpatialAggregation requires type and dimensions; source provides both."
+        },
+        {
+          "source_id": "body:889",
+          "label": "type",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/spatialAggregation/type",
+          "expression": "              type: 'Sum'",
+          "analysis": "REST spatial aggregation enum includes Sum; source literal Sum is allowed."
+        },
+        {
+          "source_id": "body:921",
+          "label": "dimensions",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/spatialAggregation/dimensions",
+          "expression": "              dimensions: signalDimensions",
+          "analysis": "REST spatial dimensions is array<string>; source passes the signalDimensions string array (environment, service, test by default)."
+        },
+        {
+          "source_id": "body:985",
+          "label": "temporalAggregation",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/temporalAggregation",
+          "expression": "            temporalAggregation: {",
+          "analysis": "REST TemporalAggregation requires type; source supplies type and the optional windowSizeMinutes."
+        },
+        {
+          "source_id": "body:1007",
+          "label": "type",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/temporalAggregation/type",
+          "expression": "              type: 'Sum'",
+          "analysis": "REST temporal aggregation enum includes Sum; source literal Sum is allowed."
+        },
+        {
+          "source_id": "body:1046",
+          "label": "windowSizeMinutes",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/temporalAggregation/windowSizeMinutes",
+          "expression": "              windowSizeMinutes: windowSizeMinutes",
+          "analysis": "REST windowSizeMinutes is int32; source parameter is integer, constrained to at least 1, default 5."
+        },
+        {
+          "source_id": "body:1129",
+          "label": "totalSignals",
+          "path": "/properties/sliProperties/totalSignals",
+          "expression": "      totalSignals: {",
+          "analysis": "REST Signal requires signalSources and signalFormula; source supplies both for this signal group."
+        },
+        {
+          "source_id": "body:1154",
+          "label": "signalFormula",
+          "path": "/properties/sliProperties/totalSignals/signalFormula",
+          "expression": "        signalFormula: 'A'",
+          "analysis": "REST field is string; source literal 'A' references the single signal source identified as A."
+        },
+        {
+          "source_id": "body:1181",
+          "label": "signalSources",
+          "path": "/properties/sliProperties/totalSignals/signalSources",
+          "expression": "        signalSources: [",
+          "analysis": "REST signalSources is an array of required SignalSource objects; source provides one item built by union(sourceSignalIdentityProperties, source-specific fields)."
+        },
+        {
+          "source_id": "body:1254",
+          "label": "filters",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/filters",
+          "expression": "            filters: []",
+          "analysis": "REST SignalSource.filters is a required array of Condition; source supplies an empty array, except the latency good signal which uses the checked le/eq filter."
+        },
+        {
+          "source_id": "body:1281",
+          "label": "metricName",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/metricName",
+          "expression": "            metricName: availabilityTotalMetricName",
+          "analysis": "REST metricName is string; source uses the availability metric-name parameter with the matching availability/latency default."
+        },
+        {
+          "source_id": "body:1338",
+          "label": "metricNamespace",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/metricNamespace",
+          "expression": "            metricNamespace: metricNamespace",
+          "analysis": "REST metricNamespace is string; source uses the string metricNamespace parameter, default customdefault."
+        },
+        {
+          "source_id": "body:1382",
+          "label": "signalSourceId",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/signalSourceId",
+          "expression": "            signalSourceId: 'A'",
+          "analysis": "REST signalSourceId is string; source literal 'A' matches signalFormula 'A'."
+        },
+        {
+          "source_id": "body:1418",
+          "label": "spatialAggregation",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/spatialAggregation",
+          "expression": "            spatialAggregation: {",
+          "analysis": "REST SpatialAggregation requires type and dimensions; source provides both."
+        },
+        {
+          "source_id": "body:1440",
+          "label": "type",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/spatialAggregation/type",
+          "expression": "              type: 'Sum'",
+          "analysis": "REST spatial aggregation enum includes Sum; source literal Sum is allowed."
+        },
+        {
+          "source_id": "body:1472",
+          "label": "dimensions",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/spatialAggregation/dimensions",
+          "expression": "              dimensions: signalDimensions",
+          "analysis": "REST spatial dimensions is array<string>; source passes the signalDimensions string array (environment, service, test by default)."
+        },
+        {
+          "source_id": "body:1536",
+          "label": "temporalAggregation",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/temporalAggregation",
+          "expression": "            temporalAggregation: {",
+          "analysis": "REST TemporalAggregation requires type; source supplies type and the optional windowSizeMinutes."
+        },
+        {
+          "source_id": "body:1558",
+          "label": "type",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/temporalAggregation/type",
+          "expression": "              type: 'Sum'",
+          "analysis": "REST temporal aggregation enum includes Sum; source literal Sum is allowed."
+        },
+        {
+          "source_id": "body:1597",
+          "label": "windowSizeMinutes",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/temporalAggregation/windowSizeMinutes",
+          "expression": "              windowSizeMinutes: windowSizeMinutes",
+          "analysis": "REST windowSizeMinutes is int32; source parameter is integer, constrained to at least 1, default 5."
+        },
+        {
+          "source_id": "body:line:635",
+          "label": "$expression",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/$expression-line/21",
+          "expression": "          union(sourceSignalIdentityProperties, {",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "body:line:1185",
+          "label": "$expression",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/$expression-line/40",
+          "expression": "          union(sourceSignalIdentityProperties, {",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource availabilitySli 'Microsoft.Monitor/slis@2025-03-01-preview' = ",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/0",
+          "expression": "@description('Availability SLI baseline target percentage')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:60",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:73",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/2",
+          "expression": "@maxValue(100)",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:availabilityBaselineTargetPercent:line:88",
+          "label": "$expression",
+          "path": "/$symbol/availabilityBaselineTargetPercent/$expression-line/3",
+          "expression": "param availabilityBaselineTargetPercent int = 99",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:availabilityGoodMetricName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilityGoodMetricName/$expression-line/0",
+          "expression": "@description('Metric name for the request-based Availability SLI good signal')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:availabilityGoodMetricName:line:79",
+          "label": "$expression",
+          "path": "/$symbol/availabilityGoodMetricName/$expression-line/1",
+          "expression": "param availabilityGoodMetricName string = 'chaos_app_external_availability_good'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:availabilitySliName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliName/$expression-line/0",
+          "expression": "@description('Availability SLI resource name')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:availabilitySliName:line:47",
+          "label": "$expression",
+          "path": "/$symbol/availabilitySliName/$expression-line/1",
+          "expression": "param availabilitySliName string",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:availabilityTotalMetricName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/availabilityTotalMetricName/$expression-line/0",
+          "expression": "@description('Metric name for the request-based Availability SLI total signal')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:availabilityTotalMetricName:line:80",
+          "label": "$expression",
+          "path": "/$symbol/availabilityTotalMetricName/$expression-line/1",
+          "expression": "param availabilityTotalMetricName string = 'chaos_app_external_availability_total'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:destinationAmwAccounts:47",
+          "label": "identity",
+          "path": "/$symbol/destinationAmwAccounts/[]/identity",
+          "expression": "    identity: sliIdentityResourceId",
+          "analysis": "Destination AmwAccount.identity is required string/arm-id and receives sliIdentityResourceId."
+        },
+        {
+          "source_id": "symbol:destinationAmwAccounts:85",
+          "label": "resourceId",
+          "path": "/$symbol/destinationAmwAccounts/[]/resourceId",
+          "expression": "    resourceId: prometheusWorkspaceResourceId",
+          "analysis": "Destination AmwAccount.resourceId is required string/arm-id and receives prometheusWorkspaceResourceId."
+        },
+        {
+          "source_id": "symbol:destinationAmwAccounts:line:0",
+          "label": "$expression",
+          "path": "/$symbol/destinationAmwAccounts/$expression-line/0",
+          "expression": "var destinationAmwAccounts = [",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:enableSliAlerts:line:0",
+          "label": "$expression",
+          "path": "/$symbol/enableSliAlerts/$expression-line/0",
+          "expression": "@description('Enable Azure Monitor SLI-generated alerts')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:enableSliAlerts:line:58",
+          "label": "$expression",
+          "path": "/$symbol/enableSliAlerts/$expression-line/1",
+          "expression": "param enableSliAlerts bool = false",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:0",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/0",
+          "expression": "@description('SLI evaluation period in days')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:46",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/1",
+          "expression": "@minValue(1)",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:59",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/2",
+          "expression": "@maxValue(90)",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:73",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/3",
+          "expression": "param evaluationPeriodDays int = 30",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:metricNamespace:line:0",
+          "label": "$expression",
+          "path": "/$symbol/metricNamespace/$expression-line/0",
+          "expression": "@description('Azure Monitor SLI metric namespace for Managed Prometheus metrics')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:metricNamespace:line:82",
+          "label": "$expression",
+          "path": "/$symbol/metricNamespace/$expression-line/1",
+          "expression": "param metricNamespace string = 'customdefault'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/0",
+          "expression": "@description('Managed Prometheus Azure Monitor Workspace resource ID used as source and destination AMW')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:106",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/1",
+          "expression": "param prometheusWorkspaceResourceId string",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:signalDimensions:line:0",
+          "label": "$expression",
+          "path": "/$symbol/signalDimensions/$expression-line/0",
+          "expression": "@description('Prometheus label dimensions used for Azure Monitor SLI partitioning')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:signalDimensions:line:84",
+          "label": "$expression",
+          "path": "/$symbol/signalDimensions/$expression-line/1",
+          "expression": "param signalDimensions string[] = [",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:signalDimensions:line:120",
+          "label": "$expression",
+          "path": "/$symbol/signalDimensions/[]/$expression-line/2",
+          "expression": "  'environment'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:signalDimensions:line:136",
+          "label": "$expression",
+          "path": "/$symbol/signalDimensions/[]/$expression-line/3",
+          "expression": "  'service'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:signalDimensions:line:148",
+          "label": "$expression",
+          "path": "/$symbol/signalDimensions/[]/$expression-line/4",
+          "expression": "  'test'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:sliIdentity:26",
+          "label": "type",
+          "path": "/$symbol/sliIdentity/type",
+          "expression": "  type: 'UserAssigned'",
+          "analysis": "REST identity.type enum includes UserAssigned; source literal UserAssigned matches."
+        },
+        {
+          "source_id": "symbol:sliIdentity:67",
+          "label": "userAssignedIdentities",
+          "path": "/$symbol/sliIdentity/userAssignedIdentities",
+          "expression": "  userAssignedIdentities: sliUserAssignedIdentities",
+          "analysis": "REST identity.userAssignedIdentities is an object map keyed by UAMI ARM resource IDs; source supplies the sliUserAssignedIdentities map."
+        },
+        {
+          "source_id": "symbol:sliIdentity:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentity/$expression-line/0",
+          "expression": "var sliIdentity = {",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/0",
+          "expression": "@description('User-assigned managed identity resource ID used by Azure Monitor SLI')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:85",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/1",
+          "expression": "param sliIdentityResourceId string",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:sliUserAssignedIdentities:62",
+          "label": "${sliIdentityResourceId}",
+          "path": "/$symbol/sliUserAssignedIdentities/${sliIdentityResourceId}",
+          "expression": "  '${sliIdentityResourceId}': {}",
+          "analysis": "Map key interpolates sliIdentityResourceId (string ARM ID); the empty object value is accepted by the userAssignedIdentities schema."
+        },
+        {
+          "source_id": "symbol:sliUserAssignedIdentities:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliUserAssignedIdentities/$expression-line/0",
+          "expression": "var sliUserAssignedIdentities = {",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:sourceSignalIdentityProperties:72",
+          "label": "sourceAmwAccountManagedIdentity",
+          "path": "/$symbol/sourceSignalIdentityProperties/sourceAmwAccountManagedIdentity",
+          "expression": "  sourceAmwAccountManagedIdentity: sliIdentityResourceId",
+          "analysis": "Required SignalSource.sourceAmwAccountManagedIdentity is string/arm-id; source passes sliIdentityResourceId."
+        },
+        {
+          "source_id": "symbol:sourceSignalIdentityProperties:124",
+          "label": "sourceAmwAccountResourceId",
+          "path": "/$symbol/sourceSignalIdentityProperties/sourceAmwAccountResourceId",
+          "expression": "  sourceAmwAccountResourceId: prometheusWorkspaceResourceId",
+          "analysis": "Required SignalSource.sourceAmwAccountResourceId is string/arm-id; source passes prometheusWorkspaceResourceId."
+        },
+        {
+          "source_id": "symbol:sourceSignalIdentityProperties:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sourceSignalIdentityProperties/$expression-line/0",
+          "expression": "var sourceSignalIdentityProperties = {",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:windowSizeMinutes:line:0",
+          "label": "$expression",
+          "path": "/$symbol/windowSizeMinutes/$expression-line/0",
+          "expression": "@description('Signal aggregation window size in minutes')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:windowSizeMinutes:line:58",
+          "label": "$expression",
+          "path": "/$symbol/windowSizeMinutes/$expression-line/1",
+          "expression": "@minValue(1)",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:windowSizeMinutes:line:71",
+          "label": "$expression",
+          "path": "/$symbol/windowSizeMinutes/$expression-line/2",
+          "expression": "param windowSizeMinutes int = 5",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        }
+      ],
+      "exclusion_reason": "Intentional preview retention: Microsoft publishes no GA Microsoft.Monitor/slis version at the pinned specification commit or Learn selector, and these declarations implement the Azure Monitor SLI feature with no published GA resource contract to migrate to. Reassess when a stable API is published."
+    },
+    {
+      "file": "infra/modules/azmonitor/sli-definitions.bicep",
+      "name": "latencySli",
+      "line": 170,
+      "type": "Microsoft.Monitor/slis",
+      "version": "2025-03-01-preview",
+      "existing": false,
+      "start": 5424,
+      "end": 7230,
+      "header": "resource latencySli 'Microsoft.Monitor/slis@2025-03-01-preview' = ",
+      "body": "{\n  name: latencySliName\n  scope: serviceGroup\n  identity: sliIdentity\n  properties: {\n    description: 'Request-based Latency SLI for external Azure Functions probe duration. The good signal selects the bucket whose `le` label matches latencyThresholdLe.'\n    baselineProperties: {\n      baseline: {\n        evaluationCalculationType: 'RollingDays'\n        evaluationPeriodDays: evaluationPeriodDays\n        value: latencyBaselineTargetPercent\n      }\n    }\n    category: 'Latency'\n    destinationAmwAccounts: destinationAmwAccounts\n    enableAlert: enableSliAlerts\n    evaluationType: 'RequestBased'\n    sliProperties: {\n      goodSignals: {\n        signalFormula: 'A'\n        signalSources: [\n          union(sourceSignalIdentityProperties, {\n            filters: latencyGoodFilters\n            metricName: latencyGoodMetricName\n            metricNamespace: metricNamespace\n            signalSourceId: 'A'\n            spatialAggregation: {\n              type: 'Sum'\n              dimensions: signalDimensions\n            }\n            temporalAggregation: {\n              type: 'Sum'\n              windowSizeMinutes: windowSizeMinutes\n            }\n          })\n        ]\n      }\n      totalSignals: {\n        signalFormula: 'A'\n        signalSources: [\n          union(sourceSignalIdentityProperties, {\n            filters: []\n            metricName: latencyTotalMetricName\n            metricNamespace: metricNamespace\n            signalSourceId: 'A'\n            spatialAggregation: {\n              type: 'Sum'\n              dimensions: signalDimensions\n            }\n            temporalAggregation: {\n              type: 'Sum'\n              windowSizeMinutes: windowSizeMinutes\n            }\n          })\n        ]\n      }\n    }\n  }\n}",
+      "status": "excluded",
+      "reason": "Exact current 2025-03-01-preview Learn and pinned REST schema were read and matched against every supplied property, required nested field, enum, numeric range, string/ARM-ID type, identity setting, and signal/filter structure. The only published SLI API version is preview; no GA schema exists to migrate to.",
+      "migration": "No GA candidate is published: the Learn version selector and pinned REST tree contain only 2025-03-01-preview. This preview API is the resource used to create the Availability/Latency SLI for the Azure Monitor SLI feature; retain it intentionally until a GA API exists. SLI name inputs are conditional strings and must match the published 3–64 character path pattern when populated; default none inputs suppress deployment.",
+      "findings": [],
+      "usage": [
+        {
+          "source_id": "body:8",
+          "label": "name",
+          "path": "/name",
+          "expression": "  name: latencySliName",
+          "analysis": "Original /name maps to required REST sliName path parameter, with pattern ^[a-zA-Z0-9][a-zA-Z0-9_()~-]{2,63}$. Source is the latencySliName string parameter supplied by infra/sli/main; parameters default to the none sentinel so canCreateSli is false unless configured. Any configured name must satisfy this exact pattern; no runtime parameter or Azure query was performed."
+        },
+        {
+          "source_id": "body:32",
+          "label": "scope",
+          "path": "/scope",
+          "expression": "  scope: serviceGroup",
+          "analysis": "Bicep scope serviceGroup selects the tenant-level Service Group parent; it is not REST JSON. The REST endpoint nests /providers/Microsoft.Monitor/slis beneath /providers/Microsoft.Management/serviceGroups/{serviceGroupName}."
+        },
+        {
+          "source_id": "body:57",
+          "label": "identity",
+          "path": "/identity",
+          "expression": "  identity: sliIdentity",
+          "analysis": "REST Sli.identity accepts a managed identity object. Source variable sliIdentity sets type='UserAssigned' and the userAssignedIdentities map keyed by the UAMI ARM resource ID; both shape and enum are supported by the exact preview schema."
+        },
+        {
+          "source_id": "body:83",
+          "label": "properties",
+          "path": "/properties",
+          "expression": "  properties: {",
+          "analysis": "REST SliResource requires description, category, evaluationType, destinationAmwAccounts, baselineProperties, enableAlert, and sliProperties; every required field is present in this source object. Nested required fields are checked individually."
+        },
+        {
+          "source_id": "body:102",
+          "label": "description",
+          "path": "/properties/description",
+          "expression": "    description: 'Request-based Latency SLI for external Azure Functions probe duration. The good signal selects the bucket whose `le` label matches latencyThresholdLe.'",
+          "analysis": "REST properties.description is string with maximum length 1000; this exact source literal is below the limit."
+        },
+        {
+          "source_id": "body:279",
+          "label": "baselineProperties",
+          "path": "/properties/baselineProperties",
+          "expression": "    baselineProperties: {",
+          "analysis": "REST BaselineProperties requires baseline; source supplies the nested baseline object."
+        },
+        {
+          "source_id": "body:297",
+          "label": "baseline",
+          "path": "/properties/baselineProperties/baseline",
+          "expression": "      baseline: {",
+          "analysis": "REST Baseline requires value, evaluationPeriodDays, and evaluationCalculationType; all three are supplied."
+        },
+        {
+          "source_id": "body:334",
+          "label": "evaluationCalculationType",
+          "path": "/properties/baselineProperties/baseline/evaluationCalculationType",
+          "expression": "        evaluationCalculationType: 'RollingDays'",
+          "analysis": "REST enum is ['CalendarDays','RollingDays']; source literal RollingDays is allowed."
+        },
+        {
+          "source_id": "body:378",
+          "label": "evaluationPeriodDays",
+          "path": "/properties/baselineProperties/baseline/evaluationPeriodDays",
+          "expression": "        evaluationPeriodDays: evaluationPeriodDays",
+          "analysis": "REST field is int32 with range 1–90; source parameter has @minValue(1), @maxValue(90), default 30."
+        },
+        {
+          "source_id": "body:414",
+          "label": "value",
+          "path": "/properties/baselineProperties/baseline/value",
+          "expression": "        value: latencyBaselineTargetPercent",
+          "analysis": "REST baseline value is float in range 0–100; latency baseline parameter is constrained to 0–100 and defaults to 95."
+        },
+        {
+          "source_id": "body:471",
+          "label": "category",
+          "path": "/properties/category",
+          "expression": "    category: 'Latency'",
+          "analysis": "REST category enum is ['Availability','Latency']; source literal matches the declaration's intended category."
+        },
+        {
+          "source_id": "body:509",
+          "label": "destinationAmwAccounts",
+          "path": "/properties/destinationAmwAccounts",
+          "expression": "    destinationAmwAccounts: destinationAmwAccounts",
+          "analysis": "REST field is an array of AmwAccount; each item requires identity and resourceId ARM IDs. Source variable supplies exactly one object with both fields."
+        },
+        {
+          "source_id": "body:549",
+          "label": "enableAlert",
+          "path": "/properties/enableAlert",
+          "expression": "    enableAlert: enableSliAlerts",
+          "analysis": "REST enableAlert is boolean; source passes the SLI alert boolean parameter (the caller/default controls it)."
+        },
+        {
+          "source_id": "body:585",
+          "label": "evaluationType",
+          "path": "/properties/evaluationType",
+          "expression": "    evaluationType: 'RequestBased'",
+          "analysis": "REST enum is ['WindowBased','RequestBased']; source literal RequestBased is allowed."
+        },
+        {
+          "source_id": "body:619",
+          "label": "sliProperties",
+          "path": "/properties/sliProperties",
+          "expression": "    sliProperties: {",
+          "analysis": "REST SliProperties supports goodSignals and totalSignals; source supplies both request-based signal definitions."
+        },
+        {
+          "source_id": "body:640",
+          "label": "goodSignals",
+          "path": "/properties/sliProperties/goodSignals",
+          "expression": "      goodSignals: {",
+          "analysis": "REST Signal requires signalSources and signalFormula; source supplies both for this signal group."
+        },
+        {
+          "source_id": "body:665",
+          "label": "signalFormula",
+          "path": "/properties/sliProperties/goodSignals/signalFormula",
+          "expression": "        signalFormula: 'A'",
+          "analysis": "REST field is string; source literal 'A' references the single signal source identified as A."
+        },
+        {
+          "source_id": "body:692",
+          "label": "signalSources",
+          "path": "/properties/sliProperties/goodSignals/signalSources",
+          "expression": "        signalSources: [",
+          "analysis": "REST signalSources is an array of required SignalSource objects; source provides one item built by union(sourceSignalIdentityProperties, source-specific fields)."
+        },
+        {
+          "source_id": "body:765",
+          "label": "filters",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/filters",
+          "expression": "            filters: latencyGoodFilters",
+          "analysis": "REST SignalSource.filters is a required array of Condition; source supplies an empty array, except the latency good signal which uses the checked le/eq filter."
+        },
+        {
+          "source_id": "body:808",
+          "label": "metricName",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/metricName",
+          "expression": "            metricName: latencyGoodMetricName",
+          "analysis": "REST metricName is string; source uses the latency metric-name parameter with the matching availability/latency default."
+        },
+        {
+          "source_id": "body:859",
+          "label": "metricNamespace",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/metricNamespace",
+          "expression": "            metricNamespace: metricNamespace",
+          "analysis": "REST metricNamespace is string; source uses the string metricNamespace parameter, default customdefault."
+        },
+        {
+          "source_id": "body:903",
+          "label": "signalSourceId",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/signalSourceId",
+          "expression": "            signalSourceId: 'A'",
+          "analysis": "REST signalSourceId is string; source literal 'A' matches signalFormula 'A'."
+        },
+        {
+          "source_id": "body:939",
+          "label": "spatialAggregation",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/spatialAggregation",
+          "expression": "            spatialAggregation: {",
+          "analysis": "REST SpatialAggregation requires type and dimensions; source provides both."
+        },
+        {
+          "source_id": "body:961",
+          "label": "type",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/spatialAggregation/type",
+          "expression": "              type: 'Sum'",
+          "analysis": "REST spatial aggregation enum includes Sum; source literal Sum is allowed."
+        },
+        {
+          "source_id": "body:993",
+          "label": "dimensions",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/spatialAggregation/dimensions",
+          "expression": "              dimensions: signalDimensions",
+          "analysis": "REST spatial dimensions is array<string>; source passes the signalDimensions string array (environment, service, test by default)."
+        },
+        {
+          "source_id": "body:1057",
+          "label": "temporalAggregation",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/temporalAggregation",
+          "expression": "            temporalAggregation: {",
+          "analysis": "REST TemporalAggregation requires type; source supplies type and the optional windowSizeMinutes."
+        },
+        {
+          "source_id": "body:1079",
+          "label": "type",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/temporalAggregation/type",
+          "expression": "              type: 'Sum'",
+          "analysis": "REST temporal aggregation enum includes Sum; source literal Sum is allowed."
+        },
+        {
+          "source_id": "body:1118",
+          "label": "windowSizeMinutes",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/temporalAggregation/windowSizeMinutes",
+          "expression": "              windowSizeMinutes: windowSizeMinutes",
+          "analysis": "REST windowSizeMinutes is int32; source parameter is integer, constrained to at least 1, default 5."
+        },
+        {
+          "source_id": "body:1201",
+          "label": "totalSignals",
+          "path": "/properties/sliProperties/totalSignals",
+          "expression": "      totalSignals: {",
+          "analysis": "REST Signal requires signalSources and signalFormula; source supplies both for this signal group."
+        },
+        {
+          "source_id": "body:1226",
+          "label": "signalFormula",
+          "path": "/properties/sliProperties/totalSignals/signalFormula",
+          "expression": "        signalFormula: 'A'",
+          "analysis": "REST field is string; source literal 'A' references the single signal source identified as A."
+        },
+        {
+          "source_id": "body:1253",
+          "label": "signalSources",
+          "path": "/properties/sliProperties/totalSignals/signalSources",
+          "expression": "        signalSources: [",
+          "analysis": "REST signalSources is an array of required SignalSource objects; source provides one item built by union(sourceSignalIdentityProperties, source-specific fields)."
+        },
+        {
+          "source_id": "body:1326",
+          "label": "filters",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/filters",
+          "expression": "            filters: []",
+          "analysis": "REST SignalSource.filters is a required array of Condition; source supplies an empty array, except the latency good signal which uses the checked le/eq filter."
+        },
+        {
+          "source_id": "body:1353",
+          "label": "metricName",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/metricName",
+          "expression": "            metricName: latencyTotalMetricName",
+          "analysis": "REST metricName is string; source uses the latency metric-name parameter with the matching availability/latency default."
+        },
+        {
+          "source_id": "body:1405",
+          "label": "metricNamespace",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/metricNamespace",
+          "expression": "            metricNamespace: metricNamespace",
+          "analysis": "REST metricNamespace is string; source uses the string metricNamespace parameter, default customdefault."
+        },
+        {
+          "source_id": "body:1449",
+          "label": "signalSourceId",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/signalSourceId",
+          "expression": "            signalSourceId: 'A'",
+          "analysis": "REST signalSourceId is string; source literal 'A' matches signalFormula 'A'."
+        },
+        {
+          "source_id": "body:1485",
+          "label": "spatialAggregation",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/spatialAggregation",
+          "expression": "            spatialAggregation: {",
+          "analysis": "REST SpatialAggregation requires type and dimensions; source provides both."
+        },
+        {
+          "source_id": "body:1507",
+          "label": "type",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/spatialAggregation/type",
+          "expression": "              type: 'Sum'",
+          "analysis": "REST spatial aggregation enum includes Sum; source literal Sum is allowed."
+        },
+        {
+          "source_id": "body:1539",
+          "label": "dimensions",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/spatialAggregation/dimensions",
+          "expression": "              dimensions: signalDimensions",
+          "analysis": "REST spatial dimensions is array<string>; source passes the signalDimensions string array (environment, service, test by default)."
+        },
+        {
+          "source_id": "body:1603",
+          "label": "temporalAggregation",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/temporalAggregation",
+          "expression": "            temporalAggregation: {",
+          "analysis": "REST TemporalAggregation requires type; source supplies type and the optional windowSizeMinutes."
+        },
+        {
+          "source_id": "body:1625",
+          "label": "type",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/temporalAggregation/type",
+          "expression": "              type: 'Sum'",
+          "analysis": "REST temporal aggregation enum includes Sum; source literal Sum is allowed."
+        },
+        {
+          "source_id": "body:1664",
+          "label": "windowSizeMinutes",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/temporalAggregation/windowSizeMinutes",
+          "expression": "              windowSizeMinutes: windowSizeMinutes",
+          "analysis": "REST windowSizeMinutes is int32; source parameter is integer, constrained to at least 1, default 5."
+        },
+        {
+          "source_id": "body:line:696",
+          "label": "$expression",
+          "path": "/properties/sliProperties/goodSignals/signalSources/[]/$expression-line/21",
+          "expression": "          union(sourceSignalIdentityProperties, {",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "body:line:1257",
+          "label": "$expression",
+          "path": "/properties/sliProperties/totalSignals/signalSources/[]/$expression-line/40",
+          "expression": "          union(sourceSignalIdentityProperties, {",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "header:line:0",
+          "label": "$expression",
+          "path": "/$expression-line/0",
+          "expression": "resource latencySli 'Microsoft.Monitor/slis@2025-03-01-preview' = ",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:destinationAmwAccounts:47",
+          "label": "identity",
+          "path": "/$symbol/destinationAmwAccounts/[]/identity",
+          "expression": "    identity: sliIdentityResourceId",
+          "analysis": "Destination AmwAccount.identity is required string/arm-id and receives sliIdentityResourceId."
+        },
+        {
+          "source_id": "symbol:destinationAmwAccounts:85",
+          "label": "resourceId",
+          "path": "/$symbol/destinationAmwAccounts/[]/resourceId",
+          "expression": "    resourceId: prometheusWorkspaceResourceId",
+          "analysis": "Destination AmwAccount.resourceId is required string/arm-id and receives prometheusWorkspaceResourceId."
+        },
+        {
+          "source_id": "symbol:destinationAmwAccounts:line:0",
+          "label": "$expression",
+          "path": "/$symbol/destinationAmwAccounts/$expression-line/0",
+          "expression": "var destinationAmwAccounts = [",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:enableSliAlerts:line:0",
+          "label": "$expression",
+          "path": "/$symbol/enableSliAlerts/$expression-line/0",
+          "expression": "@description('Enable Azure Monitor SLI-generated alerts')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:enableSliAlerts:line:58",
+          "label": "$expression",
+          "path": "/$symbol/enableSliAlerts/$expression-line/1",
+          "expression": "param enableSliAlerts bool = false",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:0",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/0",
+          "expression": "@description('SLI evaluation period in days')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:46",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/1",
+          "expression": "@minValue(1)",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:59",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/2",
+          "expression": "@maxValue(90)",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:evaluationPeriodDays:line:73",
+          "label": "$expression",
+          "path": "/$symbol/evaluationPeriodDays/$expression-line/3",
+          "expression": "param evaluationPeriodDays int = 30",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/0",
+          "expression": "@description('Latency SLI baseline target percentage')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:55",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/1",
+          "expression": "@minValue(0)",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:68",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/2",
+          "expression": "@maxValue(100)",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyBaselineTargetPercent:line:83",
+          "label": "$expression",
+          "path": "/$symbol/latencyBaselineTargetPercent/$expression-line/3",
+          "expression": "param latencyBaselineTargetPercent int = 95",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyGoodFilters:48",
+          "label": "dimensionName",
+          "path": "/$symbol/latencyGoodFilters/[]/dimensionName",
+          "expression": "    dimensionName: 'le'",
+          "analysis": "Condition.dimensionName is string; source literal 'le' addresses the Prometheus histogram bucket label."
+        },
+        {
+          "source_id": "symbol:latencyGoodFilters:67",
+          "label": "operator",
+          "path": "/$symbol/latencyGoodFilters/[]/operator",
+          "expression": "    operator: 'eq'",
+          "analysis": "Condition.operator enum includes 'eq'; source literal eq is allowed."
+        },
+        {
+          "source_id": "symbol:latencyGoodFilters:83",
+          "label": "value",
+          "path": "/$symbol/latencyGoodFilters/[]/value",
+          "expression": "    value: latencyThresholdLe",
+          "analysis": "Condition.value is string and receives the constrained latencyThresholdLe parameter; default is 1."
+        },
+        {
+          "source_id": "symbol:latencyGoodFilters:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyGoodFilters/$expression-line/0",
+          "expression": "var latencyGoodFilters = [",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyGoodMetricName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyGoodMetricName/$expression-line/0",
+          "expression": "@description('Metric name for the request-based Latency SLI good signal. The publisher emits one sample of this metric per `le` bucket per window with the bucket label as the `le` dimension; the SLI selects a bucket via a `dimensionName=le, operator=eq, value=latencyThresholdLe` filter.')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyGoodMetricName:line:290",
+          "label": "$expression",
+          "path": "/$symbol/latencyGoodMetricName/$expression-line/1",
+          "expression": "param latencyGoodMetricName string = 'chaos_app_external_latency_good'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencySliName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencySliName/$expression-line/0",
+          "expression": "@description('Latency SLI resource name')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencySliName:line:42",
+          "label": "$expression",
+          "path": "/$symbol/latencySliName/$expression-line/1",
+          "expression": "param latencySliName string",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/$expression-line/0",
+          "expression": "@description('Threshold for the Latency SLI good signal, expressed as the upper-bound `le` of a bucket (seconds). Must exactly match a bucket label emitted by the publisher. Changing this value re-points the SLI to a different `le` bucket via a dimension filter, without redeploying the publisher (ADR-014).')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:310",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/$expression-line/1",
+          "expression": "@allowed([",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:321",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/[]/$expression-line/2",
+          "expression": "  '0.1'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:329",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/[]/$expression-line/3",
+          "expression": "  '0.25'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:338",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/[]/$expression-line/4",
+          "expression": "  '0.5'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:346",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/[]/$expression-line/5",
+          "expression": "  '1'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:352",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/[]/$expression-line/6",
+          "expression": "  '2'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:358",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/[]/$expression-line/7",
+          "expression": "  '5'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyThresholdLe:line:367",
+          "label": "$expression",
+          "path": "/$symbol/latencyThresholdLe/$expression-line/9",
+          "expression": "param latencyThresholdLe string = '1'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyTotalMetricName:line:0",
+          "label": "$expression",
+          "path": "/$symbol/latencyTotalMetricName/$expression-line/0",
+          "expression": "@description('Metric name for the request-based Latency SLI total signal (probe observation count).')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:latencyTotalMetricName:line:102",
+          "label": "$expression",
+          "path": "/$symbol/latencyTotalMetricName/$expression-line/1",
+          "expression": "param latencyTotalMetricName string = 'chaos_app_external_latency_total'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:metricNamespace:line:0",
+          "label": "$expression",
+          "path": "/$symbol/metricNamespace/$expression-line/0",
+          "expression": "@description('Azure Monitor SLI metric namespace for Managed Prometheus metrics')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:metricNamespace:line:82",
+          "label": "$expression",
+          "path": "/$symbol/metricNamespace/$expression-line/1",
+          "expression": "param metricNamespace string = 'customdefault'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/0",
+          "expression": "@description('Managed Prometheus Azure Monitor Workspace resource ID used as source and destination AMW')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:prometheusWorkspaceResourceId:line:106",
+          "label": "$expression",
+          "path": "/$symbol/prometheusWorkspaceResourceId/$expression-line/1",
+          "expression": "param prometheusWorkspaceResourceId string",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:signalDimensions:line:0",
+          "label": "$expression",
+          "path": "/$symbol/signalDimensions/$expression-line/0",
+          "expression": "@description('Prometheus label dimensions used for Azure Monitor SLI partitioning')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:signalDimensions:line:84",
+          "label": "$expression",
+          "path": "/$symbol/signalDimensions/$expression-line/1",
+          "expression": "param signalDimensions string[] = [",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:signalDimensions:line:120",
+          "label": "$expression",
+          "path": "/$symbol/signalDimensions/[]/$expression-line/2",
+          "expression": "  'environment'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:signalDimensions:line:136",
+          "label": "$expression",
+          "path": "/$symbol/signalDimensions/[]/$expression-line/3",
+          "expression": "  'service'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:signalDimensions:line:148",
+          "label": "$expression",
+          "path": "/$symbol/signalDimensions/[]/$expression-line/4",
+          "expression": "  'test'",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:sliIdentity:26",
+          "label": "type",
+          "path": "/$symbol/sliIdentity/type",
+          "expression": "  type: 'UserAssigned'",
+          "analysis": "REST identity.type enum includes UserAssigned; source literal UserAssigned matches."
+        },
+        {
+          "source_id": "symbol:sliIdentity:67",
+          "label": "userAssignedIdentities",
+          "path": "/$symbol/sliIdentity/userAssignedIdentities",
+          "expression": "  userAssignedIdentities: sliUserAssignedIdentities",
+          "analysis": "REST identity.userAssignedIdentities is an object map keyed by UAMI ARM resource IDs; source supplies the sliUserAssignedIdentities map."
+        },
+        {
+          "source_id": "symbol:sliIdentity:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentity/$expression-line/0",
+          "expression": "var sliIdentity = {",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/0",
+          "expression": "@description('User-assigned managed identity resource ID used by Azure Monitor SLI')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:sliIdentityResourceId:line:85",
+          "label": "$expression",
+          "path": "/$symbol/sliIdentityResourceId/$expression-line/1",
+          "expression": "param sliIdentityResourceId string",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:sliUserAssignedIdentities:62",
+          "label": "${sliIdentityResourceId}",
+          "path": "/$symbol/sliUserAssignedIdentities/${sliIdentityResourceId}",
+          "expression": "  '${sliIdentityResourceId}': {}",
+          "analysis": "Map key interpolates sliIdentityResourceId (string ARM ID); the empty object value is accepted by the userAssignedIdentities schema."
+        },
+        {
+          "source_id": "symbol:sliUserAssignedIdentities:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sliUserAssignedIdentities/$expression-line/0",
+          "expression": "var sliUserAssignedIdentities = {",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:sourceSignalIdentityProperties:72",
+          "label": "sourceAmwAccountManagedIdentity",
+          "path": "/$symbol/sourceSignalIdentityProperties/sourceAmwAccountManagedIdentity",
+          "expression": "  sourceAmwAccountManagedIdentity: sliIdentityResourceId",
+          "analysis": "Required SignalSource.sourceAmwAccountManagedIdentity is string/arm-id; source passes sliIdentityResourceId."
+        },
+        {
+          "source_id": "symbol:sourceSignalIdentityProperties:124",
+          "label": "sourceAmwAccountResourceId",
+          "path": "/$symbol/sourceSignalIdentityProperties/sourceAmwAccountResourceId",
+          "expression": "  sourceAmwAccountResourceId: prometheusWorkspaceResourceId",
+          "analysis": "Required SignalSource.sourceAmwAccountResourceId is string/arm-id; source passes prometheusWorkspaceResourceId."
+        },
+        {
+          "source_id": "symbol:sourceSignalIdentityProperties:line:0",
+          "label": "$expression",
+          "path": "/$symbol/sourceSignalIdentityProperties/$expression-line/0",
+          "expression": "var sourceSignalIdentityProperties = {",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:windowSizeMinutes:line:0",
+          "label": "$expression",
+          "path": "/$symbol/windowSizeMinutes/$expression-line/0",
+          "expression": "@description('Signal aggregation window size in minutes')",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:windowSizeMinutes:line:58",
+          "label": "$expression",
+          "path": "/$symbol/windowSizeMinutes/$expression-line/1",
+          "expression": "@minValue(1)",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        },
+        {
+          "source_id": "symbol:windowSizeMinutes:line:71",
+          "label": "$expression",
+          "path": "/$symbol/windowSizeMinutes/$expression-line/2",
+          "expression": "param windowSizeMinutes int = 5",
+          "analysis": "This is a Bicep expression line (including union of shared identity/resource-ID fields with the specific signal fields), not a REST property. The merged fields are checked through their exact source variable usages and SignalSource schema."
+        }
+      ],
+      "exclusion_reason": "Intentional preview retention: Microsoft publishes no GA Microsoft.Monitor/slis version at the pinned specification commit or Learn selector, and these declarations implement the Azure Monitor SLI feature with no published GA resource contract to migrate to. Reassess when a stable API is published."
+    }
+  ],
+  "evidence": {
+    "current": {
+      "version": "2025-03-01-preview",
+      "analysis": "Fetched exact Learn resource page and pinned preview OpenAPI. SliResource requires description, category, evaluationType, destinationAmwAccounts, baselineProperties, enableAlert, and sliProperties; all supplied. Nested AmwAccount, baseline, Signal, SignalSource, spatial/temporal aggregation, Condition, and UserAssigned identity requirements were checked; enum/range/type values match both declarations. SLI name path pattern is ^[a-zA-Z0-9][a-zA-Z0-9_()~-]{2,63}$.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/2025-03-01-preview/slis",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Slis/preview/2025-03-01-preview/openapi.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Slis/readme.md"
+      ]
+    },
+    "ga": {
+      "version": "none",
+      "analysis": "No GA candidate exists in the public sources checked. The Microsoft Learn version selector shows only Latest and 2025-03-01-preview; the pinned complete REST subtree contains only preview/2025-03-01-preview/openapi.json and the README defines only package-2025-03-01-preview. There is no stable schema against which to compare; the preview API remains necessary for the Azure Monitor SLI resources.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/slis",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/2025-03-01-preview/slis",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Slis/preview/2025-03-01-preview/openapi.json",
+        "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Slis/readme.md"
+      ]
+    },
+    "breaking": {
+      "analysis": "The Learn change log labels 2025-03-01-preview as the oldest version tracked; it provides no earlier change comparison. No GA version exists, so GA breaking changes cannot be assessed. Current preview schema constraints and values are fully checked above; no absent history is represented as “no breaking changes”.",
+      "urls": [
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/change-log/slis",
+        "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/2025-03-01-preview/slis"
+      ]
+    }
+  }
+}

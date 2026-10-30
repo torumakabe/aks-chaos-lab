@@ -736,5 +736,59 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/2025-03-01-preview/slis",
+    "attempt": 1,
+    "started_monotonic": 5402.051983138,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/change-log/slis",
+    "attempt": 1,
+    "started_monotonic": 5405.052079698,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.511660712999401
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Slis/preview/2025-03-01-preview/openapi.json",
+    "attempt": 1,
+    "started_monotonic": 5437.571909969,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/monitoringservice/resource-manager/Microsoft.Monitor/Slis/readme.md",
+    "attempt": 1,
+    "started_monotonic": 5437.805104305,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/managedidentity.json",
+    "attempt": 1,
+    "started_monotonic": 5463.798576727,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.monitor/slis",
+    "attempt": 1,
+    "started_monotonic": 5566.665153656,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
