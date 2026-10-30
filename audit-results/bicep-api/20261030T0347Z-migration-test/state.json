@@ -43942,9 +43942,168 @@
       }
     },
     "Microsoft.ContainerService/fleets@2026-06-01": {
-      "stage": "pending",
-      "results": [],
-      "evidence": {}
+      "stage": "assessed",
+      "results": [
+        {
+          "file": "infra/modules/fleet.bicep",
+          "name": "fleet",
+          "line": 40,
+          "type": "Microsoft.ContainerService/fleets",
+          "version": "2026-06-01",
+          "existing": false,
+          "start": 1110,
+          "end": 1274,
+          "header": "resource fleet 'Microsoft.ContainerService/fleets@2026-06-01' = ",
+          "body": "{\n  name: fleetName\n  location: location\n  tags: tags\n  identity: {\n    type: 'SystemAssigned'\n  }\n}",
+          "status": "verified",
+          "reason": "Learn lists 2026-06-01 as the latest stable GA; 2026-06-02-preview is newer but preview. The exact stable Fleet schema requires location, accepts tags as string-valued properties, and accepts SystemAssigned identity. The fleetName route parameter requires 1–63 lowercase alphanumeric/hyphen characters; the source default fleet-aks-chaos-lab-dev satisfies it. Caller overrides to appName/environment are unconstrained and must still satisfy that route constraint.",
+          "migration": "Current 2026-06-01 is latest GA; no GA migration needed.",
+          "findings": [],
+          "usage": [
+            {
+              "source_id": "body:8",
+              "label": "name",
+              "path": "/name",
+              "expression": "  name: fleetName",
+              "analysis": "body:8: Bicep source JSON Pointer /name (expression 'name: fleetName'); Bicep resource name is the fleetName URL path parameter, not a request-body field (Fleet.name is read-only). The exact PUT path parameter requires 1–63 characters and ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$. main.bicep constructs fleet-aks-chaos-lab-dev from defaults (23 characters; pattern valid). appName/environment overrides have no local constraints, so overrides must preserve this API constraint."
+            },
+            {
+              "source_id": "body:30",
+              "label": "location",
+              "path": "/location",
+              "expression": "  location: location",
+              "analysis": "body:30: Bicep source JSON Pointer /location (expression 'location: location'); Maps to required TrackedResource.location (string). The module receives main.bicep's default japaneast, which is a string; the REST schema defines no location enum/pattern constraint."
+            },
+            {
+              "source_id": "body:47",
+              "label": "tags",
+              "path": "/tags",
+              "expression": "  tags: tags",
+              "analysis": "body:47: Bicep source JSON Pointer /tags (expression 'tags: tags'); Maps to optional TrackedResource.tags object; additionalProperties must be strings. main.bicep supplies {'azd-env-name': environment}, whose value is a string parameter."
+            },
+            {
+              "source_id": "body:64",
+              "label": "identity",
+              "path": "/identity",
+              "expression": "  identity: {",
+              "analysis": "body:64: Bicep source JSON Pointer /identity (expression 'identity: {'); Maps to optional Fleet.identity ManagedServiceIdentity; the supplied object contains the required type field."
+            },
+            {
+              "source_id": "body:76",
+              "label": "type",
+              "path": "/identity/type",
+              "expression": "    type: 'SystemAssigned'",
+              "analysis": "body:76: Bicep source JSON Pointer /identity/type (expression \"type: 'SystemAssigned'\"); Maps to required ManagedServiceIdentity.type; 'SystemAssigned' is an exact allowed enum value."
+            },
+            {
+              "source_id": "header:line:0",
+              "label": "$expression",
+              "path": "/$expression-line/0",
+              "expression": "resource fleet 'Microsoft.ContainerService/fleets@2026-06-01' = ",
+              "analysis": "header:line:0: Bicep source JSON Pointer /$expression-line/0 (expression \"resource fleet 'Microsoft.ContainerService/fleets@2026-06-01' =\"); Bicep declaration header records the resource type and current version; it is not request payload."
+            },
+            {
+              "source_id": "symbol:fleetName:line:0",
+              "label": "$expression",
+              "path": "/$symbol/fleetName/$expression-line/0",
+              "expression": "@description('Fleet resource name')",
+              "analysis": "symbol:fleetName:line:0: Bicep source JSON Pointer /$symbol/fleetName/$expression-line/0 (expression \"@description('Fleet resource name')\"); Documentation for the module fleetName parameter. The value comes from main.bicep var fleetName = fleet-${appName}-${environment}; defaults produce fleet-aks-chaos-lab-dev, while caller overrides must satisfy the exact REST name constraints."
+            },
+            {
+              "source_id": "symbol:fleetName:line:36",
+              "label": "$expression",
+              "path": "/$symbol/fleetName/$expression-line/1",
+              "expression": "param fleetName string",
+              "analysis": "symbol:fleetName:line:36: Bicep source JSON Pointer /$symbol/fleetName/$expression-line/1 (expression 'param fleetName string'); Module fleetName is an unconstrained string parameter; main.bicep passes its composed fleetName variable. The default composition satisfies the route regex and max length; overridden appName/environment values must also satisfy them."
+            },
+            {
+              "source_id": "symbol:location:line:0",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/0",
+              "expression": "@description('Deployment location')",
+              "analysis": "symbol:location:line:0: Bicep source JSON Pointer /$symbol/location/$expression-line/0 (expression \"@description('Deployment location')\"); Documentation for the location module parameter; main.bicep passes its string default japaneast."
+            },
+            {
+              "source_id": "symbol:location:line:36",
+              "label": "$expression",
+              "path": "/$symbol/location/$expression-line/1",
+              "expression": "param location string",
+              "analysis": "symbol:location:line:36: Bicep source JSON Pointer /$symbol/location/$expression-line/1 (expression 'param location string'); String module parameter; main.bicep supplies japaneast by default, which satisfies the unconstrained REST location string."
+            },
+            {
+              "source_id": "symbol:tags:line:0",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/0",
+              "expression": "@description('Tags applied to the fleet resources')",
+              "analysis": "symbol:tags:line:0: Bicep source JSON Pointer /$symbol/tags/$expression-line/0 (expression \"@description('Tags applied to the fleet resources')\"); Documentation for the tags parameter; caller mapping and each tag value are analyzed at /tags."
+            },
+            {
+              "source_id": "symbol:tags:line:52",
+              "label": "$expression",
+              "path": "/$symbol/tags/$expression-line/1",
+              "expression": "param tags object = {}",
+              "analysis": "symbol:tags:line:52: Bicep source JSON Pointer /$symbol/tags/$expression-line/1 (expression 'param tags object = {}'); Tags module parameter defaults to an empty object, but main.bicep passes {'azd-env-name': environment}; the exact REST additionalProperties type is string and environment is string-typed."
+            }
+          ]
+        }
+      ],
+      "evidence": {
+        "current": {
+          "version": "2026-06-01",
+          "analysis": "Learn selector, pinned REST README and exact stable fleets.json identify the current contract. Schemas helper resolved Fleet allOf with common Resource/TrackedResource, the identity v4 definition, and the required location, tags additionalProperties:string, and identity.type enum. The exact PUT operation confirms fleetName path bounds/pattern. Current default values satisfy them; caller override caveat is recorded in the per-usage analysis.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets": "019b94fa49feb4464db7e23ee7d02b738c3223931bcacc5fdc74276d3f6dd6e9",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md": "dbb091949f52e5f30b1bc67a68c87b22cf57d09493c0d24f94010a4aa19b0641",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json": "c47dbd88b848187f664790e484ee9c21d55192be4a636e4ab1e8595bc16f4240",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json": "e0053dd5b2f6fdbcdea58a816dff7670b07aeccded7141ea2124713b62d68df5"
+          }
+        },
+        "ga": {
+          "version": "2026-06-01",
+          "analysis": "Learn lists 2026-06-01 as the newest stable GA and a newer 2026-06-02-preview. The pinned REST README maps package-2026-06-01 to stable/2026-06-01/fleets.json and the preview tag to preview/2026-06-02-preview/fleets.json; the exact candidate stable schema is the current schema. The preview body was fetched but is not treated as a GA candidate.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/preview/2026-06-02-preview/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets": "019b94fa49feb4464db7e23ee7d02b738c3223931bcacc5fdc74276d3f6dd6e9",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/readme.md": "dbb091949f52e5f30b1bc67a68c87b22cf57d09493c0d24f94010a4aa19b0641",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json": "c47dbd88b848187f664790e484ee9c21d55192be4a636e4ab1e8595bc16f4240",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/preview/2026-06-02-preview/fleets.json": "5184f7122e8f07f22c0e64a4ffda50fa8a2dafca55b0b452ff2bf782c2d44498",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json": "e0053dd5b2f6fdbcdea58a816dff7670b07aeccded7141ea2124713b62d68df5"
+          }
+        },
+        "breaking": {
+          "analysis": "Learn change log reports no properties added, updated, or removed for 2026-06-01. Exact current schema confirms the resource fields used; the newer preview is not a migration candidate.",
+          "urls": [
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/preview/2026-06-02-preview/fleets.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json"
+          ],
+          "sha256": {
+            "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets": "a8ca78483d4e08c96c2c16edc577e6daf3a1c8eb42001792b83daed18093ce7a",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/stable/2026-06-01/fleets.json": "c47dbd88b848187f664790e484ee9c21d55192be4a636e4ab1e8595bc16f4240",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/preview/2026-06-02-preview/fleets.json": "5184f7122e8f07f22c0e64a4ffda50fa8a2dafca55b0b452ff2bf782c2d44498",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v5/types.json": "66767620b8edfbc04093c76b78d168cc59822cd9da1e726d35a9d45b73e642c1",
+            "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/common-types/resource-management/v4/managedidentity.json": "e0053dd5b2f6fdbcdea58a816dff7670b07aeccded7141ea2124713b62d68df5"
+          }
+        }
+      }
     },
     "Microsoft.ContainerService/managedClusters/maintenanceConfigurations@2026-07-01": {
       "stage": "pending",

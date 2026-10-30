@@ -484,5 +484,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 2.8468373649998284
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/2026-06-01/fleets",
+    "attempt": 1,
+    "started_monotonic": 2670.071561058,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.containerservice/change-log/fleets",
+    "attempt": 1,
+    "started_monotonic": 2673.071674755,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.810113129000001
+  },
+  {
+    "url": "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/fb9f2e6a38761232e8601419798654960aec703a/specification/containerservice/resource-manager/Microsoft.ContainerService/fleet/preview/2026-06-02-preview/fleets.json",
+    "attempt": 1,
+    "started_monotonic": 2748.386619637,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
   }
 ]
