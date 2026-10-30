@@ -124,5 +124,32 @@
     "error": null,
     "retry_after": null,
     "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/privatednszones",
+    "attempt": 1,
+    "started_monotonic": 1051.654405236,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 0
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/2024-06-01/privatednszones",
+    "attempt": 1,
+    "started_monotonic": 1054.654532151,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.6294918739999957
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/azure/templates/microsoft.network/change-log/privatednszones",
+    "attempt": 1,
+    "started_monotonic": 1057.654653955,
+    "status": 200,
+    "error": null,
+    "retry_after": null,
+    "wait_seconds": 2.423278699000093
   }
 ]
