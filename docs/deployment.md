@@ -605,13 +605,19 @@ uv run --no-project "${PWD}/scripts/tasks.py" qa
 
 `review-repo-full` は専用または利用者が明示的に用意した worktree で実行します。レビュー task に独自の環境準備、同期状態の引き渡し、process 間 lock はありません。レビューを始める前に `sync-dev` を実行し、各 task は準備済み `.venv` を `--no-sync` で使います。
 
-### GitHub Actions の統合テスト
+### 統合テスト
 
-`Platform Integration Test`（`.github/workflows/integration-test.yml`）は手動起動です。`full` は一時環境で既存の `azd up` を実行し、HTTP endpoint を検査します。`infra-only` は base layer の構築だけを行い、アプリと sli layer は適用しません。AKS は現在の IaC と同じ Base に固定し、`Automatic` と `app-only` は選択肢に含めません。
+`test-integration` は、Redis を無効にしたアプリをプロセス内で起動して `/` を検査するテストと、配備済み環境の Gateway へ HTTP で接続して `/health` と `/` の応答を検査するテストを実行します。この task は CI では実行しないため、`azd up` で配備した環境に対してローカルで実行してください。接続先は環境変数 `INTEGRATION_TEST_URL` で指定します。未設定の場合、配備済み環境へのテストは skip され、task は成功します。
 
-GitHub Environment `integration-test` に認証用 secrets `AZURE_CLIENT_ID`、`AZURE_TENANT_ID`、`AZURE_SUBSCRIPTION_ID` を設定します。identity には本書の構築と削除に必要な権限を付与します。`full` で公開取得が許可されている場合は、同 Environment の変数 `AZD_ALLOW_PUBLIC_SOURCES` を `true` に設定してください。workflow は未設定の値を補完しません。runner は `ubuntu-latest` を維持し、uv と Python を各処理の前に準備します。
+```bash
+INTEGRATION_TEST_URL="http://$(azd env get-value AZURE_INGRESS_FQDN)" \
+  uv run --no-project "${PWD}/scripts/tasks.py" test-integration
+```
 
-cleanup job は構築の成否にかかわらず、実行IDに対応する一時 azd 環境を作成し、`azd down --force --purge` を実行します。`.azure` の引き継ぎは行わず、環境名、location、subscription、Resource Group を再設定します。job の上限は90分で、削除失敗は job の失敗として報告します。
+```powershell
+$env:INTEGRATION_TEST_URL = "http://$(azd env get-value AZURE_INGRESS_FQDN)"
+uv run --no-project "${PWD}/scripts/tasks.py" test-integration
+```
 
 ## 負荷テスト
 

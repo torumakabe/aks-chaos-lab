@@ -2023,19 +2023,19 @@ def test_check_version_pins_rejects_a_partial_python_runtime_update(
     )["project"]["requires-python"]
     expected_version = minimum.removeprefix(">=")
     inconsistent_version = f"{expected_version}-mismatch"
-    workflow = repository / ".github/workflows/integration-test.yml"
+    workflow = repository / ".github/workflows/ci.yml"
     text = workflow.read_text(encoding="utf-8")
-    expected_declaration = f"python-version: '{expected_version}'"
+    expected_declaration = f'python-version: "{expected_version}"'
     assert expected_declaration in text
     workflow.write_text(
         text.replace(
-            expected_declaration, f"python-version: '{inconsistent_version}'", 1
+            expected_declaration, f'python-version: "{inconsistent_version}"', 1
         ),
         encoding="utf-8",
     )
     monkeypatch.setattr(tasks, "ROOT", repository)
     assert any(
-        ".github/workflows/integration-test.yml" in violation
+        ".github/workflows/ci.yml" in violation
         for violation in tasks.python_version_violations()
     )
 
