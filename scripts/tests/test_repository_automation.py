@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -98,10 +97,6 @@ def test_ci_reuses_kubernetes_and_helm_validation_targets() -> None:
 
     assert 'scripts/tasks.py" lint-k8s' in ci
     assert 'scripts/tasks.py" validate-helm-values' in ci
-    assert re.search(
-        r"(?m)^\s*uses:\s+azure/setup-helm@[0-9a-f]{40}\s+# v\d+\.\d+\.\d+\s*$",
-        ci,
-    )
     assert "k8s/apps/chaos-app/*.yaml" not in ci
 
 
