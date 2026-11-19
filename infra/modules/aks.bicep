@@ -12,6 +12,12 @@ param nodeResourceGroupName string
 param nodeVmSize string
 @description('Enable AKS Node Auto Provisioning for user workload capacity')
 param enableNodeAutoProvisioning bool = true
+@description('AKS Deployment Safeguards level')
+@allowed([
+  'Warn'
+  'Enforce'
+])
+param safeguardsLevel string = 'Warn'
 @description('Local DNS mode for the System node pool')
 @allowed([
   'Disabled'
@@ -238,6 +244,17 @@ resource aksCluster 'Microsoft.ContainerService/managedClusters@2026-05-02-previ
   dependsOn: [
     aksSubnetNetworkContributorRole
   ]
+}
+
+#disable-next-line BCP081
+resource aksDeploymentSafeguards 'Microsoft.ContainerService/deploymentSafeguards@2025-07-01' = {
+  name: 'default'
+  scope: aksCluster
+  properties: {
+    level: safeguardsLevel
+    podSecurityStandardsLevel: 'Baseline'
+    excludedNamespaces: ['chaos-testing']
+  }
 }
 
 // Assign Network Contributor on the AKS subnet to the cluster's managed identity

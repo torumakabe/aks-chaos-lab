@@ -55,6 +55,11 @@ from public_lock import (  # noqa: E402
     validate_exported_requirements,
     validate_public_lock,
 )
+from public_pypi_policy import (  # noqa: E402
+    DISALLOW_PUBLIC_PYPI_VARIABLE,
+    PublicPypiPolicyError,
+    public_pypi_disallowed,
+)
 from repo_health import load_kubernetes_schema_excluded_kinds  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -3239,13 +3244,21 @@ def target_package_api_approved_index() -> None:
     print(image)
 
 
+def configured_public_pypi_disallowance() -> bool:
+    try:
+        return public_pypi_disallowed(os.environ)
+    except PublicPypiPolicyError as error:
+        raise SystemExit(f"error: {error}") from error
+
+
 def target_prepare_publisher_dependencies() -> None:
+    disallowed = configured_public_pypi_disallowance()
     config_path = selected_approved_index_config()
-    if (
-        config_path is None
-        and os.environ.get("AZD_ALLOW_PUBLIC_SOURCES", "").lower() != "true"
-    ):
-        raise SystemExit("error: Public PyPI requires AZD_ALLOW_PUBLIC_SOURCES=true.")
+    if config_path is None and disallowed:
+        raise SystemExit(
+            f"error: Public PyPI is disallowed by {DISALLOW_PUBLIC_PYPI_VARIABLE}=true; "
+            "configure an approved index."
+        )
     ensure_public_lock()
     digest = lock_sha256()
     with tempfile.TemporaryDirectory(prefix="sli-package-") as temporary:
@@ -3309,19 +3322,17 @@ def target_prepare_publisher_dependencies() -> None:
 
 
 def target_deploy_services(*, image: str | None = None) -> None:
+    disallowed = configured_public_pypi_disallowance()
     environment = deployment_environment_name(Deadline(30))
     config_path = selected_approved_index_config()
     if config_path is not None and not image:
         raise SystemExit(
             "error: An approved index requires --image from package-api-approved-index."
         )
-    if (
-        config_path is None
-        and not image
-        and os.environ.get("AZD_ALLOW_PUBLIC_SOURCES", "").lower() != "true"
-    ):
+    if config_path is None and disallowed:
         raise SystemExit(
-            "error: Public API build requires AZD_ALLOW_PUBLIC_SOURCES=true."
+            f"error: Public PyPI is disallowed by {DISALLOW_PUBLIC_PYPI_VARIABLE}=true; "
+            "configure an approved index for the API build and publisher dependencies."
         )
     if image:
         from api_artifact import ApiArtifactError, inspect_local_image

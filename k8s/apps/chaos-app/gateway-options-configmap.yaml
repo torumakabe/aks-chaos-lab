@@ -23,3 +23,14 @@ data:
                 inclusionRegexps:
                   - ".*upstream_rq.*"
                   - ".*upstream_cx_total.*"
+        spec:
+          containers:
+            - name: istio-proxy
+              # Istio は livenessProbe を設定しない方針のため、Safeguards が必須とする
+              # livenessProbe はプロセスの応答だけを確認する tcpSocket にする。
+              livenessProbe:
+                tcpSocket:
+                  port: 15021
+                periodSeconds: 15
+                timeoutSeconds: 2
+                failureThreshold: 8

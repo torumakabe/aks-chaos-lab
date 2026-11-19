@@ -57,7 +57,7 @@ Azure SRE Agent を有効にする環境では、デプロイ実行 identity に
 
 managed DCR で `Monitoring Metrics Publisher` が不足すると、SLI の storage location validation が失敗します。`Monitoring Reader` は SLI destination metric の読み出し要件に合わせて付与します。
 
-### 4. AKS の Microsoft Entra 統合
+### 5. AKS の Microsoft Entra 統合
 
 AKS は `aadProfile.managed=true` + `enableAzureRbac=true` + `disableLocalAccounts=true` のため、`kubectl`（`azd up` 中の Kubernetes マニフェスト適用を含む）は Microsoft Entra ID 経由の Azure RBAC で認可されます。`azd up` を実行する identity には、サブスクリプション スコープで **Azure Kubernetes Service RBAC Cluster Admin** を事前に付与してください。
 
@@ -73,9 +73,10 @@ az feature register --namespace Microsoft.ContainerService --name AKS-AddonAutos
 az provider register --namespace Microsoft.ContainerService
 az provider register --namespace Microsoft.KubernetesConfiguration
 az provider register --namespace Microsoft.Insights
+az provider register --namespace Microsoft.PolicyInsights
 ```
 
-`az feature show --namespace <ns> --name <name>` で `state: Registered` になってから `azd up` を実行してください。feature flag 名と登録手順が現在の構成および関連 ADR と一致しているかは、[review-repo エージェント](../.github/agents/review-repo.agent.md) がリポジトリ内の記述を確認します。対象 subscription の登録状態は確認しないため、デプロイ実行者が `az feature show` で確認してください。
+Microsoft.PolicyInsights provider は AKS Deployment Safeguards に必要です。`az feature show --namespace <ns> --name <name>` でプレビュー機能が `Registered` になってから `azd up` を実行してください。feature flag 名と登録手順が現在の構成および関連 ADR と一致しているかは、[review-repo エージェント](../.github/agents/review-repo.agent.md) がリポジトリ内の記述を確認します。対象 subscription の登録状態は確認しないため、デプロイ実行者が `az feature show` で確認してください。
 
 ## 環境構築
 
@@ -105,6 +106,127 @@ az fleet gate approve \
 ```
 
 リソース名は `appName` と `environment` に応じて読み替えてください。
+
+### AKS Deployment Safeguards
+
+Deployment Safeguards は、AKS に作成または更新する Pod がポリシーに違反したときの扱いを制御します。`Warn` では警告を返して要求を許可し、`Enforce` では違反する要求を拒否します。まず `Warn` で既存 workload の非準拠を把握し、修正してから `Enforce` に切り替えることで、予期しない Pod の作成失敗を避けられます。Safeguards は AKS が提供するポリシーセット全体に適用され、個別ポリシーは選択できません。別途割り当てた Azure Policy は Safeguards の設定とは独立して適用されます。
+
+このプロジェクトでは Safeguards を AKS と同じ base Deployment Stack で管理します。既定値は `Warn`、Pod Security Standards は `Baseline`、ユーザー指定の除外は `chaos-testing` のみです。実験対象の `chaos-app` を配置する `chaos-lab` は Safeguards の対象に残します。`gadget` など AKS 拡張 namespace の扱いは AKS の system exclusions に従い、実効値は `az aks safeguards show` の `systemExcludedNamespaces` で確認します。`chaos-testing` の除外理由は[Chaos 実験ガイド](chaos-experiments.md#safeguards-有効時の-pod-failure)を参照してください。
+
+Safeguards 導入と `Enforce` 切り替えの判断は [ADR-027](adr/027-adopt-aks-deployment-safeguards.md) に記録しています。
+
+#### `Warn` の確認
+
+Safeguards 導入 PR のマージ日時を確認し、検証環境（今回の `eval`）で、その時刻から 7 日間の警告を確認します。GitHub CLI を使う場合、次のコマンドは UTC のマージ日時を返します。未マージの場合、チェック期間は始まりません。
+
+```bash
+gh pr view <PR番号> --json mergedAt --jq .mergedAt
+```
+
+対象の azd 環境、AKS クラスター、Log Analytics workspace、`kubectl` の context を確認します。`az aks show` で取得するリソース ID は、後のログ照会で使います。
+
+```bash
+azd env get-value AZURE_RESOURCE_GROUP -e "<env>"
+azd env get-value AZURE_AKS_CLUSTER_NAME -e "<env>"
+azd env get-value AZURE_LOG_ANALYTICS_WORKSPACE_NAME -e "<env>"
+azd env get-value AZURE_LOG_ANALYTICS_ID -e "<env>"
+kubectl config current-context
+az aks show --resource-group "<resource-group>" --name "<aks-name>" --query id -o tsv
+az aks safeguards show --resource-group "<resource-group>" --name "<aks-name>" -o json
+az monitor diagnostic-settings list --resource "<AKS-resource-ID>" -o json
+```
+
+チェック期間の開始時に Safeguards が `Warn / Baseline` で、意図した namespace が除外されていることを確認し、期間中は `Warn` を維持します。診断設定の `kube-audit-admin` が対象 workspace に送信され、Container Insights が `gatekeeper-system` の stderr を収集していることも確認します。収集設定と各テーブルの保持期間は、次のコマンドで確認できます。
+
+```bash
+kubectl -n kube-system get configmap container-azm-ms-agentconfig -o yaml
+az monitor log-analytics workspace table show --resource-group "<resource-group>" --workspace-name "<workspace-name>" --name AKSAuditAdmin --query '{plan:plan,retentionInDays:retentionInDays}' -o table
+az monitor log-analytics workspace table show --resource-group "<resource-group>" --workspace-name "<workspace-name>" --name ContainerLogV2 --query '{plan:plan,retentionInDays:retentionInDays}' -o table
+```
+
+各テーブルの保持期間内にチェック期間全体を確認し、ログの到着遅延、収集の停止や記録の欠落があれば調査してください。検証環境が未配備の期間や収集期間が不足する場合も未確認として扱います。記録がないことだけでは違反がなかったとは判断できません。
+
+ログの到着状況は、対象 workspace の Azure Monitor Logs で日ごとに確認できます。次は Gatekeeper の stderr の例です。`<merge-time-UTC>` は PR のマージ日時、`<AKS-resource-ID>` は上記のリソース ID に置き換えます。`AKSAuditAdmin` はテーブル名を置き換え、`PodNamespace` と `LogSource` の行を削除して、同じ期間とリソース ID で照会します。
+
+```kusto
+let StartTime = datetime(<merge-time-UTC>);
+let EndTime = StartTime + 7d;
+ContainerLogV2
+| where TimeGenerated >= StartTime and TimeGenerated < EndTime
+| where _ResourceId =~ '<AKS-resource-ID>'
+| where PodNamespace == 'gatekeeper-system' and LogSource == 'stderr'
+| summarize Records=count() by bin(TimeGenerated, 1d)
+| order by TimeGenerated asc
+```
+
+記録のない期間は、対象操作がなかったのか収集が停止していたのかを確認します。記録のある日でも、すべての要求が記録されたとは限りません。
+
+Gatekeeper の現在の監査結果は、次のコマンドで確認します。
+
+```bash
+kubectl get constraints -o custom-columns='KIND:.kind,NAME:.metadata.name,ASSIGNMENT:.metadata.annotations.azure-policy-assignment-id,ACTION:.spec.enforcementAction,VIOLATIONS:.status.totalViolations,AUDIT:.status.auditTimestamp'
+kubectl -n gatekeeper-system get deployment gatekeeper-controller -o jsonpath='{.spec.template.spec.containers[*].args}'
+```
+
+`ASSIGNMENT` が `aks-deployment-safeguards-policy-assignment` で終わる制約について、`AUDIT` が更新されていることと `VIOLATIONS` を確認します。違反の詳細は `kubectl get <KIND> <NAME> -o yaml` の `status.violations` で確認できます。`--log-denies` など Gatekeeper の admission ログ設定も確認します。制約が取得できない場合や監査が更新されない場合は未確認として扱います。この監査結果は現在の状態であり、チェック期間全体の履歴や PSS の VAP 警告を網羅しません。
+
+対象 workspace の Azure Monitor Logs で、次のクエリを実行します。`<merge-time-UTC>` は PR のマージ日時、`<AKS-resource-ID>` は上記のリソース ID に置き換えます。画面の時間範囲もチェック対象期間を含めてください。期間中はそれまでに届いた記録を確認し、終了後に期間全体を確認します。
+
+```kusto
+let StartTime = datetime(<merge-time-UTC>);
+let EndTime = StartTime + 7d;
+ContainerLogV2
+| where TimeGenerated >= StartTime and TimeGenerated < EndTime
+| where _ResourceId =~ '<AKS-resource-ID>'
+| where PodNamespace == 'gatekeeper-system' and LogSource == 'stderr'
+| extend entry = parse_json(tostring(LogMessage))
+| where tostring(entry.event_type) in ('violation', 'violation_audited')
+| summarize FirstSeen=min(TimeGenerated), LastSeen=max(TimeGenerated), Count=count()
+    by Constraint=tostring(entry.constraint_name), Action=tostring(entry.constraint_action),
+       Event=tostring(entry.event_type), Namespace=tostring(entry.resource_namespace),
+       Resource=tostring(entry.resource_kind), Name=tostring(entry.resource_name),
+       Detail=tostring(entry.msg), Assignment=tostring(entry.constraint_annotations['azure-policy-assignment-id'])
+| order by LastSeen desc
+```
+
+`Constraint` を上記の制約一覧と照合し、Safeguards の警告を特定します。監査ログでは `Assignment` に割り当て ID が入る場合もあります。別の Azure Policy の違反や繰り返し記録された監査結果を区別してください。ログの制約名が現在の一覧にない場合は、過去の監査ログなどで割り当てを確認します。
+
+PSS の VAP 警告は Gatekeeper のログだけでは確認できません。次のクエリで `AKSAuditAdmin` の PSS 関連 annotation を確認します。`AKSAuditAdmin` は Basic テーブルです。Azure Monitor Logs または Basic Logs の search API を使って照会してください。
+
+```kusto
+let StartTime = datetime(<merge-time-UTC>);
+let EndTime = StartTime + 7d;
+AKSAuditAdmin
+| where TimeGenerated >= StartTime and TimeGenerated < EndTime
+| where _ResourceId =~ '<AKS-resource-ID>'
+| where tostring(Annotations) contains 'aks-managed-baseline-'
+| extend ann = parse_json(tostring(Annotations))
+| mv-expand annotationKey = bag_keys(ann) to typeof(string)
+| where (annotationKey startswith 'aks-managed-baseline-' and annotationKey endswith 'violation-attempted')
+    or (annotationKey == 'validation.policy.admission.k8s.io/validation_failure'
+        and tostring(ann[annotationKey]) contains 'aks-managed-baseline-')
+| summarize FirstSeen=min(TimeGenerated), LastSeen=max(TimeGenerated), Records=count()
+    by Namespace=tostring(ObjectRef.namespace), Resource=tostring(ObjectRef.resource),
+       Name=tostring(ObjectRef.name), DryRun=(tostring(RequestUri) contains 'dryRun='),
+       Annotation=annotationKey, Detail=tostring(ann[annotationKey])
+| order by LastSeen desc
+```
+
+`violation-attempted` は違反がない要求にも記録されるため、`Detail` の内容を確認します。`no violations` や空の一覧、`unknown`、具体的な違反を区別し、`unknown` は対象の設定や dry-run で調査します。`DryRun` が `true` の記録は意図した試験か確認します。`validation_failure` には複数の警告がすべて記録されるとは限らず、独自 annotation を持たない PSS ポリシーもあるため、このクエリだけで違反がないとは判断できません。結果が切り詰められた場合は期間を分割して確認します。
+
+対象 workload の設定も server-side dry-run で確認します。次は稼働中の `chaos-app` Deployment の例です。Gateway が生成した Deployment や変更予定のマニフェストも対象に含め、返された警告の発生元を確認してください。
+
+```bash
+kubectl -n chaos-lab get deployment chaos-app -o yaml | kubectl replace --dry-run=server -f -
+```
+
+dry-run は送信したリソースの要求を確認しますが、後続の Pod 作成や Chaos 実験のすべてを再現しません。チェック期間中の操作や [Chaos 実験](chaos-experiments.md)の結果と併せて確認し、警告の原因、対応、未確認事項を記録します。
+
+#### `Enforce` への切り替え
+
+ADR のチェック期間が終了し、Safeguards の警告と Chaos 実験への影響を確認して未解消事項を修正した後、最初は分離した非本番環境に適用します。収集や確認が不十分な場合は `Warn` を維持します。別の環境に適用する場合も、その環境の現在の構成、Gatekeeper の監査結果、workload の dry-run と Chaos 実験への影響を確認します。
+
+既存環境では `azd env set AZURE_AKS_SAFEGUARDS_LEVEL Enforce -e "<env>"` でレベルを設定し、[base layer の構成変更手順](#既存環境の-base-layer-構成変更)で適用します。適用後は `az aks safeguards show` で状態を確認します。`Enforce` 中に変更された既存 Pod の設定は、`Warn` に戻しても自動では元に戻りません。
 
 ### Deployment Stacks の有効化と既存環境の移行
 
@@ -140,7 +262,7 @@ Stack の作成や再作成が `ResourceNotFound`（404）で終了しても、A
 
 ### `azd up`
 
-新しい Service Group を使う初回構築では、先に[新規 Service Group 作成後の権限準備](#新規-service-group-作成後の権限準備)を完了してから `azd up` を実行します。`azd up` は base と sli の間で権限付与を待って停止しません。組織承認済み package index を使う場合は、[専用の配備手順](#docker-build-のpackage-index)を使います。
+組織が public PyPI、公開コンテナレジストリ、Helm repository の利用を許可している環境では、次の手順で初回構築します。新しい Service Group を使う場合は、事前に[権限準備](#新規-service-group-作成後の権限準備)を完了してください。`azd up` は base と sli の間で権限付与を待ちません。
 
 ```bash
 azd config set alpha.aks.kustomize on
@@ -150,7 +272,9 @@ azd init
 azd up
 ```
 
-`azd up` は `preup` hook で公開取得の許可設定を確認してから、`azure.yaml` の `workflows.up` に従って実行します。未確認の場合や user-level uv 設定と矛盾する場合は、最初の `provision base` より前に停止し、理由と専用手順を表示します。[公開取得の許可設定と Docker build の手順](#docker-build-のpackage-index)を参照してください。
+標準の `azd up` は API と Functions の Python 依存に public PyPI、コンテナイメージに公開レジストリ、チャートに Helm repository を使います。public PyPI を禁止する場合だけ `AKS_CHAOS_LAB_DISALLOW_PUBLIC_PYPI=true` を設定します。この値を指定すると、標準の `azd up` は public PyPI を使うため `preup` hook が停止します。
+
+この設定は Python package の取得先だけを対象とし、コンテナイメージと Helm chart の取得を制御しません。それらも禁止する場合は、別途ミラーなどを用意してください。
 
 1. `azd provision base` (`infra/main.bicep`) — VNet / AKS / Inspektor Gadget 拡張 / Redis / Application Insights / Managed Prometheus / external SLI publisher infra / Service Group / SLI 用 Managed Identity / RBAC を作成
 2. `azd deploy api-instrumentation` — chaos-app 固有の Application Insights OTLP `Instrumentation` を先に適用し、AKS App Monitoring webhook が参照できる状態にする
@@ -165,7 +289,7 @@ azd up
 
 ### Bicep の適用前差分確認
 
-Bicep の差分確認には、[What-if 分析スキル](../.github/skills/bicep-what-if-analysis/SKILL.md)を使います。選択中の azd 環境と `azure.yaml` の layer に対応する Bicep、parameters file から `az stack-whatif sub create` を実行します。対象環境を `azd env select "<environment>"` で選択してから実行してください。初回取り込み前の、まだ存在しない Stack も対象にできます。
+Bicep の差分確認には、[What-if 分析スキル](../.github/skills/bicep-what-if-analysis/SKILL.md)を使います。選択中の azd 環境と `azure.yaml` の layer に対応する Bicep、parameters file から `az stack-whatif sub create` を実行します。対象環境を `azd env select "<env>"` で選択してから実行してください。初回取り込み前の、まだ存在しない Stack も対象にできます。
 
 ```bash
 uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
@@ -186,7 +310,18 @@ Stack 結果のリソース型は Azure が返した値を優先します。未�
 
 what-if は azd hook の操作を評価しません。適用前に対象 layer の hook が実行する操作も確認します。
 
-検証中、新規環境の初回配備で Service Group（`Microsoft.Management/serviceGroups`）の作成が `ResourceNotFound` で失敗した事例がありました。その後の検証では再現していません。同じエラーで停止した場合は、同じ配備コマンドを再実行してください。発生時は Service Group が作成済みで、再試行により配備が完了したため、同様に成功が期待できます。
+### 既存環境の base layer 構成変更
+
+各機能の節に示した環境変数を設定してから対象環境を選択し、what-if を確認します。差分を説明できない場合は適用しません。確認後に `azd provision base` を実行します。個別機能で追加の操作が必要な場合は、その機能の節に記載します。
+
+```bash
+azd env select "<env>"
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
+```
+
+```bash
+azd provision base -e "<env>"
+```
 
 上記のサービス配備（2〜7）は、共通 task `deploy-services` が順番に実行します。通常の `up` と組織 index 向けの段階配備は、この task と各 service の hook を共有します。個別のサービスだけを更新するときは、従来どおり `azd deploy <service>` を使えます。
 
@@ -197,14 +332,9 @@ SRE Agent は `base` layer の opt-in 機能です。`AZURE_SRE_AGENT_ENABLED` �
 ```bash
 azd env set AZURE_SRE_AGENT_ENABLED true
 azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000
-uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 ```
 
-分析結果で Agent、専用 User Assigned Managed Identity、専用 Application Insights、Resource Group 範囲の role assignments を確認してください。`base` layer には他の基盤リソースも含まれるため、既存リソースの変更を含むすべての差分が意図した内容であることを確認してから、全体をデプロイします。公開取得が許可された環境では次を実行します。組織承認済み package index を使う場合は、同じ環境設定を使って [専用の配備手順](#docker-build-のpackage-index)を実行してください。
-
-```bash
-azd up
-```
+新規環境ではこの設定後に [`azd up`](#azd-up) を実行します。既存環境では [base layer の構成変更手順](#既存環境の-base-layer-構成変更)で what-if を確認して適用してください。分析結果では Agent、専用 User Assigned Managed Identity、専用 Application Insights、Resource Group 範囲の role assignments を確認します。組織承認済み package index を使う場合は、[専用の配備手順](#docker-build-のpackage-index)を使います。
 
 Agent は既存 VNet の専用 subnet `snet-sre-agent` に接続するため、リージョンは `AZURE_LOCATION` と同じにします。`AZURE_SRE_AGENT_LOCATION` を明示する場合も同じ値が必要で、異なる値は base の preprovision hook が拒否します。専用 subnet の prefix は `AZURE_SRE_AGENT_SUBNET_PREFIX`（既定 `10.10.5.0/27`、/27 以上）で指定します。モデル設定は `AZURE_SRE_AGENT_MODEL_PROVIDER` と `AZURE_SRE_AGENT_MODEL_NAME` で変更できます。
 
@@ -219,10 +349,9 @@ Azure Monitor の alert を Agent に取り込む場合は、別途次の設定�
 ```bash
 azd env set AZURE_SRE_AGENT_ENABLED true
 azd env set AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED true
-uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
 ```
 
-分析結果で Agent の `incidentManagementConfiguration` と subscription scope の Monitoring Contributor role assignment を確認してから、`azd provision base` または `azd up` を実行します。Bicep が Azure Monitor を incident platform として設定し、Agent の user-assigned managed identity に Monitoring Contributor を割り当てます。配備後も `az role assignment list --all --assignee <user-assigned identity の principal ID>` で割り当てを確認してください。権限は alert rule や Log Analytics workspace の変更にも及ぶため、subscription 全体への付与が適切か確認してください。
+新規環境では初回の [`azd up`](#azd-up) 前に設定します。既存環境では [base layer の構成変更手順](#既存環境の-base-layer-構成変更)で適用します。分析結果で Agent の `incidentManagementConfiguration` と subscription scope の Monitoring Contributor role assignment を確認してください。Bicep が Azure Monitor を incident platform として設定し、Agent の user-assigned managed identity に Monitoring Contributor を割り当てます。配備後も `az role assignment list --all --assignee <user-assigned identity の principal ID>` で割り当てを確認してください。権限は alert rule や Log Analytics workspace の変更にも及ぶため、subscription 全体への付与が適切か確認してください。
 
 `base` layer の post-provision hook は、Azure SRE Agent の Data Plane API を使って、response plan `aks-chaos-lab-sli-short-window-review` を作成または更新します。`Title contains` は `SLI short-window alert` とし、Sev3 と `Review` mode に限定します。
 
@@ -238,26 +367,35 @@ Hook は quickstart plan が有効なら無効化し、ほかに有効な Autono
 
 #### 既存環境へインシデント連携付きで追加する
 
-対象環境を各コマンドの `-e` で指定します。subscription scope の Monitoring Contributor の付与を確認したうえで、Agent 本体と incident integration の両方を有効にします。
+subscription scope の Monitoring Contributor の付与を確認したうえで、Agent 本体と incident integration の両方を有効にします。
 
 配備前に既存 SLI metric alert の location が AMW と一致することも確認します。異なる場合は、既存ルールの定義を保存し、同名で再配備する baseline ルールだけを削除してから `sli` を配備します。location は更新できないためです。詳細は [SLI metric alerts](observability.md#sli-metric-alerts) を参照してください。
 
 ```bash
-azd env select "<environment>"
-azd env set AZURE_SRE_AGENT_ENABLED true -e "<environment>"
-azd env set AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED true -e "<environment>"
-azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000 -e "<environment>"
-uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
-azd provision base -e "<environment>"
-uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer sli
-azd provision sli -e "<environment>"
+azd env set AZURE_SRE_AGENT_ENABLED true -e "<env>"
+azd env set AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED true -e "<env>"
+azd env set AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT 10000 -e "<env>"
 ```
 
-各 layer の what-if 分析結果を確認してから対応する配備コマンドを実行します。`base` は Agent と Azure Monitor 接続、response plan を設定し、`sli` はその plan が照合する短窓アラートを配備します。既存環境のアラートが旧 Fast / Slow 名のままでは、`SLI short-window alert` の title 条件に一致しません。新しい短窓と長窓アラートの作成を確認後、前述の旧アラートを削除します。既存アプリの変更や再ビルドは不要です。
+その後、[base layer の構成変更手順](#既存環境の-base-layer-構成変更)で base を適用します。新しい Service Group を作成した場合は、base の適用後、次の `sli` 配備前に[権限準備](#新規-service-group-作成後の権限準備)を完了してください。共通手順で選択した環境のまま、次の `sli` を確認して適用します。
+
+```bash
+uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer sli
+```
+
+差分を確認してから適用します。
+
+```bash
+azd provision sli -e "<env>"
+```
+
+`base` は Agent と Azure Monitor 接続、response plan を設定し、`sli` はその plan が照合する短窓アラートを配備します。既存環境のアラートが旧 Fast / Slow 名のままでは、`SLI short-window alert` の title 条件に一致しません。新しい短窓と長窓アラートの作成を確認後、前述の旧アラートを削除します。既存アプリの変更や再ビルドは不要です。
 
 完了時は Agent の作成成功だけでなく、Azure Monitor 接続、専用 identity の Monitoring Contributor、有効な `Review` response plan、title 条件に一致する Availability / Latency の短窓アラート2件、README のインデックス完了、既存 API の応答を確認します。GitHub 接続は別の任意設定です。
 
-Agent を廃止する場合は、まず有効な構成のまま[既存環境の Stack 取り込み](#deployment-stacks-の有効化と既存環境の移行)を完了します。`AZURE_SRE_AGENT_ENABLED=false` と `AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED=false` を設定し、`--layer base` の what-if で Agent、専用 identity、Vault、Private Endpoint、専用 RBAC などの削除を確認してから `azd provision base` を実行します。共有 VNet と予約済み subnet は維持します。既存アプリの再ビルドや再配備は不要です。Vault は soft-delete され、通常の Stack 更新では purge しません。
+#### Azure SRE Agent を廃止する
+
+まず有効な構成のまま[既存環境の Stack 取り込み](#deployment-stacks-の有効化と既存環境の移行)を完了します。`AZURE_SRE_AGENT_ENABLED=false` と `AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED=false` を設定し、[base layer の構成変更手順](#既存環境の-base-layer-構成変更)で Agent、専用 identity、Vault、Private Endpoint、専用 RBAC などの削除を確認して適用します。共有 VNet と予約済み subnet は維持します。既存アプリの再ビルドや再配備は不要です。Vault は soft-delete され、通常の Stack 更新では purge しません。
 
 `api-instrumentation` は app-specific な `Instrumentation/chaos-app-otel` だけを `k8s/apps/chaos-app/instrumentation/` から適用します。クラスタ共通の `k8s/observability` には置きません。`Instrumentation` を `Deployment/chaos-app` より先に作成しないと、AKS App Monitoring の admission webhook が Pod template に `OTEL_EXPORTER_OTLP_*` を注入できず、API の Application Insights traces / metrics / logs と Redis dependency が欠落します。
 
@@ -271,19 +409,11 @@ azd 1.33.0 は ZIP を Function App の SCM エンドポイント `/api/publish`
 
 ### Local DNS
 
-`AZURE_AKS_LOCAL_DNS_MODE` の既定は `Required`（有効）です。System pool と NAP に `azd up` で適用します。未設定の既存環境も有効化対象です。無効化する場合は、事前に `azd env set AZURE_AKS_LOCAL_DNS_MODE Disabled -e <environment>` を実行してください。再有効化は `Required` を指定します。
+`AZURE_AKS_LOCAL_DNS_MODE` の既定は `Required`（有効）です。System pool と NAP に適用し、未設定の既存環境も有効化対象です。無効化する場合は `azd env set AZURE_AKS_LOCAL_DNS_MODE Disabled -e "<env>"`、再有効化する場合は値を `Required` にして、[base layer の構成変更手順](#既存環境の-base-layer-構成変更)で適用してください。
 
 対応する Kubernetes、OS、VM サイズは [Microsoft Learn](https://learn.microsoft.com/azure/aks/localdns-custom)、採用判断は [ADR-019](adr/019-adopt-aks-local-dns.md)を参照してください。
 
 既存環境で初めて有効化する際は、ノード更新前に `kubectl apply -f k8s/apps/chaos-app/ciliumnetworkpolicy-egress-allowlist.yaml` で DNS 許可を反映してください。有効化と無効化ではノードの再イメージ化による停止を想定し、他の Chaos 実験を停止して実施します。PDB があっても無停止は保証されません。
-
-`<environment>` は対象の azd 環境名に置き換えます。what-if 分析を実行する前に対象環境を選択します。意図を説明できない差分がある場合は、続く `azd up` を実行しません。
-
-```bash
-azd env select "<environment>"
-uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
-azd up -e <environment>
-```
 
 適用後は新規 Pod の名前解決と[ノード別メトリクス](observability.md#local-dns)を確認してください。API が返す Local DNS の状態が `state: Enabled` でも既存ノードに反映されない場合だけ、[D-14](workarounds.md#d-14-local-dns-の-api-更新が既存ノードへ反映されない場合)の追加対応を使います。DNS 障害注入の範囲は [Chaos 実験ガイド](chaos-experiments.md#local-dns-の比較検証)を参照してください。
 
@@ -293,18 +423,7 @@ Node Auto Provisioning（NAP）は既定で有効です。`AZURE_AKS_ENABLE_NODE
 
 NAP有効時はSystem AgentPoolがArm64 2台固定となり、Cluster Autoscalerは無効になります。未設定の既存環境でも次回のbase layer適用からこの構成が要求されるため、適用前に差分を確認してください。NAPを使わない新規環境や、NAP無効の既存環境を維持する場合は、適用前に `azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING false -e "<env>"` を実行してください。明示的な `false` は引き続き無効として扱います。
 
-```bash
-azd env select "<env>"
-uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer base
-```
-
-既存環境の分析結果にAKS以外の意図しない変更、またはSystem AgentPoolの削除や置換が含まれる場合は、base layerを適用しません。Azure PolicyがsubnetへBicep管理外のNSGを関連付ける環境では、NSG関連付けの削除が差分に表示されます。対象NSGがポリシー管理であり、subnetの名前、address prefix、delegationに変更がないことを確認した場合は、期待されたdriftとして扱います。
-
-差分確認後、標準の `azd up` で AKS の NAP 設定と AKSNodeClass／NodePool を適用します。
-
-```bash
-azd up -e "<env>"
-```
+base layer の差分確認と適用は[共通手順](#既存環境の-base-layer-構成変更)を使います。分析結果に AKS 以外の意図しない変更、または System AgentPool の削除や置換が含まれる場合は適用しません。Azure Policy が subnet へ Bicep 管理外の NSG を関連付ける環境では、NSG 関連付けの削除が差分に表示されます。対象 NSG がポリシー管理であり、subnet の名前、address prefix、delegation に変更がないことを確認した場合は、期待された drift として扱います。
 
 System AgentPoolが2台Readyで、既存workloadが健全であることを確認します。通常の `azd up` は instrumentation の後に NAP の条件付き task を実行します。単独で適用する場合も、同じ task で CRD の作成と Established を待ってから、User workload 用の AKSNodeClass と NodePool を適用します。
 
@@ -325,7 +444,7 @@ NAP の適用には azd を使います。azd が `k8s/node-provisioning/.env` �
 5. `az aks nodepool update --enable-cluster-autoscaler --min-count 1 --max-count 3`でSystem AgentPoolのCluster Autoscalerを復元する。
 6. System AgentPool、既存workload、外部health endpointを確認する。
 7. `azd env set AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING false -e "<env>"` で無効を明示する。未設定にすると次回の適用で再び有効化されるため、設定を削除しない。
-8. 対象環境を選択して What-if 分析スキルを `--layer base` で実行し、NAPに関する差分が解消したことを確認する。ポリシー管理のNSG関連付けは期待されたdriftとして残る場合がある。
+8. 対象環境を選択して[What-if 分析](#bicep-の適用前差分確認)を `--layer base` で実行し、NAP に関する差分が解消したことを確認する。
 
 ## ローカル開発
 
@@ -382,7 +501,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" sync-dev
 
 設定の受け入れ前や既存セッションの再開時には、この登録による同期は行われません。依存定義や index 設定を変更した場合も、手動の `sync-dev` を使います。セットアップが失敗した場合は `Setup Failed` の通知を確認し、上の手動手順で原因を修正して再実行してください。branch セッションでは既存 checkout を同期するため、その環境のアプリや task と並行実行しないでください。
 
-この設定はローカルセッション向けです。Windows App の shell とコマンド展開、Linux App、remote 実行は未検証です。Cloud の環境準備はこの設定の対象外です。
+この設定はローカルセッション向けで、Cloud の環境準備は対象外です。
 
 ### コントリビュータ向け Git hooks
 
@@ -438,15 +557,21 @@ uv run --no-sync <command>
 
 ### Docker build のpackage index
 
-`azd up` の実行者は、public PyPI、公開コンテナレジストリ、Helm repository からの取得が利用方針で許可されていることを確認してください。コーディングエージェントは利用者による確認を得てから、対象環境に次を設定します。疎通成功や user-level 設定の不在を許可とはみなしません。
+public PyPI を禁止する環境では、対象環境に `AKS_CHAOS_LAB_DISALLOW_PUBLIC_PYPI=true` を設定します。通常は未設定のまま `azd up` を実行できます。
 
 ```bash
-azd env set AZD_ALLOW_PUBLIC_SOURCES true -e "<env>"
+azd env set AKS_CHAOS_LAB_DISALLOW_PUBLIC_PYPI true -e "<env>"
 ```
 
-`preup` hook は `AZD_ALLOW_PUBLIC_SOURCES` が未設定、不正、または `false` の場合に非ゼロで終了します。`true` でも、user-level uv に public PyPI 以外の index、取得元に関する追加設定、不正な設定、または引き継げない uv 環境変数があれば停止します。設定ファイルの探索は既存の専用 task と共通で、`UV_CONFIG_FILE`、`XDG_CONFIG_HOME`、OS ごとの既定位置に従います。公開取得の許可を取り消す場合は、この値を `false` に変更してください。
+`preup` hook は `AKS_CHAOS_LAB_DISALLOW_PUBLIC_PYPI=true` または不正値の場合に非ゼロで終了します。未設定と `false` は public PyPI を禁止しない設定として扱い、値の前後の空白と大文字小文字は区別しません。このフラグが対象とするのは Python package を取得する public PyPI です。コンテナイメージの registry や Helm repository は対象外です。user-level uv に public PyPI 以外の index、取得元に関する追加設定、不正な設定、または引き継げない uv 環境変数がある場合も停止します。設定ファイルの探索は既存の専用 task と共通で、`UV_CONFIG_FILE`、`XDG_CONFIG_HOME`、OS ごとの既定位置に従います。
 
-hook は標準ライブラリだけを使い、workspace の同期、ネットワーク接続、設定変更は行いません。起動にも `--offline --no-python-downloads` を指定するため、uv と Python 3.14 以降を事前に用意してください。このチェックは宣言された利用方針との矛盾を検出するもので、接続可否の確認や通信制御ではありません。個別の `azd package`、`azd deploy`、Docker build には `preup` は適用されません。
+旧設定 `AZD_ALLOW_PUBLIC_SOURCES` は使えません。旧設定が `false` の場合は、禁止対象を明確にするため、新しい設定を `true` にしてから旧設定を削除します。旧設定が `true` で public PyPI の禁止が不要なら、新しい設定は不要です。いずれの場合も次のコマンドで対象 azd 環境の旧設定を削除し、シェルにも同じ変数を設定している場合は削除してください。旧設定が残っていると `preup` と以下の配備 task は停止します。
+
+```bash
+azd env unset AZD_ALLOW_PUBLIC_SOURCES -e "<env>"
+```
+
+hook は標準ライブラリだけを使い、workspace の同期、ネットワーク接続、設定変更は行いません。起動にも `--offline --no-python-downloads` を指定するため、uv と Python 3.14 以降を事前に用意してください。この設定は通信制御ではありません。`preup` は `azd up` 全体を停止します。これは標準の `azd up` が API build と publisher 依存の準備で public PyPI を使うためです。`deploy-services` と publisher の prepackage も public PyPI の使用を停止します。個別の `azd package api`、`azd deploy api`、Docker build、コンテナイメージ registry、Helm chart の取得は制御しません。
 
 組織承認済み index が必要な環境では、許可設定や uv 設定を変更してチェックを通すのではなく、以下の専用手順を使います。hook は API build や適用方法の切り替えを自動実行しません。公開コンテナレジストリや Helm repository の利用も禁止されている場合は、別途その取得元を準備する必要があります。
 
@@ -499,7 +624,7 @@ azd provision sli -e "<env>"
 
 通常の `azd up`、`azd package api`、`azd deploy api` は public PyPI で API を build し、事前ビルドを引き継ぎません。制限環境では上記手順を使い、`azure.yaml` の一時書換えや public PyPI への fallback は行いません。API 更新時に他サービスを再適用する必要はありません。認証が必要な index は専用 Docker build の対象外です。`uv.lock` は public PyPI の URL を維持します。
 
-Functions publisher は両方の手順で同じ prepackage hook を使います。hook は frozen な public lock から publisher の runtime 依存を export し、選択済み index から hash を検査して Linux x64 / Python 3.14 向け wheel を `.python_packages/lib/site-packages` に配置します。配備では `remoteBuild: false` とし、Functions 側で public PyPI から再取得しません。組織 index はこれらの wheel を提供する必要があり、ソース build や別 index への fallback は行いません。public index を選ぶ場合は `AZD_ALLOW_PUBLIC_SOURCES=true` が必要です。
+Functions publisher は両方の手順で同じ prepackage hook を使います。hook は frozen な public lock から publisher の runtime 依存を export し、選択済み index から hash を検査して Linux x64 / Python 3.14 向け wheel を `.python_packages/lib/site-packages` に配置します。配備では `remoteBuild: false` とし、Functions 側で public PyPI から再取得しません。組織 index はこれらの wheel を提供する必要があり、ソース build や別 index への fallback は行いません。`AKS_CHAOS_LAB_DISALLOW_PUBLIC_PYPI=true` の場合は public index を使えません。
 
 publisher 単独更新も `azd deploy external-sli-publisher -e "<env>"` で同じ hook が動きます。`--from-package` で独自 ZIP を渡すと package hook が省略されるため、その ZIP に Linux 向け依存を含める責任は実行者にあります。通常は指定しません。host の開発用 `.venv` をパッケージへコピーしません。
 

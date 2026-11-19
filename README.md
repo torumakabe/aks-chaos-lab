@@ -24,7 +24,7 @@ graph TD
   Prom[Azure Monitor managed Prometheus]
   SLI[Azure Monitor SLI]
   LA[Log Analytics]
-  SRE[Azure SRE Agent (optional)]
+  SRE["Azure SRE Agent (optional)"]
   CS[Azure Chaos Studio]
   Locust[Locust load tests]
 
@@ -83,14 +83,17 @@ graph TD
 
 詳細な手順は [docs/deployment.md](docs/deployment.md) を参照してください。
 
+組織が public PyPI、公開コンテナレジストリ、Helm repository の利用を許可している環境では、次を実行します。
+
 ```bash
 azd config set alpha.aks.kustomize on
 azd config set alpha.aks.helm on
+azd config set alpha.deployment.stacks on
 azd init
 azd up
 ```
 
-public PyPI を使えない環境では、[承認済み index での初回構築と API 更新](docs/deployment.md#docker-build-のpackage-index)を使います。通常の `azd up` は、専用 task で事前ビルドした API イメージを引き継ぎません。
+public PyPI を使わない環境では `AKS_CHAOS_LAB_DISALLOW_PUBLIC_PYPI=true` を設定し、[承認済み index を使う配備手順](docs/deployment.md#docker-build-のpackage-index)を参照してください。この設定は Python package の取得先だけを対象とし、コンテナイメージや Helm chart の取得先は変更しません。
 
 ローカル開発では、[Python 開発環境の手動セットアップ](docs/deployment.md#python-開発環境の手動セットアップ)を実行してから検証します。Copilot は不要です。Copilot App を使う場合は、受け入れたリポジトリ設定によりセッション作成時に同じ `sync-dev` が実行されます。前提ツール、package index、成功確認、再実行方法は同手順を参照してください。
 

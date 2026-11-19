@@ -15,9 +15,8 @@
 #   logger scope (see src/api/app/telemetry.py); it is NOT a complete substitute
 #   for container stdout/stderr collection.
 #
-# Defaults preserved:
-# - kube-system, gatekeeper-system: official defaults documented by AKS
-#   Container Insights (https://learn.microsoft.com/azure/azure-monitor/containers/container-insights-data-collection-configmap)
+# kube-system remains excluded from both streams and gatekeeper-system from
+# stdout. Gatekeeper stderr is collected for admission and audit records.
 # - azure-arc: explicitly added for this lab — Arc agent logs are not
 #   relevant to chaos-engineering experiments. This is NOT an official default.
 #
@@ -45,4 +44,4 @@ data:
           exclude_namespaces = ["kube-system","gatekeeper-system","azure-arc","chaos-lab"]
        [log_collection_settings.stderr]
           enabled = true
-          exclude_namespaces = ["kube-system","gatekeeper-system","azure-arc"]
+          exclude_namespaces = ["kube-system","azure-arc"]

@@ -51,6 +51,8 @@ def isolate_uv_configuration(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     )
     for name in tasks.UNSAFE_UV_ENVIRONMENT_VARIABLES:
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("AZD_ALLOW_PUBLIC_SOURCES", raising=False)
+    monkeypatch.delenv(tasks.DISALLOW_PUBLIC_PYPI_VARIABLE, raising=False)
 
 
 def configure_root(
@@ -846,14 +848,16 @@ def test_up_preserves_sequential_services_with_one_nap_step() -> None:
     ]
 
 
-@pytest.mark.parametrize("private", [False, True])
+@pytest.mark.parametrize(("private", "policy"), [(False, None), (True, "true")])
 def test_deploy_services_shares_order_and_hooks(
     monkeypatch: pytest.MonkeyPatch,
     private: bool,
+    policy: str | None,
 ) -> None:
     import api_artifact
 
-    monkeypatch.setenv("AZD_ALLOW_PUBLIC_SOURCES", "true")
+    if policy is not None:
+        monkeypatch.setenv(tasks.DISALLOW_PUBLIC_PYPI_VARIABLE, policy)
     calls: list[str] = []
     monkeypatch.setattr(tasks, "deployment_environment_name", lambda _: "test")
     monkeypatch.setattr(
@@ -894,15 +898,26 @@ def test_private_deploy_requires_explicit_image_before_applying(
         tasks.target_deploy_services()
 
 
-def test_public_deploy_requires_approval_before_applying(
+def test_public_pypi_disallowance_stops_deploy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("AZD_ALLOW_PUBLIC_SOURCES", raising=False)
+    monkeypatch.setenv(tasks.DISALLOW_PUBLIC_PYPI_VARIABLE, "true")
     monkeypatch.setattr(tasks, "deployment_environment_name", lambda _: "test")
     monkeypatch.setattr(tasks, "selected_approved_index_config", lambda: None)
     monkeypatch.setattr(tasks, "run", lambda *_args, **_kwargs: pytest.fail("deployed"))
-    with pytest.raises(SystemExit, match="AZD_ALLOW_PUBLIC_SOURCES"):
+    with pytest.raises(SystemExit, match="Public PyPI is disallowed"):
         tasks.target_deploy_services()
+
+
+def test_disallowed_pypi_deploy_with_prebuilt_image_requires_publisher_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(tasks.DISALLOW_PUBLIC_PYPI_VARIABLE, "true")
+    monkeypatch.setattr(tasks, "deployment_environment_name", lambda _: "test")
+    monkeypatch.setattr(tasks, "selected_approved_index_config", lambda: None)
+    monkeypatch.setattr(tasks, "run", lambda *_args, **_kwargs: pytest.fail("deployed"))
+    with pytest.raises(SystemExit, match="publisher dependencies"):
+        tasks.target_deploy_services(image="image")
 
 
 def test_publisher_uses_shared_local_package_hook() -> None:
@@ -918,17 +933,19 @@ def test_publisher_uses_shared_local_package_hook() -> None:
         )
 
 
-@pytest.mark.parametrize("private", [False, True])
+@pytest.mark.parametrize(("private", "policy"), [(False, None), (True, "true")])
 def test_publisher_prepares_hashed_linux_dependencies(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     private: bool,
+    policy: str | None,
 ) -> None:
     configure_root(monkeypatch, tmp_path, "version = 1\n")
     publisher = tmp_path / "publisher"
     publisher.mkdir()
     monkeypatch.setattr(tasks, "PUBLISHER_DIR", publisher)
-    monkeypatch.setenv("AZD_ALLOW_PUBLIC_SOURCES", "true")
+    if policy is not None:
+        monkeypatch.setenv(tasks.DISALLOW_PUBLIC_PYPI_VARIABLE, policy)
     monkeypatch.setattr(
         tasks,
         "selected_approved_index_config",
@@ -962,10 +979,12 @@ def test_publisher_prepares_hashed_linux_dependencies(
     assert (publisher / ".python_packages/lib/site-packages/dependency.py").is_file()
 
 
-def test_publisher_public_requires_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_publisher_public_pypi_can_be_explicitly_disallowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(tasks, "selected_approved_index_config", lambda: None)
-    monkeypatch.delenv("AZD_ALLOW_PUBLIC_SOURCES", raising=False)
-    with pytest.raises(SystemExit, match="AZD_ALLOW_PUBLIC_SOURCES"):
+    monkeypatch.setenv(tasks.DISALLOW_PUBLIC_PYPI_VARIABLE, "true")
+    with pytest.raises(SystemExit, match="Public PyPI is disallowed"):
         tasks.target_prepare_publisher_dependencies()
 
 

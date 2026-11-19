@@ -44,6 +44,9 @@
     "aksSkuName": {
       "value": "${AKS_SKU_NAME:Base}"
     },
+    "aksSafeguardsLevel": {
+      "value": "${AZURE_AKS_SAFEGUARDS_LEVEL:Warn}"
+    },
     "enablePrometheusWorkspace": {
       "value": true
     },

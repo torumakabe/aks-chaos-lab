@@ -9,9 +9,9 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts/check-public-sources.py"
+SCRIPT = ROOT / "scripts/check-public-pypi-policy.py"
 sys.path.insert(0, str(ROOT / "scripts"))
-spec = importlib.util.spec_from_file_location("public_sources_hook", SCRIPT)
+spec = importlib.util.spec_from_file_location("public_pypi_hook", SCRIPT)
 assert spec is not None and spec.loader is not None
 hook = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hook)
@@ -21,7 +21,6 @@ spec.loader.exec_module(hook)
 def environ(tmp_path: Path) -> dict[str, str]:
     return {
         "XDG_CONFIG_HOME": str(tmp_path),
-        hook.POLICY_VARIABLE: "true",
     }
 
 
@@ -31,23 +30,18 @@ def set_config(environ: dict[str, str], tmp_path: Path, content: str) -> None:
     environ["UV_CONFIG_FILE"] = str(path)
 
 
-@pytest.mark.parametrize("policy", ("", "false", "yes", "1", "invalid"))
-def test_unconfirmed_or_denied_policy_stops(
-    environ: dict[str, str], policy: str, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize("policy", ("", " TRUE ", "invalid"))
+def test_disallowed_or_invalid_pypi_policy_stops(
+    environ: dict[str, str], policy: str
 ) -> None:
-    environ[hook.POLICY_VARIABLE] = policy
+    environ[hook.DISALLOW_PUBLIC_PYPI_VARIABLE] = policy
     assert hook.main(environ) == 1
-    error = capsys.readouterr().err
-    assert hook.POLICY_VARIABLE in error
-    assert "docs/deployment.md#docker-build-のpackage-index" in error
-    assert "package-api-approved-index" in error
-    assert f"azd env set {hook.POLICY_VARIABLE} true" in error
-    assert "Functions の配備用依存" in error
 
 
-def test_missing_policy_is_not_approval(environ: dict[str, str]) -> None:
-    del environ[hook.POLICY_VARIABLE]
-    assert hook.main(environ) == 1
+def test_missing_disallow_setting_allows_public_pypi_by_default(
+    environ: dict[str, str],
+) -> None:
+    assert hook.main(environ) == 0
 
 
 @pytest.mark.parametrize(
@@ -62,12 +56,6 @@ def test_explicit_approval_without_source_conflict_passes(
     environ: dict[str, str], tmp_path: Path, config: str
 ) -> None:
     set_config(environ, tmp_path, config)
-    assert hook.main(environ) == 0
-
-
-def test_missing_default_config_is_allowed_only_with_approval(
-    environ: dict[str, str],
-) -> None:
     assert hook.main(environ) == 0
 
 
@@ -136,7 +124,7 @@ def test_user_config_discovery_is_shared(
 
 
 def test_cli_failure_is_nonzero(environ: dict[str, str]) -> None:
-    environ[hook.POLICY_VARIABLE] = "false"
+    environ[hook.DISALLOW_PUBLIC_PYPI_VARIABLE] = "true"
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
         env=environ,
@@ -165,6 +153,6 @@ def test_preup_runs_offline_and_cannot_continue_on_error() -> None:
             "--no-config",
             "--offline",
             "--no-python-downloads",
-            "scripts/check-public-sources.py",
+            "scripts/check-public-pypi-policy.py",
         ]
     assert config["workflows"]["up"]["steps"][0] == {"azd": "provision base"}

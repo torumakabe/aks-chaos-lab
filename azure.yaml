@@ -73,12 +73,12 @@ hooks:
   preup:
     windows:
       shell: pwsh
-      run: uv run --no-project --no-config --offline --no-python-downloads scripts/check-public-sources.py
+      run: uv run --no-project --no-config --offline --no-python-downloads scripts/check-public-pypi-policy.py
       interactive: false
       continueOnError: false
     posix:
       shell: sh
-      run: uv run --no-project --no-config --offline --no-python-downloads scripts/check-public-sources.py
+      run: uv run --no-project --no-config --offline --no-python-downloads scripts/check-public-pypi-policy.py
       interactive: false
       continueOnError: false
   predown:

@@ -1,4 +1,9 @@
 # Default values for chaos-mesh via azd helm integration.
+controllerManager:
+  podChaos:
+    podFailure:
+      pauseImage: registry.k8s.io/pause:3.10
+
 chaosDaemon:
   runtime: containerd
   socketPath: /run/containerd/containerd.sock

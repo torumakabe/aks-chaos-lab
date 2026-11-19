@@ -4,6 +4,9 @@
 
 Accepted
 
+> [!NOTE]
+> **2026-11-19 追記:** 本 ADR 作成時は AKS Automatic で namespace を除外できなかったが、現在は [Deployment Safeguards と Baseline PSS の対象から除外できる](https://learn.microsoft.com/azure/aks/deployment-safeguards#excluding-namespaces)。[ADR-027](027-adopt-aks-deployment-safeguards.md) で Deployment Safeguards を試験的に導入し、AKS Automatic の適用可否を判断する。
+
 Consequences の「Node Auto Provisioning を試すには別の lab が必要」という制約は、[ADR-018](018-adopt-aks-node-auto-provisioning-for-arm64-capacity.md) による AKS Standard 上での NAP 採用で部分変更された。NAP はその後、[ADR-020](020-enable-node-auto-provisioning-by-default.md) で既定有効となった。
 
 AKS Automatic を本リポジトリで非サポートとする判断は引き続き有効とする。NAP の node provisioning mode `Auto` は AKS Automatic の SKU とは異なる。以下の旧本文は履歴として保持し、K8s 自動アップグレードに関する記述は今回の部分変更に含めない。
@@ -28,7 +31,7 @@ AKS Automatic を本リポジトリで非サポートとする判断は引き続
 | exp-aks-http | HTTPChaos | sidecar + iptables |
 | exp-aks-dns | DNSChaos | NET_ADMIN + chaos-daemon /etc/resolv.conf 書換 |
 
-一方、**AKS Automatic** モードは [Deployment Safeguards](https://learn.microsoft.com/azure/aks/deployment-safeguards) が **Enforce 強制** で常時有効化されており、無効化はできない。Microsoft Learn の公式記述:
+一方、**AKS Automatic** モードは [Deployment Safeguards](https://learn.microsoft.com/azure/aks/deployment-safeguards) のクラスター全体のレベルが **Enforce** に設定されており、無効化はできない。namespace の除外は Status の追記を参照する。Microsoft Learn の公式記述:
 
 > *"Baseline Pod Security Standards are now turned on by default in AKS Automatic. The baseline Pod Security Standards in AKS Automatic can't be turned off."*
 > — Microsoft Learn `aks/deployment-safeguards`
@@ -52,11 +55,11 @@ chaosDaemon:
   privileged: true
 ```
 
-**8 個中 5 個** (`SYS_PTRACE`, `NET_ADMIN`, `NET_RAW`, `SYS_ADMIN`, `IPC_LOCK`) が拒否される。さらに:
+適用対象の namespace では、**8 個中 5 個** (`SYS_PTRACE`, `NET_ADMIN`, `NET_RAW`, `SYS_ADMIN`, `IPC_LOCK`) が拒否される。さらに:
 
 - `aks-managed-baseline-privileged-containers` VAP が `privileged: true` を別途拒否する。
 - `aks-managed-baseline-hostpath-volumes` VAP が **Microsoft 認定イメージ以外**の HostPath を全拒否する。chaos-daemon は `/run/containerd/containerd.sock`, `/sys/`, `/var/run/` を mount するため、サードパーティイメージである chaos-mesh では通過できない。
-- `az aks safeguards update --excluded-ns` は AKS Automatic では `RequestNotAllowedBecauseAssociatedClusterIsAutomaticCluster` で API 拒否される (関連 issue: [Azure/AKS#5442](https://github.com/Azure/AKS/issues/5442) — OTel Collector で同質ブロックを確認)。
+- 2026-05 時点の検証では、`az aks safeguards update --excluded-ns` は AKS Automatic で `RequestNotAllowedBecauseAssociatedClusterIsAutomaticCluster` により API に拒否された (関連 issue: [Azure/AKS#5442](https://github.com/Azure/AKS/issues/5442) — OTel Collector で同質ブロックを確認)。
 - `kubectl edit` で VAP を変更しても AKS が数分で自動復旧する。
 
 ### chaos-mesh helm parameter での回避可否
@@ -83,7 +86,7 @@ Error: daemonsets.apps "chaos-daemon" is forbidden:
 
 ### 参考: Microsoft 側のロードマップ
 
-AKS Automatic で chaos-mesh を Trusted Container Add-on として allow-list に追加する公式アナウンスは現時点で**存在しない** (2026-05 時点)。本決定は将来 AKS / chaos-mesh 双方の状況が変わった段階で再検討する余地がある。
+2026-05 時点で、AKS Automatic で chaos-mesh を Trusted Container Add-on として allow-list に追加する公式アナウンスは**存在しない**。本決定は将来 AKS / chaos-mesh 双方の状況が変わった段階で再検討する余地がある。
 
 ## Decision
 

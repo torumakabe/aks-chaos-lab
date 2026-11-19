@@ -12,8 +12,6 @@ Azure Monitor incident integration は、Agent の user-assigned managed identit
 
 **GitHub 連携は任意であり、環境作成や SRE Agent の利用に必須ではない。** GitHub App と鍵を用意しなくても、Azure リソースの診断、README ナレッジの利用、別途有効にした Azure Monitor incident integration を使える。本節は GitHub のコードを診断対象に加える場合だけ実行する。通常の配備ごとに繰り返す必要はない。
 
-旧検証環境では、AKS の専用 Pod と専用 identity で private Vault に接続し、Agent の署名、repository の clone、README の読み取りまで成功した。現在の環境でも、以下の一括実行スクリプトによる秘密鍵登録と一時リソースの撤去は、利用者の実行で成功報告を受けている。現在の環境での Agent identity と private IP による署名の監査確認は未完了である。
-
 ### App の準備
 
 既存 App と有効な秘密鍵がある場合は再利用する。以下の設定と installation を確認し、必要な場合だけ新規作成や鍵の再発行を行う。
@@ -144,12 +142,12 @@ azd exec -e "<env>" -- uv run --no-project --no-config \
 
 Agent が user-assigned managed identity に許可されていない操作を実行しようとすると、その操作は On-Behalf-Of（OBO）の承認待ちになり、thread の調査が止まる。REST で thread のメッセージを取得すると、該当する tool call の `status` は `PendingAuthorization` を示す。承認できるのは SRE Agent Administrator ロールを持つ work または school アカウントのユーザーだけで、個人の Microsoft アカウントは承認できない（[Agent permissions](https://learn.microsoft.com/azure/sre-agent/permissions#on-behalf-of-obo)）。
 
-この構成の Agent が持つ権限は、Resource Group 範囲の Reader、Monitoring Reader、Log Analytics Reader と、incident integration を有効にした場合の subscription 範囲の Monitoring Contributor である。検証では、Function App の publish profile の取得（`Microsoft.Web/sites/publishxml/action`）が承認待ちになった。Function App の app settings の一覧と AKS の kubeconfig の取得もこれらのロールに含まれない操作であり、同じ仕組みで承認待ちになると考えられるが、実環境では確認していない。承認待ちを避けるために権限を追加するかどうかは、対象の操作ごとに判断する。
+この構成の Agent が持つ権限は、Resource Group 範囲の Reader、Monitoring Reader、Log Analytics Reader と、incident integration を有効にした場合の subscription 範囲の Monitoring Contributor である。これらのロールに含まれない操作は OBO 承認待ちになり、SRE Agent Administrator ロールを持つ work または school アカウントのユーザーだけが承認できる。追加の権限は、必要な操作ごとに判断する。
 
 ## 構成変更と削除の注意
 
 Agent、専用 subnet、VNet は同じリージョンで使う。`AZURE_SRE_AGENT_LOCATION` に異なるリージョンを指定すると base の preprovision hook が停止する。専用 subnet は Agent を無効にしても VNet 内に予約しておき、incremental deployment による接続先 subnet の削除を防ぐ。
 
-Agent の廃止は、[Deployment Stacks への取り込み](deployment.md#deployment-stacks-の有効化と既存環境の移行)を有効な構成のまま完了してから行う。Agent と incident integration の opt-in を false にし、base の Stack what-if で専用リソースの削除を確認して `azd provision base` を実行する。共有 VNet と予約済み subnet は残す。Key Vault は soft-delete され、通常更新では purge しない。環境全体を削除する場合は `azd down --force --purge` を使う。Stack 取り込み前から定義に存在しない残存リソースは自動削除の対象にならない。
+Agent の廃止は、[Deployment Stacks への取り込み](deployment.md#deployment-stacks-の有効化と既存環境の移行)を有効な構成のまま完了してから行います。Agent と incident integration の無効化、削除差分の確認、適用は[環境構築手順](deployment.md#azure-sre-agent-を廃止する)を参照してください。環境全体を削除する場合は `azd down --force --purge` を使います。Stack 取り込み前から定義に存在しない残存リソースは自動削除の対象になりません。
 
 検証環境で手動作成した subnet、Private Endpoint、RBAC が残っている場合は、対象環境を選択して [What-if 分析スキル](../.github/skills/bicep-what-if-analysis/SKILL.md)を `--layer base` で実行し、base の再適用前に差分を確認する。特に `snet-sre-agent-test` と既定の `snet-sre-agent` の address prefix 重複、Agent の接続先変更、同じ principal / scope / role の異なる role assignment 名に注意する。既存 Agent の接続先を変えるには切断と再接続が必要なため、通常配備の hook による強制切断や検証用リソースの自動削除は行わない。
