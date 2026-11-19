@@ -69,9 +69,6 @@ AKS は `aadProfile.managed=true` + `enableAzureRbac=true` + `disableLocalAccoun
 # AKS のアドオン VPA
 az feature register --namespace Microsoft.ContainerService --name AKS-AddonAutoscalingPreview
 
-# OTLP 経由の Application Insights / Azure Monitor managed Prometheus 連携 (ADR-006)
-az feature register --namespace Microsoft.ContainerService --name AzureMonitorAppMonitoringPreview
-
 # 反映後に provider を再登録
 az provider register --namespace Microsoft.ContainerService
 az provider register --namespace Microsoft.KubernetesConfiguration

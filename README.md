@@ -73,7 +73,7 @@ graph TD
 - Python 3.14+ + [`uv`](https://github.com/astral-sh/uv)
 - `azd up` 実行 identity に、サブスクリプション スコープの **Owner**、または **Contributor** + **User Access Administrator**
 - Azure Monitor SLI を有効化する場合は、Service Group スコープの追加権限
-- 事前登録が必要なプレビュー機能: `AKS-AddonAutoscalingPreview`, `AzureMonitorAppMonitoringPreview`
+- 事前登録が必要なプレビュー機能: `AKS-AddonAutoscalingPreview`
 
 権限、feature flag 登録、削除時の注意点は [docs/deployment.md](docs/deployment.md) に集約しています。
 

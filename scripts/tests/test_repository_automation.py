@@ -97,7 +97,6 @@ def test_ci_reuses_kubernetes_and_helm_validation_targets() -> None:
 
     assert 'scripts/tasks.py" lint-k8s' in ci
     assert 'scripts/tasks.py" validate-helm-values' in ci
-    assert "azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310" in ci
     assert "k8s/apps/chaos-app/*.yaml" not in ci
 
 

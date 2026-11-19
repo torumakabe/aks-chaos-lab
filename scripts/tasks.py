@@ -70,7 +70,7 @@ WORKFLOWS_DIR = ROOT / ".github" / "workflows"
 ACTIONLINT_IMAGE = "rhysd/actionlint:1.7.12"
 KUBECONFORM_IMAGE = "ghcr.io/yannh/kubeconform:v0.8.0"
 HELM_VERSION = "v4.2.4"
-K8S_VERSION = "1.35.0"
+K8S_VERSION = "1.36.0"
 KUBECONFORM_SKIP_KINDS = load_kubernetes_schema_excluded_kinds(
     ROOT / ".github" / "repo-health.toml"
 )
@@ -110,7 +110,7 @@ CHAOS_MESH_VALUES = Path("infra/helm/chaos-mesh-values.yaml")
 RENOVATE_CONFIG_PATH = Path(".github/renovate.json")
 # .github/renovate.json contains a customManagers regex entry that keeps this
 # pin current; Renovate updates its own validator image through that entry.
-RENOVATE_VALIDATOR_IMAGE = "renovate/renovate:44.206.2"
+RENOVATE_VALIDATOR_IMAGE = "renovate/renovate:44.242"
 RENOVATE_EXTRACT_TIMEOUT_SECONDS = 300
 RENOVATE_VALIDATOR_TIMEOUT_SECONDS = 300
 # renovate-config-validator prints this line before it reports any schema
