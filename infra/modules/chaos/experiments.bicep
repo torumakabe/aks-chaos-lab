@@ -35,7 +35,7 @@ param enableNetworkChaosLoss bool = true
 param enableStressChaos bool = true
 
 @description('Enable IOChaos experiment')
-param enableIOChaos bool = true
+param enableIOChaos bool = false
 
 @description('Enable TimeChaos experiment')
 param enableTimeChaos bool = true

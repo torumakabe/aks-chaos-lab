@@ -6,6 +6,7 @@ Accepted
 
 - Date: 2026-08-08
 - Amended: 2026-09-08（明示 task の限定 lock 修復と API 成果物の受け渡し）
+- Amended: 2026-11-19（Functions の依存取得元を選べるようにし、remote build を使わずローカルで準備する）
 - Amended by [ADR-021](021-run-full-review-directly-in-dedicated-worktree.md): Decision 4 の `review-repo-full` 専用隔離コピーと準備済み環境の process 間引渡しを廃止する。各 task process の同期判断は ADR-024 で廃止する。
 - Amended by [ADR-023](023-python-release-cooldown.md): Decision 8 の uv の単一 minor series の互換範囲を、上限を置かない下限だけの範囲に変更する。GitHub Actions と lock 更新 workflow が setup-uv の `lowest` resolution strategy で下限を選ぶ判断、Docker の uv version に下限を明記し task で `pyproject.toml` との一致を検査する判断、およびほかの Decision は引き続き有効とする。
 - Amended by [ADR-024](024-explicit-python-registry-sync.md): public/private registry の選択と workspace 依存の同期を明示 `sync` / `sync-dev` に統合する。task ごとの同期、process lock、限定 lock 修復を廃止する。Docker の package build と API image の受け渡し判断は維持する。
@@ -22,7 +23,7 @@ Public GitHub repository では public PyPI source の root `uv.lock` を唯一�
 4. task runnerが有効なapproved-index設定を検出した場合、通常のtaskでは、各processの最初のworkspaceコマンドを実行する前に、仮想環境を消去してapproved-indexから同期する。同期開始からtask processの終了までは、対象venvの正規化pathから導出したprocess間lockを保持し、別processによる同じvenvの再構築を防ぐ。同じprocess内の後続コマンドは、直前に構築した環境を`--no-sync`で使用する。永続的なsync stateは保存しない。同期の開始時と完了時でlockのhashが異なる場合はコマンドを実行せず、public sourceへ自動fallbackしない。
     - `review-repo-full` では、同じレビューの後続 QA で準備済み環境を共有するため、レビュー専用の隔離コピー内で準備した環境に限り、process 間の引渡しを認める。準備には上記の取得元条件と hash 検査を適用し、成功した場合だけレビュー処理が後続 QA へ明示的に引き渡す。準備失敗時は後続 QA を起動しない。元 worktree や任意の既存 venv の再利用は認めない。引渡しと排他の有効範囲は[デプロイ文書](../deployment.md#full-レビューの-python-環境)に記載する。
 5. task runnerはscriptの絶対pathと`uv run --no-project`で起動し、taskのstate検査より前に別のprojectを探索または同期しないようにする。
-6. GitHub Actions、Azure Functions remote build、外部利用者はpublic PyPIを継続して使用する。
+6. GitHub Actions、Azure Functions remote build、外部利用者はpublic PyPIを継続して使用する。**2026-11-19 amend**: Functions の remote build は使わず、配備用依存を選択済み index からローカルで準備する。
 7. Docker buildも同じexportとpip syncを使う。管理対象環境のローカルbuildはbuild argumentでapproved-index modeとconfigのSHA-256を明示し、BuildKit secretでuser-level uv configをmountする。Dockerfileはmountしたconfigのhashを照合し、build modeとhashをdependency layerおよびBuildKit cache mountのkeyへ含める。公開CIにはsecretを渡さない。
 8. uvのhostはルート`pyproject.toml`で定義する単一minor seriesの互換範囲を許可する。GitHub Actionsとlock更新workflowはsetup-uvに互換範囲を読み取らせ、`lowest` resolution strategyで下限を選択する。`azd package api`はDockerfileを直接buildするため、Dockerのuv versionだけは下限を明記し、taskで`pyproject.toml`との一致を検査する。
 9. dependency update時のpublic lockはGitHub Actionsのread-only artifact workflowで生成し、botのcommit permissionまたはwrite permissionを使わない。
@@ -30,7 +31,7 @@ Public GitHub repository では public PyPI source の root `uv.lock` を唯一�
 11. **ADR-024 で amend**: public lock の validator は厳格な読み取り専用検査として維持し、限定的な自動修復は廃止する。不正な lock は変更せず停止する。
 12. 専用 API build は固定ローカルタグをやめ、成功した build のローカル image ID に対応する一意な参照を出力する。専用 deploy は `--image` でその参照を明示的に受け取り、未指定、不在、識別不一致、対象外 architecture ではクラウド変更前に停止する。既存の `azd deploy api --from-package` 経路で公開と適用を行い、OTel hook を維持する。
 13. 成果物の照合は専用 build の単一 `linux/arm64` に限定する。ローカル image ID、公開先の manifest/config、Deployment の参照と所属する稼働 Pod の `app` container の対応を確認し、rollout 未完了、Pod 不在、未 Ready、不一致、判別不能を成功扱いにしない。各種 digest を同じ値として直接比較せず、通常の manifest と build の attestation に必要な index だけを扱う。同じ内容の再利用は許容するが、専用 task が異なる内容に同じ参照を発行しないことを契約とする。
-14. 通常の `azd up` は事前 build を引き継がず、public PyPI を使う API build を維持する。管理対象環境の初回構築は既存順序に沿う明示的な逐次操作、API 更新は専用 build と参照を指定する deploy の2操作とし、独自の全体オーケストレーターを追加しない。Python package index の制限と公開コンテナレジストリの制限は分け、この例外経路は公開コンテナレジストリと組織 ACR を利用できる環境を対象とする。Azure Functions remote build は public PyPI の利用を維持する。操作手順と認証前提は [デプロイ文書](../deployment.md) に集約する。
+14. 通常の `azd up` は事前 build を引き継がず、public PyPI を使う API build を維持する。管理対象環境の初回構築は既存順序に沿う明示的な逐次操作、API 更新は専用 build と参照を指定する deploy の2操作とし、独自の全体オーケストレーターを追加しない。Python package index の制限と公開コンテナレジストリの制限は分け、この例外経路は公開コンテナレジストリと組織 ACR を利用できる環境を対象とする。Azure Functions remote build は public PyPI の利用を維持する。**2026-11-19 amend**: Functions は remote build を使わず、選択済み index から準備した依存を配備する。操作手順と認証前提は [デプロイ文書](../deployment.md) に集約する。
 
 ## Consequences
 - 管理対象環境は public lock と bit-identical な依存関係を再現できる。

@@ -5,6 +5,7 @@
 Accepted
 
 - Date: 2026-10-12
+- Amended: 2026-11-19（public PyPI の禁止設定が対象とする取得先を明確化）
 - Amends: [ADR-017](017-approved-index-conversion-for-managed-environments.md) の workspace 同期と lock 修復に関する判断
 
 ## Context
@@ -24,6 +25,7 @@ uv lockfile は registry と artifact URL を記録するため、同じ lock �
 7. すべての workspace task は `uv run --no-sync` で既存 `.venv` を使う。task、レビュー、post-edit hook は依存同期や lock 修復を行わない。同期の後に task を実行し、同じ worktree 内で同期と task を並行実行しない。
 8. public lock validator は読み取り専用とし、限定 lock 修復を廃止する。不正な lock は変更せず停止する。lock の更新には public PyPI を使う既存 workflow を利用する。
 9. [ADR-017](017-approved-index-conversion-for-managed-environments.md) の Docker build における private index 対応、BuildKit secret / cache 分離、API image の明示的な受け渡しは変更しない。API container の runtime 依存同期も対象外とする。
+10. public PyPI を使わない環境では `AKS_CHAOS_LAB_DISALLOW_PUBLIC_PYPI=true` を指定する。この設定は Python package の取得先である public PyPI のみを対象とし、コンテナ image registry や Helm repository は制御しない。通常の `azd up` は API と Functions publisher の依存に public PyPI を使うため、設定時は preup hook が `azd up` 全体を停止する。個別の API build と publisher 配備は承認済み index を使う手順で行う。
 
 ## Consequences
 

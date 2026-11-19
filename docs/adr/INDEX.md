@@ -30,3 +30,4 @@ Status 列は基本 Status の要約であり、既存の個別注記は補助�
 | 024 | [Python package registry の選択と同期を明示操作にする](024-explicit-python-registry-sync.md) | Accepted | 2026-10-12 |
 | 025 | [Azure SRE Agent の診断とレビュー型アラート対応を opt-in で導入する](025-azure-sre-agent-diagnostics-and-alert-response.md) | Accepted | 2026-10-19 |
 | 026 | [Deployment Stacks でインフラの削除を管理する](026-manage-infrastructure-with-deployment-stacks.md) | Accepted | 2026-10-24 |
+| 027 | [AKS Standard に Deployment Safeguards を段階的に導入する](027-adopt-aks-deployment-safeguards.md) | Accepted | 2026-11-19 |

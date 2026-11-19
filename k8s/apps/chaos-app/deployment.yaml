@@ -38,6 +38,7 @@ spec:
             matchLabels:
               app: chaos-app
       serviceAccountName: chaos-app-sa
+      automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
       securityContext:
         runAsNonRoot: true

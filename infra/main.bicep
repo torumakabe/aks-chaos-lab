@@ -38,13 +38,20 @@ param aksApiSubnetPrefix string = '10.10.3.0/28'
 param functionSubnetPrefix string = '10.10.4.0/26'
 
 @description('Kubernetes version for AKS (x.y or x.y.z).')
-param kubernetesVersion string = '1.35'
+param kubernetesVersion string = '1.36'
 
 @description('AKS SKU mode. Only "Base" is supported in this repository (see ADR-010: AKS Automatic is incompatible with chaos-mesh due to AKS Automatic Deployment Safeguards).')
 @allowed([
   'Base'
 ])
 param aksSkuName string = 'Base'
+
+@description('AKS Deployment Safeguards level. Start with Warn and use Enforce after validation.')
+@allowed([
+  'Warn'
+  'Enforce'
+])
+param aksSafeguardsLevel string = 'Warn'
 
 @description('Create Azure Monitor Workspace for Managed Prometheus (recommended)')
 param enablePrometheusWorkspace bool = true
@@ -474,6 +481,7 @@ module aksCluster './modules/aks.bicep' = {
     aksName: aksClusterName
     nodeVmSize: nodeVmSize
     enableNodeAutoProvisioning: enableNodeAutoProvisioning
+    safeguardsLevel: aksSafeguardsLevel
     localDnsMode: localDnsMode
     aksSubnetId: network.outputs.aksSubnetId
     aksApiSubnetId: network.outputs.aksApiSubnetId

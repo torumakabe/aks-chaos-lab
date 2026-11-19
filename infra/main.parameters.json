@@ -39,10 +39,13 @@
       "value": "${AZURE_SRE_AGENT_SUBNET_PREFIX:10.10.5.0/27}"
     },
     "kubernetesVersion": {
-      "value": "1.35"
+      "value": "1.36"
     },
     "aksSkuName": {
       "value": "${AKS_SKU_NAME:Base}"
+    },
+    "aksSafeguardsLevel": {
+      "value": "${AZURE_AKS_SAFEGUARDS_LEVEL:Warn}"
     },
     "enablePrometheusWorkspace": {
       "value": true

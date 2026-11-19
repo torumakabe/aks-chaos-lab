@@ -18,25 +18,29 @@ from approved_index_config import (
     ApprovedIndexConfigError,
     user_uv_config_path,
 )
+from public_pypi_policy import (
+    DISALLOW_PUBLIC_PYPI_VARIABLE,
+    PublicPypiPolicyError,
+    public_pypi_disallowed,
+)
 
-POLICY_VARIABLE = "AZD_ALLOW_PUBLIC_SOURCES"
 GUIDANCE = f"""
-通常の azd up は public PyPI（API build / Functions の配備用依存）、公開コンテナレジストリ、Helm repository を使用します。
-公開取得が許可済みの場合:
-  azd env set {POLICY_VARIABLE} true -e "<env>"
+この設定が対象とするのは、API build と Functions publisher が使う public PyPI です。コンテナイメージの registry と Helm repository は対象外です。
+標準の azd up が使う public PyPI を禁止する場合:
+  azd env set {DISALLOW_PUBLIC_PYPI_VARIABLE} true -e "<env>"
 承認済み Python index を使う場合:
   uv run --no-project scripts/tasks.py package-api-approved-index
 適用手順と対応範囲: docs/deployment.md#docker-build-のpackage-index
 """
 
 
-def check_uv_sources(environ: Mapping[str, str]) -> None:
+def check_pypi_configuration(environ: Mapping[str, str]) -> None:
     overrides = sorted(
         name for name in UNSAFE_UV_ENVIRONMENT_VARIABLES if environ.get(name)
     )
     if overrides:
         raise ApprovedIndexConfigError(
-            "通常の Docker build に反映されない uv 環境変数: " + ", ".join(overrides)
+            "API の Docker build に反映されない uv 環境変数: " + ", ".join(overrides)
         )
 
     try:
@@ -87,15 +91,15 @@ def main(environ: Mapping[str, str] | None = None) -> int:
     if environ is None:
         environ = os.environ
     reasons: list[str] = []
-    policy = environ.get(POLICY_VARIABLE, "").strip().lower()
-    if policy != "true":
-        reasons.append(
-            f"{POLICY_VARIABLE}=false（公開取得禁止）。"
-            if policy == "false"
-            else f"{POLICY_VARIABLE} が未設定または不正です（true / false を指定）。"
-        )
     try:
-        check_uv_sources(environ)
+        if public_pypi_disallowed(environ):
+            reasons.append(
+                f"{DISALLOW_PUBLIC_PYPI_VARIABLE}=true（public PyPI を禁止しています）。"
+            )
+    except PublicPypiPolicyError as error:
+        reasons.append(str(error))
+    try:
+        check_pypi_configuration(environ)
     except ApprovedIndexConfigError as error:
         reasons.append(str(error))
     if reasons:
@@ -104,7 +108,7 @@ def main(environ: Mapping[str, str] | None = None) -> int:
             print(f"- {reason}", file=sys.stderr)
         print(GUIDANCE, file=sys.stderr)
         return 1
-    print("ok: 公開取得チェックを通過しました。")
+    print("ok: public PyPI 設定チェックを通過しました。")
     return 0
 
 
