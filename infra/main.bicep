@@ -667,6 +667,11 @@ module chaosRoleAssignments './modules/chaos/role-assignments.bicep' = if (enabl
 @description('AKS cluster name')
 output AZURE_AKS_CLUSTER_NAME string = aksCluster.outputs.aksNameOut
 
+output AZURE_AKS_NODE_VM_SIZE string = nodeVmSize
+output AZURE_AKS_ENABLE_NODE_AUTO_PROVISIONING bool = enableNodeAutoProvisioning
+output AKS_SKU_NAME string = aksSkuName
+output AZURE_AKS_SAFEGUARDS_LEVEL string = aksSafeguardsLevel
+
 @description('Local DNS mode for System and Node Auto Provisioning nodes')
 output AZURE_AKS_LOCAL_DNS_MODE string = localDnsMode
 
@@ -688,6 +693,13 @@ output AZURE_LOG_ANALYTICS_WORKSPACE_NAME string = azmonitorCore.outputs.logAnal
 
 @description('Azure SRE Agent resource ID')
 output AZURE_SRE_AGENT_ID string = enableSreAgent ? sreAgent!.outputs.agentId : ''
+
+output AZURE_SRE_AGENT_ENABLED bool = enableSreAgent
+output AZURE_SRE_AGENT_AZURE_MONITOR_INCIDENTS_ENABLED bool = enableSreAgentAzureMonitorIncidentIntegration
+output AZURE_SRE_AGENT_SUBNET_PREFIX string = sreAgentSubnetPrefix
+output AZURE_SRE_AGENT_MONTHLY_AAU_LIMIT int = sreAgentMonthlyAgentUnitLimit
+output AZURE_SRE_AGENT_MODEL_PROVIDER string = sreAgentModelProvider
+output AZURE_SRE_AGENT_MODEL_NAME string = sreAgentModelName
 
 @description('Azure SRE Agent endpoint')
 output AZURE_SRE_AGENT_ENDPOINT string = enableSreAgent ? sreAgent!.outputs.agentEndpoint : ''
@@ -739,6 +751,9 @@ output AZURE_INGRESS_PUBLIC_IP_NAME string = network.outputs.publicIPName
 
 @description('Azure tenant ID')
 output AZURE_TENANT_ID string = tenant().tenantId
+
+output AZURE_MONITOR_SLI_PARENT_SERVICE_GROUP_ID string = azureMonitorSliParentServiceGroupId
+output AZURE_MONITOR_SLI_SERVICE_GROUP_RESOURCE_ID string = azureMonitorSliServiceGroupResourceId
 
 @description('Azure Service Group resource ID used by Azure Monitor SLI')
 output AZURE_MONITOR_SLI_SERVICE_GROUP_ID string = enableAzureMonitorSliEffective

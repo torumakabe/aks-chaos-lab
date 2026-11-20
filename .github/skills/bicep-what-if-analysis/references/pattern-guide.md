@@ -7,8 +7,7 @@
 ```
 .github/skills/bicep-what-if-analysis/scripts/patterns/
 ├── noise_patterns.json    # ノイズ判定パターン
-├── display_config.json    # 表示名とフィルタ設定
-└── pattern_stats.json     # 使用統計（自動生成）
+└── display_config.json    # 表示名とフィルタ設定
 ```
 
 ## パターンカテゴリ
@@ -125,11 +124,11 @@ Data Collection Endpoint の [`properties`](https://learn.microsoft.com/azure/te
 
 ### 候補の表示と確定評価を分ける
 
-`auto_managed_patterns` の一致はパスだけを確認する。説明文にある未指定時の補完、値の等価性、サービスの動作条件を確認した結果ではないため、出力は要確認とし、説明文を実際の差分の原因として表示しない。Bicep 照合の `notDefined` も、変数やモジュールを通じた指定がないことの証明には使わない。
+`auto_managed_patterns` の一致はパスだけを確認する。説明文にある未指定時の補完、値の等価性、サービスの動作条件を確認した結果ではないため、出力は要確認とし、説明文を実際の差分の原因として表示しない。Bicep のソース検索結果も値の出所を確定しない。`singleMatch` と `multipleMatches` は検索候補、`noMatch` は検索範囲に候補がない状態、`notSearched` は該当ブロックなどを検索できなかった状態として扱う。いずれも変数やモジュールを介した指定の有無を証明しない。
 
 `known_defaults` は正規化後のパスと値を照合し、変更前と変更後のどちらが既定値に一致したかを表示する。別の階層や似た名前への末尾一致は使わず、`null` や値の欠落から既定値への復帰を推定しない。既定値への一致だけでは差分をノイズ確定にしない。
 
-ARM 参照式は、その存在だけでは変更前後の値が等しいと判断できない。[what-if の制限](https://learn.microsoft.com/azure/azure-resource-manager/bicep/deploy-what-if#view-results)を踏まえ、解決結果を比較できない差分は `pending` とし、要確認の注記を付ける。`NoEffect` と readOnly に該当する差分は、それぞれの根拠による `noise_confirmed` を維持する。
+ARM 参照式は、その存在だけでは変更前後の値が等しいと判断できない。[what-if の制限](https://learn.microsoft.com/azure/azure-resource-manager/bicep/deploy-what-if#view-results)を踏まえ、解決結果を比較できない差分は `pending` とし、要確認の注記を付ける。Azure が返す `NoEffect` は Azure の判定として記録する。readOnly パターンの一致はローカル候補として別に記録し、Azure の判定や `noise_confirmed` と混同しない。
 
 ## パターン追加ワークフロー
 
@@ -155,7 +154,7 @@ ARM 参照式は、その存在だけでは変更前後の値が等しいと判�
 uv run --no-project python -c 'import json; from pathlib import Path; json.loads(Path(".github/skills/bicep-what-if-analysis/scripts/patterns/noise_patterns.json").read_text(encoding="utf-8"))'
 ```
 
-変更した分類に対応する既存テストがあれば、対象を絞って検証する。what-if スクリプトの再実行は Azure 照会と統計更新を伴うため、パターン編集だけの検証には使わない。実行も依頼された場合のコマンドと履歴保持契約は [SKILL.md](../SKILL.md#実行コマンド) を参照する。
+変更した分類に対応する既存テストがあれば、対象を絞って検証する。what-if スクリプトの再実行は Azure 照会を伴うため、パターン編集だけの検証には使わない。実行も依頼された場合は [SKILL.md](../SKILL.md#what-if-の実行) を参照する。
 
 ## 分類基準
 

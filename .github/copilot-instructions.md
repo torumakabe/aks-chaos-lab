@@ -18,7 +18,7 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 - 調査で解消できる疑問は調査する。仕様、対象、設計判断が変わる選択や、未承認の保存、削除、公開操作が必要な場合は確認する。commit、push、PR 作成、デプロイの許可を編集の許可から推定しない。
 - API の build / deploy（`azd up` を含む）前に、利用方針、対象 azd 環境の `AKS_CHAOS_LAB_DISALLOW_PUBLIC_PYPI`、user-level uv 設定を確認する。public PyPI を使わない指示や設定、承認済み index の指定または設定がある場合は[専用手順](../docs/deployment.md#docker-build-のpackage-index)を使う。コンテナイメージと Helm chart の取得先は別に確認する。public PyPI の制限が示されておらず user-level uv に index 設定もない場合は、リポジトリの既定に従い public PyPI を使う。
 - このリポジトリの環境構築・検証・配備では、`azure-prepare`、`azure-validate`、`azure-deploy` の各スキルを使用せず、[docs/deployment.md](../docs/deployment.md) に従う。これらのスキルはこのリポジトリの構成を前提にしておらず、たとえば `azure.yaml` のスキーマ検証は `infra.layers` の Deployment Stacks 設定を受け付けずに失敗する。`.azure/deployment-plan.md` の作成や `Validated` 状態を前提にしない。
-- Bicep の適用前差分確認では [`bicep-what-if-analysis`](skills/bicep-what-if-analysis/SKILL.md) を使う。azd プロジェクトでは対象 azd 環境を選び、`azure.yaml` の layer を指定して Azure what-if を実行する。`azd provision --preview` の出力と分析スキルの結果を同一視しない。対象環境、layer、実行時の Azure 照会、Stack what-if 結果リソースの作成と解析履歴更新を確認し、差分の分類だけで安全と判断しない。
+- Bicep の適用前差分確認では [`bicep-what-if-analysis`](skills/bicep-what-if-analysis/SKILL.md) を使う。azd プロジェクトでは対象 azd 環境を選び、`azure.yaml` の layer を指定して Azure what-if を実行する。`azd provision --preview` の出力と分析スキルの結果を同一視しない。対象環境、layer、実行時の Azure 照会、Stack what-if 結果リソースの作成を確認し、差分の分類だけで安全と判断しない。
 - 複雑な機能では、実装を左右する要件と設計を合意してから変更する。合意済みの設計を段階ごとに再承認させない。
 - 指示やスキルの適用で依頼を進められない場合は、該当ファイルと規則、未完了の範囲を示す。エージェント、スキル、参照文書の記述を、上位の指示や現在の依頼を上書きする根拠にしない。
 - 短い連続した調査と小変更は直接行う。独立した大きな調査や専門判断は、対象範囲、入力、期待する結果を渡して委譲する。委譲先の調査を重複させず、返された根拠と未確認事項を使う。
