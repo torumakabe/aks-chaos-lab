@@ -5,7 +5,7 @@ Bicep What-If 変更抽出スクリプト
 az deployment sub what-if を実行し、変更点を構造化JSONで出力する。
 azd プロジェクトと単体 Bicep デプロイの両方に対応。
 
-各変更には bicepDefinition フィールドが付与され、
+各変更には Bicep のソース検索候補が付与され、
 Bicep ファイルでの定義状況を確認できる。
 
 パターン定義は外部 JSON ファイル（patterns/noise_patterns.json）で管理。
@@ -52,7 +52,6 @@ class NoisePatternLoader:
     共通パターンとリソースタイプ別パターンの2層構造。
     AI エージェントがパターンを更新する際は、JSON ファイルを編集する。
 
-    パターンの使用状況は patterns/pattern_stats.json に記録される。
     """
 
     def __init__(self, patterns_file: str | None = None) -> None:
@@ -69,12 +68,6 @@ class NoisePatternLoader:
 
         self._patterns_file = patterns_file
         self._data: dict[str, Any] | None = None
-
-        # パターン統計ファイル
-        patterns_dir = Path(patterns_file).parent
-        self._stats_file = str(patterns_dir / "pattern_stats.json")
-        self._stats: dict[str, Any] | None = None
-        self._matched_patterns: set[str] = set()  # 今回マッチしたパターン
 
     def _load(self) -> dict[str, Any]:
         """パターンファイルを読み込む。"""
@@ -274,131 +267,6 @@ class NoisePatternLoader:
                 results.append((item["pattern"], item["description"]))
         return results
 
-    def record_pattern_match(
-        self, pattern: str, category: str, resource_type: str = ""
-    ) -> None:
-        """パターンがマッチしたことを記録する。"""
-        if resource_type:
-            key = f"{resource_type}:{category}:{pattern}"
-        else:
-            key = f"{category}:{pattern}"
-        self._matched_patterns.add(key)
-
-    def _load_stats(self) -> dict[str, Any]:
-        """統計ファイルを読み込む。"""
-        if self._stats is not None:
-            return self._stats
-
-        try:
-            with open(self._stats_file, encoding="utf-8") as f:
-                self._stats = json.load(f)
-        except FileNotFoundError, json.JSONDecodeError:
-            self._stats = {"patterns": {}, "lastRun": None}
-
-        return self._stats
-
-    def _get_valid_stat_keys(self) -> set[str]:
-        """現在のパターン定義から有効な統計キーの集合を返す。"""
-        valid_keys: set[str] = set()
-        data = self._load()
-
-        pattern_categories = [
-            "custom_patterns",
-            "auto_managed_patterns",
-            "create_false_positive_patterns",
-        ]
-
-        # 共通パターン（リソースタイプなし）
-        common = data.get("common", {})
-        for category in pattern_categories:
-            for item in common.get(category, []):
-                if isinstance(item, dict) and "pattern" in item:
-                    valid_keys.add(f"{category}:{item['pattern']}")
-
-        # リソースタイプ別パターン
-        for resource_type, resource_patterns in data.get("resource_types", {}).items():
-            for category in pattern_categories:
-                for item in resource_patterns.get(category, []):
-                    if isinstance(item, dict) and "pattern" in item:
-                        valid_keys.add(f"{resource_type}:{category}:{item['pattern']}")
-
-        return valid_keys
-
-    def save_stats(self) -> None:
-        """統計ファイルを保存する。"""
-        stats = self._load_stats()
-        now = datetime.now(UTC).isoformat()
-
-        stats["lastRun"] = now
-
-        # マッチしたパターンの lastMatched を更新
-        for key in self._matched_patterns:
-            if key not in stats["patterns"]:
-                stats["patterns"][key] = {"matchCount": 0, "firstMatched": now}
-            stats["patterns"][key]["lastMatched"] = now
-            stats["patterns"][key]["matchCount"] = (
-                stats["patterns"][key].get("matchCount", 0) + 1
-            )
-
-        # パターン定義に存在しない古いキーを削除
-        valid_keys = self._get_valid_stat_keys()
-        stale_keys = [k for k in stats["patterns"] if k not in valid_keys]
-        for key in stale_keys:
-            logger.info("Removing stale pattern stat entry: %s", key)
-            del stats["patterns"][key]
-
-        try:
-            with open(self._stats_file, "w", encoding="utf-8") as f:
-                json.dump(stats, f, indent=2, ensure_ascii=False)
-            logger.debug("Pattern stats saved to %s", self._stats_file)
-        except OSError as e:
-            logger.warning("Failed to save pattern stats: %s", e)
-
-    def get_unused_patterns(self, days: int = 30) -> list[dict[str, Any]]:
-        """
-        指定日数以上使用されていないパターンを返す。
-
-        Parameters:
-            days: 未使用とみなす日数
-
-        Returns:
-            未使用パターンのリスト
-        """
-        stats = self._load_stats()
-        now = datetime.now(UTC)
-        threshold = now - __import__("datetime").timedelta(days=days)
-        unused = []
-
-        for key, info in stats.get("patterns", {}).items():
-            last_matched_str = info.get("lastMatched")
-            if last_matched_str:
-                last_matched = datetime.fromisoformat(
-                    last_matched_str.replace("Z", "+00:00")
-                )
-                if last_matched < threshold:
-                    # キー形式: "resource_type:category:pattern" または "category:pattern"
-                    parts = key.split(":")
-                    if len(parts) >= 3:
-                        resource_type = parts[0]
-                        category = parts[1]
-                        pattern = ":".join(parts[2:])
-                    elif len(parts) == 2:
-                        resource_type = None
-                        category, pattern = parts
-                    else:
-                        continue  # 不正なキーはスキップ
-                    entry = {
-                        "category": category,
-                        "pattern": pattern,
-                        "lastMatched": last_matched_str,
-                        "daysSinceLastMatch": (now - last_matched).days,
-                    }
-                    if resource_type:
-                        entry["resourceType"] = resource_type
-                    unused.append(entry)
-
-        return sorted(unused, key=lambda x: x["daysSinceLastMatch"], reverse=True)
-
 
 # グローバルパターンローダーインスタンス
 _pattern_loader: NoisePatternLoader | None = None
@@ -458,7 +326,7 @@ def get_reference_info(
         path: プロパティパス
         before: 変更前の値
         after: 変更後の値
-        bicep_definition: Bicep 定義情報
+        bicep_definition: Bicep ソース検索結果
         resource_type: リソースタイプ（オプション、より精密なマッチングに使用）
 
     Returns:
@@ -474,12 +342,7 @@ def get_reference_info(
     # 1. カスタムパターンチェック（最優先）
     for pattern, description in loader.get_custom_patterns(resource_type):
         if re.search(pattern, check_path):
-            loader.record_pattern_match(pattern, "custom_patterns", resource_type)
             return f"⚠️ {description}"
-
-    # 2. readOnly チェック（リソースタイプ別パターンを使用）
-    if is_readonly_property(path, resource_type):
-        return "🔒 readOnly（Azure 自動設定）"
 
     if contains_arm_reference(before) or contains_arm_reference(after):
         return "⚠️ ARM 参照式の解決結果を比較できないため要確認"
@@ -487,7 +350,6 @@ def get_reference_info(
     # 3. パス一致だけでは、自動設定の条件や値の等価性を確認できない。
     for pattern, _description in loader.get_auto_managed_patterns(resource_type):
         if re.search(pattern, check_path):
-            loader.record_pattern_match(pattern, "auto_managed_patterns", resource_type)
             return "⚠️ 自動設定の可能性がありますが、適用条件と変更内容は要確認"
 
     # 4. 既知のデフォルト値チェック
@@ -500,14 +362,22 @@ def get_reference_info(
     if default_matches:
         return f"📘 {' / '.join(default_matches)}。差分は要確認"
 
-    # 5. Bicep 定義情報（defined の場合のみ表示）
-    bicep_status = bicep_definition.get("status", "unknown")
-    if bicep_status == "defined":
+    # 5. Bicep ソース検索の候補（デプロイ時の値の追跡までは確認しない）
+    bicep_status = bicep_definition.get("status", "notSearched")
+    if bicep_status == "singleMatch":
         file_info = bicep_definition.get("file", "")
         line_info = bicep_definition.get("line", "")
         if file_info and line_info:
-            return f"📍 Bicep 定義あり ({file_info}:{line_info})"
-        return "📍 Bicep 定義あり"
+            return f"📍 Bicep 検索候補 ({file_info}:{line_info})。値の流れは未確認"
+        return "📍 Bicep 検索候補。値の流れは未確認"
+    if bicep_status == "multipleMatches":
+        count = bicep_definition.get("matchCount")
+        count_info = f" ({count}件)" if count else ""
+        return f"📍 Bicep 検索候補が複数あります{count_info}。対象の定義は未確認"
+    if bicep_status == "noMatch":
+        return "❓ Bicep の文字列検索では候補なし。未管理とは断定できません"
+    if bicep_status == "notSearched":
+        return "❓ Bicep ソースを検索できませんでした。管理状態は未確認です"
 
     # 未分類の変更（パターンにマッチしない）
     return "❓ 未分類。確認推奨"
@@ -869,19 +739,19 @@ def find_resource_block_range(
     return ranges
 
 
-def find_bicep_definition(
+def search_bicep_source(
     property_path: str, bicep_dir: str = "./infra", resource_type: str = ""
 ) -> dict[str, Any]:
     """
-    プロパティが Bicep ファイルで定義されているか検索する。
+    プロパティ名に一致する Bicep ソースの検索候補を返す。
 
     親コンテキスト（例: agentPoolProfiles）を考慮し、
     階層構造が一致するマッチを優先する。
-    resource_type が指定された場合、該当リソースの定義ブロック内のみを検索する。
+    resource_type が指定された場合、該当リソースブロック内のみを検索する。
 
     Returns:
         {
-            "status": "defined" | "notDefined" | "unknown",
+            "status": "singleMatch" | "multipleMatches" | "noMatch" | "notSearched",
             "file": "infra/modules/aks.bicep" | null,
             "line": 123 | null,
             "context": "tags: { ... }" | null
@@ -890,7 +760,7 @@ def find_bicep_definition(
     bicep_files = load_bicep_files(bicep_dir)
     if not bicep_files:
         return {
-            "status": "unknown",
+            "status": "notSearched",
             "file": None,
             "line": None,
             "context": None,
@@ -900,7 +770,7 @@ def find_bicep_definition(
     search_term, parent_context, array_indices = extract_search_terms(property_path)
     if not search_term:
         return {
-            "status": "unknown",
+            "status": "notSearched",
             "file": None,
             "line": None,
             "context": None,
@@ -909,6 +779,7 @@ def find_bicep_definition(
 
     matches: list[dict[str, Any]] = []
     context_matches: list[dict[str, Any]] = []
+    resource_block_found = not resource_type
 
     for file_path, content in bicep_files.items():
         lines = content.split("\n")
@@ -920,6 +791,7 @@ def find_bicep_definition(
             # このファイルに該当リソースがない場合はスキップ
             if not resource_ranges:
                 continue
+            resource_block_found = True
 
         for line_num, line in enumerate(lines, start=1):
             # リソースタイプが指定されている場合、ブロック内かチェック
@@ -987,7 +859,7 @@ def find_bicep_definition(
     if context_matches:
         if len(context_matches) == 1:
             return {
-                "status": "defined",
+                "status": "singleMatch",
                 "file": context_matches[0]["file"],
                 "line": context_matches[0]["line"],
                 "context": context_matches[0]["context"],
@@ -996,7 +868,7 @@ def find_bicep_definition(
             }
         # 複数の親コンテキストマッチがある場合
         return {
-            "status": "unknown",
+            "status": "multipleMatches",
             "file": context_matches[0]["file"],
             "line": context_matches[0]["line"],
             "context": context_matches[0]["context"],
@@ -1008,8 +880,17 @@ def find_bicep_definition(
 
     # 親コンテキストマッチがない場合
     if not matches:
+        if not resource_block_found:
+            return {
+                "status": "notSearched",
+                "file": None,
+                "line": None,
+                "context": None,
+                "searchTerm": search_term,
+                "reason": f"No Bicep block found for {resource_type}",
+            }
         return {
-            "status": "notDefined",
+            "status": "noMatch",
             "file": None,
             "line": None,
             "context": None,
@@ -1017,11 +898,12 @@ def find_bicep_definition(
             "parentContext": parent_context,
         }
 
-    # 親コンテキストがあるのに親コンテキストマッチがない場合は notDefined
+    # 親コンテキストがあるのに一致しない場合も検索候補なしとして扱う。
+    # 変数やモジュールを介した値の指定有無は、この文字列検索では判定できない。
     # （異なる階層で同名プロパティが定義されている場合）
     if parent_context:
         return {
-            "status": "notDefined",
+            "status": "noMatch",
             "file": None,
             "line": None,
             "context": None,
@@ -1032,16 +914,16 @@ def find_bicep_definition(
 
     if len(matches) == 1:
         return {
-            "status": "defined",
+            "status": "singleMatch",
             "file": matches[0]["file"],
             "line": matches[0]["line"],
             "context": matches[0]["context"],
             "searchTerm": search_term,
         }
 
-    # 複数マッチの場合は最初のものを返し、unknown とする
+    # 複数マッチの場合は最初の候補と件数を返す。
     return {
-        "status": "unknown",
+        "status": "multipleMatches",
         "file": matches[0]["file"],
         "line": matches[0]["line"],
         "context": matches[0]["context"],
@@ -1398,6 +1280,19 @@ def run_what_if(
 
     if result.returncode != 0:
         if stack_name:
+            if result.stdout.strip():
+                try:
+                    payload = json.loads(result.stdout)
+                except json.JSONDecodeError:
+                    payload = None
+                if isinstance(payload, dict) and isinstance(
+                    payload.get("properties"), dict
+                ):
+                    logger.error("Stack what-if command failed: %s", result.stderr)
+                    normalized = normalize_stack_what_if(payload)
+                    normalized["stack"]["cliExitCode"] = result.returncode
+                    normalized["stack"]["cliError"] = result.stderr
+                    return normalized
             raise RuntimeError(f"Stack what-if failed: {result.stderr}")
         raise RuntimeError(f"what-if failed: {result.stderr}")
     if stack_name:
@@ -1407,11 +1302,24 @@ def run_what_if(
 
 def normalize_stack_what_if(payload: dict[str, Any]) -> dict[str, Any]:
     properties = payload.get("properties", {})
-    if properties.get("provisioningState", "").lower() != "succeeded" or properties.get(
-        "error"
-    ):
-        raise RuntimeError(f"Stack what-if did not succeed: {properties.get('error')}")
-    changes = properties.get("changes", {})
+    state = properties.get("provisioningState")
+    error = properties.get("error")
+    diagnostics = properties.get("diagnostics") or []
+    for diagnostic in diagnostics:
+        log = (
+            logger.error
+            if diagnostic.get("level", "").lower() == "error"
+            else logger.warning
+        )
+        log("Stack what-if diagnostic: %s", json.dumps(diagnostic, ensure_ascii=False))
+    if not isinstance(state, str) or state.lower() != "succeeded" or error:
+        logger.error(
+            "Stack what-if did not succeed: state=%s error=%s",
+            state,
+            json.dumps(error, ensure_ascii=False),
+        )
+
+    changes = properties.get("changes") or {}
     resources = changes.get("resourceChanges")
     if not isinstance(resources, list):
         raise RuntimeError("Stack what-if returned no resourceChanges array")
@@ -1466,17 +1374,12 @@ def normalize_stack_what_if(payload: dict[str, Any]) -> dict[str, Any]:
                 },
             }
         )
-    diagnostics = properties.get("diagnostics") or []
-    for diagnostic in diagnostics:
-        logger.warning(
-            "Stack what-if diagnostic: %s", json.dumps(diagnostic, ensure_ascii=False)
-        )
-        if diagnostic.get("level", "").lower() == "error":
-            raise RuntimeError("Stack what-if reported an error diagnostic")
     return {
         "changes": normalized,
         "stack": {
             "resultId": payload.get("id"),
+            "provisioningState": state,
+            "error": error,
             "stackId": properties.get("deploymentStackResourceId"),
             "stackLastModified": properties.get("deploymentStackLastModified"),
             "actionOnUnmanage": properties.get("actionOnUnmanage"),
@@ -1489,13 +1392,19 @@ def normalize_stack_what_if(payload: dict[str, Any]) -> dict[str, Any]:
 
 def is_readonly_property(path: str, resource_type: str = "") -> bool:
     """共通のリソース情報と型別プロパティを区別して readOnly を判定する。"""
+    return get_readonly_pattern_match(path, resource_type) is not None
+
+
+def get_readonly_pattern_match(
+    path: str, resource_type: str = ""
+) -> dict[str, str] | None:
+    """readOnly パターンの一致と、パターンの出所を返す。"""
     loader = get_pattern_loader()
 
     # 共通パターンは元のパスで照合し、properties 内の同名キーと区別する。
     for pattern in loader.get_readonly_patterns():
         if re.search(pattern, path):
-            loader.record_pattern_match(pattern, "readonly_patterns")
-            return True
+            return {"scope": "common", "pattern": pattern}
 
     check_path = path
     if check_path.startswith("properties."):
@@ -1503,9 +1412,8 @@ def is_readonly_property(path: str, resource_type: str = "") -> bool:
 
     for pattern in loader.get_readonly_patterns(resource_type, include_common=False):
         if re.search(pattern, check_path):
-            loader.record_pattern_match(pattern, "readonly_patterns", resource_type)
-            return True
-    return False
+            return {"scope": resource_type, "pattern": pattern}
+    return None
 
 
 def contains_arm_reference(value: Any) -> bool:
@@ -1517,7 +1425,6 @@ def contains_arm_reference(value: Any) -> bool:
 
     for pattern in loader.get_arm_reference_patterns():
         if re.search(pattern, value):
-            loader.record_pattern_match(pattern, "arm_reference_patterns")
             return True
     return False
 
@@ -1531,7 +1438,7 @@ def evaluate_property_change(
     Returns:
         {
             "status": "pending" | "noise_confirmed" | "drift_candidate",
-            "reason": null | "readOnly" | "armReference" | "noEffect",
+            "reason": null | "armReference" | "noEffect",
             "confidence": "high" | "low"
         }
     """
@@ -1540,14 +1447,6 @@ def evaluate_property_change(
         return {
             "status": "noise_confirmed",
             "reason": "noEffect",
-            "confidence": "high",
-        }
-
-    # ARM 共通 readOnly プロパティ（リソースタイプ別パターンを使用）
-    if is_readonly_property(path, resource_type):
-        return {
-            "status": "noise_confirmed",
-            "reason": "readOnly",
             "confidence": "high",
         }
 
@@ -1573,7 +1472,7 @@ def flatten_property_changes(
     bicep_dir: str = "./infra",
     resource_type: str = "",
 ) -> list[dict[str, Any]]:
-    """ネストされたプロパティ変更をフラット化し、evaluation と bicepDefinition を付与する。"""
+    """ネストされた差分をフラット化し、Azure 評価とローカル候補を付与する。"""
     if not delta:
         return []
 
@@ -1582,7 +1481,7 @@ def flatten_property_changes(
     for item in delta:
         path = item.get("path", "")
         full_path = f"{prefix}.{path}" if prefix else path
-        change_type = item.get("propertyChangeType", "Unknown")
+        change_type = item.get("propertyChangeType", item.get("changeType", "Unknown"))
 
         # 子要素がある場合は再帰
         children = item.get("children", [])
@@ -1597,10 +1496,9 @@ def flatten_property_changes(
                 full_path, change_type, before, after, resource_type
             )
 
-            # Bicep 照合（リソースタイプを渡して正確なマッチを行う）
-            bicep_definition = find_bicep_definition(
-                full_path, bicep_dir, resource_type
-            )
+            # Bicep ソースの検索候補を記録する。値の流れや実効値は判定しない。
+            bicep_definition = search_bicep_source(full_path, bicep_dir, resource_type)
+            readonly_match = get_readonly_pattern_match(full_path, resource_type)
 
             # 参考情報を生成
             reference_info = get_reference_info(
@@ -1618,7 +1516,16 @@ def flatten_property_changes(
                     "before": before,
                     "after": after,
                     "evaluation": evaluation,
-                    "bicepDefinition": bicep_definition,
+                    "bicepSearch": bicep_definition,
+                    "localClassification": (
+                        {
+                            "category": "readOnlyPattern",
+                            "status": "candidate",
+                            **readonly_match,
+                        }
+                        if readonly_match
+                        else None
+                    ),
                     "referenceInfo": reference_info,
                 }
             )
@@ -1896,14 +1803,19 @@ def build_output(
                 evaluation_summary[status] += 1
 
     # Bicep 照合サマリー
-    bicep_summary = {"defined": 0, "notDefined": 0, "unknown": 0}
+    bicep_search_summary = {
+        "singleMatch": 0,
+        "multipleMatches": 0,
+        "noMatch": 0,
+        "notSearched": 0,
+    }
     for change in changes:
         for prop_change in change.get("propertyChanges", []):
-            bicep_status = prop_change.get("bicepDefinition", {}).get(
-                "status", "unknown"
+            bicep_status = prop_change.get("bicepSearch", {}).get(
+                "status", "notSearched"
             )
-            if bicep_status in bicep_summary:
-                bicep_summary[bicep_status] += 1
+            if bicep_status in bicep_search_summary:
+                bicep_search_summary[bicep_status] += 1
 
     # pending 評価の詳細
     pending_evaluations = build_pending_evaluations(changes)
@@ -1918,7 +1830,7 @@ def build_output(
         "summary": summary,
         "createFalsePositives": create_false_positives,
         "evaluationSummary": evaluation_summary,
-        "bicepSummary": bicep_summary,
+        "bicepSearchSummary": bicep_search_summary,
         "changes": changes,
         "pendingEvaluations": pending_evaluations,
     }
@@ -1926,11 +1838,11 @@ def build_output(
         output["stack"] = what_if_result["stack"]
 
     # 注意メッセージ
-    if bicep_summary["notDefined"] > 0:
+    if bicep_search_summary["noMatch"] > 0:
         output["notice"] = (
-            f"ℹ️ {bicep_summary['notDefined']} properties are not defined in Bicep files. "
-            "Review the bicepDefinition.status='notDefined' items to determine if they "
-            "represent drift (unintended changes) or noise (expected Azure-managed values)."
+            f"ℹ️ Bicep の文字列検索で候補が見つからないプロパティが"
+            f"{bicep_search_summary['noMatch']}件あります。変数やモジュールを介した定義を"
+            "含め、未管理とは断定できません。"
         )
 
     return output
@@ -2094,7 +2006,7 @@ EFFECTIVE_OPERATIONS = {"Create", "Modify", "Delete"}
 
 
 def is_effective_change(change: dict[str, Any]) -> bool:
-    """text 出力で必ず見せるべき実変更かどうかを判定する。"""
+    """text 出力で必ず見せるべき予測操作かどうかを判定する。"""
     return change.get("operation") in EFFECTIVE_OPERATIONS
 
 
@@ -2102,10 +2014,10 @@ def should_show_resource_in_text_output(change: dict[str, Any]) -> bool:
     """
     text 出力にリソースを表示するかどうかを判定する。
 
-    filtered_resource_types は NoChange / Ignore / Unsupported などのノイズ削減に使い、
-    Create / Modify / Delete は重要差分を隠さないよう常に表示する。
+    filtered_resource_types は差分のないリソースの表示を抑制する。
+    Create / Modify / Delete とプロパティ差分のあるリソースは表示する。
     """
-    if "stack" in change:
+    if "stack" in change or change.get("propertyChanges"):
         return True
     if is_known_acr_acrpull_unsupported(change):
         return False
@@ -2222,13 +2134,24 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
                 "      ⚠️ 誤検知の可能性があります。実際の新規作成かどうか要確認。"
             )
 
-        # Skip 以外はプロパティ変更を表示
-        if op not in ("NoChange", "Ignore") and change.get("propertyChanges"):
+        if change.get("propertyChanges"):
             for pc in change["propertyChanges"]:
                 change_type = pc.get("changeType", "")
                 path = pc.get("path", "")
                 ref_info = pc.get("referenceInfo", "")
-                is_readonly = pc.get("evaluation", {}).get("reason") == "readOnly"
+                notes = []
+                if change_type == "NoEffect":
+                    notes.append("Azure changeType=NoEffect")
+                local_classification = pc.get("localClassification")
+                if (
+                    local_classification
+                    and local_classification.get("category") == "readOnlyPattern"
+                ):
+                    notes.append(
+                        "ローカル readOnly パターン候補 "
+                        f"({local_classification.get('scope')}: "
+                        f"{local_classification.get('pattern')})"
+                    )
 
                 # 変更タイプに応じた記号
                 if change_type == "Delete":
@@ -2247,20 +2170,36 @@ def format_azd_style_output(output_data: dict[str, Any]) -> str:
                     pc.get("after"), ensure_ascii=False, separators=(",", ":")
                 )
                 value_change = f"{before} -> {after}"
-                if is_readonly:
-                    ref_info = "🔒 readOnly（Azure 自動設定）"
-
-                # 参考情報がある場合は表示
                 if ref_info:
-                    lines.append(f"      {symbol} {path}: {value_change}  {ref_info}")
+                    notes.insert(0, ref_info)
+                # Azure の分類とローカル候補を別々に表示する。
+                if notes:
+                    lines.append(
+                        f"      {symbol} {path}: {value_change}  " + " / ".join(notes)
+                    )
                 else:
                     lines.append(f"      {symbol} {path}: {value_change}")
 
     if hidden_effective_count > 0:
         lines.append(
             f"  ⚠️ {hidden_effective_count} 件の Create/Modify/Delete が "
-            "text 出力で非表示です。--format json で確認してください。"
+            "text 出力で非表示です。JSON 出力で確認してください。"
         )
+
+    dynamic_ids = sum(
+        1
+        for change in visible_resources
+        if str(change.get("originalResourceId", "")).lstrip().startswith("[")
+    )
+    if dynamic_ids:
+        message = (
+            f"  {dynamic_ids} 件の動的リソース ID 式は text 出力で省略しています。"
+        )
+        if output_data.get("stack", {}).get("resultId"):
+            message += "同じ結果は末尾の resultId から取得できます。"
+        else:
+            message += "次回は --format json で確認してください。"
+        lines.append(message)
 
     if "stack" in output_data:
         lines.append("")
@@ -2490,25 +2429,22 @@ def main() -> int:
     else:
         print(json.dumps(output, indent=2, ensure_ascii=False))
 
-    # パターン統計を保存
-    loader = get_pattern_loader()
-    loader.save_stats()
-
-    # 未使用パターンの警告
-    unused = loader.get_unused_patterns(days=30)
-    if unused:
-        logger.warning("=== 未使用パターン警告（30日以上マッチなし） ===")
-        for item in unused[:5]:  # 最大5件表示
-            logger.warning(
-                "  %s: %s (最終マッチ: %d日前)",
-                item["category"],
-                item["pattern"],
-                item["daysSinceLastMatch"],
-            )
-        if len(unused) > 5:
-            logger.warning("  ... 他 %d 件", len(unused) - 5)
-
-    return 0
+    stack = output.get("stack")
+    if stack is None:
+        return 0
+    has_error_diagnostic = any(
+        diagnostic.get("level", "").lower() == "error"
+        for diagnostic in stack.get("diagnostics", [])
+    )
+    state = stack.get("provisioningState")
+    failed = (
+        not isinstance(state, str)
+        or state.lower() != "succeeded"
+        or bool(stack.get("error"))
+        or bool(stack.get("cliExitCode"))
+        or has_error_diagnostic
+    )
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

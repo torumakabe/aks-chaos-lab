@@ -298,11 +298,11 @@ uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_i
 uv run --no-project "${PWD}/.github/skills/bicep-what-if-analysis/scripts/what_if_analyzer.py" --layer sli
 ```
 
-スクリプトは Azure に保持期間1時間の `Microsoft.Resources/deploymentStacksWhatIfResults` リソースを作成し、プロパティ変更を含む結果を取得します。対象リソースを配備、削除せず、hook も実行しません。成功時に `.github/skills/bicep-what-if-analysis/scripts/patterns/pattern_stats.json` を解析履歴として更新します。結果 ID は出力に残り、保持期間後に Azure が削除します。what-if 結果の作成権限も必要です。
+スクリプトは Azure に保持期間1時間の `Microsoft.Resources/deploymentStacksWhatIfResults` リソースを作成し、プロパティ変更を含む結果を取得します。対象リソースを配備、削除せず、hook も実行しません。結果 ID は出力に残り、保持期間後に Azure が削除します。what-if 結果の作成権限も必要です。
 
 azd 1.37.1 の Stacks 対応は `azd provision --preview` をサポートしません。通常の `az deployment sub what-if` は管理対象から外れるリソースの削除を評価しないため、移行後の代替には使いません。分析器は `--layer` を省略すると停止します。適用前の確認方法と出力の読み方は[What-if 分析スキル](../.github/skills/bicep-what-if-analysis/SKILL.md)を参照してください。
 
-適用前に、対象環境、subscription、layer と what-if の成功を確認します。Create、Modify、Delete、Detach の対象リソースとプロパティの前後値を、予定した変更およびBicepの宣言と照合します。Delete、RBAC / identity、ネットワーク、セキュリティ設定、共有リソースは個別に確認し、テキスト出力で省略された差分は `--format json` で確認します。分類結果やBicep検索結果だけで安全性を判定せず、適用可否は人が決めます。
+適用前に、対象環境、subscription、layer と what-if の成功を確認します。Create、Modify、Delete、Detach の対象リソースとプロパティの前後値を、予定した変更およびBicepの宣言と照合します。Delete、RBAC / identity、ネットワーク、セキュリティ設定、共有リソースは個別に確認し、テキスト出力で省略された差分は結果 ID を指定して同じ結果を取得し、確認します。分類結果やBicep検索結果だけで安全性を判定せず、適用可否は人が決めます。
 
 分析器は操作件数、Stack の削除予測確度、Stack 診断を出力の先頭に示します。read-only と分類したプロパティも、変更前後の値と分類を表示します。
 
@@ -405,7 +405,7 @@ azd 1.33.0 は ZIP を Function App の SCM エンドポイント `/api/publish`
 
 このプロジェクトは `azure.yaml` の `requiredVersions` で azd 1.35.1 以上を要求します。古い azd ではプロジェクトを実行せず、azd を更新してください。
 
-環境設定の復元などで `azd env refresh` を使うと、過去のデプロイ出力から値が取り込まれます。リージョンや VM サイズを変更する場合は、refresh 後に設定してください。
+環境設定の復元などで `azd env refresh` を使うと、過去のデプロイ出力から値が取り込まれます。`infra/main.parameters.json` で参照する環境変数は、環境名を除き、対応する出力を含む base の配備後に復元できます。`AZURE_SRE_AGENT_LOCATION` など一部の値は、有効な構成に応じた値が出力されます。リージョンや VM サイズを変更する場合は、refresh 後に設定してください。
 
 ### Local DNS
 
