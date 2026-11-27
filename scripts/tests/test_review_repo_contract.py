@@ -1909,14 +1909,18 @@ def test_review_separates_confirmation_findings_and_execution() -> None:
 
 
 @pytest.mark.parametrize(
-    "skill_name", ["bicep-api-version-updater", "repository-freshness-checker"]
+    ("skill_name", "script_name"),
+    [
+        ("bicep-api-version-updater", "bicep_api_inventory.py"),
+        ("repository-freshness-checker", "freshness_inventory.py"),
+    ],
 )
 def test_specialist_skills_define_scope_and_incomplete_results(
     skill_name: str,
+    script_name: str,
 ) -> None:
-    _, body = frontmatter_and_body(
-        REPO_ROOT / ".github/skills" / skill_name / "SKILL.md"
-    )
+    skill_dir = REPO_ROOT / ".github" / "skills" / skill_name
+    _, body = frontmatter_and_body(skill_dir / "SKILL.md")
     for reason in (
         "not-processed",
         "target-unresolved",
@@ -1926,6 +1930,10 @@ def test_specialist_skills_define_scope_and_incomplete_results(
         assert f"`unverified`（`{reason}`）" in body
     assert "`unverified`、未読ファイル、未確定の対象範囲があれば「確認未完了」" in body
     assert "全体statusや合否は付けず" in body
+    assert "未処理打ち切りの禁止" in body
+    assert "外部制約" in body
+    assert (skill_dir / "scripts" / script_name).is_file()
+    assert (skill_dir / "scripts" / "tests" / f"test_{script_name}").is_file()
     for obsolete in ("`fail`", "`pass`", "`update-available`", "needs-fix"):
         assert obsolete not in body
     for caller_dependency in (
@@ -1935,6 +1943,16 @@ def test_specialist_skills_define_scope_and_incomplete_results(
         "--inventory-json",
     ):
         assert caller_dependency not in body
+
+
+def test_skill_scripts_and_tests_are_wired_into_repository_qa() -> None:
+    assert ".github/skills" in tasks.LINT_PATHS
+    discovered = set(tasks.skill_test_paths())
+    assert {
+        ".github/skills/bicep-api-version-updater/scripts/tests",
+        ".github/skills/bicep-what-if-analysis/scripts/tests",
+        ".github/skills/repository-freshness-checker/scripts/tests",
+    }.issubset(discovered)
 
 
 def test_each_skill_directory_contains_skill_document() -> None:

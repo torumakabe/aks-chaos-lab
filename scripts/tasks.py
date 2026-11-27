@@ -562,7 +562,7 @@ def target_sync_dev() -> None:
 # Lint / format / typecheck — unified workspace invocations
 # ---------------------------------------------------------------------------
 
-LINT_PATHS = ["src", "scripts"]
+LINT_PATHS = ["src", "scripts", ".github/skills"]
 
 
 def target_format() -> None:
@@ -612,11 +612,25 @@ def target_test_publisher() -> None:
     print_success("External SLI publisher unit tests passed")
 
 
+def skill_test_paths() -> list[str]:
+    skills_dir = ROOT / ".github" / "skills"
+    if not skills_dir.is_dir():
+        return []
+    return sorted(
+        str(path.relative_to(ROOT).as_posix())
+        for path in skills_dir.glob("*/scripts/tests")
+        if path.is_dir()
+    )
+
+
 def target_test_hooks() -> None:
-    print_step("Testing repository hooks")
+    print_step("Testing repository hooks and skill scripts")
     target_check_lefthook()
-    run_uv(["pytest", "scripts/tests/", "-q"], env=pythonpath_env())
-    print_success("Repository hook tests passed")
+    run_uv(
+        ["pytest", "scripts/tests/", *skill_test_paths(), "-q"],
+        env=pythonpath_env(),
+    )
+    print_success("Repository hook and skill script tests passed")
 
 
 def target_test() -> None:

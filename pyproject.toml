@@ -79,13 +79,14 @@ ignore = [
   "S603", # subprocess invocations
   "T201",
 ]
-# Skill operational scripts: subprocess and CLI print are intentional
-".github/skills/bicep-what-if-analysis/scripts/**/*.py" = [
+# Skill operational scripts: subprocess, CLI print, and validated http(s) fetches are intentional
+".github/skills/*/scripts/**/*.py" = [
+  "S310", # http(s) urls are validated before urllib requests
   "S603", # subprocess invocations against trusted CLI args
-  "T201", # print is the intended UX for the analyzer CLI
+  "T201", # print is the intended UX for skill CLI scripts
 ]
 # Skill tests: temp paths in fixtures are acceptable
-".github/skills/bicep-what-if-analysis/scripts/tests/**/*.py" = [
+".github/skills/*/scripts/tests/**/*.py" = [
   "S108", # /tmp/... strings are passed only to mocked subprocesses
 ]
 

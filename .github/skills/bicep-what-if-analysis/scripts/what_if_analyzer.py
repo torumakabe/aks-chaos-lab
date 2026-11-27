@@ -1763,6 +1763,37 @@ def build_pending_evaluations(changes: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def build_modify_summary(changes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """全 Modify リソースの軽量インデックスを構築する。"""
+    modify_summary: list[dict[str, Any]] = []
+    for change in changes:
+        if change.get("operation", "").lower() != "modify":
+            continue
+        counts = {"create": 0, "modify": 0, "delete": 0}
+        deleted_paths: list[str] = []
+        paths: list[str] = []
+        for prop_change in change.get("propertyChanges", []):
+            path = str(prop_change.get("path", ""))
+            if path:
+                paths.append(path)
+            change_type = str(prop_change.get("changeType", "")).lower()
+            if change_type in counts:
+                counts[change_type] += 1
+            if change_type == "delete" and path:
+                deleted_paths.append(path)
+        modify_summary.append(
+            {
+                "resourceType": change.get("resourceType", ""),
+                "resourceName": change.get("resourceName", ""),
+                "resourceId": change.get("resourceId", ""),
+                "propertyChangeCounts": counts,
+                "deletedPaths": deleted_paths,
+                "paths": paths,
+            }
+        )
+    return modify_summary
+
+
 def build_output(
     what_if_result: dict[str, Any],
     template: str,
@@ -1819,6 +1850,7 @@ def build_output(
 
     # pending 評価の詳細
     pending_evaluations = build_pending_evaluations(changes)
+    modify_summary = build_modify_summary(changes)
 
     output = {
         "metadata": {
@@ -1831,6 +1863,7 @@ def build_output(
         "createFalsePositives": create_false_positives,
         "evaluationSummary": evaluation_summary,
         "bicepSearchSummary": bicep_search_summary,
+        "modifySummary": modify_summary,
         "changes": changes,
         "pendingEvaluations": pending_evaluations,
     }

@@ -2647,6 +2647,57 @@ class TestStackWhatIf(unittest.TestCase):
                 parse_azure_yaml_layers(str(path))[0]["deploymentStacks"], "enabled"
             )
 
+    def test_build_output_includes_modify_summary_with_deleted_paths(self) -> None:
+        what_if_result = {
+            "changes": [
+                {
+                    "changeType": "NoChange",
+                    "resourceId": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.Network/networkSecurityGroups/nsg-aks"
+                    ),
+                },
+                {
+                    "changeType": "Modify",
+                    "resourceId": (
+                        "/subscriptions/sub/resourceGroups/rg/providers/"
+                        "Microsoft.Network/virtualNetworks/vnet-eval"
+                    ),
+                    "delta": [
+                        {
+                            "path": "properties.subnets.1.properties.networkSecurityGroup",
+                            "propertyChangeType": "Delete",
+                            "before": {
+                                "id": (
+                                    "/subscriptions/sub/resourceGroups/rg/providers/"
+                                    "Microsoft.Network/networkSecurityGroups/policy-nsg"
+                                )
+                            },
+                            "after": None,
+                        },
+                        {
+                            "path": "tags.env",
+                            "propertyChangeType": "Create",
+                            "before": None,
+                            "after": "eval",
+                        },
+                    ],
+                },
+            ]
+        }
+        output = build_output(what_if_result, "infra/main.bicep", "japaneast")
+        self.assertEqual(len(output["modifySummary"]), 1)
+        entry = output["modifySummary"][0]
+        self.assertEqual(entry["resourceType"], "Microsoft.Network/virtualNetworks")
+        self.assertEqual(entry["resourceName"], "vnet-eval")
+        self.assertEqual(
+            entry["propertyChangeCounts"], {"create": 1, "modify": 0, "delete": 1}
+        )
+        self.assertEqual(
+            entry["deletedPaths"],
+            ["properties.subnets.1.properties.networkSecurityGroup"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
