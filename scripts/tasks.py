@@ -816,6 +816,7 @@ FULL_REVIEW_CHECKS = (
         ("git", "uv"),
         target_arguments=("--skip-publisher-requirements",),
     ),
+    ReviewCheck("qa-scripts", "qa-scripts", ("git", "uv")),
     ReviewCheck("test-hooks", "test-hooks", ("git", "uv", "lefthook")),
     ReviewCheck("build-bicep", "build-bicep", ("git", "az")),
     ReviewCheck("lint-k8s", "lint-k8s", ("git", "docker")),

@@ -1011,6 +1011,7 @@ def test_review_checks_preclassify_each_required_tool() -> None:
     }
     assert full_tools == {
         "qa-app": ("git", "uv"),
+        "qa-scripts": ("git", "uv"),
         "test-hooks": ("git", "uv", "lefthook"),
         "build-bicep": ("git", "az"),
         "lint-k8s": ("git", "docker"),
@@ -1821,6 +1822,9 @@ def test_review_repo_agent_contract() -> None:
     assert "標準はfast（taskのみ）" in frontmatter["description"]
     assert "review-repo-fast" in body
     assert "review-repo-full" in body
+    assert "`qa-scripts`" in body
+    assert "`verify-coverage`" in body
+    assert "同梱の`scripts/`・`references/`" in body
     assert "専用worktree" in body
     assert "task内部で別のcopyや一時Git repositoryを作成しない" in body
     assert "review-workspace" not in body

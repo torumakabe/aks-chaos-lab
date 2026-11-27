@@ -39,6 +39,7 @@ fastは次を実行する。
 fullはfastに加えて次を実行する。
 
 - `qa-app --skip-publisher-requirements`
+- `qa-scripts`
 - `test-hooks`
 - `build-bicep`
 - `lint-k8s`
@@ -49,7 +50,7 @@ fullはfastに加えて次を実行する。
 同じ処理をagent側で組み立て直さない。taskの結果JSONはschema version 2の実行記録である。`execution`、`returncode`、`reason_code`、`stdout_tail`、`stderr_tail`を読み、テスト、lint、build、整合性チェックそれぞれの結果と診断を保持する。`command_exit_code`はtaskの終了規則を適用した値で、レビューの評価や確認完了を表さない。非ゼロ終了だけで対象に不具合があると断定しない。
 各対象の確認状況は`verified`（確認済み）、`unverified`（未確認）、`excluded`（理由付き対象外）とする。理由が記録された対象外を問題へ再分類しない。設定、実装、契約テストの間に具体的な不一致がある場合だけ、該当するファイルと行番号を根拠として指摘する。
 
-fullでは、`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyに現在のリポジトリを対象として渡す。各スキルが対象の読み取り、専門確認、完了判定までを行う。agentはその手順を組み立て直さず、返された確認範囲、根拠、指摘、更新候補、未完了の対象と理由をレビューへ組み込む。結果の欠落を確認済みや対象0件で補わない。
+fullでは、`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyに現在のリポジトリを対象として渡す。各スキルが対象の読み取り、専門確認、`verify-coverage`による網羅検証、完了判定までを行う。agentはその手順を組み立て直さず、返された網羅検証結果、確認範囲、根拠、指摘、更新候補、未完了の対象と理由をレビューへ組み込む。外部制約以外の理由で未処理打ち切りを許容せず、結果の欠落を確認済みや対象0件で補わない。
 
 ## fullの意味評価
 
@@ -57,7 +58,7 @@ fullでは、`repository-freshness-checker`と`bicep-api-version-updater`のchec
 |---|---|---|
 | `.github/copilot-instructions.md` | 記載した構造、参照先、agent、skillが実在し、現在の運用と一致する | なし |
 | agent | trigger、入力、出力、副作用、参照するtaskとskillが実態と一致する | agent自身の契約テスト |
-| skill | trigger、責務、入力、出力、完了条件、外部情報源が実態と一致する | 対象skillの契約 |
+| skill | trigger、責務、入力、出力、完了条件、外部情報源、同梱の`scripts/`・`references/`が実態と一致する | 対象skillの契約 |
 | ADR | INDEXとの対応、必須見出し、Status、Acceptedな判断と実装の一致 | `manage-adr` |
 | `docs/workarounds.md` | 概要、理由、場所、解消条件、確認方法と実装の一致 | 該当する専門skill |
 | READMEと運用文書 | path、task、command、説明と現在の実装の一致 | 該当する専門skill |
