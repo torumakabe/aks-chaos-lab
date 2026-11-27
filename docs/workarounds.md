@@ -119,14 +119,6 @@ ID は固定し、削除済み ID は再利用しない。
 - **解消条件**: SDK 側で全 span を Collector へ送り、Collector 側で `status=ERROR` を条件にした tail-based sampling を構成して、キーワードに依存せず ERROR trace を保持できるようになる。または OpenTelemetry SDK が span 終了時の状態に基づく sampling を提供する。
 - **確認方法**: `uv run pytest src/api/tests/unit/test_telemetry.py -k error_aware_sampler` でキーワード判定と ratio-based 判定を確認する。tail-based sampling を導入する場合は、キーワードを含まないエンドポイントでエラーを発生させ、Collector と Application Insights で該当 trace が保持されることを確認する。
 
-### D-11. Windowsでgh-awをPowerShellの子プロセスとして実行
-
-- **概要**: `scripts/tasks.py`から`gh aw compile`を実行するときは、Windowsに限りPowerShellの`Start-Process`を介して標準入力、標準出力、標準エラーを一時ファイルへ分離する。実行時間は60秒に制限し、超過時は既存のプロセスツリー停止処理を使う。
-- **理由**: Windowsでgh-aw v0.79.6をPythonの`subprocess`から直接起動すると、`--version`を含むコマンドが待機したまま終了しない。PowerShellの`Start-Process`で入出力を分離した同じ実行ファイルは約1秒で終了し、`compile`も正常に完了する。
-- **場所**: `scripts/tasks.py`の`run_gh_aw_compile`
-- **解消条件**: gh-awを更新し、WindowsでPythonの`subprocess`から直接実行した`gh aw --version`と`gh aw compile`が待機せず終了することを確認する。
-- **確認方法**: Pythonの`subprocess`による直接起動とPowerShellの子プロセス起動の両方でgh-awを実行し、両方が同じ終了コードと生成結果になることを確認する。
-
 ### D-12. Renovateはversionとchecksumを一体更新できないため、LefthookのpinをRenovate管理から外し専用taskで更新する
 
 - **概要**: `.github/workflows/ci.yml`の`LEFTHOOK_VERSION`と`LEFTHOOK_SHA256`は対で固定する。`LEFTHOOK_SHA256`はRenovateが計算できないため、Renovateに`LEFTHOOK_VERSION`だけを更新させると、そのPull RequestはCIの`sha256sum -c -`でchecksum不一致となり必ず失敗する。Lefthookは`.github/renovate.json`の対象に含めない。更新時は`update-lefthook-pin --version <version>`で公式checksumと`LEFTHOOK_VERSION`を一体更新し、`check-version-pins`と`test-hooks`で検証する。

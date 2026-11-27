@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import os
 import subprocess
 import sys
 import tomllib
@@ -79,7 +78,6 @@ def review_command_stub(
 def test_review_targets_are_registered() -> None:
     assert tasks.TARGETS["review-repo-fast"] is tasks.target_review_repo_fast
     assert tasks.TARGETS["review-repo-full"] is tasks.target_review_repo_full
-    assert tasks.TARGETS["validate-aw"] is tasks.target_validate_aw
     assert (
         tasks.TARGETS["validate-bicep-parameters"]
         is tasks.target_validate_bicep_parameters
@@ -552,16 +550,6 @@ def test_renovate_config_contract_rejects_vulnerability_policy_drift(
     assert any("vulnerabilityAlerts" in violation for violation in violations)
 
 
-def test_renovate_config_contract_requires_gh_aw_generated_paths_to_be_ignored() -> (
-    None
-):
-    violations = tasks.renovate_contract_violations(
-        _mutated_renovate_config(ignorePaths=[".github/aw/**"])
-    )
-
-    assert any("ignorePaths" in violation for violation in violations)
-
-
 def test_renovate_config_contract_rejects_a_missing_package_rule() -> None:
     config = tasks.load_renovate_config()
     rules = [
@@ -639,18 +627,12 @@ def test_renovate_manager_expectations_match_exactly_one_coordinate_each() -> No
         assert len(matches) == expectation.expected_match_count, expectation.description
 
 
-def test_renovate_does_not_manage_lefthook_or_gh_aw() -> None:
-    """Pins that require coupled generated changes remain manual updates."""
+def test_renovate_does_not_manage_lefthook() -> None:
+    """Pins that require coupled checksum changes remain manual updates."""
     config = tasks.load_renovate_config()
     serialized = json.dumps(config)
 
     assert "LEFTHOOK_VERSION" not in serialized
-    assert "gh-aw" not in {
-        item.description for item in tasks.RENOVATE_MANAGER_EXPECTATIONS
-    }
-    assert "gh_aw_setup" not in serialized
-    assert config["packageRules"][0]["enabled"] is False
-    assert "github/gh-aw-actions" in config["packageRules"][0]["matchPackageNames"]
 
 
 # An independent renovate --dry-run=extract JSON fixture, hand-written rather
@@ -1017,12 +999,10 @@ def test_review_checks_preclassify_each_required_tool() -> None:
         "lint-k8s": ("git", "docker"),
         "validate-helm-values": ("helm",),
         "lint-workflows": ("git", "docker"),
-        "compile-aw": ("git", "gh"),
     }
     assert tasks.FULL_REVIEW_CHECKS[0].target_arguments == (
         "--skip-publisher-requirements",
     )
-    assert tasks.FULL_REVIEW_CHECKS[-1].target_name == "validate-aw"
 
 
 def test_review_checks_do_not_select_or_forward_approved_index_configuration(
@@ -1361,85 +1341,6 @@ def test_review_tool_probe_failure_records_target_not_started(
     ]
 
 
-def test_compile_aw_is_not_started_when_extension_is_unavailable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[tuple[tuple[str, ...], float]] = []
-    monkeypatch.setattr(tasks.shutil, "which", lambda command: f"mock-{command}")
-
-    def unavailable(
-        args: list[str] | tuple[str, ...],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-    ) -> subprocess.CompletedProcess[bytes]:
-        del cwd, env
-        calls.append((tuple(args), timeout))
-        return subprocess.CompletedProcess(args, 1)
-
-    monkeypatch.setattr(tasks, "run_review_command", unavailable)
-
-    runnable, results = tasks.classify_review_tools(
-        (tasks.ReviewCheck("compile-aw", "compile-aw", ("git", "gh")),)
-    )
-
-    assert runnable == []
-    assert [(result.name, result.execution) for result in results] == [
-        ("compile-aw", "not-started")
-    ]
-    assert calls == [
-        (
-            tasks.REVIEW_GH_AW_LIST_COMMAND,
-            tasks.REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS,
-        )
-    ]
-
-
-def test_compile_aw_preflight_timeout_does_not_start_target_or_block_next_check(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    monkeypatch.setattr(tasks, "ROOT", tmp_path)
-    system_which = tasks.shutil.which
-
-    def available_tool(command: str) -> str | None:
-        if command in {"powershell.exe", "pwsh.exe"}:
-            return system_which(command)
-        return f"mock-{command}"
-
-    monkeypatch.setattr(tasks.shutil, "which", available_tool)
-    monkeypatch.setattr(tasks, "REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS", 0.5)
-    child_code = (
-        "import subprocess, sys, time; "
-        "subprocess.Popen([sys.executable, '-c', "
-        "'import time; time.sleep(60)']); "
-        "time.sleep(60)"
-    )
-    original_resolve_command = tasks.resolve_command
-
-    def resolve_preflight(args: list[str] | tuple[str, ...]) -> list[str]:
-        if tuple(args) == tasks.REVIEW_GH_AW_LIST_COMMAND:
-            return [sys.executable, "-c", child_code]
-        return original_resolve_command(args)
-
-    monkeypatch.setattr(tasks, "resolve_command", resolve_preflight)
-
-    runnable, results = tasks.classify_review_tools(
-        (
-            tasks.ReviewCheck("compile-aw", "compile-aw", ("git", "gh")),
-            tasks.ReviewCheck("next", "next", ("git",)),
-        )
-    )
-
-    assert [check.name for check in runnable] == ["next"]
-    assert [(result.name, result.execution) for result in results] == [
-        ("compile-aw", "not-started")
-    ]
-    tmp_path.rmdir()
-    assert not tmp_path.exists()
-
-
 def test_timed_out_process_tree_releases_isolation(tmp_path: Path) -> None:
     isolation = tmp_path / "isolation"
     isolation.mkdir()
@@ -1637,152 +1538,6 @@ def test_repository_diagnostic_still_blocks_gate_with_environment_diagnostic() -
     assert result.stderr_tail == "Cannot connect to the Docker daemon"
 
 
-def test_validate_aw_uses_non_emitting_compile(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[tuple[str, ...]] = []
-    monkeypatch.setattr(tasks, "target_check_gh_aw", lambda: None)
-    monkeypatch.setattr(
-        tasks,
-        "run_gh_aw_compile",
-        lambda *arguments: calls.append(arguments),
-    )
-
-    tasks.target_validate_aw()
-
-    assert calls == [("--no-emit", "--no-check-update")]
-
-
-def test_compile_aw_fails_when_the_compile_run_rewrites_a_managed_file(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    repository = tmp_path / "repository"
-    (repository / ".github/workflows").mkdir(parents=True)
-    lock_file = repository / ".github/workflows/example.lock.yml"
-    lock_file.write_text("stale\n", encoding="utf-8")
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "target_check_gh_aw", lambda: None)
-    monkeypatch.setattr(
-        tasks,
-        "run_gh_aw_compile",
-        lambda: lock_file.write_text("regenerated\n", encoding="utf-8"),
-    )
-
-    with pytest.raises(SystemExit) as error:
-        tasks.target_compile_aw()
-
-    assert error.value.code == 1
-    output = capsys.readouterr()
-    assert "generated artifacts changed during this compile run" in output.err
-    assert ".github/workflows/example.lock.yml" in output.err
-
-
-def test_compile_aw_ignores_uncommitted_changes_the_compiler_does_not_make(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    (repository / ".github/workflows").mkdir(parents=True)
-    # A managed path can carry an uncommitted edit the compiler never rewrites
-    # (for example a hand-written comment in dependabot.yml). That is not a
-    # stale generated artifact and must not be reported as one.
-    dependabot = repository / ".github/dependabot.yml"
-    dependabot.write_text("version: 2\n# hand-written comment\n", encoding="utf-8")
-    (repository / ".github/workflows/example.lock.yml").write_text(
-        "compiled\n", encoding="utf-8"
-    )
-    monkeypatch.setattr(tasks, "ROOT", repository)
-    monkeypatch.setattr(tasks, "target_check_gh_aw", lambda: None)
-    monkeypatch.setattr(tasks, "run_gh_aw_compile", lambda: None)
-
-    tasks.target_compile_aw()
-
-    assert dependabot.read_text(encoding="utf-8").endswith("# hand-written comment\n")
-
-
-def test_compile_aw_checks_all_compiler_managed_paths(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    repository = tmp_path / "repository"
-    (repository / ".github/aw").mkdir(parents=True)
-    (repository / ".github/workflows").mkdir(parents=True)
-    managed_files = {
-        ".github/aw/actions-lock.json": "{}\n",
-        ".github/dependabot.yml": "version: 2\n",
-        ".github/workflows/agentics-maintenance.yml": "name: maintenance\n",
-        ".github/workflows/example.lock.yml": "compiled\n",
-    }
-    for relative, content in managed_files.items():
-        (repository / relative).write_text(content, encoding="utf-8")
-    (repository / ".github/workflows/ci.yml").write_text("name: ci\n", encoding="utf-8")
-    monkeypatch.setattr(tasks, "ROOT", repository)
-
-    digests = tasks.gh_aw_managed_file_digests()
-
-    assert sorted(digests) == sorted(managed_files)
-
-
-@pytest.mark.skipif(os.name != "nt", reason="Windows-specific gh-aw process boundary")
-def test_windows_gh_aw_compile_uses_powershell_process_boundary(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    observed: dict[str, object] = {}
-    monkeypatch.setattr(
-        tasks.shutil,
-        "which",
-        lambda command: (
-            "C:\\tools\\powershell.exe" if command == "powershell.exe" else None
-        ),
-    )
-    monkeypatch.setattr(
-        tasks,
-        "resolve_command",
-        lambda args: ["C:\\tools\\gh.exe"] if list(args) == ["gh"] else list(args),
-    )
-
-    def record_command(
-        args: list[str] | tuple[str, ...],
-        *,
-        cwd: Path,
-        env: dict[str, str],
-        timeout: float,
-    ) -> subprocess.CompletedProcess[bytes]:
-        observed["args"] = tuple(args)
-        observed["cwd"] = cwd
-        observed["timeout"] = timeout
-        observed["gh_path"] = env["GH_AW_GH_PATH"]
-        observed["root"] = env["GH_AW_ROOT"]
-        observed["stdin_empty"] = Path(env["GH_AW_STDIN"]).read_bytes() == b""
-        observed["temporary_parent"] = Path(env["GH_AW_STDIN"]).parent
-        return subprocess.CompletedProcess(args, 0, stdout=b"", stderr=b"")
-
-    monkeypatch.setattr(tasks, "run_review_command", record_command)
-
-    tasks.run_gh_aw_compile()
-
-    command = observed["args"]
-    assert isinstance(command, tuple)
-    assert command[:3] == (
-        "C:\\tools\\powershell.exe",
-        "-NoProfile",
-        "-NonInteractive",
-    )
-    script = command[-1]
-    assert isinstance(script, str)
-    assert "Start-Process" in script
-    assert observed["cwd"] == tasks.ROOT
-    assert observed["timeout"] == tasks.REVIEW_GH_AW_COMPILE_TIMEOUT_SECONDS
-    assert observed["gh_path"] == "C:\\tools\\gh.exe"
-    assert observed["root"] == str(tasks.ROOT)
-    assert observed["stdin_empty"] is True
-    temporary_parent = observed["temporary_parent"]
-    assert isinstance(temporary_parent, Path)
-    assert not temporary_parent.exists()
-
-
 def test_command_nul_output_preserves_git_path_whitespace(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1822,7 +1577,8 @@ def test_review_repo_agent_contract() -> None:
     assert "標準はfast（taskのみ）" in frontmatter["description"]
     assert "review-repo-fast" in body
     assert "review-repo-full" in body
-    assert "`qa-scripts`" in body
+    assert "FAST_REVIEW_CHECKS" in body
+    assert "FULL_REVIEW_CHECKS" in body
     assert "`verify-coverage`" in body
     assert "同梱の`scripts/`・`references/`" in body
     assert "専用worktree" in body

@@ -11,7 +11,7 @@
 - Azure CLI + Bicep extension
 - `kubectl`
 - Python 3.14+ + [`uv`](https://github.com/astral-sh/uv)
-- リポジトリ全体の QA を実行する場合は Docker と GitHub CLI + `gh-aw` extension
+- リポジトリ全体の QA を実行する場合は Docker と Lefthook
 
 ## 必要なロール
 

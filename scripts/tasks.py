@@ -127,18 +127,9 @@ LEFTHOOK_NETWORK_TIMEOUT_SECONDS = 15
 APPROVED_INDEX_CACHE_DIRECTORY = Path(".uv-state") / "cache"
 REVIEW_CHECK_TIMEOUT_SECONDS = 300
 REVIEW_TOOL_PREFLIGHT_TIMEOUT_SECONDS = 10
-REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS = 10
-REVIEW_GH_AW_COMPILE_TIMEOUT_SECONDS = 60
 REVIEW_RESULTS_SCHEMA_VERSION = 2
 REVIEW_LOG_TAIL_BYTES = 64 * 1024
 REVIEW_LOG_STREAM_CHUNK_BYTES = 64 * 1024
-REVIEW_GH_AW_LIST_COMMAND = ("gh", "extension", "list")
-GH_AW_MANAGED_PATHS = (
-    ".github/aw/actions-lock.json",
-    ".github/dependabot.yml",
-    ".github/workflows/agentics-maintenance.yml",
-    ".github/workflows/*.lock.yml",
-)
 REVIEW_TOOL_VERSION_COMMANDS: dict[str, tuple[str, ...]] = {
     "uv": ("uv", "--version"),
     "git": ("git", "--version"),
@@ -826,7 +817,6 @@ FULL_REVIEW_CHECKS = (
         ("helm",),
     ),
     ReviewCheck("lint-workflows", "lint-workflows", ("git", "docker")),
-    ReviewCheck("compile-aw", "validate-aw", ("git", "gh"), 60),
 )
 
 
@@ -883,11 +873,6 @@ def probe_review_tool(tool: str) -> str | None:
     return None
 
 
-def gh_aw_extension_listed(output: str | bytes) -> bool:
-    text = output.decode(errors="replace") if isinstance(output, bytes) else output
-    return any(line.split()[:2] == ["gh", "aw"] for line in text.splitlines())
-
-
 def classify_review_tools(
     checks: Sequence[ReviewCheck],
 ) -> tuple[list[ReviewCheck], list[ReviewResult]]:
@@ -909,54 +894,6 @@ def classify_review_tools(
                 "required tool preflight failed: " + "; ".join(unavailable),
                 REVIEW_REASON_TOOL_PREFLIGHT_FAILED,
             )
-            print_review_result(result)
-            results.append(result)
-            continue
-        if check.name == "compile-aw":
-            try:
-                completed = run_review_command(
-                    REVIEW_GH_AW_LIST_COMMAND,
-                    cwd=ROOT,
-                    env={},
-                    timeout=REVIEW_GH_AW_PREFLIGHT_TIMEOUT_SECONDS,
-                )
-            except subprocess.TimeoutExpired as error:
-                result = ReviewResult(
-                    check.name,
-                    "not-started",
-                    "gh extension list timed out while checking gh aw",
-                    REVIEW_REASON_CHECK_TIMEOUT,
-                    stdout_tail=review_log_text(error.output),
-                    stderr_tail=review_log_text(error.stderr),
-                )
-            except OSError as error:
-                result = ReviewResult(
-                    check.name,
-                    "not-started",
-                    f"gh aw is unavailable: {error}",
-                    REVIEW_REASON_CHECK_START_FAILED,
-                )
-            else:
-                if completed.returncode == 0 and gh_aw_extension_listed(
-                    completed.stdout
-                ):
-                    runnable.append(check)
-                    continue
-                if completed.returncode == 0:
-                    detail = "gh aw extension is not installed"
-                else:
-                    detail = (
-                        "gh aw is unavailable (preflight exited with code "
-                        f"{completed.returncode})"
-                    )
-                result = ReviewResult(
-                    check.name,
-                    "not-started",
-                    detail,
-                    REVIEW_REASON_TOOL_PREFLIGHT_FAILED,
-                    stdout_tail=review_log_text(completed.stdout),
-                    stderr_tail=review_log_text(completed.stderr),
-                )
             print_review_result(result)
             results.append(result)
             continue
@@ -1475,126 +1412,8 @@ def target_lint_workflows() -> None:
     print_success("Workflow lint passed")
 
 
-def run_gh_aw_compile(*arguments: str) -> None:
-    command = ["gh", "aw", "compile", *arguments]
-    if os.name != "nt":
-        run(command)
-        return
-
-    powershell = shutil.which("powershell.exe") or shutil.which("pwsh.exe")
-    if powershell is None:
-        print(
-            "error: PowerShell is required to run gh-aw on Windows",
-            file=sys.stderr,
-        )
-        raise SystemExit(1)
-
-    gh_path = resolve_command(["gh"])[0]
-    powershell_arguments = ", ".join(
-        "'" + argument.replace("'", "''") + "'" for argument in command[1:]
-    )
-    script = (
-        "$process = Start-Process "
-        "-FilePath $env:GH_AW_GH_PATH "
-        f"-ArgumentList @({powershell_arguments}) "
-        "-WorkingDirectory $env:GH_AW_ROOT "
-        "-RedirectStandardInput $env:GH_AW_STDIN "
-        "-RedirectStandardOutput $env:GH_AW_STDOUT "
-        "-RedirectStandardError $env:GH_AW_STDERR "
-        "-PassThru -Wait -NoNewWindow; "
-        "exit $process.ExitCode"
-    )
-    with tempfile.TemporaryDirectory(prefix="aks-chaos-lab-gh-aw-") as temp_dir:
-        temporary_root = Path(temp_dir)
-        stdin_path = temporary_root / "stdin.txt"
-        stdout_path = temporary_root / "stdout.txt"
-        stderr_path = temporary_root / "stderr.txt"
-        stdin_path.touch()
-        completed = run_review_command(
-            [
-                powershell,
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                script,
-            ],
-            cwd=ROOT,
-            env={
-                "GH_AW_GH_PATH": gh_path,
-                "GH_AW_ROOT": str(ROOT),
-                "GH_AW_STDIN": str(stdin_path),
-                "GH_AW_STDOUT": str(stdout_path),
-                "GH_AW_STDERR": str(stderr_path),
-            },
-            timeout=REVIEW_GH_AW_COMPILE_TIMEOUT_SECONDS,
-        )
-        for output_path, stream in (
-            (stdout_path, sys.stdout),
-            (stderr_path, sys.stderr),
-        ):
-            if output_path.is_file():
-                stream.buffer.write(output_path.read_bytes())
-                stream.flush()
-    if completed.returncode != 0:
-        raise SystemExit(completed.returncode)
-
-
-def target_validate_aw() -> None:
-    target_check_gh_aw()
-    print_step("Validating agentic workflows without writing generated files")
-    run_gh_aw_compile("--no-emit", "--no-check-update")
-    print_success("gh-aw source validation passed")
-
-
-def gh_aw_managed_file_digests() -> dict[str, str]:
-    """Hash every file the gh-aw compiler is allowed to write.
-
-    Keyed by repository-relative POSIX path so a compile run can be compared
-    before and after. Missing files are simply absent, which makes creation and
-    deletion visible in the comparison.
-    """
-    digests: dict[str, str] = {}
-    for pattern in GH_AW_MANAGED_PATHS:
-        for path in sorted(ROOT.glob(pattern)):
-            if not path.is_file():
-                continue
-            digests[path.relative_to(ROOT).as_posix()] = hashlib.sha256(
-                path.read_bytes()
-            ).hexdigest()
-    return digests
-
-
-def target_compile_aw() -> None:
-    target_check_gh_aw()
-    print_step("Compiling agentic workflows")
-    # Compare the compiler-managed files around the compile run instead of
-    # against HEAD: an uncommitted edit the compiler never touches (a comment
-    # in dependabot.yml, a workflow Markdown still being written) is not a
-    # stale generated artifact, while any file the compile run itself rewrites
-    # is. This keeps the check honest on a dirty working tree and identical on
-    # a clean CI checkout.
-    before = gh_aw_managed_file_digests()
-    run_gh_aw_compile()
-    after = gh_aw_managed_file_digests()
-    changed = sorted(
-        path for path in set(before) | set(after) if before.get(path) != after.get(path)
-    )
-    if not changed:
-        print_success("gh-aw compile is clean")
-        return
-    print(
-        "error: gh-aw generated artifacts changed during this compile run; "
-        "commit the regenerated files.",
-        file=sys.stderr,
-    )
-    for path in changed:
-        print(f"  {path}", file=sys.stderr)
-    raise SystemExit(1)
-
-
 def target_qa_workflows() -> None:
     target_lint_workflows()
-    target_compile_aw()
     print_success("Workflow QA passed")
 
 
@@ -1618,13 +1437,6 @@ def target_check_az() -> None:
     require_command("az")
 
 
-def target_check_gh_aw() -> None:
-    require_command("gh")
-    if not gh_aw_extension_listed(command_output(REVIEW_GH_AW_LIST_COMMAND)):
-        print("error: gh aw extension is not installed", file=sys.stderr)
-        raise SystemExit(1)
-
-
 def target_check_lefthook() -> None:
     require_command("lefthook")
     run(["lefthook", "validate"])
@@ -1633,7 +1445,6 @@ def target_check_lefthook() -> None:
 def target_install_tools() -> None:
     target_check_docker()
     target_check_az()
-    target_check_gh_aw()
     target_check_lefthook()
     print_success("All required external tools are available")
 
@@ -2031,9 +1842,6 @@ RENOVATE_ENABLED_MANAGERS = (
     "dockerfile",
     "custom.regex",
 )
-# gh-aw compiles its own workflow locks and actions lock, so Renovate must not
-# read them.
-RENOVATE_IGNORE_PATHS = (".github/workflows/*.lock.yml", ".github/aw/**")
 # Bound each hourly Renovate burst while allowing the usual weekly batch to
 # surface without relying on Renovate's generic default.
 RENOVATE_PR_HOURLY_LIMIT = 5
@@ -2076,15 +1884,6 @@ RENOVATE_PACKAGE_RULES: dict[str, dict[str, Any]] = {
         "matchManagers": ["github-actions", "dockerfile"],
         "matchPackageNames": ["python"],
         "matchUpdateTypes": ["major", "minor"],
-        "enabled": False,
-    },
-    "gh-aw-compiler-owned": {
-        "description": "gh-aw-compiler-owned",
-        "matchPackageNames": [
-            "github/gh-aw",
-            "github/gh-aw-actions",
-            "github/gh-aw-actions/**",
-        ],
         "enabled": False,
     },
     # Renovate cannot regenerate uv.lock the way this repository needs it
@@ -2296,12 +2095,6 @@ def renovate_contract_violations(config: dict[str, Any]) -> list[str]:
             "renovate.json must set dependencyDashboardApproval to false so "
             "routine non-Python updates create branches and pull requests "
             "without Dependency Dashboard approval"
-        )
-    if config.get("ignorePaths") != list(RENOVATE_IGNORE_PATHS):
-        violations.append(
-            "renovate.json ignorePaths must be exactly "
-            f"{list(RENOVATE_IGNORE_PATHS)} so the gh-aw compiler keeps sole "
-            "ownership of its generated lock workflows and actions lock"
         )
     if config.get("vulnerabilityAlerts") != RENOVATE_VULNERABILITY_ALERTS:
         violations.append(
@@ -2678,15 +2471,6 @@ def renovate_extraction_violations(
             f"the {manager} manager extracted nothing, so its ecosystem is not "
             "actually covered by Renovate"
         )
-    ignored = sorted(
-        {
-            item[1]
-            for item in actual
-            if item[1].endswith(".lock.yml") or item[1].startswith(".github/aw/")
-        }
-    )
-    if ignored:
-        violations.append(f"Renovate extracted from gh-aw generated paths: {ignored}")
     return violations
 
 
@@ -3633,7 +3417,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "build-bicep": target_build_bicep,
     "check-az": target_check_az,
     "check-docker": target_check_docker,
-    "check-gh-aw": target_check_gh_aw,
     "check-lefthook": target_check_lefthook,
     "check-publisher-requirements": target_check_publisher_requirements,
     "check-public-lock": target_check_public_lock,
@@ -3643,7 +3426,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "check-uv-version": target_check_uv_version,
     "check-version-pins": target_check_version_pins,
     "clean": target_clean,
-    "compile-aw": target_compile_aw,
     "deploy-node-provisioning": target_deploy_node_provisioning,
     "format": target_format,
     "format-check": target_format_check,
@@ -3678,7 +3460,6 @@ TARGETS: dict[str, Callable[[], None]] = {
     "test-hooks": target_test_hooks,
     "test-publisher": target_test_publisher,
     "typecheck": target_typecheck,
-    "validate-aw": target_validate_aw,
     "validate-bicep-parameters": target_validate_bicep_parameters,
     "validate-helm-values": target_validate_helm_values,
 }

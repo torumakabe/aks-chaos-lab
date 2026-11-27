@@ -59,7 +59,7 @@ def test_renovate_covers_the_scheduled_update_targets() -> None:
         "prConcurrentLimit": 5,
         "vulnerabilityFixStrategy": "lowest",
     }
-    assert config["ignorePaths"] == [".github/workflows/*.lock.yml", ".github/aw/**"]
+    assert "ignorePaths" not in config
     pep621_rule = next(
         rule
         for rule in config["packageRules"]
@@ -121,26 +121,6 @@ def test_aks_updates_analysis_uses_documented_automation_procedure() -> None:
         assert contract in procedure
     assert "except Exception" not in procedure
     assert 'print("[]")' not in procedure
-
-
-def test_gh_aw_dispatcher_uses_current_generated_layout() -> None:
-    agent = REPO_ROOT / ".github" / "agents" / "agentic-workflows.md"
-    skill = REPO_ROOT / ".github" / "skills" / "agentic-workflows" / "SKILL.md"
-
-    agent_source = agent.read_text(encoding="utf-8")
-    skill_source = skill.read_text(encoding="utf-8")
-    assert "name: Agentic Workflows" in agent_source
-    assert "Repository Instructions Overlay" in agent_source
-    for prompt in (
-        "upgrade-agentic-workflows.md",
-        "cli-commands.md",
-        "token-optimization.md",
-        "patterns.md",
-    ):
-        assert prompt in agent_source
-        assert prompt in skill_source
-    assert "name: agentic-workflows" in skill_source
-    assert "{{AW_FILE_LIST}}" not in skill_source
 
 
 def test_repository_health_cli_checks_consistency_without_specialist_inventory() -> (

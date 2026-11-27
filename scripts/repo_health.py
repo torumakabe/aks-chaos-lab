@@ -32,10 +32,6 @@ _BICEP_PARAMETER = re.compile(
 _DOCKER_FROM = re.compile(r"(?mi)^\s*FROM\s+(?P<image>\S+)")
 _K8S_KIND = re.compile(r"(?m)^kind:\s*(?P<kind>[A-Za-z][A-Za-z0-9]*)\s*$")
 _K8S_DOCUMENT = re.compile(r"(?m)^---\s*$")
-_GH_AW_SETUP = re.compile(r"(?m)^\s*version:\s*(?P<version>v\d+\.\d+\.\d+)\s*$")
-_GH_AW_METADATA = re.compile(
-    r'gh-aw-metadata:\s*\{.*?"compiler_version":"(?P<version>v\d+\.\d+\.\d+)".*\}'
-)
 _K8S_TASK_VERSION = re.compile(
     r'(?m)^K8S_VERSION\s*=\s*"(?P<version>\d+\.\d+(?:\.\d+)?)"\s*$'
 )
@@ -268,38 +264,6 @@ def _check_versions(root: Path, files: Sequence[Path]) -> list[Check]:
         )
     except RepoHealthError as error:
         checks.append(Check("kubernetes-version", "fail", str(error)))
-
-    lock_files = sorted((root / ".github/workflows").glob("*.lock.yml"))
-    if lock_files:
-        try:
-            setup = _single_match(
-                root / ".github/workflows/copilot-setup-steps.yml",
-                _GH_AW_SETUP,
-                "gh-aw setup version",
-            )
-            compiler_versions = {
-                path.name: _single_match(
-                    path, _GH_AW_METADATA, "gh-aw compiler version"
-                )
-                for path in lock_files
-            }
-            status = (
-                "pass"
-                if all(version == setup for version in compiler_versions.values())
-                else "fail"
-            )
-            versions = ", ".join(
-                f"{name}={version}" for name, version in compiler_versions.items()
-            )
-            checks.append(
-                Check(
-                    "gh-aw-compiler-version",
-                    status,
-                    f"setup={setup}, compiler versions: {versions}",
-                )
-            )
-        except RepoHealthError as error:
-            checks.append(Check("gh-aw-compiler-version", "fail", str(error)))
 
     try:
         images = [

@@ -26,26 +26,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" review-repo-full \
   --results-json "<temp>/review-full.json"
 ```
 
-`<temp>`はリポジトリ外のOS一時ディレクトリとする。`review-repo-fast`と`review-repo-full`は、利用できないツールの理由と対象処理の未起動を記録し、実行可能な処理を継続する。
-
-fastは次を実行する。
-
-- `check-repo-health`
-- `check-uv-version`
-- `check-public-lock`
-- `check-publisher-requirements`
-- `check-version-pins`
-
-fullはfastに加えて次を実行する。
-
-- `qa-app --skip-publisher-requirements`
-- `qa-scripts`
-- `test-hooks`
-- `build-bicep`
-- `lint-k8s`
-- `validate-helm-values`
-- `lint-workflows`
-- `validate-aw`
+`<temp>`はリポジトリ外のOS一時ディレクトリとする。`review-repo-fast`と`review-repo-full`は、利用できないツールの理由と対象処理の未起動を記録し、実行可能な処理を継続する。実行する個別チェックの一覧は `scripts/tasks.py` の `FAST_REVIEW_CHECKS` と `FULL_REVIEW_CHECKS` が定義する。
 
 同じ処理をagent側で組み立て直さない。taskの結果JSONはschema version 2の実行記録である。`execution`、`returncode`、`reason_code`、`stdout_tail`、`stderr_tail`を読み、テスト、lint、build、整合性チェックそれぞれの結果と診断を保持する。`command_exit_code`はtaskの終了規則を適用した値で、レビューの評価や確認完了を表さない。非ゼロ終了だけで対象に不具合があると断定しない。
 各対象の確認状況は`verified`（確認済み）、`unverified`（未確認）、`excluded`（理由付き対象外）とする。理由が記録された対象外を問題へ再分類しない。設定、実装、契約テストの間に具体的な不一致がある場合だけ、該当するファイルと行番号を根拠として指摘する。
@@ -62,13 +43,13 @@ fullでは、`repository-freshness-checker`と`bicep-api-version-updater`のchec
 | ADR | INDEXとの対応、必須見出し、Status、Acceptedな判断と実装の一致 | [docs/adr/README.md](../../docs/adr/README.md) |
 | `docs/workarounds.md` | 概要、理由、場所、解消条件、確認方法と実装の一致 | 該当する専門skill |
 | READMEと運用文書 | path、task、command、説明と現在の実装の一致 | 該当する専門skill |
-| workflow sourceと生成物 | source、生成lock、actions lock、参照task、参照skillの一致 | `lint-workflows`、`compile-aw` |
+| GitHub Actions workflow | workflow定義、参照task、参照actionの整合 | `lint-workflows` |
 
 ファイルの存在やテストなどの終了コード0だけで意味評価を確認済みにしない。必要な確認を終えた対象を`verified`とし、明示した形式、参照先、現在の実装との不一致は別に指摘（`issue`）として残す。評価できない対象は理由を付けて`unverified`とし、既に確認できた指摘は保持する。理由付きの除外が設定および契約と一致する場合は、指摘事項、懸念、要確認事項へ含めない。
 
 ## 責務の境界
 
-- 通常のversion更新候補はRenovateが検出する。gh-awとLefthookは明示的な保守作業で更新する。
+- 通常のversion更新候補はRenovateが検出する。Lefthookは明示的な保守作業で更新する。
 - fastはリポジトリ内のversion契約だけを検査する。
 - AKSの公開更新情報はCopilot Automationが定期分析し、手順は[`docs/aks-updates-analysis.md`](../../docs/aks-updates-analysis.md)に記載する。
 - Azure subscription、AKS cluster、Fleet、resource provider、feature登録状態を照会しない。
