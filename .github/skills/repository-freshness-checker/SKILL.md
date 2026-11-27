@@ -25,6 +25,27 @@ description: 対象ファイルを直接読み、公開Markdownリンクの到�
 
 Docker base imageのEOLは確認しない。
 
+## 実行手順（同梱スクリプトによる3段階確認）
+
+手作業で全ファイルを1件ずつ巡回せず、同梱スクリプト `scripts/freshness_inventory.py` で対象抽出・重複排除済みURLの到達性確認・網羅照合を機械実行し、意味判断（リダイレクト先の妥当性やextension bundleのsupport範囲判定）に集中する。一時JSONはリポジトリ外のOS一時ディレクトリへ保存する。
+
+```bash
+uv run --no-project "${PWD}/.github/skills/repository-freshness-checker/scripts/freshness_inventory.py" \
+  extract --output "<temp>/freshness-inventory.json"
+
+uv run --no-project "${PWD}/.github/skills/repository-freshness-checker/scripts/freshness_inventory.py" \
+  check-links --inventory "<temp>/freshness-inventory.json" --output "<temp>/freshness-links.json"
+
+uv run --no-project "${PWD}/.github/skills/repository-freshness-checker/scripts/freshness_inventory.py" \
+  verify-coverage --inventory "<temp>/freshness-inventory.json" --assessments "<temp>/freshness-assessments.json"
+```
+
+1. **第1段階（全件抽出とURL到達性の機械確認）**: `extract` で対象Markdownの公開HTTP/HTTPSリンク、非公開/プレースホルダー除外対象、`host.json` の `extensionBundle.version`、commitと作業変更、`unresolved` を抽出する。続けて `check-links` で重複排除済みURLの到達性とリダイレクト先を一括確認する（スクリプトが使えない環境では対象ファイルを直接読む）。
+2. **第2段階（意味判断）**: `check-links` の結果のうち、ログイン画面や制限ページへのリダイレクトが疑われるURL、エラーとなったURL、および全 `host.json` の `extensionBundle.version` について、公式情報源を用いて判定する。
+3. **第3段階（網羅照合と報告）**: 各対象の判定を記録し、`verify-coverage` で全リンク参照と `host.json` の網羅および件数を検証してから結果を報告する。
+
+**未処理打ち切りの禁止**: `unverified`（`not-processed`）を許容するのは、ツール拒否、ネットワーク障害、レート制限、実行時間上限などの外部制約で処理を継続できない場合だけである。対象ファイル数や作業量を理由に自己判断で打ち切ってはならない。外部制約で中断した場合は、その制約内容と未処理のファイル・対象一覧を必ず明記する。
+
 ## 情報源と判定
 
 公式情報を優先し、利用可能な公開文書の検索、取得手段を使う。特定のツールが利用できないことだけで終了せず、許可された代替手段を使う。取得できなければその対象を`unverified`（`evidence-unavailable`）とする。

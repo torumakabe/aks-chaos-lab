@@ -26,30 +26,12 @@ uv run --no-project "${PWD}/scripts/tasks.py" review-repo-full \
   --results-json "<temp>/review-full.json"
 ```
 
-`<temp>`はリポジトリ外のOS一時ディレクトリとする。`review-repo-fast`と`review-repo-full`は、利用できないツールの理由と対象処理の未起動を記録し、実行可能な処理を継続する。
-
-fastは次を実行する。
-
-- `check-repo-health`
-- `check-uv-version`
-- `check-public-lock`
-- `check-publisher-requirements`
-- `check-version-pins`
-
-fullはfastに加えて次を実行する。
-
-- `qa-app --skip-publisher-requirements`
-- `test-hooks`
-- `build-bicep`
-- `lint-k8s`
-- `validate-helm-values`
-- `lint-workflows`
-- `validate-aw`
+`<temp>`はリポジトリ外のOS一時ディレクトリとする。`review-repo-fast`と`review-repo-full`は、利用できないツールの理由と対象処理の未起動を記録し、実行可能な処理を継続する。実行する個別チェックの一覧は `scripts/tasks.py` の `FAST_REVIEW_CHECKS` と `FULL_REVIEW_CHECKS` が定義する。
 
 同じ処理をagent側で組み立て直さない。taskの結果JSONはschema version 2の実行記録である。`execution`、`returncode`、`reason_code`、`stdout_tail`、`stderr_tail`を読み、テスト、lint、build、整合性チェックそれぞれの結果と診断を保持する。`command_exit_code`はtaskの終了規則を適用した値で、レビューの評価や確認完了を表さない。非ゼロ終了だけで対象に不具合があると断定しない。
 各対象の確認状況は`verified`（確認済み）、`unverified`（未確認）、`excluded`（理由付き対象外）とする。理由が記録された対象外を問題へ再分類しない。設定、実装、契約テストの間に具体的な不一致がある場合だけ、該当するファイルと行番号を根拠として指摘する。
 
-fullでは、`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyに現在のリポジトリを対象として渡す。各スキルが対象の読み取り、専門確認、完了判定までを行う。agentはその手順を組み立て直さず、返された確認範囲、根拠、指摘、更新候補、未完了の対象と理由をレビューへ組み込む。結果の欠落を確認済みや対象0件で補わない。
+fullでは、`repository-freshness-checker`と`bicep-api-version-updater`のcheck-onlyに現在のリポジトリを対象として渡す。各スキルが対象の読み取り、専門確認、`verify-coverage`による網羅検証、完了判定までを行う。agentはその手順を組み立て直さず、返された網羅検証結果、確認範囲、根拠、指摘、更新候補、未完了の対象と理由をレビューへ組み込む。外部制約以外の理由で未処理打ち切りを許容せず、結果の欠落を確認済みや対象0件で補わない。
 
 ## fullの意味評価
 
@@ -57,17 +39,17 @@ fullでは、`repository-freshness-checker`と`bicep-api-version-updater`のchec
 |---|---|---|
 | `.github/copilot-instructions.md` | 記載した構造、参照先、agent、skillが実在し、現在の運用と一致する | なし |
 | agent | trigger、入力、出力、副作用、参照するtaskとskillが実態と一致する | agent自身の契約テスト |
-| skill | trigger、責務、入力、出力、完了条件、外部情報源が実態と一致する | 対象skillの契約 |
-| ADR | INDEXとの対応、必須見出し、Status、Acceptedな判断と実装の一致 | `manage-adr` |
+| skill | trigger、責務、入力、出力、完了条件、外部情報源、同梱の`scripts/`・`references/`が実態と一致する | 対象skillの契約 |
+| ADR | INDEXとの対応、必須見出し、Status、Acceptedな判断と実装の一致 | [docs/adr/README.md](../../docs/adr/README.md) |
 | `docs/workarounds.md` | 概要、理由、場所、解消条件、確認方法と実装の一致 | 該当する専門skill |
 | READMEと運用文書 | path、task、command、説明と現在の実装の一致 | 該当する専門skill |
-| workflow sourceと生成物 | source、生成lock、actions lock、参照task、参照skillの一致 | `lint-workflows`、`compile-aw` |
+| GitHub Actions workflow | workflow定義、参照task、参照actionの整合 | `lint-workflows` |
 
 ファイルの存在やテストなどの終了コード0だけで意味評価を確認済みにしない。必要な確認を終えた対象を`verified`とし、明示した形式、参照先、現在の実装との不一致は別に指摘（`issue`）として残す。評価できない対象は理由を付けて`unverified`とし、既に確認できた指摘は保持する。理由付きの除外が設定および契約と一致する場合は、指摘事項、懸念、要確認事項へ含めない。
 
 ## 責務の境界
 
-- 通常のversion更新候補はRenovateが検出する。gh-awとLefthookは明示的な保守作業で更新する。
+- 通常のversion更新候補はRenovateが検出する。Lefthookは明示的な保守作業で更新する。
 - fastはリポジトリ内のversion契約だけを検査する。
 - AKSの公開更新情報はCopilot Automationが定期分析し、手順は[`docs/aks-updates-analysis.md`](../../docs/aks-updates-analysis.md)に記載する。
 - Azure subscription、AKS cluster、Fleet、resource provider、feature登録状態を照会しない。

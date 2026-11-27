@@ -21,11 +21,27 @@ BicepファイルのAzureリソースAPIバージョンを確認し、更新依�
 
 確認依頼では、この節だけを実行する。対象は読み取り専用として扱い、Azure認証を行わない。subscriptionを照会しない。
 
-1. 「入力と対象の確認」に従って対象を読む。未着手のファイルと宣言は確認状況を`unverified`（`not-processed`）、読取失敗や解釈できない宣言は`unverified`（`target-unresolved`）として残す。
-2. Microsoft Learnの公開APIリファレンスとbreaking changesを、利用可能な公開文書の検索、取得手段で確認する。公開候補の確認にはAzure公式`Azure/azure-rest-api-specs` repositoryの対応するstableまたはpreview仕様も参照する。同じresource typeとversionの公開情報は一度取得し、対応する宣言で利用できる。使用属性の互換性は宣言ごとに確認する。
-3. 現在のversionと公開されている最新GA版を比較する。previewでは、使用属性を読んでGA移行可否を確認する。公開一覧の順序や型定義の対応状況だけで最新GA版を判断しない。情報源の一覧が異なる場合は各結果を示し、反映時刻の差は確認できた場合だけ説明する。
-4. 各宣言の確認状況と、確認できた指摘や更新候補を別に記録する。必要な仕様確認が済んだ宣言は`verified`（確認済み）とする。現在の宣言に公開仕様との不一致が確認された場合は指摘（`issue`）、新しいGA版を確認した場合は更新候補（`update`）を根拠とともに残す。同じ宣言に指摘と更新候補の両方があってよい。新しいGA版の公開だけを問題としない。previewを意図的に維持する場合は、GA移行の分析を済ませて理由付きの`excluded`（対象外）とする。Microsoft Learnと`Azure/azure-rest-api-specs`のどちらからも公開情報を取得できない対象は`unverified`（`evidence-unavailable`）。最新GA版や使用属性の互換性を判断できない場合は`unverified`（`assessment-incomplete`）とする。未確認の事項が残っていても、確認できた指摘や更新候補は保持し、未確認の事項を具体的に示す。
-5. 下記の完了条件を確認し、結果を返して終了する。後続のupdateモードへ進まない。
+### 同梱スクリプトによる機械処理と3段階の手順
+
+手作業で1ファイルずつ巡回せず、同梱スクリプト `scripts/bicep_api_inventory.py` で抽出・公開版一覧の取得・網羅照合を機械実行し、意味判断（使用属性の互換性や破壊的変更）に集中する。一時JSONはリポジトリ外のOS一時ディレクトリへ保存する。
+
+```bash
+uv run --no-project "${PWD}/.github/skills/bicep-api-version-updater/scripts/bicep_api_inventory.py" \
+  extract --output "<temp>/bicep-inventory.json"
+
+uv run --no-project "${PWD}/.github/skills/bicep-api-version-updater/scripts/bicep_api_inventory.py" \
+  fetch-versions --inventory "<temp>/bicep-inventory.json" --output "<temp>/bicep-versions.json"
+
+uv run --no-project "${PWD}/.github/skills/bicep-api-version-updater/scripts/bicep_api_inventory.py" \
+  verify-coverage --inventory "<temp>/bicep-inventory.json" --assessments "<temp>/bicep-assessments.json"
+```
+
+1. **第1段階（全件抽出と公開版一覧の取得）**: `extract` で対象範囲の全ファイルと全resource宣言、commitと作業変更、`unresolved`、`excluded_type_refs` を抽出する。続けて `fetch-versions` で重複排除済みリソースタイプごとに Microsoft Learnの公開APIリファレンスとAzure公式`Azure/azure-rest-api-specs` repositoryのバージョン一覧を一括取得する（スクリプトが使えない環境では「入力と対象の確認」に従い直接読む）。読取失敗や解釈できない宣言は`unverified`（`target-unresolved`）として残す。
+2. **第2段階（対象を絞った仕様・互換性確認）**: `fetch-versions` の分類結果のうち、更新候補（`update-candidate*`）、preview宣言（`preview-current`）、情報源の差異（`source-mismatch` / `ahead-of-sources`）、および取得失敗（`evidence-unavailable`）について、該当Bicepファイルの使用属性と公開APIリファレンス・breaking changesを宣言ごとに確認する。すでに最新GA版と一致し情報源の差異もない宣言は、`fetch-versions` の結果と根拠URLをそのまま利用できる。previewでは、使用属性を読んでGA移行可否を確認する。公開一覧の順序や型定義の対応状況だけで最新GA版を判断しない。情報源の一覧が異なる場合は各結果を示し、反映時刻の差は確認できた場合だけ説明する。
+3. **第3段階（判定の記録と網羅照合）**: 各宣言の確認状況と、確認できた指摘や更新候補を別に記録し、`verify-coverage` で全宣言の網羅と件数を検証する。必要な仕様確認が済んだ宣言は`verified`（確認済み）とする。現在の宣言に公開仕様との不一致が確認された場合は指摘（`issue`）、新しいGA版を確認した場合は更新候補（`update`）を根拠とともに残す。同じ宣言に指摘と更新候補の両方があってよい。新しいGA版の公開だけを問題としない。previewを意図的に維持する場合は、GA移行の分析を済ませて理由付きの`excluded`（対象外）とする。Microsoft Learnと`Azure/azure-rest-api-specs`のどちらからも公開情報を取得できない対象は`unverified`（`evidence-unavailable`）。最新GA版や使用属性の互換性を判断できない場合は`unverified`（`assessment-incomplete`）とする。未確認の事項が残っていても、確認できた指摘や更新候補は保持し、未確認の事項を具体的に示す。
+4. **完了条件の確認と報告**: 下記の完了条件を確認し、結果を返して終了する。後続のupdateモードへ進まない。
+
+**未処理打ち切りの禁止**: `unverified`（`not-processed`）を許容するのは、ツール拒否、ネットワーク障害、レート制限、実行時間上限などの外部制約で処理を継続できない場合だけである。対象ファイル数や作業量を理由に自己判断で打ち切ってはならない。外部制約で中断した場合は、その制約内容と未処理のファイル・宣言一覧を必ず明記する。
 
 check-onlyモードでは、ローカルまたはAzure上の構成を変更する操作を行わない。現在値が公開情報と異なる場合も、影響と確認事項だけを報告する。
 
@@ -144,7 +160,7 @@ APIリファレンスページの上部に利用可能なAPIバージョン一�
 uv run --no-project "${PWD}/scripts/tasks.py" build-bicep
 ```
 
-リポジトリルートから実行し、変更前後の診断を比較する。
+リポジトリルートから実行し、変更前後の診断を比較する。なお、`scripts/tasks.py` の `build-bicep` は成功時に標準エラー出力を表示しないため、新規警告（BCP081など）の有無を確実に確認する場合は対象ファイルに対して `az bicep build --file <file> --stdout >/dev/null` の標準エラー出力も変更前後で比較する。
 
 ##### 更新によりエラーまたは警告が増えた場合
 

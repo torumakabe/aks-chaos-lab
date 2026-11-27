@@ -7,7 +7,7 @@
 更新候補の検出と意味評価を分ける。Renovateが扱える対象は定期実行で検出し、生成物やchecksumとの一体更新が必要な対象は保守者が明示的に更新する。
 
 - **定期検出はRenovateに限定する**: 通常のversion更新候補はRenovateが検出する。
-- **複合更新は明示的に実行する**: gh-awはcompilerと生成物を、Lefthookはversionとchecksumを同じ変更で更新する。
+- **複合更新は明示的に実行する**: Lefthookはversionとchecksumを同じ変更で更新する。
 - **レビューは重複しない**: `review-repo`のfastとfullはversion更新候補を再検出しない。fastはリポジトリ内で完結する不変条件だけを検査し、fullは決定論化できない意味評価だけを追加する。
 
 ## 更新責務
@@ -16,18 +16,17 @@
 |---|---|---|
 | workspaceのPython依存 | Renovate（pep621。Dependency Dashboardの承認制、公開後の保留期間つき） | `check-uv-lock`、`check-public-lock`、`check-publisher-requirements` |
 | Python本体のmajor/minor | 保守者が互換性を確認して一括更新 | `check-version-pins`（明示したPython版の一致） |
-| GitHub Actions | Renovate（github-actions） | `lint-workflows`、`compile-aw` |
+| GitHub Actions | Renovate（github-actions） | `lint-workflows` |
 | Docker base imageのtagとdigest | Renovate（dockerfile） | `check-uv-version`、`docker-base-digest`ルール |
 | uv本体のpin | Renovate（custom manager + dockerfileを1 PRへ集約、公開後の保留期間つき） | `check-uv-version` |
 | actionlint、kubeconform、Renovate validator image | Renovate（custom manager。Renovate validator imageの更新は週1回） | `check-version-pins`、`check-renovate-config` |
 | Chaos Mesh Helm chart | Renovate（custom manager） | `check-version-pins`、`validate-helm-values` |
 | Bicep CLI | Renovate（custom manager） | `build-bicep` |
-| gh-aw | 保守者が`gh aw upgrade --no-actions`を実行 | `gh-aw-compiler-version`ルール、`compile-aw` |
 | Lefthook | 保守者が`update-lefthook-pin`を実行 | `check-version-pins`、`test-hooks` |
 | azd minimum version range | Renovate（custom manager、公開後の保留期間つき） | `check-version-pins`（構文と座標数） |
 | Azure Functions extension bundleのsupport範囲 | `review-repo full`の意味評価 | `check-version-pins`（構文と座標数）、`repository-freshness-checker` |
 
-定期更新の管理元は[Renovate設定](../.github/renovate.json)である。gh-awとLefthookの更新手順は、この文書の「gh-awとLefthookをRenovateに含めない理由」で定める。
+定期更新の管理元は[Renovate設定](../.github/renovate.json)である。Lefthookの更新手順は、この文書の「LefthookをRenovateに含めない理由」で定める。
 
 ## Renovate
 
@@ -37,7 +36,7 @@ Dependabot alertsとdependency graphは、Renovateが`vulnerabilityAlerts`を読
 
 有効にするmanagerは`pep621`、`github-actions`、`dockerfile`、`custom.regex`の4つである。built-in managerが読めない座標だけをcustom managerで補い、同じ座標を2つのmanagerが抽出しないようにする。custom managerの対象、datasource、期待match数は`scripts/tasks.py`の`RENOVATE_MANAGER_EXPECTATIONS`が正本であり、`check-version-pins`が設定と実ファイルの両方に対して検査する。
 
-automergeは有効にしない。`prHourlyLimit`は5に固定し、Renovateの既定値に依存せず、1時間に作成するPull Request数の上限を明示する。`.github/workflows/*.lock.yml`と`.github/aw/**`はgh-aw compilerの生成物なので`ignorePaths`で除外し、`github/gh-aw-actions`はpackage ruleで無効化する。
+automergeは有効にしない。`prHourlyLimit`は5に固定し、Renovateの既定値に依存せず、1時間に作成するPull Request数の上限を明示する。
 
 CIの設定検証で使う`renovate/renovate` imageの通常の更新は、Renovateが更新を適用できる日を毎週月曜日（日本時間）に限定する。ほかのDocker imageの更新間隔は変更しない。CIの`check-renovate-config`は、Pull Requestごとに固定済みのimageを使って引き続き実行する。
 
@@ -55,9 +54,9 @@ package単位で保留期間を短縮する仕組みは用意しない。急ぎ�
 
 Python本体のmajor/minor更新は、GitHub ActionsとDockerのRenovate package ruleで無効にする。Python依存パッケージの更新は対象外で、同じminor内のPython patch更新とDocker digest更新も継続する。major/minorの移行は、保守者が依存パッケージとAzure Functionsの対応状況を確認し、関連設定を同じ変更で更新する。
 
-Pythonの版指定は各ツールの設定に明記したままにする。`check-version-pins`は、ルート`pyproject.toml`の`requires-python`にある`>=X.Y`の下限を比較基準に、workspace memberの下限、Ruff・tyの対象、workflow（gh-awの定義と生成lockを含む）、APIのDocker image、Functions runtime、task runnerのvenv作成時の指定が一致することを検査する。一部だけを更新した場合や必要なファイルを読み取れない場合は失敗する。Docker imageのpatchとdigest、および独立したスクリプトの対応下限は比較対象に含めない。
+Pythonの版指定は各ツールの設定に明記したままにする。`check-version-pins`は、ルート`pyproject.toml`の`requires-python`にある`>=X.Y`の下限を比較基準に、workspace memberの下限、Ruff・tyの対象、workflow、APIのDocker image、Functions runtime、task runnerのvenv作成時の指定が一致することを検査する。一部だけを更新した場合や必要なファイルを読み取れない場合は失敗する。Docker imageのpatchとdigest、および独立したスクリプトの対応下限は比較対象に含めない。
 
-移行時はこれらの設定を一括更新し、gh-awの生成lockとpublic lockfileを既存の手順で再生成する。新しいPython版でアプリとスクリプトのQAを実行して互換性を確認する。版指定の一致だけでは、新しい版への対応を保証しない。
+移行時はこれらの設定を一括更新し、public lockfileを既存の手順で再生成する。新しいPython版でアプリとスクリプトのQAを実行して互換性を確認する。版指定の一致だけでは、新しい版への対応を保証しない。
 
 `uv.lock`はpublic PyPIだけを参照し、workspace member構成と`resolution-strategy = "lowest"`を保つ必要がある。Renovateがこの3条件を1回のlock更新で維持できることを保証できないため、workspaceの通常更新はDependency Dashboardでの承認制（`dependencyDashboardApproval`）とし、Renovateは候補検出だけを行う。脆弱性修正を含め、lockの確定は[refresh-uv-lock.yml](../.github/workflows/refresh-uv-lock.yml)が担当し、生成されたartifactは`adopt-public-lock`で取り込む（[deployment.md](deployment.md)の「public lockfile の更新」）。botが生成したcutoffのない`uv.lock`をそのまま取り込まない。
 
@@ -79,15 +78,7 @@ uv run --no-project "${PWD}/scripts/tasks.py" check-renovate-config
 
 週次workflowと検証用Copilot Automationは停止した。元workflowの[#359](https://github.com/torumakabe/aks-chaos-lab/issues/359)は調査記録として残す。必要時の確認と更新には、別用途でも使う[bicep-api-version-updaterスキル](../.github/skills/bicep-api-version-updater/SKILL.md)を使う。
 
-## gh-awとLefthookをRenovateに含めない理由
-
-gh-awのcompiler pinは、生成物であるlock workflowのcompiler versionと一体で決まる。version単独の更新はcompile結果と矛盾するため、適用は`gh aw compile`が所有する。compiler versionの定義元は[Copilot setup](../.github/workflows/copilot-setup-steps.yml)であり、生成lockと同じ版を使う。
-
-Copilot setupの`version`はRenovateの`github-actions` managerが`github/gh-aw`という依存名で検出する。`.github/renovate.json`ではこの依存名も更新対象外にし、action SHAとversion、生成lockを個別に更新するPRを防ぐ。
-
-v0.91.12の編集支援ファイルは、上流の`gh aw upgrade`が生成する[agent](../.github/agents/agentic-workflows.md)と[dispatcher skill](../.github/skills/agentic-workflows/SKILL.md)である。生成template内の参照URLは上流の`main`を指すため、compilerの対応範囲を確認するときは固定したrelease tagの資料と照合する。生成lockも含めて更新した後、`compile-aw`で再生成差分がないことを確認する。通常のActions更新を含めない場合は`gh aw upgrade --no-actions`を使う。
-
-更新時は対象versionのCLIを使用し、`github/gh-aw-actions`の同じrelease tagをcommit SHAへ解決する。`copilot-setup-steps.yml`のaction SHAとversionを更新した後、`gh aw upgrade --no-actions`でdispatcher、codemod、lock workflowを更新し、`compile-aw`で再生成差分がないことを確認する。
+## LefthookをRenovateに含めない理由
 
 Lefthookはversionと配布物のSHA256を対で固定する。Renovateはchecksumを計算できないため、versionだけを更新するPull Requestは必ずCIで失敗する（[workarounds.md](workarounds.md)のD-12）。更新時は次のtaskでversionとchecksumを一体で書き換え、`check-version-pins`と`test-hooks`を実行する。
 
@@ -107,9 +98,9 @@ fastが実行するversion関連の検査は`check-version-pins`である。検�
 - azdとAzure Functions extension bundleのrange構文と座標数
 - Chaos Mesh chart versionの正本座標
 
-uv pinの内部整合は`check-uv-version`が、生成lockがある場合のgh-aw pinとlock fileの`compiler_version`の整合は`check-repo-health`の`gh-aw-compiler-version`ルールが検査する。どちらもfastが実行する。
+uv pinの内部整合は`check-uv-version`が検査し、fastが実行する。
 
-`review-repo-full`は専用worktreeでfastを一度だけ実行し、application QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lint、gh-awの非書き込み検証を追加する。生成lockの更新と差分検査には、手動またはCIで`compile-aw`を実行する。version更新候補はRenovateまたは明示的な保守作業が担当するため再検出しない。Azure Functions extension bundleのsupport範囲はfullで意味評価する。
+`review-repo-full`は専用worktreeでfastを一度だけ実行し、application QA、scripts QA、hook test、Bicep build、Kubernetes lint、Helm values render、workflow lintを追加する。version更新候補はRenovateまたは明示的な保守作業が担当するため再検出しない。Azure Functions extension bundleのsupport範囲はfullで意味評価する。
 
 ```bash
 uv run --no-project "${PWD}/scripts/tasks.py" review-repo-fast --results-json <path>

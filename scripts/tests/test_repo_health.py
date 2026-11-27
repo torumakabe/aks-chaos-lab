@@ -41,14 +41,6 @@ def repository(tmp_path: Path) -> Path:
         'kubernetes_schema_excluded_kinds = ["Kustomization"]\n',
     )
     write(
-        tmp_path / ".github/workflows/copilot-setup-steps.yml",
-        "with:\n  version: v0.88.7\n",
-    )
-    write(
-        tmp_path / ".github/workflows/sample.lock.yml",
-        '# gh-aw-metadata: {"compiler_version":"v0.88.7"}\n',
-    )
-    write(
         tmp_path / "infra/main.bicep",
         "param kubernetesVersion string = '1.35'\n"
         "resource cluster 'Microsoft.ContainerService/managedClusters@2025-07-01' = {}\n",
@@ -111,28 +103,14 @@ def test_check_reports_kubernetes_exclusions_without_inventory(
     ]
 
 
-def test_check_validates_three_repository_invariants(repository: Path) -> None:
+def test_check_validates_repository_invariants(repository: Path) -> None:
     result = repo_health.build_result(repository)
 
     assert [(item["id"], item["status"]) for item in result["checks"]] == [
         ("kubernetes-version", "pass"),
-        ("gh-aw-compiler-version", "pass"),
         ("docker-base-digest", "pass"),
     ]
     assert result["findings"] == []
-
-
-def test_check_skips_compiler_version_without_generated_workflows(
-    repository: Path,
-) -> None:
-    (repository / ".github/workflows/sample.lock.yml").unlink()
-
-    result = repo_health.build_result(repository)
-
-    assert [item["id"] for item in result["checks"]] == [
-        "kubernetes-version",
-        "docker-base-digest",
-    ]
 
 
 @pytest.mark.parametrize("read_failure", ["invalid-encoding", "permission-denied"])
@@ -166,7 +144,6 @@ def test_kubernetes_read_failure_preserves_other_results(
     result = json.loads(output.out)
     assert [(item["id"], item["status"]) for item in result["checks"]] == [
         ("kubernetes-version", "pass"),
-        ("gh-aw-compiler-version", "pass"),
         ("docker-base-digest", "pass"),
     ]
     assert {item["rule_id"] for item in result["findings"]} == {

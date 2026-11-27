@@ -120,13 +120,13 @@ azd down --force --purge
 | 継続中のワークアラウンドと解消条件 | [docs/workarounds.md](docs/workarounds.md) |
 | AI / コーディングエージェント向けのプロジェクト文脈 | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
-AI エージェントへの依頼では、対象と求める操作（調査、計画、編集など）を指定します。設計判断を記録する場合は [manage-adr](.github/agents/manage-adr.agent.md) を使います。指示文など個別ファイルの改善は、その対象を直接依頼できます。
+AI エージェントへの依頼では、対象と求める操作（調査、計画、編集など）を指定します。設計判断を記録する場合は [docs/adr/README.md](docs/adr/README.md) の基準と形式に従います。指示文など個別ファイルの改善は、その対象を直接依頼できます。
 
 ## リポジトリ保守
 
 日常の点検には`review-repo`エージェントのfastモードを使います。fastモードは`scripts/tasks.py`の`review-repo-fast`を実行し、オフラインで完結する検査だけを行います。全検査ではfullモードを指定します。fullモードは専用worktreeで`review-repo-full`を実行し、公開Markdownリンク、Azure Functions extension bundleのsupport範囲、Bicep API、文書、AI運用資産を追加で確認します。task内部で別のsnapshotや一時Git repositoryは作成しません。詳細は[review-repoエージェント](.github/agents/review-repo.agent.md)を参照してください。
 
-通常のversion更新候補は[Renovate](.github/renovate.json)が検出します。gh-awは明示的なupgrade時に更新し、Lefthookはversionとchecksumを`update-lefthook-pin`で一体更新します。責務の境界、機械検査の対象、fast / fullレビューとの関係は[依存パッケージとツールの更新管理](docs/dependency-management.md)を参照してください。
+通常のversion更新候補は[Renovate](.github/renovate.json)が検出します。Lefthookはversionとchecksumを`update-lefthook-pin`で一体更新します。責務の境界、機械検査の対象、fast / fullレビューとの関係は[依存パッケージとツールの更新管理](docs/dependency-management.md)を参照してください。
 
 ## リポジトリ構造
 
