@@ -120,7 +120,7 @@ azd down --force --purge
 | 継続中のワークアラウンドと解消条件 | [docs/workarounds.md](docs/workarounds.md) |
 | AI / コーディングエージェント向けのプロジェクト文脈 | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
 
-AI エージェントへの依頼では、対象と求める操作（調査、計画、編集など）を指定します。設計判断を記録する場合は [manage-adr](.github/agents/manage-adr.agent.md) を使います。指示文など個別ファイルの改善は、その対象を直接依頼できます。
+AI エージェントへの依頼では、対象と求める操作（調査、計画、編集など）を指定します。設計判断を記録する場合は [docs/adr/README.md](docs/adr/README.md) の基準と形式に従います。指示文など個別ファイルの改善は、その対象を直接依頼できます。
 
 ## リポジトリ保守
 

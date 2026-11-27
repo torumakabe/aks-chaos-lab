@@ -29,7 +29,7 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 
 | 必要な情報 | 参照先 |
 |---|---|
-| 設計判断と却下理由 | `docs/adr/INDEX.md` から関連 ADR を選ぶ |
+| 設計判断と却下理由、ADR の作成、変更、レビュー基準 | `docs/adr/INDEX.md`、`docs/adr/README.md` |
 | 構築、削除、権限、ローカル開発、負荷テスト | `docs/deployment.md` |
 | 依存の追加と更新、public `uv.lock` の取り込み | `docs/deployment.md` の「public lockfile の更新」 |
 | シグナル、SLI、アラート、OTLP logs | `docs/observability.md` |
@@ -37,13 +37,14 @@ AKS 上の Chaos Engineering ラボ環境。azd でインフラとアプリを�
 | 回避策の対象と撤去条件 | `docs/workarounds.md` |
 | 依存更新、scheduled、fast/full の責務 | `docs/dependency-management.md` |
 
+ADR を根拠にする前に本文の Status 節と後続 ADR への参照を確認し、`Superseded`、`Deprecated`、および一部 amend で置き換わった記述を現行仕様として扱わない。`Rejected` は不採用の根拠として参照する。
+
 build や deploy の失敗を理由に新しい経路を実装する前に、`docs/deployment.md`、関連 ADR、対象 CLI の `--help` を確認する。build 済み artifact を渡す経路を含め、既存機能で解決できるか確認してから変更の要否を判断する。操作手順は同文書を参照し、指示文へ複製しない。
 
 ## エージェントとスキル
 
 | 依頼 | 入口 |
 |---|---|
-| ADR の作成、廃止、置換、レビュー | [manage-adr](agents/manage-adr.agent.md) |
 | 現在の構成から設計書を生成 | [design-snapshot](agents/design-snapshot.agent.md) |
 | リポジトリ全体の衛生点検 | [review-repo](agents/review-repo.agent.md) |
 
